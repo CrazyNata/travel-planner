@@ -886,6 +886,61 @@ function Members() {
   );
 }
 
+const winterCities = [
+  { name: "Мюнхен", latitude: 48.1374, longitude: 11.5755 },
+  { name: "Верона", latitude: 45.4384, longitude: 10.9916 },
+  { name: "Рим", latitude: 41.9028, longitude: 12.4964 },
+  { name: "Кьоджа", latitude: 45.2186, longitude: 12.2789 },
+  { name: "Венеция", latitude: 45.4408, longitude: 12.3155 },
+  { name: "Милан", latitude: 45.4642, longitude: 9.19 },
+  { name: "Равенсбург", latitude: 47.781, longitude: 9.612 },
+  { name: "Прага", latitude: 50.0755, longitude: 14.4378 },
+];
+
+const weatherDescription = (code: number) => {
+  if (code === 0) return "Ясно";
+  if (code <= 3) return "Облачно";
+  if (code <= 48) return "Туман";
+  if (code <= 67) return "Дождь";
+  if (code <= 77) return "Снег";
+  return "Ливень";
+};
+
+function WeatherOverview() {
+  const [mode, setMode] = useState<"now" | "trip">("now");
+  const [weather, setWeather] = useState<Record<string, { temperature: number; code: number }>>({});
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(winterCities.map(async (city) => {
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.latitude}&longitude=${city.longitude}&current=temperature_2m,weather_code&temperature_unit=celsius`);
+      if (!response.ok) throw new Error("Weather request failed");
+      const data = await response.json() as { current: { temperature_2m: number; weather_code: number } };
+      return [city.name, { temperature: data.current.temperature_2m, code: data.current.weather_code }] as const;
+    })).then((entries) => {
+      if (!cancelled) setWeather(Object.fromEntries(entries));
+    }).catch(() => {
+      if (!cancelled) setFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  return <section className="weather-overview">
+    <header className="overview-section-head weather-heading">
+      <div><h2>Погода по маршруту</h2><p>{mode === "now" ? "Текущая погода в городах поездки" : "19 декабря 2026 - 3 января 2027"}</p></div>
+      <div className="weather-switch" role="group" aria-label="Период погоды"><button className={mode === "now" ? "active" : ""} onClick={() => setMode("now")}>Сейчас</button><button className={mode === "trip" ? "active" : ""} onClick={() => setMode("trip")}>На даты поездки</button></div>
+    </header>
+    {mode === "trip" && <p className="weather-notice">Точный прогноз для поездки появится 3 декабря 2026 года, примерно за 16 дней до выезда.</p>}
+    <div className="weather-grid">
+      {winterCities.map((city) => {
+        const current = weather[city.name];
+        return <article className="weather-card" key={city.name}><h3>{city.name}</h3>{mode === "now" ? failed ? <p>Не удалось обновить погоду</p> : current ? <><b>{Math.round(current.temperature)}°C</b><span>{weatherDescription(current.code)}</span></> : <p>Обновляем...</p> : <><b>19 дек - 3 янв</b><span>Прогноз появится позже</span></>}</article>;
+      })}
+    </div>
+  </section>;
+}
+
 function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const selectDraftCover = (file?: File) => {
@@ -894,7 +949,8 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     reader.onload = () => onUpdateTrip({ ...trip, coverImage: String(reader.result) });
     reader.readAsDataURL(file);
   };
-  if (trip.isDraft) return <div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
+  const isWinterRoute = trip.title.toLowerCase().includes("рождествен") || trip.cities.includes("Мюнхен") || trip.cities.includes("Прага");
+  if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
     { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
     { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
