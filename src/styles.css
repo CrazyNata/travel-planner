@@ -1017,6 +1017,49 @@ button {
   background: rgba(255, 255, 255, 0.94);
   color: #23201c;
 }
+.camera-upload {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  padding: 0;
+}
+.has-draft-cover .camera-upload {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+}
+.camera-upload svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.cover-photo-caption {
+  position: absolute;
+  right: 86px;
+  bottom: 18px;
+  max-width: 70%;
+  color: #fff;
+  text-align: right;
+  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.45);
+}
+.cover-photo-caption b,
+.cover-photo-caption span {
+  display: block;
+}
+.cover-photo-caption b {
+  font: 600 18px Unbounded, sans-serif;
+  letter-spacing: -0.05em;
+}
+.cover-photo-caption span {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
 .cover-gallery {
   min-width: 0;
 }
