@@ -562,11 +562,21 @@ function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSav
   </form>;
 }
 
+function GoogleMapsLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(url).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+  return <div className="google-maps-link"><span><b>Google Maps</b><small>Автомобильный маршрут</small></span><a href={url} target="_blank" rel="noreferrer">Открыть ↗</a><button onClick={copy}>{copied ? "Скопировано" : "Копировать"}</button></div>;
+}
+
 function DraftRouteCard({ day, index, editing, onEdit, onSave, onCancel }: { day: DraftDay; index: number; editing: boolean; onEdit: () => void; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
   const roadLeg = day.roadLeg;
   const mapsUrl = roadLeg ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(roadLeg.from)}&destination=${encodeURIComponent(roadLeg.to)}&travelmode=driving${roadLeg.avoidTolls ? "&avoid=tolls" : ""}` : "";
   const itemCount = roadLeg ? 1 + Number(Boolean(roadLeg.checkIn)) + Number(Boolean(roadLeg.notes)) + Number(roadLeg.avoidTolls) : 0;
-  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from} <b>→</b> {roadLeg.to}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 3} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={mapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{roadLeg.avoidTolls && <p><i />Избегать платных дорог в навигаторе</p>}{roadLeg.checkIn && <p><i />Заселение в отель <b>{roadLeg.checkIn}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div> : <div className="route-card-empty">Добавьте направление, заселение и дорожные заметки.</div>}</article>;
+  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from} <b>→</b> {roadLeg.to}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 3} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={mapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{roadLeg.avoidTolls && <p><i />Избегать платных дорог в навигаторе</p>}{roadLeg.checkIn && <p><i />Заселение в отель <b>{roadLeg.checkIn}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={mapsUrl} /></> : <div className="route-card-empty">Добавьте направление, заселение и дорожные заметки.</div>}</article>;
 }
 
 function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {

@@ -1468,6 +1468,47 @@ button {
   color: #918b82;
   font-size: 13px;
 }
+.google-maps-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 20px 16px;
+  border: 1px solid #dcdaf2;
+  border-radius: 12px;
+  background: #f7f6ff;
+  padding: 10px 12px;
+}
+.google-maps-link span {
+  flex: 1;
+}
+.google-maps-link b,
+.google-maps-link small {
+  display: block;
+}
+.google-maps-link b {
+  color: #37325d;
+  font-size: 12px;
+}
+.google-maps-link small {
+  margin-top: 2px;
+  color: #807ba2;
+  font-size: 10px;
+}
+.google-maps-link a,
+.google-maps-link button {
+  border: 0;
+  border-radius: 8px;
+  background: #eeedff;
+  padding: 7px 9px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.google-maps-link button {
+  background: var(--accent);
+  color: #fff;
+}
 .draft-route-card > .road-leg-editor {
   margin: 14px;
 }
@@ -3136,5 +3177,8 @@ button {
   .draft-route-actions {
     width: 100%;
     margin-left: 58px;
+  }
+  .google-maps-link {
+    flex-wrap: wrap;
   }
 }
