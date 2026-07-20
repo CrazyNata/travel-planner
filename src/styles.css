@@ -1118,7 +1118,6 @@ button {
   font-weight: 800;
   backdrop-filter: blur(6px);
 }
-.add-cover-photo,
 .cover-order {
   display: none;
 }

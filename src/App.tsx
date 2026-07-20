@@ -1011,7 +1011,29 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     return { ...photo, city: photo.city || caption?.[0], description: photo.description || caption?.[1] };
   });
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
-  const addCoverPhotos = (_files: FileList | null) => undefined;
+  const addCoverPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      window.alert("Войдите в аккаунт, чтобы загрузить фотографии.");
+      return;
+    }
+    try {
+      const uploadedPhotos = await Promise.all(Array.from(files).map(async (file) => {
+        const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${session.user.id}/${trip.id}/${crypto.randomUUID()}.${extension}`;
+        const { error } = await supabase.storage.from("trip-photos").upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
+        if (error) throw error;
+        const { data } = supabase.storage.from("trip-photos").getPublicUrl(path);
+        return { id: crypto.randomUUID(), image: data.publicUrl };
+      }));
+      const nextPhotos = [...coverPhotos, ...uploadedPhotos];
+      onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
+      setActivePhoto(nextPhotos.length - uploadedPhotos.length);
+    } catch {
+      window.alert("Не удалось загрузить фотографии. Попробуйте файлы до 10 МБ в формате JPG, PNG или WebP.");
+    }
+  };
   const reorderCoverPhotos = (_from: number, _to: number) => undefined;
   if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><div className="cover-photo-stack"><section className={activeCover ? "has-draft-cover" : ""} style={activeCover ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void addCoverPhotos(event.target.files)} />{activeCover ? <><button type="button" className="cover-arrow previous" onClick={() => setActivePhoto((activePhoto - 1 + coverPhotos.length) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Предыдущее фото">‹</button><button type="button" className="cover-arrow next" onClick={() => setActivePhoto((activePhoto + 1) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Следующее фото">›</button><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button>{activeCover.city && <div className="cover-photo-caption"><b>{activeCover.city}</b>{activeCover.description && <span>{activeCover.description}</span>}</div>}</> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте первую фотографию путешествия.</span><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button></>}</section>{coverPhotos.length > 1 && <div className="cover-order"><p>Перетащите фото в порядке городов маршрута</p><div>{coverPhotos.map((photo, index) => <button className={`${index === activePhoto ? "active" : ""} ${index === draggedPhoto ? "dragging" : ""}`} style={{ backgroundImage: `url(${photo.image})` }} draggable onDragStart={() => setDraggedPhoto(index)} onDragEnd={() => setDraggedPhoto(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedPhoto !== null) reorderCoverPhotos(draggedPhoto, index); setDraggedPhoto(null); }} onClick={() => setActivePhoto(index)} aria-label={photo.city || `Фото ${index + 1}`} key={photo.id}><span>{photo.city || index + 1}</span></button>)}</div></div>}</div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
