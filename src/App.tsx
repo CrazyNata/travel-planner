@@ -117,6 +117,24 @@ const mapLocations: Record<string, [number, number]> = {
   "Москва": [37.6173, 55.7558],
 };
 
+function compressCoverPhoto(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const source = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(image.width * scale);
+      canvas.height = Math.round(image.height * scale);
+      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(source);
+      resolve(canvas.toDataURL("image/jpeg", 0.76));
+    };
+    image.onerror = () => { URL.revokeObjectURL(source); reject(new Error("Image decoding failed")); };
+    image.src = source;
+  });
+}
+
 function TripMap({ city, places = [] }: { city?: string; places?: string[] }) {
   const container = useRef<HTMLDivElement>(null);
   const location = city ? mapLocations[city] : undefined;
@@ -980,10 +998,14 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
-    const images = await Promise.all(Array.from(files).map((file) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); })));
-    const nextPhotos = [...coverPhotos, ...images.map((image) => ({ id: crypto.randomUUID(), image }))];
-    onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-    setActivePhoto(nextPhotos.length - images.length);
+    try {
+      const images = await Promise.all(Array.from(files).map(compressCoverPhoto));
+      const nextPhotos = [...coverPhotos, ...images.map((image) => ({ id: crypto.randomUUID(), image }))];
+      onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
+      setActivePhoto(nextPhotos.length - images.length);
+    } catch {
+      window.alert("Не удалось обработать фотографию. Попробуйте другой файл.");
+    }
   };
   if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><section className={activeCover ? "has-draft-cover" : ""} style={activeCover ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void addCoverPhotos(event.target.files)} />{activeCover ? <><button type="button" className="cover-arrow previous" onClick={() => setActivePhoto((activePhoto - 1 + coverPhotos.length) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Предыдущее фото">‹</button><button type="button" className="cover-arrow next" onClick={() => setActivePhoto((activePhoto + 1) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Следующее фото">›</button><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button>{activeCover.city && <div className="cover-photo-caption"><b>{activeCover.city}</b>{activeCover.description && <span>{activeCover.description}</span>}</div>}</> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте первую фотографию путешествия.</span><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button></>}</section><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
@@ -1352,7 +1374,11 @@ export function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
   useEffect(() => {
-    localStorage.setItem("odyssey-drafts", JSON.stringify(drafts));
+    try {
+      localStorage.setItem("odyssey-drafts", JSON.stringify(drafts));
+    } catch {
+      // Keep the open trip usable even if browser storage is full.
+    }
   }, [drafts]);
   useEffect(() => {
     localStorage.setItem("odyssey-active-trip", activeTrip.id);
