@@ -1352,6 +1352,133 @@ button {
   background: transparent;
   color: #77728b;
 }
+.draft-route-cards {
+  display: grid;
+  max-width: 1040px;
+  gap: 16px;
+}
+.draft-route-cards > .route-toolbar {
+  margin-bottom: 2px;
+}
+.draft-route-card {
+  overflow: hidden;
+  border: 1px solid #e1dfec;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(35, 32, 28, 0.04);
+}
+.draft-route-card > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #eceaf3;
+  padding: 16px 20px;
+}
+.draft-day-number {
+  display: grid;
+  width: 42px;
+  place-items: center;
+  border-radius: 11px;
+  background: #eeedff;
+  padding: 6px 0;
+  color: var(--accent);
+}
+.draft-day-number b {
+  font: 600 20px Unbounded, sans-serif;
+  letter-spacing: -0.08em;
+}
+.draft-day-number span {
+  margin-top: 2px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.draft-route-title {
+  min-width: 0;
+  flex: 1;
+}
+.draft-route-title h2 {
+  margin: 0;
+  color: #25233a;
+  font: 600 18px/1.25 Unbounded, sans-serif;
+  letter-spacing: -0.05em;
+}
+.draft-route-title h2 b {
+  color: var(--accent);
+}
+.draft-route-title span {
+  display: block;
+  margin-top: 5px;
+  color: #8b869f;
+  font-size: 11px;
+}
+.draft-route-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draft-route-actions a,
+.draft-route-actions button {
+  border: 0;
+  border-radius: 9px;
+  background: #eeedff;
+  padding: 9px 11px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.draft-route-actions button {
+  background: var(--accent);
+  color: #fff;
+}
+.route-checklist {
+  display: grid;
+  gap: 2px;
+  padding: 13px 20px 16px;
+}
+.route-checklist p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 0;
+  color: #403d4d;
+  font-size: 13px;
+}
+.route-checklist i {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1px solid #d8d4e7;
+  border-radius: 7px;
+  background: #fff;
+}
+.route-checklist p b {
+  margin-left: auto;
+  color: #292743;
+}
+.route-card-empty {
+  padding: 22px 20px;
+  color: #918b82;
+  font-size: 13px;
+}
+.draft-route-card > .road-leg-editor {
+  margin: 14px;
+}
+.add-route-day {
+  border: 1.5px dashed #c8c4ed;
+  border-radius: 15px;
+  background: transparent;
+  padding: 14px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+.add-route-day:hover {
+  border-color: var(--accent);
+  background: #f7f6ff;
+}
 .map-card {
   position: sticky;
   top: 15px;
@@ -2989,5 +3116,14 @@ button {
   }
   .road-leg-card > div {
     flex-wrap: wrap;
+  }
+  .draft-route-card > header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .draft-route-actions {
+    width: 100%;
+    margin-left: 58px;
   }
 }
