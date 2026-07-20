@@ -314,16 +314,9 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
 function CreateTrip({ go }: { go: (view: View) => void }) {
   return (
     <div className="page form-page">
-      <button className="back" onClick={() => go("trips")}>
-        ← Мои путешествия
+      <button className="back back-icon" onClick={() => go("trips")} aria-label="Вернуться к моим путешествиям" title="Мои путешествия">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0 6-6m-6 6 6 6" /></svg>
       </button>
-      <div className="create-illustration" aria-hidden="true">
-        <svg viewBox="0 0 120 120" fill="none">
-          <circle cx="60" cy="60" r="47" />
-          <path d="M78 42 67 67 42 78l11-25 25-11Z" />
-          <circle cx="60" cy="60" r="5" />
-        </svg>
-      </div>
       <h1>Новое путешествие</h1>
       <p className="lead">
         Заполните основное — детали маршрута добавите позже.
