@@ -263,6 +263,18 @@ button {
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
+
+.empty-state {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed #d8cec0;
+  border-radius: 18px;
+  color: #9c948a;
+  font-size: 14px;
+  font-weight: 600;
+}
 .trip-card,
 .catalog-card {
   overflow: hidden;

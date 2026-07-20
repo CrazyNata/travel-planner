@@ -238,6 +238,19 @@ function Sidebar({
 }
 
 function Trips({ go, profileName }: { go: (view: View) => void; profileName: string }) {
+  const [filter, setFilter] = useState("all");
+  const filters = [
+    ["all", `Все · ${trips.length}`],
+    ["upcoming", "Предстоящие"],
+    ["draft", "Черновики"],
+    ["completed", "Завершённые"],
+  ];
+  const statusByFilter: Record<string, string> = {
+    upcoming: "Предстоящее",
+    draft: "Черновик",
+    completed: "Завершённое",
+  };
+  const filteredTrips = filter === "all" ? trips : trips.filter((trip) => trip.status === statusByFilter[filter]);
   return (
     <div className="page wide">
       <header className="page-title">
@@ -250,13 +263,12 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
         </button>
       </header>
       <div className="chips">
-        <button className="selected">Все · 1</button>
-        <button>Предстоящие</button>
-        <button>Черновики</button>
-        <button>Завершённые</button>
+        {filters.map(([value, label]) => (
+          <button className={filter === value ? "selected" : ""} onClick={() => setFilter(value)} key={value}>{label}</button>
+        ))}
       </div>
       <div className="trip-grid">
-        {trips.map((trip, index) => (
+        {filteredTrips.map((trip, index) => (
           <article
             className="trip-card"
             key={trip.title}
@@ -288,6 +300,7 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
             </div>
           </article>
         ))}
+        {filteredTrips.length === 0 && <div className="empty-state">В этой категории пока нет путешествий.</div>}
         <button className="new-card" onClick={() => go("create")}>
           <i>＋</i>
           <b>Новое путешествие</b>
@@ -792,23 +805,28 @@ function Workspace({ go }: { go: (view: View) => void }) {
 }
 
 function Catalog({ go }: { go: (view: View) => void }) {
+  const [filter, setFilter] = useState("Все");
+  const [query, setQuery] = useState("");
+  const filters = ["Все", "Европа", "Азия", "Города", "Природа", "7–10 дней"];
+  const matchesFilter = (item: (typeof catalog)[number]) => {
+    if (filter === "Все") return true;
+    if (filter === "Европа" || filter === "Города") return item[0].includes("Италия");
+    if (filter === "7–10 дней") return item[2] === "8 дней";
+    return false;
+  };
+  const filteredCatalog = catalog.filter((item) => `${item[0]} ${item[1]}`.toLowerCase().includes(query.toLowerCase()) && matchesFilter(item));
   return (
     <div className="page wide">
       <p className="eyebrow">Сообщество путешественников</p>
       <h1>Каталог маршрутов</h1>
       <div className="search">
-        ⌕<input placeholder="Куда хотите поехать?" />
+        ⌕<input placeholder="Куда хотите поехать?" value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
       <div className="chips">
-        <button className="selected">Все</button>
-        <button>Европа</button>
-        <button>Азия</button>
-        <button>Города</button>
-        <button>Природа</button>
-        <button>7–10 дней</button>
+        {filters.map((value) => <button className={filter === value ? "selected" : ""} onClick={() => setFilter(value)} key={value}>{value}</button>)}
       </div>
       <div className="catalog-grid">
-        {catalog.map((item, index) => (
+        {filteredCatalog.map((item, index) => (
           <article className="catalog-card" key={item[0]}>
             <div className={`catalog-cover ${item[5]}`}>
               {index === 0 && <span>★ Рекомендуем</span>}
@@ -829,6 +847,7 @@ function Catalog({ go }: { go: (view: View) => void }) {
             </div>
           </article>
         ))}
+        {filteredCatalog.length === 0 && <div className="empty-state">По этому запросу маршрутов не найдено.</div>}
       </div>
     </div>
   );
