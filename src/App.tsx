@@ -342,7 +342,7 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
     const name = inviteName.trim() || email;
     if (!email || invitees.some((person) => person.email === email)) return;
     const { error } = await supabase.functions.invoke("dynamic-function", {
-      body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
+      body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` },
     });
     if (error) {
       let message = error.message;
@@ -1127,7 +1127,9 @@ export function App() {
   useEffect(() => {
     const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }) => {
       setProfileName(user.user_metadata.full_name || user.email || "Путешественник");
-      setView("trips");
+      const isTripInvitation = new URLSearchParams(window.location.search).get("invite") === "trip";
+      setView(isTripInvitation ? "trip" : "trips");
+      if (isTripInvitation) window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
     };
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
