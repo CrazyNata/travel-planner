@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import type { Map } from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
@@ -104,6 +106,74 @@ const catalog = [
     "sand",
   ],
 ];
+
+const mapLocations: Record<string, [number, number]> = {
+  "Рим": [12.4964, 41.9028],
+  "Флоренция": [11.2558, 43.7696],
+  "Венеция": [12.3155, 45.4408],
+  "Москва": [37.6173, 55.7558],
+};
+
+function TripMap({ city, places = [] }: { city?: string; places?: string[] }) {
+  const container = useRef<HTMLDivElement>(null);
+  const location = city ? mapLocations[city] : undefined;
+
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    if (!container.current || !token) return;
+    let disposed = false;
+    let map: Map | undefined;
+
+    void import("mapbox-gl").then(({ default: mapboxgl }) => {
+      if (disposed || !container.current) return;
+      mapboxgl.accessToken = token;
+      map = new mapboxgl.Map({
+        container: container.current,
+        style: "mapbox://styles/mapbox/streets-v12",
+        center: location ?? mapLocations["Москва"],
+        zoom: location ? 12 : 3,
+        attributionControl: false,
+      });
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+
+      if (location && places.length) {
+        const coordinates = places.map((_, index) => [
+          location[0] + (index - 2) * 0.012,
+          location[1] + ((index % 2 ? 1 : -1) * (index + 1)) * 0.006,
+        ] as [number, number]);
+        coordinates.forEach((coordinate, index) => {
+          const element = document.createElement("span");
+          element.className = "map-marker";
+          element.textContent = String(index + 1);
+          new mapboxgl.Marker({ element }).setLngLat(coordinate).addTo(map!);
+        });
+        map.on("load", () => {
+          map!.addSource("route", {
+            type: "geojson",
+            data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } },
+          });
+          map!.addLayer({
+            id: "route",
+            type: "line",
+            source: "route",
+            paint: { "line-color": "#4c46d6", "line-width": 3, "line-opacity": 0.72 },
+          });
+        });
+      }
+    });
+
+    return () => {
+      disposed = true;
+      map?.remove();
+    };
+  }, [city, location, places]);
+
+  if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+    return <div className="map map-unavailable">Карта станет доступна после настройки Mapbox.</div>;
+  }
+
+  return <div ref={container} className="map" aria-label={city ? `Карта ${city}` : "Карта путешествия"} />;
+}
 
 function Avatar({
   children,
@@ -478,7 +548,7 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
 function RouteTab({ isDraft = false }: { isDraft?: boolean }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
-  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · 0 мест</span></button></div><section className="day-plan"><header><h2>Маршрут пока пуст</h2><span>Добавьте первое место</span></header><div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div><button className="add-place">＋ Добавить первое место</button></section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Маршрут дня</span><b>0 точек</b></footer></aside></div></>;
+  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · 0 мест</span></button></div><section className="day-plan"><header><h2>Маршрут пока пуст</h2><span>Добавьте первое место</span></header><div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div><button className="add-place">＋ Добавить первое место</button></section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>0 точек</b></footer></aside></div></>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -517,23 +587,7 @@ function RouteTab({ isDraft = false }: { isDraft?: boolean }) {
   );
   const map = (
     <aside className="map-card">
-      <div className="map">
-        <span>интерактивная карта · {current.city}</span>
-        <svg viewBox="0 0 100 100">
-          <polyline points="20,25 58,38 48,62 72,74" />
-        </svg>
-        {current.places.slice(0, 5).map((_, index) => (
-          <i
-            key={index}
-            style={{
-              left: `${24 + ((index * 13) % 48)}%`,
-              top: `${28 + ((index * 17) % 48)}%`,
-            }}
-          >
-            {index + 1}
-          </i>
-        ))}
-      </div>
+      <TripMap city={current.city} places={current.places} />
       <footer>
         <span>Маршрут дня</span>
         <b>
@@ -830,7 +884,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     reader.onload = () => onUpdateTrip({ ...trip, coverImage: String(reader.result) });
     reader.readAsDataURL(file);
   };
-  if (trip.isDraft) return <div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
+  if (trip.isDraft) return <div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
   const cities = [
     { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
     { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
@@ -841,8 +895,9 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
-  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"]] : [
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"]] : [
     ["overview", "Главная"],
+    ["route", "Маршрут"],
     ["bookings", "Жильё и транспорт"],
     ["budget", "Бюджет"],
     ["photos", "Фото"],
@@ -884,6 +939,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       </header>
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
