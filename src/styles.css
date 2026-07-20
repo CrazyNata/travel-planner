@@ -1103,6 +1103,27 @@ button {
   cursor: default;
   opacity: 0.45;
 }
+.add-cover-photo {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 9px;
+  background: rgba(25, 24, 34, 0.58);
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+}
+.overview-draft > section:not(.has-draft-cover) .add-cover-photo {
+  position: static;
+  align-self: flex-start;
+  margin-top: 18px;
+  border: 0;
+  background: var(--accent);
+}
 .cover-gallery-meta {
   display: flex;
   align-items: center;
