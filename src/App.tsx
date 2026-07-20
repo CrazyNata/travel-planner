@@ -913,12 +913,13 @@ function WeatherOverview() {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all(winterCities.map(async (city) => {
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.latitude}&longitude=${city.longitude}&current=temperature_2m,weather_code&temperature_unit=celsius`);
+    const latitude = winterCities.map((city) => city.latitude).join(",");
+    const longitude = winterCities.map((city) => city.longitude).join(",");
+    void fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=celsius`).then(async (response) => {
       if (!response.ok) throw new Error("Weather request failed");
-      const data = await response.json() as { current: { temperature_2m: number; weather_code: number } };
-      return [city.name, { temperature: data.current.temperature_2m, code: data.current.weather_code }] as const;
-    })).then((entries) => {
+      return response.json() as Promise<{ current: { temperature_2m: number; weather_code: number } }[]>;
+    }).then((data) => {
+      const entries = data.map((item, index) => [winterCities[index].name, { temperature: item.current.temperature_2m, code: item.current.weather_code }] as const);
       if (!cancelled) setWeather(Object.fromEntries(entries));
     }).catch(() => {
       if (!cancelled) setFailed(true);
