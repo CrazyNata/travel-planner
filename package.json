@@ -1,0 +1,23 @@
+{
+  "name": "odyssey-travel-planner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "@vitejs/plugin-react": "4.3.4",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "5.4.21"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

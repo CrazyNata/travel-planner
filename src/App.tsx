@@ -1,0 +1,1131 @@
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { supabase } from "./supabase";
+
+type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
+type Tab = "route" | "bookings" | "budget" | "photos" | "members";
+
+const trips = [
+  {
+    title: "Италия",
+    dates: "12–19 сентября 2026 · 8 дней",
+    cities: "Рим · Флоренция · Венеция",
+    status: "Активное",
+    progress: 78,
+    tone: "sand",
+  },
+  {
+    title: "Япония",
+    dates: "3–15 апреля 2027 · 12 дней",
+    cities: "Токио · Киото",
+    status: "Предстоящее",
+    progress: 34,
+    tone: "sage",
+  },
+  {
+    title: "Грузия",
+    dates: "Даты не выбраны · черновик",
+    cities: "Тбилиси",
+    status: "Черновик",
+    progress: 12,
+    tone: "stone",
+  },
+];
+
+const days = [
+  {
+    city: "Рим",
+    date: "12 сен",
+    distance: "5,4 км",
+    places: [
+      "Завтрак у Пантеона",
+      "Колизей",
+      "Римский форум и Палатин",
+      "Обед · Trattoria",
+      "Фонтан Треви",
+    ],
+  },
+  {
+    city: "Рим",
+    date: "13 сен",
+    distance: "6,1 км",
+    places: [
+      "Музеи Ватикана",
+      "Собор Св. Петра",
+      "Замок Св. Ангела",
+      "Ужин в Трастевере",
+    ],
+  },
+  {
+    city: "Флоренция",
+    date: "14 сен",
+    distance: "переезд",
+    places: [
+      "Поезд Рим → Флоренция",
+      "Заселение · B&B Fiori",
+      "Собор Санта-Мария-дель-Фьоре",
+      "Галерея Уффици",
+    ],
+  },
+  {
+    city: "Флоренция",
+    date: "15 сен",
+    distance: "4,8 км",
+    places: [
+      "Галерея Академии",
+      "Понте Веккьо",
+      "Сады Боболи",
+      "Пьяццале Микеланджело",
+    ],
+  },
+  {
+    city: "Венеция",
+    date: "16 сен",
+    distance: "переезд",
+    places: [
+      "Поезд Флоренция → Венеция",
+      "Гранд-канал",
+      "Площадь Сан-Марко",
+      "Дворец Дожей",
+    ],
+  },
+  {
+    city: "Венеция",
+    date: "17 сен",
+    distance: "острова",
+    places: ["Остров Мурано", "Остров Бурано", "Ужин · морепродукты"],
+  },
+  {
+    city: "Венеция",
+    date: "18 сен",
+    distance: "3,2 км",
+    places: ["Прогулка по Дорсодуро", "Галерея Академии", "Гондола на закате"],
+  },
+  {
+    city: "Отъезд",
+    date: "19 сен",
+    distance: "—",
+    places: ["Завтрак и сборы", "Трансфер в аэропорт", "Вылет домой"],
+  },
+];
+
+const catalog = [
+  [
+    "Классическая Италия",
+    "Рим · Флоренция · Венеция",
+    "8 дней",
+    "Анна С.",
+    "342",
+    "sand",
+  ],
+  ["Токио без спешки", "Токио · Хаконэ", "7 дней", "Илья М.", "271", "blue"],
+  [
+    "Грузинское гостеприимство",
+    "Тбилиси · Кахетия",
+    "6 дней",
+    "Нино К.",
+    "198",
+    "sage",
+  ],
+  [
+    "Лиссабон и Синтра",
+    "Побережье Португалии",
+    "5 дней",
+    "Пётр В.",
+    "164",
+    "gold",
+  ],
+  [
+    "Исландия по кругу",
+    "Кольцевая дорога",
+    "10 дней",
+    "Ольга Р.",
+    "389",
+    "ice",
+  ],
+  [
+    "Марокко: Атлас и Сахара",
+    "Марракеш · Фес",
+    "9 дней",
+    "Артём Д.",
+    "223",
+    "rose",
+  ],
+];
+
+function Avatar({
+  children,
+  tone = "sand",
+}: {
+  children: ReactNode;
+  tone?: "sand" | "green" | "blue";
+}) {
+  return <span className={`avatar ${tone}`}>{children}</span>;
+}
+
+function Sidebar({
+  view,
+  go,
+  open,
+  close,
+  profileName,
+}: {
+  view: View;
+  go: (view: View) => void;
+  open: boolean;
+  close: () => void;
+  profileName: string;
+}) {
+  const [settings, setSettings] = useState(false);
+  const [panel, setPanel] = useState<"photo" | "password" | null>(null);
+  return (
+    <>
+      <button
+        className={`scrim ${open ? "show" : ""}`}
+        onClick={close}
+        aria-label="Закрыть меню"
+      />
+      <aside className={`sidebar ${open ? "open" : ""}`}>
+        <div className="brand">
+          <span>О</span>
+          <b>Одиссея</b>
+          <button onClick={close}>×</button>
+        </div>
+        <button className="primary" onClick={() => go("create")}>
+          <span>＋</span> Новое путешествие
+        </button>
+        <p className="nav-label">Навигация</p>
+        <nav>
+          <button
+            className={
+              view === "trips" || view === "trip" || view === "create"
+                ? "active"
+                : ""
+            }
+            onClick={() => go("trips")}
+          >
+            <i>◇</i>Мои путешествия
+          </button>
+          <button
+            className={view === "catalog" || view === "public" ? "active" : ""}
+            onClick={() => go("catalog")}
+          >
+            <i>✦</i>Каталог маршрутов
+          </button>
+        </nav>
+        <div className="account-wrap">
+          {settings && (
+            <div className="settings-popover">
+              <b>Язык интерфейса</b>
+              <div className="language-switch">
+                <button className="active">RU</button>
+                <button>EN</button>
+                <button>ES</button>
+                <button>DE</button>
+              </div>
+              <button
+                onClick={() => setPanel(panel === "photo" ? null : "photo")}
+              >
+                ▦ Сменить фото профиля
+              </button>
+              {panel === "photo" && (
+                <div className="settings-panel">
+                  <div className="mini-upload">
+                    ↑<small>Перетащите фото</small>
+                  </div>
+                  <button className="accent">Сохранить фото</button>
+                </div>
+              )}
+              <button
+                onClick={() =>
+                  setPanel(panel === "password" ? null : "password")
+                }
+              >
+                ⚿ Сменить пароль
+              </button>
+              {panel === "password" && (
+                <div className="settings-panel">
+                  <input type="password" placeholder="Текущий пароль" />
+                  <input type="password" placeholder="Новый пароль" />
+                  <button className="accent">Обновить пароль</button>
+                </div>
+              )}
+              <hr />
+              <button>◷ Часовой пояс и валюта</button>
+              <button>◔ Уведомления</button>
+              <button
+                className="logout"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setSettings(false);
+                  close();
+                  go("auth");
+                }}
+              >
+                → Выйти
+              </button>
+            </div>
+          )}
+          <button className="account" onClick={() => setSettings(!settings)}>
+            <Avatar>
+              {profileName
+                .split(" ")
+                .map((part) => part[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </Avatar>
+            <span>
+              <b>{profileName}</b>
+              <small>Личный кабинет · RU</small>
+            </span>
+            <i>⚙</i>
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function Trips({ go, profileName }: { go: (view: View) => void; profileName: string }) {
+  return (
+    <div className="page wide">
+      <header className="page-title">
+        <div>
+          <p>Добро пожаловать, {profileName.split(" ")[0]}</p>
+          <h1>Мои путешествия</h1>
+        </div>
+        <button className="secondary" onClick={() => go("create")}>
+          ＋ Создать
+        </button>
+      </header>
+      <div className="chips">
+        <button className="selected">Все · 3</button>
+        <button>Предстоящие</button>
+        <button>Черновики</button>
+        <button>Завершённые</button>
+      </div>
+      <div className="trip-grid">
+        {trips.map((trip, index) => (
+          <article
+            className="trip-card"
+            key={trip.title}
+            onClick={() => index === 0 && go("trip")}
+          >
+            <div className={`cover ${trip.tone}`}>
+              <span className="status">● {trip.status}</span>
+              <span className="cover-label">обложка</span>
+              <div className="avatars">
+                <Avatar>АС</Avatar>
+                {index === 0 && (
+                  <>
+                    <Avatar tone="green">МК</Avatar>
+                    <Avatar>+1</Avatar>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="trip-info">
+              <h2>{trip.title}</h2>
+              <p>{trip.dates}</p>
+              <div className="progress">
+                <i style={{ width: `${trip.progress}%` }} />
+              </div>
+              <small>
+                <span>Маршрут заполнен на {trip.progress}%</span>
+                <span>{trip.cities}</span>
+              </small>
+            </div>
+          </article>
+        ))}
+        <button className="new-card" onClick={() => go("create")}>
+          <i>＋</i>
+          <b>Новое путешествие</b>
+          <span>С нуля или из шаблона</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CreateTrip({ go }: { go: (view: View) => void }) {
+  return (
+    <div className="page form-page">
+      <button className="back" onClick={() => go("trips")}>
+        ← Мои путешествия
+      </button>
+      <h1>Новое путешествие</h1>
+      <p className="lead">
+        Заполните основное — детали маршрута добавите позже.
+      </p>
+      <form
+        className="create-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          go("trip");
+        }}
+      >
+        <label>
+          Название
+          <input defaultValue="Италия" />
+        </label>
+        <div className="form-row">
+          <label>
+            Страна / направление
+            <input defaultValue="Италия" />
+          </label>
+          <label>
+            Города
+            <input defaultValue="Рим, Флоренция, Венеция" />
+          </label>
+        </div>
+        <div className="form-row">
+          <label>
+            Дата начала
+            <input type="date" defaultValue="2026-09-12" />
+          </label>
+          <label>
+            Дата окончания
+            <input type="date" defaultValue="2026-09-19" />
+          </label>
+        </div>
+        <label>
+          Участники
+          <div className="people">
+            <span>
+              <Avatar>АС</Avatar>Анна (вы)
+            </span>
+            <span>
+              <Avatar tone="green">МК</Avatar>Максим ×
+            </span>
+            <button type="button">＋ Пригласить по e-mail</button>
+          </div>
+        </label>
+        <label>
+          Обложка
+          <button type="button" className="upload">
+            <b>↑</b>
+            <span>Перетащите фото или выберите</span>
+            <small>1600×900 · jpg / png</small>
+          </button>
+        </label>
+        <div className="form-actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => go("trips")}
+          >
+            Отмена
+          </button>
+          <button className="accent">Создать путешествие</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function PlaceRow({ place, index }: { place: string; index: number }) {
+  const times = ["08:30", "09:30", "12:00", "14:30", "17:00"];
+  const isFood = index % 3 === 0;
+  return (
+    <div className="place-row">
+      <span className="place-number">{index + 1}</span>
+      <div>
+        <b>{place}</b>
+        <small className={isFood ? "food" : "sight"}>
+          {isFood ? "Еда" : "Достопримечательность"}
+        </small>
+      </div>
+      <time>{times[index] ?? "12:00"}</time>
+    </div>
+  );
+}
+
+function RouteTab() {
+  const [day, setDay] = useState(0);
+  const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
+  const current = days[day];
+  const daySelector = (
+    <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
+      {days.map((item, index) => (
+        <button
+          className={index === day ? "active" : ""}
+          onClick={() => setDay(index)}
+          key={item.date}
+        >
+          <small>
+            {variant === "tabs" ? `Д${index + 1}` : `День ${index + 1}`}
+          </small>
+          <b>{item.city}</b>
+          <span>
+            {item.date} · {item.places.length} мест
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+  const plan = (
+    <section className="day-plan">
+      <header>
+        <h2>
+          День {day + 1} · {current.city}
+        </h2>
+        <span>{current.date}</span>
+      </header>
+      <div className={variant === "tabs" ? "place-cards" : ""}>
+        {current.places.map((place, index) => (
+          <PlaceRow place={place} index={index} key={place} />
+        ))}
+      </div>
+      <button className="add-place">＋ Добавить место в этот день</button>
+    </section>
+  );
+  const map = (
+    <aside className="map-card">
+      <div className="map">
+        <span>интерактивная карта · {current.city}</span>
+        <svg viewBox="0 0 100 100">
+          <polyline points="20,25 58,38 48,62 72,74" />
+        </svg>
+        {current.places.slice(0, 5).map((_, index) => (
+          <i
+            key={index}
+            style={{
+              left: `${24 + ((index * 13) % 48)}%`,
+              top: `${28 + ((index * 17) % 48)}%`,
+            }}
+          >
+            {index + 1}
+          </i>
+        ))}
+      </div>
+      <footer>
+        <span>Маршрут дня</span>
+        <b>
+          ≈ {current.distance} · {current.places.length} точек
+        </b>
+      </footer>
+    </aside>
+  );
+  return (
+    <>
+      <div className="route-toolbar">
+        <span>Планирование по дням · перетаскивайте места между днями</span>
+        <div className="view-switch">
+          <span>Вид маршрута</span>
+          {(["rail", "tabs", "feed"] as const).map((value) => (
+            <button
+              className={variant === value ? "active" : ""}
+              onClick={() => setVariant(value)}
+              key={value}
+            >
+              {{ rail: "Дни-рейл", tabs: "Вкладки", feed: "Лента" }[value]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {variant === "feed" ? (
+        <div className="feed-layout">
+          <section className="day-feed">
+            {days.map((item, index) => (
+              <article key={item.date} className={index === day ? "open" : ""}>
+                <button onClick={() => setDay(index)}>
+                  <span>{index + 1}</span>
+                  <b>
+                    {item.city}
+                    <small>
+                      {item.date} · {item.places.length} мест
+                    </small>
+                  </b>
+                  <i>⌄</i>
+                </button>
+                {index === day && (
+                  <div>
+                    {item.places.map((place, placeIndex) => (
+                      <PlaceRow place={place} index={placeIndex} key={place} />
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </section>
+          {map}
+        </div>
+      ) : (
+        <div
+          className={`route-layout ${variant === "tabs" ? "tab-layout" : ""}`}
+        >
+          {variant === "rail" && daySelector}
+          {variant === "tabs" && (
+            <div className="tabs-selector">{daySelector}</div>
+          )}
+          {plan}
+          {map}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Bookings() {
+  const tickets = [
+    ["Колизей", "13 сен · 09:00 · 3 взр.", "5 400 ₽"],
+    ["Галерея Уффици", "15 сен · 16:00 · 3 взр.", "4 200 ₽"],
+    ["Дворец Дожей", "17 сен · 16:30 · 3 взр.", "3 900 ₽"],
+  ];
+  return (
+    <div className="stack">
+      <SectionHead title="Жильё" />
+      {[
+        ["Hotel Artemide, Рим", "12–15 сен · 3 ночи", "42 300 ₽"],
+        ["B&B Fiori, Флоренция", "15–17 сен · 2 ночи", "24 800 ₽"],
+      ].map((item) => (
+        <article className="booking" key={item[0]}>
+          <div className="thumb" />
+          <div>
+            <h3>{item[0]}</h3>
+            <p>{item[1]} · 2-местный номер</p>
+            <small>
+              Подтверждение <b>#ART-8842</b>　 Стоимость <b>{item[2]}</b>
+            </small>
+          </div>
+          <span>Оплачено</span>
+        </article>
+      ))}
+      <SectionHead title="Транспорт" />
+      <div className="transport">
+        {[
+          [
+            "Москва → Рим",
+            "12 сен · 08:40–11:55 · Аэрофлот SU-2402",
+            "31 200 ₽",
+          ],
+          [
+            "Рим → Флоренция",
+            "15 сен · 08:10–09:45 · Frecciarossa 9512",
+            "3 900 ₽",
+          ],
+          [
+            "Флоренция → Венеция",
+            "17 сен · 09:20–11:25 · Frecciarossa 9420",
+            "4 100 ₽",
+          ],
+        ].map(([route, details, price]) => (
+          <div key={route}>
+            <i />
+            <span>
+              <b>{route}</b>
+              <small>{details}</small>
+            </span>
+            <b>{price}</b>
+          </div>
+        ))}
+      </div>
+      <SectionHead title="Билеты и брони" />
+      <div className="ticket-grid">
+        {tickets.map(([title, details, price]) => (
+          <article key={title}>
+            <h3>{title}</h3>
+            <p>{details}</p>
+            <b>{price}</b>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionHead({ title }: { title: string }) {
+  return (
+    <header className="section-head">
+      <h2>{title}</h2>
+      <button>＋ Добавить</button>
+    </header>
+  );
+}
+
+function Budget() {
+  const cats = [
+    ["Жильё", 64, "67 100 ₽"],
+    ["Транспорт", 41, "43 300 ₽"],
+    ["Еда и рестораны", 36, "38 000 ₽"],
+    ["Активности и билеты", 20, "21 500 ₽"],
+    ["Прочее", 8, "6 800 ₽"],
+  ] as const;
+  return (
+    <div className="budget">
+      <div className="budget-cards">
+        <article>
+          <span>Общий бюджет</span>
+          <b>240 000 ₽</b>
+        </article>
+        <article className="accent-card">
+          <span>Запланировано</span>
+          <b>176 700 ₽</b>
+          <small>73% бюджета</small>
+        </article>
+        <article>
+          <span>Осталось</span>
+          <b>63 300 ₽</b>
+          <small>≈ 21 100 ₽ / чел.</small>
+        </article>
+      </div>
+      <div className="budget-grid">
+        <article className="panel">
+          <h2>По категориям</h2>
+          {cats.map(([name, pct, amount]) => (
+            <div className="budget-row" key={name}>
+              <p>
+                <b>{name}</b>
+                <span>{amount}</span>
+              </p>
+              <div>
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          ))}
+        </article>
+        <article className="panel">
+          <h2>Разделить расходы</h2>
+          <p>Поровну между 3 участниками</p>
+          {[
+            ["АС", "Анна", "+ 39 600 ₽"],
+            ["МК", "Максим", "− 6 600 ₽"],
+            ["ДВ", "Дарья", "− 33 000 ₽"],
+          ].map((item) => (
+            <div className="split" key={item[1]}>
+              <Avatar>{item[0]}</Avatar>
+              <span>
+                <b>{item[1]}</b>
+                <small>оплачено участником</small>
+              </span>
+              <b>{item[2]}</b>
+            </div>
+          ))}
+          <button className="send-reminders">Отправить напоминания</button>
+        </article>
+      </div>
+    </div>
+  );
+}
+
+function Photos() {
+  return (
+    <div>
+      <SectionHead title="Фотоальбом" />
+      <p className="lead">48 фото · снимки всех участников поездки</p>
+      <div className="chips">
+        <button className="selected">Все · 48</button>
+        <button>Рим · 21</button>
+        <button>Флоренция · 14</button>
+        <button>Венеция · 13</button>
+      </div>
+      <div className="photo-grid">
+        {Array.from({ length: 10 }, (_, index) => (
+          <div
+            className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`}
+            key={index}
+          >
+            {index === 0 && <span>Колизей · 13 сен</span>}
+          </div>
+        ))}
+        <button className="photo-add">
+          ＋<small>Добавить</small>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Members() {
+  const people: [string, string, string, string, "sand" | "green" | "blue"][] =
+    [
+      ["АС", "Анна Соколова", "anna@mail.ru", "Владелец", "sand"],
+      ["МК", "Максим Крылов", "maxim@mail.ru", "Редактор", "green"],
+      ["ДВ", "Дарья Волкова", "darya@mail.ru", "Читатель", "blue"],
+    ];
+  return (
+    <div className="members">
+      <article className="panel">
+        {people.map(([initials, name, email, role, tone]) => (
+          <div className="member" key={name}>
+            <Avatar tone={tone}>{initials}</Avatar>
+            <span>
+              <b>{name}</b>
+              <small>{email}</small>
+            </span>
+            <button>{role}⌄</button>
+          </div>
+        ))}
+        <div className="invite">
+          <input placeholder="e-mail нового участника" />
+          <button>Редактор⌄</button>
+          <button className="accent">Пригласить</button>
+        </div>
+      </article>
+      <article className="panel public-link">
+        <h2>
+          Публичная ссылка <i />
+        </h2>
+        <p>
+          Любой, у кого есть ссылка, может просматривать маршрут без прав на
+          редактирование.
+        </p>
+        <div>
+          <code>odyssey.travel/p/italy-8d-a1b2</code>
+          <button>Копировать</button>
+        </div>
+        <div className="public-catalog">
+          <span>
+            <b>Опубликовать в каталоге</b>
+            <small>Другие смогут найти и скопировать ваш маршрут</small>
+          </span>
+          <button>Опубликовать</button>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function Workspace({ go }: { go: (view: View) => void }) {
+  const [tab, setTab] = useState<Tab>("route");
+  const labels: [Tab, string][] = [
+    ["route", "Маршрут"],
+    ["bookings", "Жильё и транспорт"],
+    ["budget", "Бюджет"],
+    ["photos", "Фото"],
+    ["members", "Участники"],
+  ];
+  return (
+    <div>
+      <header className="trip-header">
+        <button className="back" onClick={() => go("trips")}>
+          ← Мои путешествия
+        </button>
+        <div className="trip-heading">
+          <div>
+            <h1>
+              Италия <span>● Активное</span>
+            </h1>
+            <p>12–19 сентября 2026 · 8 дней · Рим, Флоренция, Венеция</p>
+          </div>
+          <div className="share">
+            <div>
+              <Avatar>АС</Avatar>
+              <Avatar tone="green">МК</Avatar>
+              <Avatar tone="blue">ДВ</Avatar>
+            </div>
+            <button onClick={() => go("public")}>↗ Публичная ссылка</button>
+          </div>
+        </div>
+        <nav className="tabs">
+          {labels.map(([value, label]) => (
+            <button
+              className={tab === value ? "active" : ""}
+              onClick={() => setTab(value)}
+              key={value}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </header>
+      <main className="workspace">
+        {tab === "route" && <RouteTab />}
+        {tab === "bookings" && <Bookings />}
+        {tab === "budget" && <Budget />}
+        {tab === "photos" && <Photos />}
+        {tab === "members" && <Members />}
+      </main>
+    </div>
+  );
+}
+
+function Catalog({ go }: { go: (view: View) => void }) {
+  return (
+    <div className="page wide">
+      <p className="eyebrow">Сообщество путешественников</p>
+      <h1>Каталог маршрутов</h1>
+      <div className="search">
+        ⌕<input placeholder="Куда хотите поехать?" />
+      </div>
+      <div className="chips">
+        <button className="selected">Все</button>
+        <button>Европа</button>
+        <button>Азия</button>
+        <button>Города</button>
+        <button>Природа</button>
+        <button>7–10 дней</button>
+      </div>
+      <div className="catalog-grid">
+        {catalog.map((item, index) => (
+          <article className="catalog-card" key={item[0]}>
+            <div className={`catalog-cover ${item[5]}`}>
+              {index === 0 && <span>★ Рекомендуем</span>}
+              <b>{item[2]}</b>
+            </div>
+            <div>
+              <h2>{item[0]}</h2>
+              <p>{item[1]}</p>
+              <footer>
+                <span>
+                  <Avatar>{item[3].slice(0, 2)}</Avatar>
+                  <small>
+                    <b>{item[3]}</b>♡ {item[4]}
+                  </small>
+                </span>
+                <button onClick={() => go("public")}>Открыть</button>
+              </footer>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PublicRoute({ go }: { go: (view: View) => void }) {
+  return (
+    <div className="public">
+      <header>
+        <span>◇ Публичный маршрут · только просмотр</span>
+        <button onClick={() => go("catalog")}>← В каталог</button>
+      </header>
+      <section className="public-hero">
+        <div>
+          <p>Италия · Рим · Флоренция · Венеция</p>
+          <h1>Классическая Италия за 8 дней</h1>
+        </div>
+      </section>
+      <main>
+        <div className="author">
+          <span>
+            <Avatar>АС</Avatar>
+            <b>
+              Анна Соколова<small>8 дней · 27 мест · ♡ 342</small>
+            </b>
+          </span>
+          <button onClick={() => go("trips")}>Скопировать себе</button>
+        </div>
+        {days.slice(0, 4).map((day, index) => (
+          <section className="public-day" key={day.date}>
+            <header>
+              <i>{index + 1}</i>
+              <h2>
+                День {index + 1} · {day.city}
+              </h2>
+              <span>{day.date}</span>
+            </header>
+            <div>
+              {day.places.slice(0, 3).map((place, placeIndex) => (
+                <PlaceRow place={place} index={placeIndex} key={place} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
+
+function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (name: string) => void }) {
+  const [mode, setMode] = useState<"register" | "login">("register");
+  const [message, setMessage] = useState("");
+  const isRegister = mode === "register";
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") ?? "").trim();
+    const email = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    const password = String(formData.get("password") ?? "");
+    const accepted = formData.get("terms") === "on";
+
+    if (
+      !email ||
+      !password ||
+      (isRegister && (!name || password.length < 8 || !accepted))
+    ) {
+      setMessage(
+        isRegister
+          ? "Заполните все поля, пароль должен содержать не менее 8 символов."
+          : "Введите e-mail и пароль.",
+      );
+      return;
+    }
+
+    if (isRegister) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } },
+      });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      if (!data.session) {
+        setMessage("Аккаунт создан. Подтвердите e-mail, затем войдите.");
+        setMode("login");
+        return;
+      }
+      onAuthorized(name);
+      setMessage("Аккаунт создан. Открываем ваши путешествия...");
+      window.setTimeout(() => go("trips"), 500);
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      setMessage(error?.message ?? "Не удалось войти. Проверьте e-mail и пароль.");
+      return;
+    }
+    onAuthorized(data.user.user_metadata.full_name || data.user.email || "Путешественник");
+    setMessage("Вход выполнен. Открываем ваши путешествия...");
+    window.setTimeout(() => go("trips"), 500);
+  };
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="auth-form">
+          <div className="auth-brand">
+            <span>O</span>
+            <b>Одиссея</b>
+          </div>
+          <div className="auth-switch">
+            <button
+              className={isRegister ? "active" : ""}
+              onClick={() => { setMode("register"); setMessage(""); }}
+            >
+              Регистрация
+            </button>
+            <button
+              className={!isRegister ? "active" : ""}
+              onClick={() => { setMode("login"); setMessage(""); }}
+            >
+              Вход
+            </button>
+          </div>
+          <h1>{isRegister ? "Создайте аккаунт" : "С возвращением"}</h1>
+          <p>
+            {isRegister
+              ? "Начните планировать первое путешествие за пару минут."
+              : "Войдите, чтобы продолжить планирование путешествий."}
+          </p>
+          <div className="auth-providers">
+            <button>
+              <b className="google-mark">G</b> Google
+            </button>
+            <button>
+              <b className="apple-mark">●</b> Apple
+            </button>
+          </div>
+          <div className="auth-divider">
+            <span>или через e-mail</span>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <label className={isRegister ? "" : "hidden"}>
+              Имя
+              <input name="name" placeholder="Анна Соколова" />
+            </label>
+            <label>
+              E-mail
+              <input name="email" type="email" placeholder="you@example.com" />
+            </label>
+            <label>
+              Пароль
+              <input
+                name="password"
+                type="password"
+                placeholder={
+                  isRegister ? "Минимум 8 символов" : "Введите пароль"
+                }
+              />
+            </label>
+            {isRegister && (
+              <label className="terms">
+                <input name="terms" type="checkbox" defaultChecked />{" "}
+                <span>
+                  Я принимаю <a href="#terms">условия использования</a> и{" "}
+                  <a href="#privacy">политику конфиденциальности</a>
+                </span>
+              </label>
+            )}
+            <button className="auth-submit">
+              {isRegister ? "Создать аккаунт" : "Войти"}
+            </button>
+          </form>
+          {message && <p className="auth-message" role="status">{message}</p>}
+          <div className="auth-footer">
+            {isRegister ? "Уже есть аккаунт?" : "Впервые в Одиссее?"}{" "}
+            <button onClick={() => { setMode(isRegister ? "login" : "register"); setMessage(""); }}>
+              {isRegister ? "Войти" : "Зарегистрироваться"}
+            </button>
+          </div>
+        </div>
+        <aside className="auth-promo">
+          <div>
+            <p>ПЛАНИРУЙТЕ ВМЕСТЕ</p>
+            <h2>
+              Маршруты, жильё,
+              <br />
+              бюджет и<br />
+              участники — в<br />
+              одном месте
+            </h2>
+          </div>
+          <blockquote>
+            «Спланировали поездку по Италии на троих за вечер. Всё разложено по
+            дням, а расходы делятся автоматически.»
+            <footer>
+              <span>МК</span>
+              <b>
+                Максим Крылов<small>путешественник · 12 поездок</small>
+              </b>
+            </footer>
+          </blockquote>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
+export function App() {
+  const [view, setView] = useState<View>("auth");
+  const [menu, setMenu] = useState(false);
+  const [profileName, setProfileName] = useState("Путешественник");
+  useEffect(() => {
+    const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }) => {
+      setProfileName(user.user_metadata.full_name || user.email || "Путешественник");
+      setView("trips");
+    };
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) setAuthenticatedUser(data.session.user);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) setAuthenticatedUser(session.user);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+  const go = (next: View) => {
+    setView(next);
+    setMenu(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  if (view === "auth") return <Auth go={go} onAuthorized={setProfileName} />;
+  return (
+    <div className="app">
+      <Sidebar view={view} go={go} open={menu} close={() => setMenu(false)} profileName={profileName} />
+      <div className="main">
+        <button className="menu-button" onClick={() => setMenu(true)}>
+          ☰
+        </button>
+        {view === "trips" && <Trips go={go} profileName={profileName} />}
+        {view === "create" && <CreateTrip go={go} />}
+        {view === "trip" && <Workspace go={go} />}
+        {view === "catalog" && <Catalog go={go} />}
+        {view === "public" && <PublicRoute go={go} />}
+      </div>
+    </div>
+  );
+}
