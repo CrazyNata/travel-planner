@@ -801,12 +801,12 @@ button {
 .tabs button {
   flex: none;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   background: none;
-  padding: 0 2px 13px;
+  padding: 0 3px 14px;
   color: #9c948a;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
 }
 .tabs button.active {
   border-color: var(--accent);
