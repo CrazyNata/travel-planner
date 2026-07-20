@@ -1087,16 +1087,6 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
               одном месте
             </h2>
           </div>
-          <blockquote>
-            «Спланировали поездку по Италии на троих за вечер. Всё разложено по
-            дням, а расходы делятся автоматически.»
-            <footer>
-              <span>МК</span>
-              <b>
-                Максим Крылов<small>путешественник · 12 поездок</small>
-              </b>
-            </footer>
-          </blockquote>
         </aside>
       </section>
     </main>
