@@ -996,6 +996,7 @@ button {
   line-height: 1.5;
 }
 .overview-draft .has-draft-cover {
+  position: relative;
   align-items: center;
   color: #fff;
 }
@@ -1084,6 +1085,10 @@ button {
 }
 .cover-arrow.previous { left: 16px; }
 .cover-arrow.next { right: 16px; }
+.cover-arrow:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
 .cover-gallery-meta {
   display: flex;
   align-items: center;
