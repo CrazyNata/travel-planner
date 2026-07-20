@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean };
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string };
 
 const trips: TripSummary[] = [
   {
@@ -392,7 +392,7 @@ function CreateTrip({ go, onCreate }: { go: (view: View) => void; onCreate: (tri
           const formData = new FormData(event.currentTarget);
           const title = String(formData.get("title") || "").trim() || "Без названия";
           const cities = String(formData.get("cities") || "").trim();
-          onCreate({ id: crypto.randomUUID(), title, cities, dates: startDate && endDate ? `${startDate} – ${endDate}` : "Даты не выбраны · черновик", status: "Черновик", progress: 0, tone: "stone", isDraft: true });
+          onCreate({ id: crypto.randomUUID(), title, cities, dates: startDate && endDate ? `${startDate} – ${endDate}` : "Даты не выбраны · черновик", status: "Черновик", progress: 0, tone: "stone", isDraft: true, coverImage });
         }}
       >
         <label>
@@ -822,8 +822,15 @@ function Members() {
   );
 }
 
-function TripOverview({ trip }: { trip: TripSummary }) {
-  if (trip.isDraft) return <div className="overview-draft"><section><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span></section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
+function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const selectDraftCover = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onUpdateTrip({ ...trip, coverImage: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+  if (trip.isDraft) return <div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
   const cities = [
     { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
     { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
@@ -832,7 +839,7 @@ function TripOverview({ trip }: { trip: TripSummary }) {
   return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
-function Workspace({ go, trip }: { go: (view: View) => void; trip: TripSummary }) {
+function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>("overview");
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"]] : [
     ["overview", "Главная"],
@@ -876,7 +883,7 @@ function Workspace({ go, trip }: { go: (view: View) => void; trip: TripSummary }
         </nav>
       </header>
       <main className="workspace">
-        {tab === "overview" && <TripOverview trip={trip} />}
+        {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
@@ -1196,7 +1203,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={(trip) => { setActiveTrip(trip); if (trip.isDraft) setDrafts((items) => items.map((item) => item.id === trip.id ? trip : item)); }} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
