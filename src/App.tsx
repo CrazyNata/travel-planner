@@ -553,11 +553,13 @@ function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSav
   const [checkIn, setCheckIn] = useState(roadLeg?.checkIn || "");
   const [notes, setNotes] = useState(roadLeg?.notes || "");
   const [avoidTolls, setAvoidTolls] = useState(roadLeg?.avoidTolls || false);
+  const mapsUrl = from.trim() && to.trim() ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.trim())}&destination=${encodeURIComponent(to.trim())}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}` : "";
   return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkIn, notes: notes.trim(), avoidTolls }); }}>
     <div className="road-leg-editor-title"><b>Автомобильный маршрут</b><span>Заполните переезд на этот день</span></div>
     <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label><label>Заселение в отель<input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label></div>
     <label className="road-notes">Заметки<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Например, заправиться перед выездом" /></label>
     <label className="avoid-tolls"><input type="checkbox" checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} /><span><b>Избегать платных дорог</b><small>Google Maps откроется с этим ограничением</small></span></label>
+    {mapsUrl ? <GoogleMapsLink url={mapsUrl} /> : <div className="google-maps-preview"><b>Google Maps</b><span>Укажите откуда и куда, чтобы открыть или скопировать маршрут.</span></div>}
     <div className="road-leg-actions"><button type="button" className="secondary" onClick={onCancel}>Отмена</button><button className="accent">Сохранить маршрут</button></div>
   </form>;
 }
