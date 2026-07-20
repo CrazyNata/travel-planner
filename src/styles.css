@@ -485,6 +485,96 @@ button {
   padding: 12px 14px;
   color: #23201c;
 }
+.date-picker {
+  position: relative;
+}
+.date-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #e0d8ce;
+  border-radius: 11px;
+  background: #fcfaf7;
+  padding: 12px 14px;
+  color: #23201c;
+  font-size: 14px;
+  text-align: left;
+}
+.date-trigger svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.calendar-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: 290px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  padding: 14px;
+  box-shadow: 0 16px 34px rgba(27, 28, 31, 0.16);
+}
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.calendar-header b {
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.calendar-header button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: #f0f1f5;
+  color: #5651dc;
+  font-size: 21px;
+  line-height: 1;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-grid span,
+.calendar-grid button {
+  display: grid;
+  height: 32px;
+  place-items: center;
+}
+.calendar-weekdays {
+  margin-bottom: 4px;
+  color: #9c948a;
+  font-size: 10px;
+  font-weight: 700;
+}
+.calendar-grid button {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #3a3c44;
+  font-size: 12px;
+}
+.calendar-grid button:hover {
+  background: #eeedff;
+  color: var(--accent);
+}
+.calendar-grid button.selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+}
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
