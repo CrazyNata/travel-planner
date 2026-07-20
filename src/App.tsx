@@ -13,22 +13,6 @@ const trips = [
     progress: 78,
     tone: "sand",
   },
-  {
-    title: "Япония",
-    dates: "3–15 апреля 2027 · 12 дней",
-    cities: "Токио · Киото",
-    status: "Предстоящее",
-    progress: 34,
-    tone: "sage",
-  },
-  {
-    title: "Грузия",
-    dates: "Даты не выбраны · черновик",
-    cities: "Тбилиси",
-    status: "Черновик",
-    progress: 12,
-    tone: "stone",
-  },
 ];
 
 const days = [
@@ -299,7 +283,7 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
         </button>
       </header>
       <div className="chips">
-        <button className="selected">Все · 3</button>
+        <button className="selected">Все · 1</button>
         <button>Предстоящие</button>
         <button>Черновики</button>
         <button>Завершённые</button>
