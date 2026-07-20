@@ -1046,11 +1046,18 @@ button {
 }
 .cover-photo-caption {
   position: absolute;
-  right: 86px;
-  bottom: 18px;
-  max-width: 70%;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: min(42%, 330px);
+  flex-direction: column;
+  justify-content: flex-end;
+  max-width: none;
+  background: linear-gradient(90deg, rgba(15, 16, 23, 0.7), rgba(15, 16, 23, 0));
+  padding: 28px 24px;
   color: #fff;
-  text-align: right;
+  text-align: left;
   text-shadow: 0 2px 9px rgba(0, 0, 0, 0.45);
 }
 .cover-photo-caption b,
@@ -3360,5 +3367,9 @@ button {
   }
   .cover-gallery-meta input {
     width: 100%;
+  }
+  .cover-photo-caption {
+    width: 78%;
+    padding: 20px 18px;
   }
 }
