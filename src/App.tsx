@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
-type Tab = "route" | "bookings" | "budget" | "photos" | "members";
+type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean };
 
 const trips: TripSummary[] = [
@@ -822,10 +822,20 @@ function Members() {
   );
 }
 
+function TripOverview({ trip }: { trip: TripSummary }) {
+  if (trip.isDraft) return <div className="overview-draft"><section><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span></section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>;
+  const cities = [
+    { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
+    { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
+    { name: "Венеция", dates: "17–19 сентября", weather: "20°C · облачно", image: "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80" },
+  ];
+  return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
+}
+
 function Workspace({ go, trip }: { go: (view: View) => void; trip: TripSummary }) {
-  const [tab, setTab] = useState<Tab>("route");
-  const labels: [Tab, string][] = trip.isDraft ? [["route", "Маршрут"]] : [
-    ["route", "Маршрут"],
+  const [tab, setTab] = useState<Tab>("overview");
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"]] : [
+    ["overview", "Главная"],
     ["bookings", "Жильё и транспорт"],
     ["budget", "Бюджет"],
     ["photos", "Фото"],
@@ -866,7 +876,7 @@ function Workspace({ go, trip }: { go: (view: View) => void; trip: TripSummary }
         </nav>
       </header>
       <main className="workspace">
-        {tab === "route" && <RouteTab isDraft={trip.isDraft} />}
+        {tab === "overview" && <TripOverview trip={trip} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
