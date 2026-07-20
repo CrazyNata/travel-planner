@@ -893,6 +893,13 @@ button {
   font-weight: 600;
   text-align: center;
 }
+.draft-route .day-rail small,
+.draft-route .day-rail span {
+  font-size: 13px;
+}
+.draft-route .day-rail b {
+  font-size: 19px;
+}
 .day-plan > header {
   display: flex;
   align-items: baseline;
