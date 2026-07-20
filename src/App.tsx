@@ -312,6 +312,16 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
 }
 
 function CreateTrip({ go }: { go: (view: View) => void }) {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [invitees, setInvitees] = useState<string[]>([]);
+  const addInvitee = () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || invitees.includes(email)) return;
+    setInvitees([...invitees, email]);
+    setInviteEmail("");
+    setInviteOpen(false);
+  };
   return (
     <div className="page form-page">
       <button className="back back-icon" onClick={() => go("trips")} aria-label="Вернуться к моим путешествиям" title="Мои путешествия">
@@ -352,18 +362,26 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
             <input type="date" defaultValue="2026-09-19" />
           </label>
         </div>
-        <label>
-          Участники
-          <div className="people">
-            <span>
-              <Avatar>АС</Avatar>Анна (вы)
-            </span>
-            <span>
-              <Avatar tone="green">МК</Avatar>Максим ×
-            </span>
-            <button type="button">＋ Пригласить по e-mail</button>
-          </div>
-        </label>
+          <label>
+            Участники
+            <div className="people">
+              {invitees.map((email) => (
+                <span key={email}>
+                  {email}
+                  <button type="button" className="remove-invite" onClick={() => setInvitees(invitees.filter((item) => item !== email))}>×</button>
+                </span>
+              ))}
+              {inviteOpen ? (
+                <div className="invite-person">
+                  <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addInvitee(); } }} placeholder="name@example.com" autoFocus />
+                  <button type="button" onClick={addInvitee}>Пригласить</button>
+                  <button type="button" className="cancel-invite" onClick={() => { setInviteOpen(false); setInviteEmail(""); }}>×</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setInviteOpen(true)}>＋ Пригласить по e-mail</button>
+              )}
+            </div>
+          </label>
         <label>
           Обложка
           <button type="button" className="upload">

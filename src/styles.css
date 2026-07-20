@@ -512,6 +512,42 @@ button {
   color: #9c948a;
   font-size: 11px;
 }
+.people .remove-invite {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #9c948a;
+  font-size: 16px;
+  line-height: 1;
+}
+.invite-person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.people .invite-person input {
+  width: 190px;
+  border: 1px solid #e0d8ce;
+  border-radius: 999px;
+  background: #fff;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.people .invite-person button:not(.cancel-invite) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.people .cancel-invite {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #9c948a;
+  font-size: 18px;
+}
 .upload {
   display: flex;
   height: 120px;
