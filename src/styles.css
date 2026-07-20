@@ -2324,6 +2324,13 @@ button {
   font-weight: 700;
 }
 
+.place-row b,
+.day-rail b {
+  font-family: Unbounded, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
 .place-row small {
   margin-top: 5px;
   font-size: 12px;
