@@ -2201,7 +2201,7 @@ button {
 .auth-card {
   display: grid;
   width: min(100%, 1040px);
-  height: min(800px, calc(100vh - 32px));
+  height: min(840px, calc(100vh - 32px));
   min-height: 0;
   grid-template-columns: 1fr 1fr;
   overflow: hidden;
