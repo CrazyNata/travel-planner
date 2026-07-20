@@ -7,7 +7,8 @@ type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
 type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoidTolls: boolean };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
-type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; places?: string[]; days?: DraftDay[] };
+type CoverPhoto = { id: string; image: string; city: string };
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; places?: string[]; days?: DraftDay[] };
 
 const trips: TripSummary[] = [
   {
@@ -973,14 +974,20 @@ function WeatherOverview() {
 
 function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const selectDraftCover = (file?: File) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onUpdateTrip({ ...trip, coverImage: String(reader.result) });
-    reader.readAsDataURL(file);
+  const [activePhoto, setActivePhoto] = useState(0);
+  const [uploadCity, setUploadCity] = useState("");
+  const coverPhotos = trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: "" }] : [];
+  const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
+  const selectDraftCovers = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const images = await Promise.all(Array.from(files).map((file) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); })));
+    const nextPhotos = [...coverPhotos, ...images.map((image) => ({ id: crypto.randomUUID(), image, city: uploadCity.trim() }))];
+    onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
+    setActivePhoto(nextPhotos.length - images.length);
+    setUploadCity("");
   };
   const isWinterRoute = trip.title.toLowerCase().includes("рождествен") || trip.cities.includes("Мюнхен") || trip.cities.includes("Прага");
-  if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><section className={trip.coverImage ? "has-draft-cover" : ""} style={trip.coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${trip.coverImage})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectDraftCover(event.target.files?.[0])} />{trip.coverImage ? <button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>Сменить фото</button> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span><button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>↑ Загрузить фото</button></>}</section><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
+  if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><div className="cover-gallery"><section className={activeCover ? "has-draft-cover" : ""} style={activeCover ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void selectDraftCovers(event.target.files)} />{activeCover ? <>{coverPhotos.length > 1 && <><button type="button" className="cover-arrow previous" onClick={() => setActivePhoto((activePhoto - 1 + coverPhotos.length) % coverPhotos.length)} aria-label="Предыдущее фото">‹</button><button type="button" className="cover-arrow next" onClick={() => setActivePhoto((activePhoto + 1) % coverPhotos.length)} aria-label="Следующее фото">›</button></>}<button type="button" className="draft-cover-upload" onClick={() => photoInputRef.current?.click()}>＋ Добавить фото</button></> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте города, даты и первое место, чтобы увидеть маршрут и прогноз.</span></>}</section><div className="cover-gallery-meta">{activeCover ? <div className="cover-city-caption"><span>Город на фото</span><b>{activeCover.city || "Город не указан"}</b></div> : <div className="cover-city-caption"><span>Фотографии путешествия</span><b>Добавьте первое фото</b></div>}<label>Город для новых фото<input value={uploadCity} onChange={(event) => setUploadCity(event.target.value)} placeholder="Например, Мюнхен" /></label><button type="button" onClick={() => photoInputRef.current?.click()}>Загрузить</button></div>{coverPhotos.length > 1 && <div className="cover-thumbnails">{coverPhotos.map((photo, index) => <button className={index === activePhoto ? "active" : ""} style={{ backgroundImage: `url(${photo.image})` }} onClick={() => setActivePhoto(index)} aria-label={`Фото: ${photo.city || index + 1}`} key={photo.id} />)}</div>}</div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
     { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
     { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
