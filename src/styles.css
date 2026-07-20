@@ -198,6 +198,8 @@ button {
 }
 .page.wide {
   max-width: 1120px;
+  margin-right: auto;
+  margin-left: 72px;
 }
 .page h1,
 .trip-header h1,
@@ -2178,6 +2180,10 @@ button {
 }
 
 @media (max-width: 760px) {
+  .page.wide {
+    margin-left: 0;
+  }
+
   .route-layout {
     display: block;
   }
