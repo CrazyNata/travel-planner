@@ -1019,24 +1019,30 @@ button {
   color: #23201c;
 }
 .camera-upload {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  padding: 0;
+  display: flex;
+  width: auto;
+  height: auto;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
 }
 .has-draft-cover .camera-upload {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  top: 14px;
+  right: 14px;
+  bottom: auto;
 }
 .camera-upload svg {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+.camera-upload span {
+  font-size: 11px;
+  font-weight: 800;
 }
 .cover-photo-caption {
   position: absolute;
