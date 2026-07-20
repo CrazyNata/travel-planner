@@ -622,12 +622,15 @@ button {
   gap: 6px;
 }
 .people .invite-person input {
-  width: 190px;
+  width: 144px;
   border: 1px solid #e0d8ce;
   border-radius: 999px;
   background: #fff;
   padding: 8px 12px;
   font-size: 12px;
+}
+.people .invite-person input[type="email"] {
+  width: 190px;
 }
 .people .invite-person button:not(.cancel-invite) {
   border-style: solid;

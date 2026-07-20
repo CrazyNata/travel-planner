@@ -329,8 +329,9 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
 
 function CreateTrip({ go }: { go: (view: View) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [invitees, setInvitees] = useState<string[]>([]);
+  const [invitees, setInvitees] = useState<{ name: string; email: string }[]>([]);
   const [hasMaxim, setHasMaxim] = useState(true);
   const [startDate, setStartDate] = useState("2026-09-12");
   const [endDate, setEndDate] = useState("2026-09-19");
@@ -338,8 +339,10 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const addInvitee = () => {
     const email = inviteEmail.trim().toLowerCase();
-    if (!email || invitees.includes(email)) return;
-    setInvitees([...invitees, email]);
+    const name = inviteName.trim() || email;
+    if (!email || invitees.some((person) => person.email === email)) return;
+    setInvitees([...invitees, { name, email }]);
+    setInviteName("");
     setInviteEmail("");
     setInviteOpen(false);
   };
@@ -388,17 +391,18 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
             <div className="people">
               <span><Avatar>АС</Avatar>Анна (вы)</span>
               {hasMaxim && <span><Avatar tone="green">МК</Avatar>Максим <button type="button" className="remove-invite" onClick={() => setHasMaxim(false)}>×</button></span>}
-              {invitees.map((email) => (
-                <span key={email}>
-                  {email}
-                  <button type="button" className="remove-invite" onClick={() => setInvitees(invitees.filter((item) => item !== email))}>×</button>
+              {invitees.map((person) => (
+                <span key={person.email} title={person.email}>
+                  {person.name}
+                  <button type="button" className="remove-invite" onClick={() => setInvitees(invitees.filter((item) => item.email !== person.email))}>×</button>
                 </span>
               ))}
               {inviteOpen ? (
                 <div className="invite-person">
-                  <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addInvitee(); } }} placeholder="name@example.com" autoFocus />
+                  <input type="text" value={inviteName} onChange={(event) => setInviteName(event.target.value)} placeholder="Имя" autoFocus />
+                  <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addInvitee(); } }} placeholder="name@example.com" />
                   <button type="button" onClick={addInvitee}>Пригласить</button>
-                  <button type="button" className="cancel-invite" onClick={() => { setInviteOpen(false); setInviteEmail(""); }}>×</button>
+                  <button type="button" className="cancel-invite" onClick={() => { setInviteOpen(false); setInviteName(""); setInviteEmail(""); }}>×</button>
                 </div>
               ) : (
                 <button type="button" onClick={() => setInviteOpen(true)}>＋ Пригласить по e-mail</button>
