@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string };
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; places?: string[] };
 
 const trips: TripSummary[] = [
   {
@@ -545,10 +545,20 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
   );
 }
 
-function RouteTab({ isDraft = false }: { isDraft?: boolean }) {
+function RouteTab({ isDraft = false, draftPlaces = [], onAddDraftPlace }: { isDraft?: boolean; draftPlaces?: string[]; onAddDraftPlace?: (place: string) => void }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
-  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · 0 мест</span></button></div><section className="day-plan"><header><h2>Маршрут пока пуст</h2><span>Добавьте первое место</span></header><div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div><button className="add-place">＋ Добавить первое место</button></section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>0 точек</b></footer></aside></div></>;
+  const [addingPlace, setAddingPlace] = useState(false);
+  const [placeName, setPlaceName] = useState("");
+  const addDraftPlace = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const place = placeName.trim();
+    if (!place) return;
+    onAddDraftPlace?.(place);
+    setPlaceName("");
+    setAddingPlace(false);
+  };
+  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · {draftPlaces.length} мест</span></button></div><section className="day-plan"><header><h2>{draftPlaces.length ? "День 1 · Новый маршрут" : "Маршрут пока пуст"}</h2><span>{draftPlaces.length ? `${draftPlaces.length} мест` : "Добавьте первое место"}</span></header>{draftPlaces.length ? draftPlaces.map((place, index) => <PlaceRow place={place} index={index} key={`${place}-${index}`} />) : <div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div>}{addingPlace ? <form className="add-place-form" onSubmit={addDraftPlace}><input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Например, Колизей" autoFocus /><button className="accent">Добавить</button><button type="button" onClick={() => setAddingPlace(false)}>Отмена</button></form> : <button className="add-place" onClick={() => setAddingPlace(true)}>＋ {draftPlaces.length ? "Добавить место" : "Добавить первое место"}</button>}</section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>{draftPlaces.length} точек</b></footer></aside></div></>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -894,7 +904,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
 }
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
@@ -929,7 +939,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
           {labels.map(([value, label]) => (
             <button
               className={tab === value ? "active" : ""}
-              onClick={() => setTab(value)}
+              onClick={() => { setTab(value); localStorage.setItem("odyssey-trip-tab", value); }}
               key={value}
             >
               {label}
@@ -939,7 +949,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       </header>
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
-        {tab === "route" && <RouteTab isDraft={trip.isDraft} />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftPlaces={trip.places} onAddDraftPlace={(place) => onUpdateTrip({ ...trip, places: [...(trip.places || []), place] })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
@@ -1218,14 +1228,21 @@ export function App() {
       return [];
     }
   });
-  const [activeTrip, setActiveTrip] = useState<TripSummary>(trips[0]);
+  const [activeTrip, setActiveTrip] = useState<TripSummary>(() => {
+    const savedTripId = localStorage.getItem("odyssey-active-trip");
+    return [...trips, ...drafts].find((trip) => trip.id === savedTripId) || trips[0];
+  });
   const [profileName, setProfileName] = useState("Путешественник");
   useEffect(() => {
     const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }, shouldNavigate = false) => {
       setProfileName(user.user_metadata.full_name || user.email || "Путешественник");
       if (!shouldNavigate) return;
       const isTripInvitation = new URLSearchParams(window.location.search).get("invite") === "trip";
-      setView((current) => current === "auth" ? (isTripInvitation ? "trip" : "trips") : current);
+      const savedView = localStorage.getItem("odyssey-current-view") as View | null;
+      const savedTripId = localStorage.getItem("odyssey-active-trip");
+      const savedTrip = [...trips, ...drafts].find((trip) => trip.id === savedTripId);
+      if (savedTrip) setActiveTrip(savedTrip);
+      setView((current) => current === "auth" ? (isTripInvitation ? "trip" : savedView === "trip" && !savedTrip ? "trips" : savedView && savedView !== "auth" ? savedView : "trips") : current);
       if (isTripInvitation) window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
     };
     void supabase.auth.getSession().then(async ({ data }) => {
@@ -1238,14 +1255,18 @@ export function App() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) setAuthenticatedUser(session.user, event === "SIGNED_IN");
-      else if (event === "SIGNED_OUT") setView("auth");
+      else if (event === "SIGNED_OUT") { localStorage.removeItem("odyssey-current-view"); setView("auth"); }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
   useEffect(() => {
     localStorage.setItem("odyssey-drafts", JSON.stringify(drafts));
   }, [drafts]);
+  useEffect(() => {
+    localStorage.setItem("odyssey-active-trip", activeTrip.id);
+  }, [activeTrip.id]);
   const go = (next: View) => {
+    localStorage.setItem("odyssey-current-view", next);
     setView(next);
     setMenu(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
