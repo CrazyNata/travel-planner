@@ -389,11 +389,12 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
           <label>
             Участники
             <div className="people">
-              <span><Avatar>АС</Avatar>Анна (вы)</span>
-              {hasMaxim && <span><Avatar tone="green">МК</Avatar>Максим <button type="button" className="remove-invite" onClick={() => setHasMaxim(false)}>×</button></span>}
+              <span className="participant-chip"><Avatar>АС</Avatar><b>Анна (вы)</b></span>
+              {hasMaxim && <span className="participant-chip"><Avatar tone="green">МК</Avatar><b>Максим</b><button type="button" className="remove-invite" onClick={() => setHasMaxim(false)}>×</button></span>}
               {invitees.map((person) => (
-                <span key={person.email} title={person.email}>
-                  {person.name}
+                <span className="participant-chip" key={person.email} title={person.email}>
+                  <Avatar tone="blue">{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</Avatar>
+                  <b>{person.name}</b>
                   <button type="button" className="remove-invite" onClick={() => setInvitees(invitees.filter((item) => item.email !== person.email))}>×</button>
                 </span>
               ))}

@@ -600,6 +600,23 @@ button {
   padding: 4px 10px 4px 4px;
   font-size: 12px;
 }
+.people .participant-chip {
+  gap: 8px;
+  border: 1px solid #dfdef8;
+  background: #eeedff;
+  padding: 4px 8px 4px 4px;
+  box-shadow: 0 1px 2px rgba(76, 70, 214, 0.08);
+}
+.people .participant-chip .avatar {
+  width: 28px;
+  height: 28px;
+  border-width: 2px;
+  font-size: 10px;
+}
+.people .participant-chip b {
+  color: #292a34;
+  font-size: 13px;
+}
 .people button {
   border: 1px dashed #d8cec0;
   border-radius: 999px;
@@ -609,11 +626,17 @@ button {
   font-size: 13px;
 }
 .people .remove-invite {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
   border: 0;
-  background: transparent;
+  border-radius: 50%;
+  background: #d9d8f7;
   padding: 0;
-  color: #9c948a;
-  font-size: 16px;
+  color: #6965c9;
+  font-size: 15px;
+  font-weight: 700;
   line-height: 1;
 }
 .invite-person {
