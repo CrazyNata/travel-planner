@@ -3,9 +3,11 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "route" | "bookings" | "budget" | "photos" | "members";
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean };
 
-const trips = [
+const trips: TripSummary[] = [
   {
+    id: "sample-italy",
     title: "Италия",
     dates: "12–19 сентября 2026 · 8 дней",
     cities: "Рим · Флоренция · Венеция",
@@ -253,10 +255,11 @@ function Sidebar({
   );
 }
 
-function Trips({ go, profileName }: { go: (view: View) => void; profileName: string }) {
+function Trips({ go, profileName, drafts, onOpenTrip }: { go: (view: View) => void; profileName: string; drafts: TripSummary[]; onOpenTrip: (trip: TripSummary) => void }) {
   const [filter, setFilter] = useState("all");
+  const allTrips = [...trips, ...drafts];
   const filters = [
-    ["all", `Все · ${trips.length}`],
+    ["all", `Все · ${allTrips.length}`],
     ["upcoming", "Предстоящие"],
     ["draft", "Черновики"],
     ["completed", "Завершённые"],
@@ -266,7 +269,7 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
     draft: "Черновик",
     completed: "Завершённое",
   };
-  const filteredTrips = filter === "all" ? trips : trips.filter((trip) => trip.status === statusByFilter[filter]);
+  const filteredTrips = filter === "all" ? allTrips : allTrips.filter((trip) => trip.status === statusByFilter[filter]);
   return (
     <div className="page wide">
       <header className="page-title">
@@ -288,7 +291,7 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
           <article
             className="trip-card"
             key={trip.title}
-            onClick={() => index === 0 && go("trip")}
+            onClick={() => onOpenTrip(trip)}
           >
             <div className={`cover ${trip.tone}`}>
               <span className="status">● {trip.status}</span>
@@ -327,7 +330,7 @@ function Trips({ go, profileName }: { go: (view: View) => void; profileName: str
   );
 }
 
-function CreateTrip({ go }: { go: (view: View) => void }) {
+function CreateTrip({ go, onCreate }: { go: (view: View) => void; onCreate: (trip: TripSummary) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -386,21 +389,24 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
         className="create-form"
         onSubmit={(event) => {
           event.preventDefault();
-          go("trip");
+          const formData = new FormData(event.currentTarget);
+          const title = String(formData.get("title") || "").trim() || "Без названия";
+          const cities = String(formData.get("cities") || "").trim();
+          onCreate({ id: crypto.randomUUID(), title, cities, dates: startDate && endDate ? `${startDate} – ${endDate}` : "Даты не выбраны · черновик", status: "Черновик", progress: 0, tone: "stone", isDraft: true });
         }}
       >
         <label>
           Название
-          <input placeholder="Например, Италия" />
+          <input name="title" placeholder="Например, Италия" />
         </label>
         <div className="form-row">
           <label>
             Страна / направление
-            <input placeholder="Страна или направление" />
+            <input name="destination" placeholder="Страна или направление" />
           </label>
           <label>
             Города
-            <input placeholder="Города маршрута" />
+            <input name="cities" placeholder="Города маршрута" />
           </label>
         </div>
         <div className="form-row">
@@ -469,9 +475,10 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
   );
 }
 
-function RouteTab() {
+function RouteTab({ isDraft = false }: { isDraft?: boolean }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
+  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · 0 мест</span></button></div><section className="day-plan"><header><h2>Маршрут пока пуст</h2><span>Добавьте первое место</span></header><div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div><button className="add-place">＋ Добавить первое место</button></section><aside className="map-card"><div className="map"><span>интерактивная карта · выберите направление</span></div><footer><span>Маршрут дня</span><b>0 точек</b></footer></aside></div></>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -815,9 +822,9 @@ function Members() {
   );
 }
 
-function Workspace({ go }: { go: (view: View) => void }) {
+function Workspace({ go, trip }: { go: (view: View) => void; trip: TripSummary }) {
   const [tab, setTab] = useState<Tab>("route");
-  const labels: [Tab, string][] = [
+  const labels: [Tab, string][] = trip.isDraft ? [["route", "Маршрут"]] : [
     ["route", "Маршрут"],
     ["bookings", "Жильё и транспорт"],
     ["budget", "Бюджет"],
@@ -833,18 +840,18 @@ function Workspace({ go }: { go: (view: View) => void }) {
         <div className="trip-heading">
           <div>
             <h1>
-              Италия <span>● Активное</span>
+              {trip.title} <span>● {trip.status}</span>
             </h1>
-            <p>12–19 сентября 2026 · 8 дней · Рим, Флоренция, Венеция</p>
+            <p>{trip.isDraft ? (trip.cities || "Даты, города и маршрут пока не заполнены") : trip.dates}</p>
           </div>
-          <div className="share">
+          {!trip.isDraft && <div className="share">
             <div>
               <Avatar>АС</Avatar>
               <Avatar tone="green">МК</Avatar>
               <Avatar tone="blue">ДВ</Avatar>
             </div>
             <button onClick={() => go("public")}>↗ Публичная ссылка</button>
-          </div>
+          </div>}
         </div>
         <nav className="tabs">
           {labels.map(([value, label]) => (
@@ -859,7 +866,7 @@ function Workspace({ go }: { go: (view: View) => void }) {
         </nav>
       </header>
       <main className="workspace">
-        {tab === "route" && <RouteTab />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
@@ -1131,6 +1138,14 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
 export function App() {
   const [view, setView] = useState<View>("auth");
   const [menu, setMenu] = useState(false);
+  const [drafts, setDrafts] = useState<TripSummary[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("odyssey-drafts") || "[]") as TripSummary[];
+    } catch {
+      return [];
+    }
+  });
+  const [activeTrip, setActiveTrip] = useState<TripSummary>(trips[0]);
   const [profileName, setProfileName] = useState("Путешественник");
   useEffect(() => {
     const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }) => {
@@ -1153,6 +1168,9 @@ export function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+  useEffect(() => {
+    localStorage.setItem("odyssey-drafts", JSON.stringify(drafts));
+  }, [drafts]);
   const go = (next: View) => {
     setView(next);
     setMenu(false);
@@ -1166,9 +1184,9 @@ export function App() {
         <button className="menu-button" onClick={() => setMenu(true)}>
           ☰
         </button>
-        {view === "trips" && <Trips go={go} profileName={profileName} />}
-        {view === "create" && <CreateTrip go={go} />}
-        {view === "trip" && <Workspace go={go} />}
+        {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
+        {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
