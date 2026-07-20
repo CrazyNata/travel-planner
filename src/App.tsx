@@ -1031,7 +1031,14 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
       onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
       setActivePhoto(nextPhotos.length - uploadedPhotos.length);
     } catch {
-      window.alert("Не удалось загрузить фотографии. Попробуйте файлы до 10 МБ в формате JPG, PNG или WebP.");
+      try {
+        const localPhotos = await Promise.all(Array.from(files).map(compressCoverPhoto));
+        const nextPhotos = [...coverPhotos, ...localPhotos.map((image) => ({ id: crypto.randomUUID(), image }))];
+        onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
+        setActivePhoto(nextPhotos.length - localPhotos.length);
+      } catch {
+        window.alert("Не удалось обработать фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.");
+      }
     }
   };
   const reorderCoverPhotos = (_from: number, _to: number) => undefined;
