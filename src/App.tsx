@@ -331,6 +331,7 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitees, setInvitees] = useState<string[]>([]);
+  const [hasMaxim, setHasMaxim] = useState(true);
   const [startDate, setStartDate] = useState("2026-09-12");
   const [endDate, setEndDate] = useState("2026-09-19");
   const [coverImage, setCoverImage] = useState("");
@@ -385,6 +386,8 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
           <label>
             Участники
             <div className="people">
+              <span><Avatar>АС</Avatar>Анна (вы)</span>
+              {hasMaxim && <span><Avatar tone="green">МК</Avatar>Максим <button type="button" className="remove-invite" onClick={() => setHasMaxim(false)}>×</button></span>}
               {invitees.map((email) => (
                 <span key={email}>
                   {email}
