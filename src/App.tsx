@@ -976,8 +976,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [activePhoto, setActivePhoto] = useState(0);
   const isWinterRoute = trip.title.toLowerCase().includes("рождествен") || trip.cities.includes("Мюнхен") || trip.cities.includes("Прага");
-  const savedCoverPhotos = trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity || (isWinterRoute ? "Мюнхен" : ""), description: trip.coverDescription || (isWinterRoute ? "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац." : "") }] : [];
-  const coverPhotos = isWinterRoute && savedCoverPhotos.length < 2 ? [...savedCoverPhotos, { id: "verona-cover", image: "https://upload.wikimedia.org/wikipedia/commons/9/91/Verona_-_Piazza_Bra_-_2022_Christmas_market_%2801%29.jpg", city: "Верона", description: "Зимняя Пьяцца Бра сияет огнями рождественской ярмарки у стен древней Арены. Вечерняя прогулка здесь соединяет итальянскую историю и праздничное настроение." }] : savedCoverPhotos;
+  const coverPhotos = (trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity || (isWinterRoute ? "Мюнхен" : ""), description: trip.coverDescription || (isWinterRoute ? "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац." : "") }] : []).filter((photo) => photo.id !== "verona-cover");
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
