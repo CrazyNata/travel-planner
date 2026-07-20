@@ -317,6 +317,13 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
       <button className="back" onClick={() => go("trips")}>
         ← Мои путешествия
       </button>
+      <div className="create-illustration" aria-hidden="true">
+        <svg viewBox="0 0 120 120" fill="none">
+          <circle cx="60" cy="60" r="47" />
+          <path d="M78 42 67 67 42 78l11-25 25-11Z" />
+          <circle cx="60" cy="60" r="5" />
+        </svg>
+      </div>
       <h1>Новое путешествие</h1>
       <p className="lead">
         Заполните основное — детали маршрута добавите позже.
