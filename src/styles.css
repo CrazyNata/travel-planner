@@ -509,6 +509,9 @@ button {
   stroke-linejoin: round;
   stroke-width: 1.8;
 }
+.date-trigger .placeholder {
+  color: #9c948a;
+}
 .calendar-popover {
   position: absolute;
   top: calc(100% + 8px);

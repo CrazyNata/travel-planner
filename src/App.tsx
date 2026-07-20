@@ -114,19 +114,19 @@ function Avatar({
 }
 
 function DatePicker({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const selected = new Date(`${value}T12:00:00`);
+  const selected = value ? new Date(`${value}T12:00:00`) : null;
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
+  const [month, setMonth] = useState(() => selected ? new Date(selected.getFullYear(), selected.getMonth(), 1) : new Date());
   const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
   const monthStart = (month.getDay() + 6) % 7;
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const formatted = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(selected);
+  const formatted = selected ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(selected) : "Выберите дату";
   const chooseDay = (day: number) => {
     const next = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     onChange(next);
     setOpen(false);
   };
-  return <label className="date-field">{label}<div className="date-picker"><button type="button" className="date-trigger" onClick={() => setOpen(!open)}><span>{formatted}</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4m8-4v4M4 10h16" /></svg></button>{open && <div className="calendar-popover"><div className="calendar-header"><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button><b>{new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(month)}</b><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button></div><div className="calendar-grid calendar-weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid">{Array.from({ length: monthStart }, (_, index) => <span key={`empty-${index}`} />)}{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const isSelected = selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day; return <button type="button" className={isSelected ? "selected" : ""} onClick={() => chooseDay(day)} key={day}>{day}</button>; })}</div></div>}</div></label>;
+  return <label className="date-field">{label}<div className="date-picker"><button type="button" className="date-trigger" onClick={() => setOpen(!open)}><span className={value ? "" : "placeholder"}>{formatted}</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4m8-4v4M4 10h16" /></svg></button>{open && <div className="calendar-popover"><div className="calendar-header"><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button><b>{new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(month)}</b><button type="button" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button></div><div className="calendar-grid calendar-weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid">{Array.from({ length: monthStart }, (_, index) => <span key={`empty-${index}`} />)}{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const isSelected = selected?.getFullYear() === month.getFullYear() && selected?.getMonth() === month.getMonth() && selected?.getDate() === day; return <button type="button" className={isSelected ? "selected" : ""} onClick={() => chooseDay(day)} key={day}>{day}</button>; })}</div></div>}</div></label>;
 }
 
 function Sidebar({
@@ -333,8 +333,8 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitees, setInvitees] = useState<{ name: string; email: string }[]>([]);
   const [inviteMessage, setInviteMessage] = useState("");
-  const [startDate, setStartDate] = useState("2026-09-12");
-  const [endDate, setEndDate] = useState("2026-09-19");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const addInvitee = async () => {
@@ -391,16 +391,16 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
       >
         <label>
           Название
-          <input defaultValue="Италия" />
+          <input placeholder="Например, Италия" />
         </label>
         <div className="form-row">
           <label>
             Страна / направление
-            <input defaultValue="Италия" />
+            <input placeholder="Страна или направление" />
           </label>
           <label>
             Города
-            <input defaultValue="Рим, Флоренция, Венеция" />
+            <input placeholder="Города маршрута" />
           </label>
         </div>
         <div className="form-row">
