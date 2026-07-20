@@ -1081,7 +1081,7 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
           <form onSubmit={handleSubmit}>
             <label className={isRegister ? "" : "hidden"}>
               Имя
-              <input name="name" placeholder="Анна Соколова" />
+              <input name="name" placeholder="Введите имя" autoComplete="name" />
             </label>
             <label>
               E-mail
