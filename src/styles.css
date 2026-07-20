@@ -473,7 +473,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
 }
 .create-form input,
@@ -606,7 +606,7 @@ button {
   background: #fff;
   padding: 8px 13px;
   color: #9c948a;
-  font-size: 11px;
+  font-size: 13px;
 }
 .people .remove-invite {
   border: 0;
