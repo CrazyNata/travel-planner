@@ -965,7 +965,8 @@ button {
   align-items: stretch;
 }
 .overview-draft > section,
-.cover-gallery > section {
+.cover-gallery > section,
+.cover-photo-stack > section {
   display: flex;
   min-height: 320px;
   flex-direction: column;
@@ -1117,12 +1118,67 @@ button {
   font-weight: 800;
   backdrop-filter: blur(6px);
 }
-.overview-draft > section:not(.has-draft-cover) .add-cover-photo {
+.overview-draft > section:not(.has-draft-cover) .add-cover-photo,
+.cover-photo-stack > section:not(.has-draft-cover) .add-cover-photo {
   position: static;
   align-self: flex-start;
   margin-top: 18px;
   border: 0;
   background: var(--accent);
+}
+.cover-photo-stack {
+  min-width: 0;
+}
+.cover-order {
+  margin-top: 10px;
+  border: 1px solid #e5e3ef;
+  border-radius: 13px;
+  background: #fff;
+  padding: 10px 12px;
+}
+.cover-order p {
+  margin: 0 0 8px;
+  color: #827b92;
+  font-size: 10px;
+  font-weight: 700;
+}
+.cover-order > div {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.cover-order button {
+  position: relative;
+  width: 70px;
+  height: 48px;
+  flex: none;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background-position: center;
+  background-size: cover;
+  cursor: grab;
+}
+.cover-order button.active {
+  border-color: var(--accent);
+}
+.cover-order button.dragging {
+  opacity: 0.45;
+}
+.cover-order button span {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  border-radius: 5px;
+  background: rgba(20, 19, 27, 0.7);
+  padding: 3px 4px;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cover-gallery-meta {
   display: flex;
