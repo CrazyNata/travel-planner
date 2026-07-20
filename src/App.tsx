@@ -345,7 +345,12 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
       body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
     });
     if (error) {
-      setInviteMessage("Не удалось отправить приглашение. Проверьте e-mail и попробуйте снова.");
+      let message = error.message;
+      if (error.context instanceof Response) {
+        const payload = await error.context.json().catch(() => null) as { error?: string } | null;
+        message = payload?.error || message;
+      }
+      setInviteMessage(`Не удалось отправить приглашение: ${message}`);
       return;
     }
     setInvitees([...invitees, { name, email }]);
