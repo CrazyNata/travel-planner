@@ -1165,10 +1165,11 @@ export function App() {
   const [activeTrip, setActiveTrip] = useState<TripSummary>(trips[0]);
   const [profileName, setProfileName] = useState("Путешественник");
   useEffect(() => {
-    const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }) => {
+    const setAuthenticatedUser = (user: { email?: string; user_metadata: { full_name?: string } }, shouldNavigate = false) => {
       setProfileName(user.user_metadata.full_name || user.email || "Путешественник");
+      if (!shouldNavigate) return;
       const isTripInvitation = new URLSearchParams(window.location.search).get("invite") === "trip";
-      setView(isTripInvitation ? "trip" : "trips");
+      setView((current) => current === "auth" ? (isTripInvitation ? "trip" : "trips") : current);
       if (isTripInvitation) window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
     };
     void supabase.auth.getSession().then(async ({ data }) => {
@@ -1177,11 +1178,11 @@ export function App() {
         await supabase.auth.signOut();
         return;
       }
-      setAuthenticatedUser(data.session.user);
+      setAuthenticatedUser(data.session.user, true);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) setAuthenticatedUser(session.user);
-      else setView("auth");
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) setAuthenticatedUser(session.user, event === "SIGNED_IN");
+      else if (event === "SIGNED_OUT") setView("auth");
     });
     return () => listener.subscription.unsubscribe();
   }, []);
