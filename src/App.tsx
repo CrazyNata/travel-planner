@@ -346,16 +346,18 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
       setInviteMessage("Сессия истекла. Войдите в аккаунт ещё раз.");
       return;
     }
-    const { error } = await supabase.functions.invoke("dynamic-function", {
-      body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` },
-      headers: { Authorization: `Bearer ${session.access_token}` },
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dynamic-function`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` }),
     });
-    if (error) {
-      let message = error.message;
-      if (error.context instanceof Response) {
-        const payload = await error.context.json().catch(() => null) as { error?: string } | null;
-        message = payload?.error || message;
-      }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      const message = payload?.error || `Ошибка отправки (${response.status})`;
       setInviteMessage(`Не удалось отправить приглашение: ${message}`);
       return;
     }
