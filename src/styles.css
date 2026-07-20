@@ -1118,6 +1118,10 @@ button {
   font-weight: 800;
   backdrop-filter: blur(6px);
 }
+.add-cover-photo,
+.cover-order {
+  display: none;
+}
 .overview-draft > section:not(.has-draft-cover) .add-cover-photo,
 .cover-photo-stack > section:not(.has-draft-cover) .add-cover-photo {
   position: static;

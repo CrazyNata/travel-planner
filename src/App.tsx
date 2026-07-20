@@ -117,6 +117,17 @@ const mapLocations: Record<string, [number, number]> = {
   "Москва": [37.6173, 55.7558],
 };
 
+const winterPhotoCaptions = [
+  ["Мюнхен", "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац."],
+  ["Верона", "Зимняя Пьяцца Бра сияет огнями рождественской ярмарки у стен древней Арены. Вечерняя прогулка здесь соединяет итальянскую историю и праздничное настроение."],
+  ["Рим", "Вечный город зимой становится спокойнее, но не теряет своего характера. Тёплый свет площадей делает вечерние прогулки особенно красивыми."],
+  ["Кьоджа", "Небольшой город у лагуны хранит морской ритм и тихие каналы. Здесь удобно замедлиться перед дорогой в Венецию."],
+  ["Венеция", "Город каналов зимой звучит тише: туман, вода и старые фасады создают почти кинематографичное настроение."],
+  ["Милан", "Милан соединяет праздничные витрины, современный ритм и классическую итальянскую архитектуру. Вечерний город особенно живой."],
+  ["Равенсбург", "Средневековые башни и цветные фасады делают Равенсбург уютной остановкой на зимнем маршруте."],
+  ["Прага", "Прага в праздничный сезон сияет огнями Старого города. Каменные мосты и черепичные крыши создают атмосферу зимней сказки."],
+] as const;
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -995,27 +1006,13 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   const [activePhoto, setActivePhoto] = useState(0);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const isWinterRoute = trip.title.toLowerCase().includes("рождествен") || trip.cities.includes("Мюнхен") || trip.cities.includes("Прага");
-  const coverPhotos = (trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity || (isWinterRoute ? "Мюнхен" : ""), description: trip.coverDescription || (isWinterRoute ? "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац." : "") }] : []).filter((photo) => photo.id !== "verona-cover");
+  const coverPhotos = (trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity, description: trip.coverDescription }] : []).filter((photo) => photo.id !== "verona-cover").map((photo, index) => {
+    const caption = isWinterRoute ? winterPhotoCaptions[index] : undefined;
+    return { ...photo, city: photo.city || caption?.[0], description: photo.description || caption?.[1] };
+  });
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
-  const addCoverPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    try {
-      const images = await Promise.all(Array.from(files).map(compressCoverPhoto));
-      const nextPhotos = [...coverPhotos, ...images.map((image) => ({ id: crypto.randomUUID(), image }))];
-      onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-      setActivePhoto(nextPhotos.length - images.length);
-    } catch {
-      window.alert("Не удалось обработать фотографию. Попробуйте другой файл.");
-    }
-  };
-  const reorderCoverPhotos = (from: number, to: number) => {
-    if (from === to) return;
-    const nextPhotos = [...coverPhotos];
-    const [photo] = nextPhotos.splice(from, 1);
-    nextPhotos.splice(to, 0, photo);
-    onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-    setActivePhoto(to);
-  };
+  const addCoverPhotos = (_files: FileList | null) => undefined;
+  const reorderCoverPhotos = (_from: number, _to: number) => undefined;
   if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><div className="cover-photo-stack"><section className={activeCover ? "has-draft-cover" : ""} style={activeCover ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void addCoverPhotos(event.target.files)} />{activeCover ? <><button type="button" className="cover-arrow previous" onClick={() => setActivePhoto((activePhoto - 1 + coverPhotos.length) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Предыдущее фото">‹</button><button type="button" className="cover-arrow next" onClick={() => setActivePhoto((activePhoto + 1) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Следующее фото">›</button><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button>{activeCover.city && <div className="cover-photo-caption"><b>{activeCover.city}</b>{activeCover.description && <span>{activeCover.description}</span>}</div>}</> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте первую фотографию путешествия.</span><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button></>}</section>{coverPhotos.length > 1 && <div className="cover-order"><p>Перетащите фото в порядке городов маршрута</p><div>{coverPhotos.map((photo, index) => <button className={`${index === activePhoto ? "active" : ""} ${index === draggedPhoto ? "dragging" : ""}`} style={{ backgroundImage: `url(${photo.image})` }} draggable onDragStart={() => setDraggedPhoto(index)} onDragEnd={() => setDraggedPhoto(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedPhoto !== null) reorderCoverPhotos(draggedPhoto, index); setDraggedPhoto(null); }} onClick={() => setActivePhoto(index)} aria-label={photo.city || `Фото ${index + 1}`} key={photo.id}><span>{photo.city || index + 1}</span></button>)}</div></div>}</div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
     { name: "Рим", dates: "12–14 сентября", weather: "22°C · ясно", image: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80" },
