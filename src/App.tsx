@@ -916,8 +916,8 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   return (
     <div>
       <header className="trip-header">
-        <button className="back" onClick={() => go("trips")}>
-          ← Мои путешествия
+        <button className="back back-icon" onClick={() => go("trips")} aria-label="На главную" title="На главную">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0 6-6m-6 6 6 6" /></svg>
         </button>
         <div className="trip-heading">
           <div>
