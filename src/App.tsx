@@ -1013,32 +1013,13 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      window.alert("Войдите в аккаунт, чтобы загрузить фотографии.");
-      return;
-    }
     try {
-      const uploadedPhotos = await Promise.all(Array.from(files).map(async (file) => {
-        const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const path = `${session.user.id}/${trip.id}/${crypto.randomUUID()}.${extension}`;
-        const { error } = await supabase.storage.from("trip-photos").upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
-        if (error) throw error;
-        const { data } = supabase.storage.from("trip-photos").getPublicUrl(path);
-        return { id: crypto.randomUUID(), image: data.publicUrl };
-      }));
-      const nextPhotos = [...coverPhotos, ...uploadedPhotos];
+      const localPhotos = await Promise.all(Array.from(files).map(compressCoverPhoto));
+      const nextPhotos = [...coverPhotos, ...localPhotos.map((image) => ({ id: crypto.randomUUID(), image }))];
       onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-      setActivePhoto(nextPhotos.length - uploadedPhotos.length);
+      setActivePhoto(nextPhotos.length - localPhotos.length);
     } catch {
-      try {
-        const localPhotos = await Promise.all(Array.from(files).map(compressCoverPhoto));
-        const nextPhotos = [...coverPhotos, ...localPhotos.map((image) => ({ id: crypto.randomUUID(), image }))];
-        onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-        setActivePhoto(nextPhotos.length - localPhotos.length);
-      } catch {
-        window.alert("Не удалось обработать фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.");
-      }
+      window.alert("Не удалось обработать фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.");
     }
   };
   const reorderCoverPhotos = (_from: number, _to: number) => undefined;
