@@ -1354,8 +1354,13 @@ button {
 }
 .draft-route-cards {
   display: grid;
-  max-width: 1040px;
   gap: 16px;
+}
+.draft-route-with-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  align-items: start;
 }
 .draft-route-cards > .route-toolbar {
   margin-bottom: 2px;
@@ -2322,6 +2327,12 @@ button {
   }
   .add-place-form input {
     flex-basis: 100%;
+  }
+}
+
+@media (max-width: 1050px) {
+  .draft-route-with-map {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 520px) {
