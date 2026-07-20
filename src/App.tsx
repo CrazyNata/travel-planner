@@ -341,8 +341,14 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
     const email = inviteEmail.trim().toLowerCase();
     const name = inviteName.trim() || email;
     if (!email || invitees.some((person) => person.email === email)) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setInviteMessage("Сессия истекла. Войдите в аккаунт ещё раз.");
+      return;
+    }
     const { error } = await supabase.functions.invoke("dynamic-function", {
       body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` },
+      headers: { Authorization: `Bearer ${session.access_token}` },
     });
     if (error) {
       let message = error.message;
