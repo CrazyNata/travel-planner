@@ -17,10 +17,9 @@ Deno.serve(async (request) => {
   if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
   const url = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const client = createClient(url, anonKey);
-  const { data: { user }, error: userError } = await client.auth.getUser(token);
+  const admin = createClient(url, serviceRoleKey);
+  const { data: { user }, error: userError } = await admin.auth.getUser(token);
   if (userError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
   const { email, name, redirectTo } = await request.json();
@@ -31,7 +30,6 @@ Deno.serve(async (request) => {
     return new Response(JSON.stringify({ error: "Invalid redirect URL" }), { status: 400, headers: corsHeaders });
   }
 
-  const admin = createClient(url, serviceRoleKey);
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: typeof name === "string" ? name.trim() : "", invited_by: user.id },
     redirectTo,
