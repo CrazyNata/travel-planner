@@ -5,7 +5,8 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; places?: string[] };
+type DraftDay = { id: string; places: string[] };
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; places?: string[]; days?: DraftDay[] };
 
 const trips: TripSummary[] = [
   {
@@ -545,20 +546,22 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
   );
 }
 
-function RouteTab({ isDraft = false, draftPlaces = [], onAddDraftPlace }: { isDraft?: boolean; draftPlaces?: string[]; onAddDraftPlace?: (place: string) => void }) {
+function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onAddDraftPlace }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onAddDraftPlace?: (day: number, place: string) => void }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   const [addingPlace, setAddingPlace] = useState(false);
   const [placeName, setPlaceName] = useState("");
+  useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
   const addDraftPlace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const place = placeName.trim();
     if (!place) return;
-    onAddDraftPlace?.(place);
+    onAddDraftPlace?.(day, place);
     setPlaceName("");
     setAddingPlace(false);
   };
-  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте даты и первое место</span></div><div className="route-layout draft-route"><div className="day-rail"><button className="active"><small>День 1</small><b>Новый маршрут</b><span>Даты не выбраны · {draftPlaces.length} мест</span></button></div><section className="day-plan"><header><h2>{draftPlaces.length ? "День 1 · Новый маршрут" : "Маршрут пока пуст"}</h2><span>{draftPlaces.length ? `${draftPlaces.length} мест` : "Добавьте первое место"}</span></header>{draftPlaces.length ? draftPlaces.map((place, index) => <PlaceRow place={place} index={index} key={`${place}-${index}`} />) : <div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div>}{addingPlace ? <form className="add-place-form" onSubmit={addDraftPlace}><input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Например, Колизей" autoFocus /><button className="accent">Добавить</button><button type="button" onClick={() => setAddingPlace(false)}>Отмена</button></form> : <button className="add-place" onClick={() => setAddingPlace(true)}>＋ {draftPlaces.length ? "Добавить место" : "Добавить первое место"}</button>}</section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>{draftPlaces.length} точек</b></footer></aside></div></>;
+  const currentDraftDay = draftDays[day] || { id: "day-1", places: [] };
+  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте дни и места</span></div><div className="route-layout draft-route"><div className="day-rail">{draftDays.map((draftDay, index) => <button className={index === day ? "active" : ""} onClick={() => setDay(index)} key={draftDay.id}><small>День {index + 1}</small><b>Новый маршрут</b><span>Даты не выбраны · {draftDay.places.length} мест</span></button>)}<button className="add-day" onClick={() => { setDay(draftDays.length); onAddDraftDay?.(); }}>＋ Добавить день</button></div><section className="day-plan"><header><h2>{currentDraftDay.places.length ? `День ${day + 1} · Новый маршрут` : "Маршрут пока пуст"}</h2><span>{currentDraftDay.places.length ? `${currentDraftDay.places.length} мест` : "Добавьте первое место"}</span></header>{currentDraftDay.places.length ? currentDraftDay.places.map((place, index) => <PlaceRow place={place} index={index} key={`${place}-${index}`} />) : <div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div>}{addingPlace ? <form className="add-place-form" onSubmit={addDraftPlace}><input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Например, Колизей" autoFocus /><button className="accent">Добавить</button><button type="button" onClick={() => setAddingPlace(false)}>Отмена</button></form> : <button className="add-place" onClick={() => setAddingPlace(true)}>＋ {currentDraftDay.places.length ? "Добавить место" : "Добавить первое место"}</button>}</section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>{currentDraftDay.places.length} точек</b></footer></aside></div></>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -962,6 +965,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
+  const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
@@ -1006,7 +1010,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       </header>
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
-        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftPlaces={trip.places} onAddDraftPlace={(place) => onUpdateTrip({ ...trip, places: [...(trip.places || []), place] })} />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onAddDraftPlace={(day, place) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, places: [...item.places, place] } : item) })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}

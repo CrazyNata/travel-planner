@@ -1066,6 +1066,19 @@ button {
   color: #23201c;
   box-shadow: 0 2px 10px #4c46d61a;
 }
+.day-rail .add-day {
+  align-items: center;
+  border: 1.5px dashed #c9c3ee;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.day-rail .add-day:hover {
+  border-color: var(--accent);
+  background: #eeedff;
+}
 .day-rail small,
 .day-rail span {
   font-size: 9px;
