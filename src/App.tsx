@@ -5,7 +5,8 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type DraftDay = { id: string; places: string[] };
+type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoidTolls: boolean };
+type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; places?: string[]; days?: DraftDay[] };
 
 const trips: TripSummary[] = [
@@ -546,11 +547,27 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
   );
 }
 
-function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onAddDraftPlace }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onAddDraftPlace?: (day: number, place: string) => void }) {
+function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
+  const [from, setFrom] = useState(roadLeg?.from || "");
+  const [to, setTo] = useState(roadLeg?.to || "");
+  const [checkIn, setCheckIn] = useState(roadLeg?.checkIn || "");
+  const [notes, setNotes] = useState(roadLeg?.notes || "");
+  const [avoidTolls, setAvoidTolls] = useState(roadLeg?.avoidTolls || false);
+  return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkIn, notes: notes.trim(), avoidTolls }); }}>
+    <div className="road-leg-editor-title"><b>Автомобильный маршрут</b><span>Заполните переезд на этот день</span></div>
+    <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label><label>Заселение в отель<input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label></div>
+    <label className="road-notes">Заметки<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Например, заправиться перед выездом" /></label>
+    <label className="avoid-tolls"><input type="checkbox" checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} /><span><b>Избегать платных дорог</b><small>Google Maps откроется с этим ограничением</small></span></label>
+    <div className="road-leg-actions"><button type="button" className="secondary" onClick={onCancel}>Отмена</button><button className="accent">Сохранить маршрут</button></div>
+  </form>;
+}
+
+function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onAddDraftPlace, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onAddDraftPlace?: (day: number, place: string) => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   const [addingPlace, setAddingPlace] = useState(false);
   const [placeName, setPlaceName] = useState("");
+  const [editingRoadLeg, setEditingRoadLeg] = useState(false);
   useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
   const addDraftPlace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -560,8 +577,9 @@ function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onAddDraftPl
     setPlaceName("");
     setAddingPlace(false);
   };
-  const currentDraftDay = draftDays[day] || { id: "day-1", places: [] };
-  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте дни и места</span></div><div className="route-layout draft-route"><div className="day-rail">{draftDays.map((draftDay, index) => <button className={index === day ? "active" : ""} onClick={() => setDay(index)} key={draftDay.id}><small>День {index + 1}</small><b>Новый маршрут</b><span>Даты не выбраны · {draftDay.places.length} мест</span></button>)}<button className="add-day" onClick={() => { setDay(draftDays.length); onAddDraftDay?.(); }}>＋ Добавить день</button></div><section className="day-plan"><header><h2>{currentDraftDay.places.length ? `День ${day + 1} · Новый маршрут` : "Маршрут пока пуст"}</h2><span>{currentDraftDay.places.length ? `${currentDraftDay.places.length} мест` : "Добавьте первое место"}</span></header>{currentDraftDay.places.length ? currentDraftDay.places.map((place, index) => <PlaceRow place={place} index={index} key={`${place}-${index}`} />) : <div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div>}{addingPlace ? <form className="add-place-form" onSubmit={addDraftPlace}><input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Например, Колизей" autoFocus /><button className="accent">Добавить</button><button type="button" onClick={() => setAddingPlace(false)}>Отмена</button></form> : <button className="add-place" onClick={() => setAddingPlace(true)}>＋ {currentDraftDay.places.length ? "Добавить место" : "Добавить первое место"}</button>}</section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>{currentDraftDay.places.length} точек</b></footer></aside></div></>;
+  const currentDraftDay: DraftDay = draftDays[day] || { id: "day-1", places: [] };
+  const mapsUrl = currentDraftDay.roadLeg ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(currentDraftDay.roadLeg.from)}&destination=${encodeURIComponent(currentDraftDay.roadLeg.to)}&travelmode=driving${currentDraftDay.roadLeg.avoidTolls ? "&avoid=tolls" : ""}` : "";
+  if (isDraft) return <><div className="route-toolbar"><span>Начните планирование: добавьте дни, автопереезды и места</span></div><div className="route-layout draft-route"><div className="day-rail">{draftDays.map((draftDay, index) => <button className={index === day ? "active" : ""} onClick={() => { setDay(index); setEditingRoadLeg(false); }} key={draftDay.id}><small>День {index + 1}</small><b>Новый маршрут</b><span>Даты не выбраны · {draftDay.places.length} мест</span></button>)}<button className="add-day" onClick={() => { setDay(draftDays.length); setEditingRoadLeg(false); onAddDraftDay?.(); }}>＋ Добавить день</button></div><section className="day-plan"><header><h2>{currentDraftDay.places.length || currentDraftDay.roadLeg ? `День ${day + 1} · Новый маршрут` : "Маршрут пока пуст"}</h2><span>{currentDraftDay.places.length ? `${currentDraftDay.places.length} мест` : "Добавьте переезд или первое место"}</span></header>{editingRoadLeg ? <RoadLegEditor roadLeg={currentDraftDay.roadLeg} onSave={(roadLeg) => { onUpdateDraftDay?.(day, { roadLeg }); setEditingRoadLeg(false); }} onCancel={() => setEditingRoadLeg(false)} /> : currentDraftDay.roadLeg ? <article className="road-leg-card"><span>АВТОМОБИЛЬНЫЙ МАРШРУТ</span><h3>{currentDraftDay.roadLeg.from} <b>→</b> {currentDraftDay.roadLeg.to}</h3><p>{currentDraftDay.roadLeg.checkIn ? `Заселение в отель: ${currentDraftDay.roadLeg.checkIn}` : "Время заселения не указано"}</p>{currentDraftDay.roadLeg.notes && <p className="road-leg-notes">{currentDraftDay.roadLeg.notes}</p>}<div>{currentDraftDay.roadLeg.avoidTolls && <small>Без платных дорог</small>}<a href={mapsUrl} target="_blank" rel="noreferrer">Открыть в Google Maps ↗</a><button type="button" onClick={() => setEditingRoadLeg(true)}>Изменить</button></div></article> : <button className="add-road-leg" onClick={() => setEditingRoadLeg(true)}>＋ Добавить автомобильный маршрут</button>}{currentDraftDay.places.length ? currentDraftDay.places.map((place, index) => <PlaceRow place={place} index={index} key={`${place}-${index}`} />) : <div className="draft-route-empty">Здесь появятся места, заметки и план на день.</div>}{addingPlace ? <form className="add-place-form" onSubmit={addDraftPlace}><input value={placeName} onChange={(event) => setPlaceName(event.target.value)} placeholder="Например, Колизей" autoFocus /><button className="accent">Добавить</button><button type="button" onClick={() => setAddingPlace(false)}>Отмена</button></form> : <button className="add-place" onClick={() => setAddingPlace(true)}>＋ {currentDraftDay.places.length ? "Добавить место" : "Добавить первое место"}</button>}</section><aside className="map-card"><TripMap /><footer><span>Маршрут дня</span><b>{currentDraftDay.places.length} точек</b></footer></aside></div></>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -1010,7 +1028,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       </header>
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
-        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onAddDraftPlace={(day, place) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, places: [...item.places, place] } : item) })} />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onAddDraftPlace={(day, place) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, places: [...item.places, place] } : item) })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}

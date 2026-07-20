@@ -1207,6 +1207,151 @@ button {
   font-size: 12px;
   font-weight: 700;
 }
+.add-road-leg {
+  border: 1.5px dashed #bdb9eb;
+  border-radius: 13px;
+  background: #f7f6ff;
+  padding: 12px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.road-leg-editor,
+.road-leg-card {
+  border: 1px solid #dfdef8;
+  border-radius: 15px;
+  background: #f9f9ff;
+  padding: 16px;
+}
+.road-leg-editor {
+  display: grid;
+  gap: 13px;
+}
+.road-leg-editor-title b,
+.road-leg-editor-title span {
+  display: block;
+}
+.road-leg-editor-title b {
+  color: #292743;
+  font-size: 14px;
+}
+.road-leg-editor-title span {
+  margin-top: 3px;
+  color: #7d799d;
+  font-size: 11px;
+}
+.road-leg-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 130px;
+  gap: 9px;
+}
+.road-leg-editor label {
+  display: grid;
+  gap: 5px;
+  color: #625e7b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.road-leg-editor input,
+.road-leg-editor textarea {
+  width: 100%;
+  border: 1px solid #d8d6ed;
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 10px;
+  color: #23201c;
+  font-size: 12px;
+}
+.road-leg-editor textarea {
+  min-height: 66px;
+  resize: vertical;
+}
+.avoid-tolls {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+  border-radius: 10px;
+  background: #eeedff;
+  padding: 9px 11px;
+}
+.avoid-tolls input {
+  width: 17px;
+  accent-color: var(--accent);
+}
+.avoid-tolls span b,
+.avoid-tolls span small {
+  display: block;
+}
+.avoid-tolls span b {
+  color: #45416d;
+  font-size: 12px;
+}
+.avoid-tolls span small {
+  margin-top: 2px;
+  color: #77739c;
+  font-size: 10px;
+  font-weight: 600;
+}
+.road-leg-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.road-leg-card > span {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.road-leg-card h3 {
+  margin: 7px 0 5px;
+  color: #292743;
+  font: 600 17px Unbounded, sans-serif;
+  letter-spacing: -0.05em;
+}
+.road-leg-card h3 b {
+  color: var(--accent);
+}
+.road-leg-card p {
+  margin: 0;
+  color: #77728b;
+  font-size: 12px;
+}
+.road-leg-card .road-leg-notes {
+  margin-top: 8px;
+  border-left: 2px solid #bcb8ed;
+  padding-left: 8px;
+}
+.road-leg-card > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 13px;
+}
+.road-leg-card small {
+  border-radius: 999px;
+  background: #e3f0de;
+  padding: 4px 7px;
+  color: #4e7443;
+  font-size: 9px;
+  font-weight: 800;
+}
+.road-leg-card a,
+.road-leg-card button {
+  border: 0;
+  border-radius: 8px;
+  background: #e7e8fb;
+  padding: 7px 9px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.road-leg-card button {
+  margin-left: auto;
+  background: transparent;
+  color: #77728b;
+}
 .map-card {
   position: sticky;
   top: 15px;
@@ -2838,5 +2983,11 @@ button {
   }
   .weather-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .road-leg-fields {
+    grid-template-columns: 1fr;
+  }
+  .road-leg-card > div {
+    flex-wrap: wrap;
   }
 }
