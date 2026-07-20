@@ -1046,16 +1046,17 @@ button {
 }
 .cover-photo-caption {
   position: absolute;
-  top: 0;
+  top: auto;
+  right: 0;
   bottom: 0;
   left: 0;
   display: flex;
-  width: min(42%, 330px);
+  width: 100%;
+  min-height: 42%;
   flex-direction: column;
   justify-content: flex-end;
-  max-width: none;
-  background: linear-gradient(90deg, rgba(15, 16, 23, 0.7), rgba(15, 16, 23, 0));
-  padding: 28px 24px;
+  background: linear-gradient(0deg, rgba(15, 16, 23, 0.78), rgba(15, 16, 23, 0));
+  padding: 24px;
   color: #fff;
   text-align: left;
   text-shadow: 0 2px 9px rgba(0, 0, 0, 0.45);
@@ -3369,7 +3370,7 @@ button {
     width: 100%;
   }
   .cover-photo-caption {
-    width: 78%;
+    width: 100%;
     padding: 20px 18px;
   }
 }
