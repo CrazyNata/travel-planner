@@ -332,7 +332,6 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitees, setInvitees] = useState<{ name: string; email: string }[]>([]);
-  const [hasMaxim, setHasMaxim] = useState(true);
   const [startDate, setStartDate] = useState("2026-09-12");
   const [endDate, setEndDate] = useState("2026-09-19");
   const [coverImage, setCoverImage] = useState("");
@@ -389,8 +388,6 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
           <label>
             Участники
             <div className="people">
-              <span className="participant-chip"><Avatar>АС</Avatar><b>Анна (вы)</b></span>
-              {hasMaxim && <span className="participant-chip"><Avatar tone="green">МК</Avatar><b>Максим</b><button type="button" className="remove-invite" onClick={() => setHasMaxim(false)}>×</button></span>}
               {invitees.map((person) => (
                 <span className="participant-chip" key={person.email} title={person.email}>
                   <Avatar tone="blue">{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</Avatar>
