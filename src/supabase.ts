@@ -7,4 +7,6 @@ if (!url || !publishableKey) {
   throw new Error("Supabase environment variables are not configured.");
 }
 
-export const supabase = createClient(url, publishableKey);
+export const supabase = createClient(url, publishableKey, {
+  auth: { persistSession: true, autoRefreshToken: true },
+});

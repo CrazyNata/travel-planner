@@ -930,6 +930,7 @@ function PublicRoute({ go }: { go: (view: View) => void }) {
 function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (name: string) => void }) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [message, setMessage] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const isRegister = mode === "register";
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -969,6 +970,7 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
         setMode("login");
         return;
       }
+      localStorage.setItem("odyssey-remember-me", "true");
       onAuthorized(name);
       setMessage("Аккаунт создан. Открываем ваши путешествия...");
       window.setTimeout(() => go("trips"), 500);
@@ -980,6 +982,7 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
       setMessage(error?.message ?? "Не удалось войти. Проверьте e-mail и пароль.");
       return;
     }
+    localStorage.setItem("odyssey-remember-me", String(rememberMe));
     onAuthorized(data.user.user_metadata.full_name || data.user.email || "Путешественник");
     setMessage("Вход выполнен. Открываем ваши путешествия...");
     window.setTimeout(() => go("trips"), 500);
@@ -1051,6 +1054,16 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
                 </span>
               </label>
             )}
+            {!isRegister && (
+              <label className="remember">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                />
+                <span>Запомнить меня</span>
+              </label>
+            )}
             <button className="auth-submit">
               {isRegister ? "Создать аккаунт" : "Войти"}
             </button>
@@ -1099,11 +1112,17 @@ export function App() {
       setProfileName(user.user_metadata.full_name || user.email || "Путешественник");
       setView("trips");
     };
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) setAuthenticatedUser(data.session.user);
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      if (localStorage.getItem("odyssey-remember-me") === "false") {
+        await supabase.auth.signOut();
+        return;
+      }
+      setAuthenticatedUser(data.session.user);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) setAuthenticatedUser(session.user);
+      else setView("auth");
     });
     return () => listener.subscription.unsubscribe();
   }, []);

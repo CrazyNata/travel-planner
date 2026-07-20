@@ -2315,6 +2315,8 @@ button {
 .auth-form .terms { display: flex; align-items: flex-start; gap: 8px; color: #6f7481; font-size: 12px; font-weight: 500; line-height: 1.35; }
 .auth-form .terms input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .auth-form .terms a { color: var(--accent); }
+.auth-form .remember { display: flex; align-items: center; gap: 8px; color: #6f7481; font-size: 13px; font-weight: 600; }
+.auth-form .remember input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .auth-submit { margin-top: 4px; border: 0; border-radius: 11px; background: linear-gradient(135deg, var(--accent), #6862e8); padding: 13px; color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 20px rgba(76, 70, 214, 0.28); }
 .auth-message { margin: 12px 0 0; color: #4e7443; font-size: 13px; font-weight: 600; line-height: 1.4; }
 .auth-footer { margin-top: 16px; color: #90949e; font-size: 13px; text-align: center; }
