@@ -1133,6 +1133,9 @@ button {
 .cover-photo-stack {
   min-width: 0;
 }
+.cover-photo-stack > section {
+  min-height: 460px;
+}
 .cover-order {
   margin-top: 10px;
   border: 1px solid #e5e3ef;
