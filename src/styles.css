@@ -646,7 +646,7 @@ button {
 }
 .upload {
   display: flex;
-  height: 120px;
+  height: 180px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -661,6 +661,10 @@ button {
     #ede5d9 24px
   );
   color: #9c948a;
+  background-position: center;
+  background-size: cover;
+  cursor: pointer;
+  overflow: hidden;
 }
 .upload b {
   color: var(--accent);
@@ -668,6 +672,30 @@ button {
 }
 .upload small {
   font: 10px monospace;
+}
+.cover-file-input {
+  display: none;
+}
+.upload-photo-button {
+  margin-top: 6px;
+  border-radius: 9px;
+  background: var(--accent);
+  padding: 9px 14px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(76, 70, 214, 0.25);
+}
+.upload.has-cover {
+  border-style: solid;
+  border-color: transparent;
+  color: #fff;
+}
+.upload.has-cover .upload-photo-button {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.94);
+  color: #23201c;
+  box-shadow: none;
 }
 .form-actions {
   display: flex;

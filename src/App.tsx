@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
@@ -333,12 +333,20 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const [invitees, setInvitees] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("2026-09-12");
   const [endDate, setEndDate] = useState("2026-09-19");
+  const [coverImage, setCoverImage] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const addInvitee = () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email || invitees.includes(email)) return;
     setInvitees([...invitees, email]);
     setInviteEmail("");
     setInviteOpen(false);
+  };
+  const selectCoverImage = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCoverImage(String(reader.result));
+    reader.readAsDataURL(file);
   };
   return (
     <div className="page form-page">
@@ -396,10 +404,9 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
           </label>
         <label>
           Обложка
-          <button type="button" className="upload">
-            <b>↑</b>
-            <span>Перетащите фото или выберите</span>
-            <small>1600×900 · jpg / png</small>
+          <input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectCoverImage(event.target.files?.[0])} />
+          <button type="button" className={`upload ${coverImage ? "has-cover" : ""}`} style={coverImage ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.28), rgba(27, 28, 31, 0.28)), url(${coverImage})` } : undefined} onClick={() => photoInputRef.current?.click()}>
+            {coverImage ? <span className="upload-photo-button">Сменить фото</span> : <><b>↑</b><span>Перетащите фото или выберите</span><small>1600×900 · jpg / png</small><span className="upload-photo-button">Загрузить фото</span></>}
           </button>
         </label>
         <div className="form-actions">
