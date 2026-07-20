@@ -1011,17 +1011,39 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     return { ...photo, city: photo.city || caption?.[0], description: photo.description || caption?.[1] };
   });
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
+  const uploadCoverPhoto = async (file: Blob, extension: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("No active session");
+    const path = `${session.user.id}/${trip.id}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from("trip-photos").upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type || "image/jpeg" });
+    if (error) throw error;
+    return supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl;
+  };
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     try {
-      const localPhotos = await Promise.all(Array.from(files).map(compressCoverPhoto));
-      const nextPhotos = [...coverPhotos, ...localPhotos.map((image) => ({ id: crypto.randomUUID(), image }))];
+      const uploadedPhotos = await Promise.all(Array.from(files).map(async (file) => ({ id: crypto.randomUUID(), image: await uploadCoverPhoto(file, file.name.split(".").pop()?.toLowerCase() || "jpg") })));
+      const nextPhotos = [...coverPhotos, ...uploadedPhotos];
       onUpdateTrip({ ...trip, coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos });
-      setActivePhoto(nextPhotos.length - localPhotos.length);
+      setActivePhoto(nextPhotos.length - uploadedPhotos.length);
     } catch {
-      window.alert("Не удалось обработать фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.");
+      window.alert("Не удалось загрузить фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.");
     }
   };
+  useEffect(() => {
+    const localPhotos = coverPhotos.filter((photo) => photo.image.startsWith("data:image/"));
+    if (!localPhotos.length) return;
+    let cancelled = false;
+    void Promise.all(coverPhotos.map(async (photo) => {
+      if (!photo.image.startsWith("data:image/")) return photo;
+      const file = await fetch(photo.image).then((response) => response.blob());
+      const extension = file.type.split("/")[1] || "jpg";
+      return { ...photo, image: await uploadCoverPhoto(file, extension) };
+    })).then((migratedPhotos) => {
+      if (!cancelled) onUpdateTrip({ ...trip, coverImage: migratedPhotos[0]?.image, coverPhotos: migratedPhotos });
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [trip.id]);
   const reorderCoverPhotos = (_from: number, _to: number) => undefined;
   if (trip.isDraft) return <div className="trip-overview"><div className="overview-draft"><div className="cover-photo-stack"><section className={activeCover ? "has-draft-cover" : ""} style={activeCover ? { backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})` } : undefined}><input ref={photoInputRef} className="cover-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void addCoverPhotos(event.target.files)} />{activeCover ? <><button type="button" className="cover-arrow previous" onClick={() => setActivePhoto((activePhoto - 1 + coverPhotos.length) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Предыдущее фото">‹</button><button type="button" className="cover-arrow next" onClick={() => setActivePhoto((activePhoto + 1) % coverPhotos.length)} disabled={coverPhotos.length < 2} aria-label="Следующее фото">›</button><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button>{activeCover.city && <div className="cover-photo-caption"><b>{activeCover.city}</b>{activeCover.description && <span>{activeCover.description}</span>}</div>}</> : <><p>ГЛАВНАЯ</p><h2>Начните планировать путешествие</h2><span>Добавьте первую фотографию путешествия.</span><button type="button" className="add-cover-photo" onClick={() => photoInputRef.current?.click()}>＋ Фото</button></>}</section>{coverPhotos.length > 1 && <div className="cover-order"><p>Перетащите фото в порядке городов маршрута</p><div>{coverPhotos.map((photo, index) => <button className={`${index === activePhoto ? "active" : ""} ${index === draggedPhoto ? "dragging" : ""}`} style={{ backgroundImage: `url(${photo.image})` }} draggable onDragStart={() => setDraggedPhoto(index)} onDragEnd={() => setDraggedPhoto(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedPhoto !== null) reorderCoverPhotos(draggedPhoto, index); setDraggedPhoto(null); }} onClick={() => setActivePhoto(index)} aria-label={photo.city || `Фото ${index + 1}`} key={photo.id}><span>{photo.city || index + 1}</span></button>)}</div></div>}</div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>0 городов</b></footer></aside></div>{isWinterRoute && <WeatherOverview />}</div>;
   const cities = [
