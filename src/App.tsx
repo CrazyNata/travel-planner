@@ -332,18 +332,27 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [invitees, setInvitees] = useState<{ name: string; email: string }[]>([]);
+  const [inviteMessage, setInviteMessage] = useState("");
   const [startDate, setStartDate] = useState("2026-09-12");
   const [endDate, setEndDate] = useState("2026-09-19");
   const [coverImage, setCoverImage] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const addInvitee = () => {
+  const addInvitee = async () => {
     const email = inviteEmail.trim().toLowerCase();
     const name = inviteName.trim() || email;
     if (!email || invitees.some((person) => person.email === email)) return;
+    const { error } = await supabase.functions.invoke("dynamic-function", {
+      body: { email, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
+    });
+    if (error) {
+      setInviteMessage("Не удалось отправить приглашение. Проверьте e-mail и попробуйте снова.");
+      return;
+    }
     setInvitees([...invitees, { name, email }]);
     setInviteName("");
     setInviteEmail("");
     setInviteOpen(false);
+    setInviteMessage(`Приглашение отправлено на ${email}`);
   };
   const selectCoverImage = (file?: File) => {
     if (!file) return;
@@ -406,6 +415,7 @@ function CreateTrip({ go }: { go: (view: View) => void }) {
                 <button type="button" onClick={() => setInviteOpen(true)}>＋ Пригласить по e-mail</button>
               )}
             </div>
+            {inviteMessage && <small className="invite-message">{inviteMessage}</small>}
           </label>
         <label>
           Обложка

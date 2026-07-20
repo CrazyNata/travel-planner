@@ -670,6 +670,11 @@ button {
   color: #9c948a;
   font-size: 18px;
 }
+.invite-message {
+  color: #4e7443;
+  font-size: 12px;
+  font-weight: 600;
+}
 .upload {
   display: flex;
   height: 180px;
