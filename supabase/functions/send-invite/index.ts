@@ -13,14 +13,9 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: corsHeaders });
 
-  const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
-
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(url, serviceRoleKey);
-  const { data: { user }, error: userError } = await admin.auth.getUser(token);
-  if (userError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
   const { email, name, redirectTo } = await request.json();
   if (typeof email !== "string" || !/^\S+@\S+\.\S+$/.test(email)) {
@@ -31,7 +26,7 @@ Deno.serve(async (request) => {
   }
 
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: typeof name === "string" ? name.trim() : "", invited_by: user.id },
+    data: { full_name: typeof name === "string" ? name.trim() : "" },
     redirectTo,
   });
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
