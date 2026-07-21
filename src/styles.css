@@ -2002,7 +2002,7 @@ form.add-sight-day input { min-width: 0; flex: 1; border: 1px solid #ddd9f1; bor
 form.add-sight-day input:focus { border-color: #655fdf; box-shadow: 0 0 0 3px #655fdf14; }
 form.add-sight-day .accent { flex: none; border-radius: 9px; padding: 8px 11px; font-size: 0; }
 form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
-.sight-feature { display: grid; min-height: 400px; align-content: space-between; border-radius: 24px; background: linear-gradient(90deg, #1c203bc2 0%, #2a304d86 56%, #2a304d22), url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/WeihnachtsmarktMuenchen.jpg/1280px-WeihnachtsmarktMuenchen.jpg") center / cover; padding: 24px 36px 34px; color: #fff; }
+.sight-feature { display: grid; min-height: 400px; align-content: space-between; width: calc(100% + 80px); margin-inline: -40px; border-radius: 0; background: linear-gradient(90deg, #1c203bc2 0%, #2a304d86 56%, #2a304d22), url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/WeihnachtsmarktMuenchen.jpg/1280px-WeihnachtsmarktMuenchen.jpg") center / cover; padding: 24px 76px 34px; color: #fff; }
 .sight-feature > span { width: fit-content; border: 1px solid #ffffff38; border-radius: 999px; padding: 7px 10px; font-size: 11px; }
 .sight-feature p, .sight-feature h3, .sight-feature small { display: block; margin: 0; }
 .sight-feature p { color: #bfc5e5; font-size: 11px; font-weight: 800; text-transform: uppercase; }
@@ -2010,7 +2010,7 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .sight-feature small { max-width: 520px; color: #d2d6ec; font-size: 13px; }
 .sight-feature .accent { margin-top: 20px; background: #fff; color: #2f2b50; }
 @media (max-width: 760px) {
-  .sight-feature { min-height: 330px; padding: 20px 22px 26px; }
+  .sight-feature { width: auto; min-height: 330px; margin-inline: 0; padding: 20px 22px 26px; }
   .sight-feature h3 { font-size: 28px; }
 }
 .sights-empty {
