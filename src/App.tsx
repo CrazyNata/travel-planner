@@ -1221,8 +1221,10 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{cityFlag(city.name)} {city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
-function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) {
+function WalkingMap({ sights, city, activeSightId }: { sights: StoredSight[]; city?: string; activeSightId?: string }) {
   const container = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<Map | null>(null);
+  const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
   const [stats, setStats] = useState<{ distance: number; duration: number } | null>(null);
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -1241,12 +1243,15 @@ function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) 
       if (disposed || !container.current) return;
       mapboxgl.accessToken = token;
       map = new mapboxgl.Map({ container: container.current, style: "mapbox://styles/mapbox/streets-v12", center: coordinates[0] || fallbackLocation!, zoom: coordinates.length ? 13 : 11, attributionControl: false });
+      mapRef.current = map;
+      markerElements.current.clear();
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
       sights.forEach((sight, index) => {
         if (!sight.lnglat) return;
         const marker = document.createElement("span");
         marker.className = "sight-map-marker";
         marker.textContent = String(index + 1);
+        markerElements.current.set(sight.id, marker);
         new mapboxgl.Marker({ element: marker }).setLngLat(sight.lnglat).addTo(map!);
       });
       map.on("load", () => {
@@ -1259,8 +1264,32 @@ function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) 
         map!.fitBounds(bounds, { padding: 38, maxZoom: 14 });
       });
     });
-    return () => { disposed = true; map?.remove(); };
+    return () => { disposed = true; map?.remove(); mapRef.current = null; markerElements.current.clear(); };
   }, [sights, city]);
+  useEffect(() => {
+    if (!activeSightId) return;
+    const marker = markerElements.current.get(activeSightId);
+    const sight = sights.find((item) => item.id === activeSightId);
+    if (!marker || !sight?.lnglat) return;
+    marker.classList.remove("bounce");
+    void marker.offsetWidth;
+    marker.classList.add("bounce");
+    mapRef.current?.flyTo({ center: sight.lnglat, zoom: 15, duration: 700, essential: true });
+  }, [activeSightId, sights]);
+  useEffect(() => {
+    const focusSight = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      const marker = markerElements.current.get(id);
+      const sight = sights.find((item) => item.id === id);
+      if (!marker || !sight?.lnglat) return;
+      marker.classList.remove("bounce");
+      void marker.offsetWidth;
+      marker.classList.add("bounce");
+      mapRef.current?.flyTo({ center: sight.lnglat, zoom: 15, duration: 700, essential: true });
+    };
+    window.addEventListener("odyssey-focus-sight", focusSight);
+    return () => window.removeEventListener("odyssey-focus-sight", focusSight);
+  }, [sights]);
   const hours = stats ? Math.floor(stats.duration / 3600) : 0;
   const minutes = stats ? Math.round((stats.duration % 3600) / 60) : 0;
   return <div className="walking-map-wrap"><div className="walking-map" ref={container} /><footer><span>Пеший маршрут</span><b>{stats ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин` : "Добавьте минимум 2 точки"}</b></footer></div>;
@@ -1340,7 +1369,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
-        {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => onUpdateTrip({ ...trip, sights: tripSights.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[sightDays[0].id] || ""} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [sightDays[0].id]: value } })} /></>}
+        {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); onUpdateTrip({ ...trip, sights: tripSights.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) }); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[sightDays[0].id] || ""} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [sightDays[0].id]: value } })} /></>}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
