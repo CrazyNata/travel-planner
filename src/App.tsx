@@ -1223,11 +1223,18 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
 
 function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) {
   const container = useRef<HTMLDivElement>(null);
+  const [stats, setStats] = useState<{ distance: number; duration: number } | null>(null);
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const coordinates = sights.map((sight) => sight.lnglat).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
     const fallbackLocation = city ? mapLocation(city) : undefined;
     if (!container.current || !token || (!coordinates.length && !fallbackLocation)) return;
+    if (coordinates.length > 1) {
+      const path = coordinates.map((coordinate) => coordinate.join(",")).join(";");
+      void fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${path}?overview=false&access_token=${token}`).then((response) => response.json()).then((data: { routes?: { distance: number; duration: number }[] }) => setStats(data.routes?.[0] || null)).catch(() => setStats(null));
+    } else {
+      setStats(null);
+    }
     let map: Map | undefined;
     let disposed = false;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
@@ -1253,8 +1260,10 @@ function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) 
       });
     });
     return () => { disposed = true; map?.remove(); };
-  }, [sights]);
-  return <div className="walking-map" ref={container} />;
+  }, [sights, city]);
+  const hours = stats ? Math.floor(stats.duration / 3600) : 0;
+  const minutes = stats ? Math.round((stats.duration % 3600) / 60) : 0;
+  return <div className="walking-map-wrap"><div className="walking-map" ref={container} /><footer><span>Пеший маршрут</span><b>{stats ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин` : "Добавьте минимум 2 точки"}</b></footer></div>;
 }
 
 function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRenameDay }: { sights: StoredSight[]; days: { id: string; title: string }[]; defaultCity?: string; onToggle: (id: string) => void; onAdd: (sight: StoredSight) => void; onAddDay: (title: string) => void; onRenameDay: (id: string, title: string) => void }) {
