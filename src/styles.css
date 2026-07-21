@@ -1954,6 +1954,164 @@ button {
 .sights-collection .sight-card { position: relative; }
 .sights-collection .sight-number { position: absolute; top: -10px; left: 12px; }
 .sights-collection .sight-card > div { padding-top: 19px; }
+
+/* The walking planner is a distinct Odyssey workspace, not a generic map panel. */
+.sights-page {
+  padding-bottom: 38px;
+}
+.sights-heading {
+  margin-bottom: 24px;
+}
+.sights-heading h2 {
+  font: 600 29px/1.1 Unbounded, sans-serif;
+  letter-spacing: -0.07em;
+}
+.walking-planner {
+  position: relative;
+  border: 0;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 8% 0%, #605bdc 0, transparent 29%),
+    radial-gradient(circle at 92% 100%, #3c3974 0, transparent 34%),
+    #242239;
+  box-shadow: 0 16px 40px rgba(35, 31, 70, .16);
+}
+.walking-planner > header {
+  padding: 25px 26px 15px;
+}
+.walking-planner > header b {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #fff;
+  font-size: 20px;
+}
+.walking-planner > header b::before {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 9px;
+  background: #f3d39d;
+  color: #3a315e;
+  content: "↗";
+  font: 800 16px Manrope, sans-serif;
+}
+.walking-planner > header p {
+  max-width: 590px;
+  color: #c9c7e4;
+}
+.walking-planner > header > span { color: #b3aff0; }
+.walking-controls {
+  align-items: center;
+  padding: 0 26px 18px;
+}
+.walking-controls select {
+  border: 1px solid #ffffff1f;
+  border-radius: 12px;
+  background: #ffffff12;
+  padding: 11px 13px;
+  color: #fff;
+}
+.walking-controls option { color: #292743; }
+.walking-controls span {
+  border: 1px solid #ffffff1a;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #d8d6f4;
+  font-size: 11px;
+}
+.walking-layout {
+  align-items: stretch;
+  gap: 18px;
+  padding: 0 26px 26px;
+}
+.walking-list {
+  max-height: 395px;
+  gap: 8px;
+  padding-right: 4px;
+}
+.walking-list button {
+  min-height: 53px;
+  border: 1px solid #ffffff16;
+  border-radius: 14px;
+  background: #ffffff0d;
+  color: #f7f6ff;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+.walking-list button:hover {
+  border-color: #aaa6ff;
+  background: #ffffff18;
+  transform: translateX(3px);
+}
+.walking-list button.done { opacity: .62; }
+.walking-list button b,
+.sight-number {
+  width: 26px;
+  height: 26px;
+  background: #f3d39d;
+  color: #39315c;
+}
+.walking-list button span { font-size: 12px; }
+.walking-list button small { color: #b8b5d5; }
+.walking-map {
+  min-height: 395px;
+  border: 3px solid #ffffff20;
+  border-radius: 17px;
+  box-shadow: 0 10px 25px #0d0c1f55;
+}
+.sight-map-marker {
+  width: 29px;
+  height: 29px;
+  background: #f3d39d;
+  color: #39315c;
+  box-shadow: 0 3px 10px #16132f88;
+}
+.sights-collection {
+  margin-top: 34px;
+}
+.sights-collection > header {
+  align-items: flex-end;
+  border-bottom: 1px solid #e3e0ef;
+  padding-bottom: 15px;
+}
+.sights-collection > header h2 {
+  font: 600 24px/1 Unbounded, sans-serif;
+  letter-spacing: -0.06em;
+}
+.sights-collection .sights-grid { gap: 17px; }
+.sights-collection .sight-card {
+  border: 1px solid #e6e3f0;
+  border-radius: 17px;
+  box-shadow: 0 7px 18px rgba(38, 34, 65, .06);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.sights-collection .sight-card:hover {
+  box-shadow: 0 14px 26px rgba(38, 34, 65, .12);
+  transform: translateY(-3px);
+}
+.sights-collection .sight-card img { height: 146px; }
+.sights-collection .sight-number {
+  top: -13px;
+  left: 14px;
+  border: 2px solid #fff;
+}
+.sights-collection .sight-card > div { padding: 22px 14px 15px; }
+.sights-collection .sight-card p {
+  color: #716b9d;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.sights-collection .sight-card h3 {
+  min-height: 36px;
+  color: #302d48;
+  font: 600 14px/1.28 Unbounded, sans-serif;
+  letter-spacing: -0.05em;
+}
+.sights-collection .sight-card label {
+  border-top: 1px solid #edebf4;
+  padding-top: 10px;
+}
 .google-maps-link {
   display: flex;
   align-items: center;
@@ -3677,6 +3835,23 @@ button {
   }
   .road-leg-fields {
     grid-template-columns: 1fr;
+  }
+  .walking-planner > header,
+  .walking-controls,
+  .walking-layout {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .walking-controls {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .walking-controls select {
+    min-width: 0;
+    flex: 1 1 155px;
+  }
+  .walking-controls span {
+    margin-left: 0;
   }
   .road-leg-card > div {
     flex-wrap: wrap;
