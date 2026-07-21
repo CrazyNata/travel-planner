@@ -4,13 +4,14 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
-type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
+type Tab = "overview" | "route" | "sights" | "bookings" | "budget" | "photos" | "members";
 type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string; completed?: string[] };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
-type StoredTripPayload = { data?: { days?: StoredDay[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
+type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string };
+type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
 
 function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
@@ -1120,11 +1121,19 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{cityFlag(city.name)} {city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
-function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
+function Sights({ sights, onToggle }: { sights: StoredSight[]; onToggle: (id: string) => void }) {
+  const [city, setCity] = useState("Все");
+  const cities = ["Все", ...Array.from(new Set(sights.map((sight) => sight.city))).sort()];
+  const filteredSights = city === "Все" ? sights : sights.filter((sight) => sight.city === city);
+  if (!sights.length) return <div className="empty-state">Достопримечательности пока не добавлены.</div>;
+  return <section className="sights-page"><header><div><p className="eyebrow">{sights.filter((sight) => sight.done).length} из {sights.length} посещено</p><h2>Достопримечательности</h2></div></header><div className="chips">{cities.map((item) => <button className={city === item ? "selected" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}</div><div className="sights-grid">{filteredSights.map((sight) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><p>{sight.city}</p><h3>{sight.name}</h3>{sight.group && <small>{sight.group}</small>}<label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section>;
+}
+
+function Workspace({ go, trip, sights, onToggleSight, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; sights: StoredSight[]; onToggleSight: (id: string) => void; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
-  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"]] : [
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
     ["bookings", "Жильё и транспорт"],
@@ -1169,6 +1178,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
+        {tab === "sights" && <Sights sights={sights} onToggle={onToggleSight} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
@@ -1538,6 +1548,14 @@ export function App() {
       if (error) console.error("Could not save the trip.", error);
     });
   };
+  const toggleSight = (id: string) => {
+    if (!storedPayload?.data?.sights) return;
+    const nextPayload: StoredTripPayload = { ...storedPayload, data: { ...storedPayload.data, sights: storedPayload.data.sights.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) } };
+    setStoredPayload(nextPayload);
+    void supabase.from("trip_state").update({ payload: nextPayload }).eq("id", "main").then(({ error }) => {
+      if (error) console.error("Could not save the sight.", error);
+    });
+  };
   if (view === "auth") return <Auth go={go} onAuthorized={setProfileName} />;
   return (
     <div className="app">
@@ -1548,7 +1566,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} sights={activeTrip.id === "supabase-main" ? storedPayload?.data?.sights || [] : []} onToggleSight={toggleSight} onUpdateTrip={updateTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
