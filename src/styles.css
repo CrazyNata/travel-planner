@@ -2301,8 +2301,9 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   margin-top: 28px;
   border: 1px solid #dedbf0;
   border-radius: 20px;
-  background: linear-gradient(135deg, #f8f7ff, #f1f0ff);
-  padding: 22px;
+  background: linear-gradient(135deg, #faf9ff, #f2f0ff);
+  padding: 24px;
+  box-shadow: 0 10px 26px rgba(65, 58, 126, .07);
 }
 .sight-notes > div {
   display: flex;
@@ -2324,17 +2325,20 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .sight-notes h3 { color: #302c4d; font: 600 17px Unbounded, sans-serif; }
 .sight-notes p { margin-top: 7px; color: #7c7693; font-size: 12px; }
 .sight-notes textarea {
-  min-height: 110px;
-  border: 1px solid #ddd9ef;
-  border-radius: 13px;
-  background: #fff;
-  padding: 14px;
+  min-height: 190px;
+  border: 1px solid #e0dcf1;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff, #fdfcff);
+  padding: 18px 20px;
   color: #332f4e;
-  font: 500 13px/1.5 Manrope, sans-serif;
-  resize: vertical;
+  font: 600 14px/1.9 Manrope, sans-serif;
+  resize: none;
   outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: #bcb7dc transparent;
 }
-.sight-notes textarea:focus { border-color: #655fdf; box-shadow: 0 0 0 3px #655fdf12; }
+.sight-notes textarea:hover { border-color: #c8c3e5; }
+.sight-notes textarea:focus { border-color: #655fdf; box-shadow: 0 0 0 4px #655fdf10, inset 0 1px 3px #332c6a0a; }
 @media (max-width: 760px) {
   .sight-notes { grid-template-columns: 1fr; }
 }
