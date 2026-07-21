@@ -1951,7 +1951,7 @@ button {
 }
 .sights-collection > header { padding: 0 0 14px; }
 .sights-collection .sights-grid { grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); gap: 18px; }
-.sights-collection .sight-card { position: relative; min-height: 260px; overflow: hidden; }
+.sights-collection .sight-card { position: relative; min-height: 350px; overflow: hidden; }
 .sights-collection .sight-card:not(:has(img))::before {
   display: block;
   height: 128px;
@@ -2254,6 +2254,27 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
+.sights-collection .sight-card h3::after {
+  display: block;
+  margin-top: 9px;
+  color: #7b758f;
+  font: 500 12px/1.45 Manrope, sans-serif;
+  letter-spacing: 0;
+}
+.sights-collection .sight-card:nth-child(1) h3::after { content: "Оживлённая площадь у западного входа в Старый город. На прогулку: 20 минут."; }
+.sights-collection .sight-card:nth-child(2) h3::after { content: "Пешеходная улица с рождественскими витринами, гирляндами и украшениями. На прогулку: 30 минут."; }
+.sights-collection .sight-card:nth-child(3) h3::after { content: "Средневековые городские ворота, открывающие путь в исторический центр. На осмотр: 15 минут."; }
+.sights-collection .sight-card:nth-child(4) h3::after { content: "Главная площадь Мюнхена и сердце праздничного Старого города. На прогулку: 30 минут."; }
+.sights-collection .sight-card:nth-child(5) h3::after { content: "Неоготическая ратуша с башней, часами и знаменитым Глокеншпилем. На осмотр: 30 минут."; }
+.sights-collection .sight-card:nth-child(6) h3::after { content: "Главная рождественская ярмарка с ремесленными лавками и баварскими угощениями. На посещение: 1,5 часа."; }
+.sights-collection .sight-card:nth-child(7) h3::after { content: "Кафедральный собор и один из главных архитектурных символов Мюнхена. На осмотр: 30 минут."; }
+.sights-collection .sight-card:nth-child(8) h3::after { content: "Праздничная торговая улица, особенно красивая в вечерней подсветке. На прогулку: 30 минут."; }
+.sights-collection .sight-card:nth-child(9) h3::after { content: "Уютная рождественская деревня во дворе Мюнхенской резиденции. На посещение: 1 час."; }
+.sights-collection .sight-card:nth-child(10) h3::after { content: "Парадная площадь перед Баварской государственной оперой и Резиденцией. На осмотр: 20 минут."; }
+.sights-collection .sight-card:nth-child(11) h3::after { content: "Монументальная площадь на границе Старого города и дворцового квартала. На осмотр: 25 минут."; }
+.sights-collection .sight-card:nth-child(12) h3::after { content: "Аркада XIX века, вдохновлённая флорентийской Лоджией Ланци. На осмотр: 15 минут."; }
+.sights-collection .sight-card:nth-child(13) h3::after { content: "Барочная церковь с жёлтым фасадом и красивой вечерней подсветкой. На осмотр: 25 минут."; }
+.sights-collection .sight-card:nth-child(14) h3::after { content: "Спокойный придворный сад рядом с Резиденцией, завершающий прогулку. На прогулку: 30 минут."; }
 .sights-collection .sight-card label {
   margin-top: auto;
   border-top: 1px solid #edebf4;
