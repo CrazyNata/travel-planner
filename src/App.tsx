@@ -1334,7 +1334,7 @@ function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRename
   useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, sights]);
   const routeSights = citySights.filter((sight) => (sight.walkDay || 1) === walkDay).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
   const addSight = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const placeCity = String(form.get("city") || city).trim(); if (!name || !placeCity) return; onAdd({ id: crypto.randomUUID(), name, city: placeCity, walkDay, walkOrder: routeSights.length }); setAdding(false); };
-  const featuredSource = routeSights.find((sight) => sight.id === "munich-christkindlmarkt") || routeSights[0];
+  const featuredSource = routeSights.find((sight) => sight.id === "munich-christkindlmarkt" || sight.id === "verona-signori") || routeSights[0];
   const featured = featuredSource?.id === "munich-christkindlmarkt" ? { ...featuredSource, name: "Marienplatz (Christkindlmarkt)" } : featuredSource;
   useEffect(() => {
     document.documentElement.dataset.emptySightDay = featured ? "false" : "true";
