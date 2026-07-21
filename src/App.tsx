@@ -8,7 +8,7 @@ type Tab = "overview" | "route" | "sights" | "bookings" | "budget" | "photos" | 
 type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string; completed?: string[] };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
-type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
+type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[]; sights?: StoredSight[] };
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
 type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string };
 type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
@@ -1239,36 +1239,21 @@ function WalkingMap({ sights }: { sights: StoredSight[] }) {
   return <div className="walking-map" ref={container} />;
 }
 
-function Sights({ sights, onToggle }: { sights: StoredSight[]; onToggle: (id: string) => void }) {
-  const [loadedSights, setLoadedSights] = useState<StoredSight[]>([]);
-  useEffect(() => {
-    if (sights.length) return;
-    void supabase.from("trip_state").select("payload").eq("id", "main").maybeSingle().then(({ data, error }) => {
-      if (error) {
-        console.error("Could not load saved sights.", error);
-        return;
-      }
-      setLoadedSights((data?.payload as StoredTripPayload | undefined)?.data?.sights || []);
-    });
-  }, [sights.length]);
-  const allSights = sights.length ? sights : loadedSights;
-  const cities = Array.from(new Set(allSights.map((sight) => sight.city))).sort();
+function Sights({ sights, onToggle, onAdd }: { sights: StoredSight[]; onToggle: (id: string) => void; onAdd: (sight: StoredSight) => void }) {
+  const [adding, setAdding] = useState(false);
+  const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
   const [city, setCity] = useState(cities[0] || "");
-  const citySights = allSights.filter((sight) => sight.city === city);
+  const citySights = sights.filter((sight) => sight.city === city);
   const walkDays = Array.from(new Set(citySights.map((sight) => sight.walkDay || 1))).sort((a, b) => a - b);
   const [walkDay, setWalkDay] = useState(walkDays[0] || 1);
-  useEffect(() => { if (!cities.includes(city)) setCity(cities[0] || ""); }, [allSights]);
-  useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, allSights]);
+  useEffect(() => { if (!cities.includes(city)) setCity(cities[0] || ""); }, [sights]);
+  useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, sights]);
   const routeSights = citySights.filter((sight) => (sight.walkDay || 1) === walkDay).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
-  const toggleSight = (id: string) => {
-    onToggle(id);
-    setLoadedSights((items) => items.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight));
-  };
-  if (!allSights.length) return <div className="empty-state">Загружаем достопримечательности...</div>;
-  return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{allSights.filter((sight) => sight.done).length} из {allSights.length} посещено</p><h2>Достопримечательности</h2></div><span>Планируйте прогулки по городам</span></header><section className="walking-planner"><header><div><b>Пеший маршрут</b><p>Выберите город и день. Точки идут в порядке прогулки и отмечены на карте.</p></div><span>⌄</span></header><div className="walking-controls"><select value={city} onChange={(event) => setCity(event.target.value)}>{cities.map((item) => <option value={item} key={item}>{item}</option>)}</select><select value={walkDay} onChange={(event) => setWalkDay(Number(event.target.value))}>{walkDays.map((item) => <option value={item} key={item}>День {item}</option>)}</select><span>{routeSights.length} мест</span></div><div className="walking-layout"><ol className="walking-list">{routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => toggleSight(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>)}</ol><WalkingMap sights={routeSights} /></div></section><section className="sights-collection"><header><div><p className="eyebrow">День {walkDay} · {city}</p><h2>Места прогулки</h2></div><span>{routeSights.length} точек</span></header><div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => toggleSight(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section></section>;
+  if (!sights.length) return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">Ваш список</p><h2>Достопримечательности</h2></div></header><section className="sights-empty"><b>Начните свою карту впечатлений</b><p>Добавляйте места по мере планирования, а затем соберите их в пешие маршруты.</p>{adding ? <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const placeCity = String(form.get("city") || "").trim(); if (!name || !placeCity) return; onAdd({ id: crypto.randomUUID(), name, city: placeCity, walkDay: 1, walkOrder: 0 }); setAdding(false); }}><input name="name" placeholder="Название места" autoFocus /><input name="city" placeholder="Город" /><button className="accent">Добавить</button></form> : <button className="accent" onClick={() => setAdding(true)}>＋ Добавить первое место</button>}</section></section>;
+  return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{sights.filter((sight) => sight.done).length} из {sights.length} посещено</p><h2>Достопримечательности</h2></div><span>Планируйте прогулки по городам</span></header><section className="walking-planner"><header><div><b>Пеший маршрут</b><p>Выберите город и день. Точки идут в порядке прогулки и отмечены на карте.</p></div><span>⌄</span></header><div className="walking-controls"><select value={city} onChange={(event) => setCity(event.target.value)}>{cities.map((item) => <option value={item} key={item}>{item}</option>)}</select><select value={walkDay} onChange={(event) => setWalkDay(Number(event.target.value))}>{walkDays.map((item) => <option value={item} key={item}>День {item}</option>)}</select><span>{routeSights.length} мест</span></div><div className="walking-layout"><ol className="walking-list">{routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => onToggle(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>)}</ol><WalkingMap sights={routeSights} /></div></section><section className="sights-collection"><header><div><p className="eyebrow">День {walkDay} · {city}</p><h2>Места прогулки</h2></div><span>{routeSights.length} точек</span></header><div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section></section>;
 }
 
-function Workspace({ go, trip, sights, onToggleSight, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; sights: StoredSight[]; onToggleSight: (id: string) => void; onUpdateTrip: (trip: TripSummary) => void }) {
+function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
@@ -1317,7 +1302,7 @@ function Workspace({ go, trip, sights, onToggleSight, onUpdateTrip }: { go: (vie
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
-        {tab === "sights" && <Sights sights={sights} onToggle={onToggleSight} />}
+        {tab === "sights" && <Sights sights={trip.sights || []} onToggle={(id) => onUpdateTrip({ ...trip, sights: trip.sights?.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) || [] })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...(trip.sights || []), sight] })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
@@ -1705,7 +1690,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} sights={activeTrip.isDraft ? storedPayload?.data?.sights || [] : []} onToggleSight={toggleSight} onUpdateTrip={updateTrip} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
