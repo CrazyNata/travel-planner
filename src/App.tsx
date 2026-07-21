@@ -9,6 +9,38 @@ type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoid
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
+type StoredDay = { id?: string; city?: string; dayMapUrl?: string; items?: { id?: string; title?: string }[] };
+type StoredTripPayload = { data?: { days?: StoredDay[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
+
+function mapsUrl(from: string, to: string, avoidTolls = false) {
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}`;
+}
+
+function savedTrip(payload: StoredTripPayload): TripSummary | null {
+  const storedDays = payload.data?.days;
+  if (!storedDays?.length) return null;
+  const days = storedDays.map((day, index) => {
+    const [from = "", to = ""] = (day.city || "").split("→").map((city) => city.trim());
+    return {
+      id: day.id || `saved-day-${index + 1}`,
+      places: day.items?.map((item) => item.title || "").filter(Boolean) || [],
+      roadLeg: from && to ? { from, to, checkIn: "", notes: "", avoidTolls: false, mapsUrl: day.dayMapUrl } : undefined,
+    };
+  });
+  const start = payload.data?.trip?.start;
+  const end = payload.data?.trip?.end;
+  return {
+    id: "supabase-main",
+    title: "Путешествие",
+    dates: start && end ? `${start} - ${end}` : "Даты путешествия",
+    cities: storedDays.map((day) => day.city).filter(Boolean).slice(0, 3).join(" · "),
+    status: "Активное",
+    progress: 0,
+    tone: "stone",
+    isDraft: true,
+    days,
+  };
+}
 
 const trips: TripSummary[] = [
   {
@@ -1376,6 +1408,7 @@ function Auth({ go, onAuthorized }: { go: (view: View) => void; onAuthorized: (n
 export function App() {
   const [view, setView] = useState<View>("auth");
   const [menu, setMenu] = useState(false);
+  const [storedPayload, setStoredPayload] = useState<StoredTripPayload | null>(null);
   const [drafts, setDrafts] = useState<TripSummary[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("odyssey-drafts") || "[]") as TripSummary[];
@@ -1400,6 +1433,18 @@ export function App() {
       setView((current) => current === "auth" ? (isTripInvitation ? "trip" : savedView === "trip" && !savedTrip ? "trips" : savedView && savedView !== "auth" ? savedView : "trips") : current);
       if (isTripInvitation) window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
     };
+    const loadSavedTrip = async () => {
+      const { data, error } = await supabase.from("trip_state").select("payload").eq("id", "main").maybeSingle();
+      if (error) {
+        console.error("Could not load the saved trip.", error);
+        return;
+      }
+      const payload = data?.payload as StoredTripPayload | undefined;
+      const trip = payload && savedTrip(payload);
+      if (!payload || !trip) return;
+      setStoredPayload(payload);
+      setDrafts((items) => [...items.filter((item) => item.id !== trip.id), trip]);
+    };
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
       if (localStorage.getItem("odyssey-remember-me") === "false") {
@@ -1407,9 +1452,13 @@ export function App() {
         return;
       }
       setAuthenticatedUser(data.session.user, true);
+      void loadSavedTrip();
     });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) setAuthenticatedUser(session.user, event === "SIGNED_IN");
+      if (session?.user) {
+        setAuthenticatedUser(session.user, event === "SIGNED_IN");
+        if (event === "SIGNED_IN") void loadSavedTrip();
+      }
       else if (event === "SIGNED_OUT") { localStorage.removeItem("odyssey-current-view"); setView("auth"); }
     });
     return () => listener.subscription.unsubscribe();
@@ -1430,6 +1479,28 @@ export function App() {
     setMenu(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const updateTrip = (trip: TripSummary) => {
+    setActiveTrip(trip);
+    setDrafts((items) => trip.isDraft ? items.map((item) => item.id === trip.id ? trip : item) : items);
+    if (trip.id !== "supabase-main" || !storedPayload?.data) return;
+    const currentDays = storedPayload.data.days || [];
+    const updatedDays: StoredDay[] = (trip.days || []).map((day, index) => {
+      const existing = currentDays[index] || {};
+      const leg = day.roadLeg;
+      return {
+        ...existing,
+        id: existing.id || day.id,
+        city: leg ? `${leg.from} → ${leg.to}` : existing.city,
+        dayMapUrl: leg?.mapsUrl || (leg ? mapsUrl(leg.from, leg.to, leg.avoidTolls) : existing.dayMapUrl),
+        items: day.places.map((title, itemIndex) => ({ ...existing.items?.[itemIndex], id: existing.items?.[itemIndex]?.id || crypto.randomUUID(), title })),
+      };
+    });
+    const nextPayload: StoredTripPayload = { ...storedPayload, data: { ...storedPayload.data, days: updatedDays } };
+    setStoredPayload(nextPayload);
+    void supabase.from("trip_state").update({ payload: nextPayload }).eq("id", "main").then(({ error }) => {
+      if (error) console.error("Could not save the trip.", error);
+    });
+  };
   if (view === "auth") return <Auth go={go} onAuthorized={setProfileName} />;
   return (
     <div className="app">
@@ -1440,7 +1511,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={(trip) => { setActiveTrip(trip); if (trip.isDraft) setDrafts((items) => items.map((item) => item.id === trip.id ? trip : item)); }} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
