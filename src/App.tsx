@@ -1689,7 +1689,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} sights={activeTrip.id === "supabase-main" ? storedPayload?.data?.sights || [] : []} onToggleSight={toggleSight} onUpdateTrip={updateTrip} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} sights={activeTrip.isDraft ? storedPayload?.data?.sights || [] : []} onToggleSight={toggleSight} onUpdateTrip={updateTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
