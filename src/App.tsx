@@ -5,15 +5,15 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoidTolls: boolean; mapsUrl?: string };
+type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
-type StoredDay = { id?: string; city?: string; dayMapUrl?: string; items?: { id?: string; title?: string }[] };
+type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; items?: { id?: string; title?: string }[] };
 type StoredTripPayload = { data?: { days?: StoredDay[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
 
-function mapsUrl(from: string, to: string, avoidTolls = false) {
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}`;
+function mapsUrl(from: string, to: string) {
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
 }
 
 function savedTrip(payload: StoredTripPayload): TripSummary | null {
@@ -24,7 +24,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     return {
       id: day.id || `saved-day-${index + 1}`,
       places: day.items?.map((item) => item.title || "").filter(Boolean) || [],
-      roadLeg: from && to ? { from, to, checkIn: "", notes: "", avoidTolls: false, mapsUrl: day.dayMapUrl } : undefined,
+      roadLeg: from && to ? { from, to, checkInFrom: day.checkInFrom || "", checkInTo: day.checkInTo || "", checkOutFrom: day.checkOutFrom || "", checkOutTo: day.checkOutTo || "", notes: "", mapsUrl: day.dayMapUrl } : undefined,
     };
   });
   const start = payload.data?.trip?.start;
@@ -612,19 +612,21 @@ function PlaceRow({ place, index }: { place: string; index: number }) {
 function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
   const [from, setFrom] = useState(roadLeg?.from || "");
   const [to, setTo] = useState(roadLeg?.to || "");
-  const [checkIn, setCheckIn] = useState(roadLeg?.checkIn || "");
+  const [checkInFrom, setCheckInFrom] = useState(roadLeg?.checkInFrom || "");
+  const [checkInTo, setCheckInTo] = useState(roadLeg?.checkInTo || "");
+  const [checkOutFrom, setCheckOutFrom] = useState(roadLeg?.checkOutFrom || "");
+  const [checkOutTo, setCheckOutTo] = useState(roadLeg?.checkOutTo || "");
   const [notes, setNotes] = useState(roadLeg?.notes || "");
-  const [avoidTolls, setAvoidTolls] = useState(roadLeg?.avoidTolls || false);
   const [customMapsUrl, setCustomMapsUrl] = useState(roadLeg?.mapsUrl || "");
-  const generatedMapsUrl = from.trim() && to.trim() ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.trim())}&destination=${encodeURIComponent(to.trim())}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}` : "";
-  const mapsUrl = customMapsUrl.trim() || generatedMapsUrl;
-  return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkIn, notes: notes.trim(), avoidTolls, mapsUrl: customMapsUrl.trim() || undefined }); }}>
+  const generatedMapsUrl = from.trim() && to.trim() ? mapsUrl(from.trim(), to.trim()) : "";
+  const routeMapsUrl = customMapsUrl.trim() || generatedMapsUrl;
+  return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes: notes.trim(), mapsUrl: customMapsUrl.trim() || undefined }); }}>
     <div className="road-leg-editor-title"><b>Автомобильный маршрут</b><span>Заполните переезд на этот день</span></div>
-    <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label><label>Заселение в отель<input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label></div>
+    <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label></div>
+    <div className="road-leg-fields"><label>Заселение: с<input type="time" value={checkInFrom} onChange={(event) => setCheckInFrom(event.target.value)} /></label><label>Заселение: до<input type="time" value={checkInTo} onChange={(event) => setCheckInTo(event.target.value)} /></label><label>Выселение: с<input type="time" value={checkOutFrom} onChange={(event) => setCheckOutFrom(event.target.value)} /></label><label>Выселение: до<input type="time" value={checkOutTo} onChange={(event) => setCheckOutTo(event.target.value)} /></label></div>
     <label className="road-notes">Заметки<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Например, заправиться перед выездом" /></label>
     <label className="road-notes">Ссылка Google Maps<input type="url" value={customMapsUrl} onChange={(event) => setCustomMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." /></label>
-    <label className="avoid-tolls"><input type="checkbox" checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} /><span><b>Избегать платных дорог</b><small>Google Maps откроется с этим ограничением</small></span></label>
-    {mapsUrl ? <GoogleMapsLink url={mapsUrl} /> : <div className="google-maps-preview"><b>Google Maps</b><span>Укажите откуда и куда, чтобы открыть или скопировать маршрут.</span></div>}
+    {routeMapsUrl ? <GoogleMapsLink url={routeMapsUrl} /> : <div className="google-maps-preview"><b>Google Maps</b><span>Укажите откуда и куда, чтобы открыть или скопировать маршрут.</span></div>}
     <div className="road-leg-actions"><button type="button" className="secondary" onClick={onCancel}>Отмена</button><button className="accent">Сохранить маршрут</button></div>
   </form>;
 }
@@ -641,9 +643,11 @@ function GoogleMapsLink({ url }: { url: string }) {
 
 function DraftRouteCard({ day, index, editing, onEdit, onSave, onCancel }: { day: DraftDay; index: number; editing: boolean; onEdit: () => void; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
   const roadLeg = day.roadLeg;
-  const mapsUrl = roadLeg ? roadLeg.mapsUrl || `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(roadLeg.from)}&destination=${encodeURIComponent(roadLeg.to)}&travelmode=driving${roadLeg.avoidTolls ? "&avoid=tolls" : ""}` : "";
-  const itemCount = roadLeg ? 1 + Number(Boolean(roadLeg.checkIn)) + Number(Boolean(roadLeg.notes)) + Number(roadLeg.avoidTolls) : 0;
-  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from} <b>→</b> {roadLeg.to}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 3} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={mapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{roadLeg.avoidTolls && <p><i />Избегать платных дорог в навигаторе</p>}{roadLeg.checkIn && <p><i />Заселение в отель <b>{roadLeg.checkIn}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={mapsUrl} /></> : <div className="route-card-empty">Добавьте направление, заселение и дорожные заметки.</div>}</article>;
+  const routeMapsUrl = roadLeg ? roadLeg.mapsUrl || mapsUrl(roadLeg.from, roadLeg.to) : "";
+  const checkIn = [roadLeg?.checkInFrom, roadLeg?.checkInTo].filter(Boolean).join(" - ");
+  const checkOut = [roadLeg?.checkOutFrom, roadLeg?.checkOutTo].filter(Boolean).join(" - ");
+  const itemCount = roadLeg ? 1 + Number(Boolean(checkIn)) + Number(Boolean(checkOut)) + Number(Boolean(roadLeg.notes)) : 0;
+  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from} <b>→</b> {roadLeg.to}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{checkIn && <p><i />Заселение в отель <b>{checkIn}</b></p>}{checkOut && <p><i />Выселение из отеля <b>{checkOut}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
 }
 
 function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
@@ -1491,7 +1495,11 @@ export function App() {
         ...existing,
         id: existing.id || day.id,
         city: leg ? `${leg.from} → ${leg.to}` : existing.city,
-        dayMapUrl: leg?.mapsUrl || (leg ? mapsUrl(leg.from, leg.to, leg.avoidTolls) : existing.dayMapUrl),
+        dayMapUrl: leg?.mapsUrl || (leg ? mapsUrl(leg.from, leg.to) : existing.dayMapUrl),
+        checkInFrom: leg?.checkInFrom || undefined,
+        checkInTo: leg?.checkInTo || undefined,
+        checkOutFrom: leg?.checkOutFrom || undefined,
+        checkOutTo: leg?.checkOutTo || undefined,
         items: day.places.map((title, itemIndex) => ({ ...existing.items?.[itemIndex], id: existing.items?.[itemIndex]?.id || crypto.randomUUID(), title })),
       };
     });
