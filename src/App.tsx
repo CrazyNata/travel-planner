@@ -10,7 +10,7 @@ type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[]; sights?: StoredSight[]; sightDays?: { id: string; title: string }[]; sightDaysVersion?: number; sightNotes?: Record<string, string> };
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
-type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string };
+type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string; description?: string; duration?: string };
 type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
 
 function mapsUrl(from: string, to: string) {
@@ -200,6 +200,23 @@ const winterPhotoCaptions = [
   ["Равенсбург", "Средневековые башни и цветные фасады делают Равенсбург уютной остановкой на зимнем маршруте."],
   ["Прага", "Прага в праздничный сезон сияет огнями Старого города. Каменные мосты и черепичные крыши создают атмосферу зимней сказки."],
 ] as const;
+
+const munichDayOneSights: StoredSight[] = [
+  { id: "munich-karlsplatz", name: "Karlsplatz (Stachus)", city: "Мюнхен", walkDay: 1, walkOrder: 0, lnglat: [11.5659, 48.1391], duration: "20 мин", description: "Оживлённая площадь у западного входа в исторический центр Мюнхена." },
+  { id: "munich-neuhauser", name: "Neuhauser Straße", city: "Мюнхен", walkDay: 1, walkOrder: 1, lnglat: [11.5685, 48.1385], duration: "30 мин", description: "Пешеходная улица с рождественскими витринами, гирляндами и праздничными украшениями." },
+  { id: "munich-karlstor", name: "Karlstor", city: "Мюнхен", walkDay: 1, walkOrder: 2, lnglat: [11.5656, 48.1389], duration: "15 мин", description: "Средневековые городские ворота, открывающие путь в Старый город." },
+  { id: "munich-marienplatz", name: "Marienplatz", city: "Мюнхен", walkDay: 1, walkOrder: 3, lnglat: [11.5755, 48.1374], duration: "30 мин", description: "Главная площадь Мюнхена и сердце праздничного Старого города." },
+  { id: "munich-neues-rathaus", name: "Новая ратуша (Neues Rathaus)", city: "Мюнхен", walkDay: 1, walkOrder: 4, lnglat: [11.5756, 48.1376], duration: "30 мин", description: "Неоготическая ратуша с башней, часами и знаменитым Глокеншпилем." },
+  { id: "munich-christkindlmarkt", name: "Christkindlmarkt", city: "Мюнхен", walkDay: 1, walkOrder: 5, lnglat: [11.5752, 48.1372], duration: "1,5 ч", description: "Главная рождественская ярмарка города с ремесленными лавками и баварскими угощениями." },
+  { id: "munich-frauenkirche", name: "Frauenkirche", city: "Мюнхен", walkDay: 1, walkOrder: 6, lnglat: [11.5734, 48.1386], duration: "30 мин", description: "Кафедральный собор и один из главных архитектурных символов Мюнхена." },
+  { id: "munich-kaufingerstrasse", name: "Kaufingerstraße", city: "Мюнхен", walkDay: 1, walkOrder: 7, lnglat: [11.5712, 48.1379], duration: "30 мин", description: "Праздничная торговая улица, особенно красивая в вечерней подсветке." },
+  { id: "munich-residenz-weihnachtsdorf", name: "Residenz Weihnachtsdorf", city: "Мюнхен", walkDay: 1, walkOrder: 8, lnglat: [11.5784, 48.1411], duration: "1 ч", description: "Уютная рождественская деревня во дворе Мюнхенской резиденции." },
+  { id: "munich-max-joseph-platz", name: "Max-Joseph-Platz", city: "Мюнхен", walkDay: 1, walkOrder: 9, lnglat: [11.5789, 48.1398], duration: "20 мин", description: "Парадная площадь перед Баварской государственной оперой и Резиденцией." },
+  { id: "munich-odeonsplatz", name: "Odeonsplatz", city: "Мюнхен", walkDay: 1, walkOrder: 10, lnglat: [11.5777, 48.1421], duration: "25 мин", description: "Монументальная площадь на границе Старого города и дворцового квартала." },
+  { id: "munich-feldherrnhalle", name: "Feldherrnhalle", city: "Мюнхен", walkDay: 1, walkOrder: 11, lnglat: [11.5778, 48.1424], duration: "15 мин", description: "Аркада XIX века, вдохновлённая флорентийской Лоджией Ланци." },
+  { id: "munich-theatinerkirche", name: "Theatinerkirche", city: "Мюнхен", walkDay: 1, walkOrder: 12, lnglat: [11.5768, 48.1422], duration: "25 мин", description: "Барочная церковь с выразительным жёлтым фасадом и красивой вечерней подсветкой." },
+  { id: "munich-hofgarten", name: "Hofgarten", city: "Мюнхен", walkDay: 1, walkOrder: 13, lnglat: [11.5808, 48.1426], duration: "30 мин", description: "Спокойный придворный сад рядом с Резиденцией, завершающий прогулку." },
+];
 
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -1268,6 +1285,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
   const sightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
+  const tripSights = trip.sights || (trip.title.toLowerCase().includes("рождествен") ? munichDayOneSights : []);
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
@@ -1313,7 +1331,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
-        {tab === "sights" && <><Sights sights={trip.sights || []} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => onUpdateTrip({ ...trip, sights: trip.sights?.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) || [] })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...(trip.sights || []), sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[sightDays[0].id] || ""} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [sightDays[0].id]: value } })} /></>}
+        {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => onUpdateTrip({ ...trip, sights: tripSights.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[sightDays[0].id] || ""} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [sightDays[0].id]: value } })} /></>}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
