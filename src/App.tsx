@@ -19,7 +19,7 @@ function mapsUrl(from: string, to: string) {
 function cityFlag(city: string) {
   if (city.includes("Прага")) return "🇨🇿";
   if (city.includes("Зальцбург")) return "🇦🇹";
-  if (city.includes("Мюнхен")) return "🇩🇪";
+  if (city.includes("Мюнхен") || city.includes("Равенсбург")) return "🇩🇪";
   if (["Верона", "Рим", "Фильине", "Кьоджа", "Милан", "Вальдидентро", "Флоренция", "Венеция"].some((name) => city.includes(name))) return "🇮🇹";
   return "";
 }
