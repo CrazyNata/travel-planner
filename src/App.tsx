@@ -186,6 +186,10 @@ function routeCoordinatesFor(days: DraftDay[]) {
   }).map(mapLocation).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
 }
 
+function routeSegment(coordinates: [number, number][], day: number) {
+  return coordinates.slice(day, day + 2);
+}
+
 const winterPhotoCaptions = [
   ["Мюнхен", "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац."],
   ["Верона", "Зимняя Пьяцца Бра сияет огнями рождественской ярмарки у стен древней Арены. Вечерняя прогулка здесь соединяет итальянскую историю и праздничное настроение."],
@@ -253,6 +257,11 @@ function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: stri
         map.on("load", () => {
           map!.addSource("route", { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: routeCoordinates } } });
           map!.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#4c46d6", "line-width": 3, "line-opacity": 0.72 } });
+          const activeSegment = routeSegment(routeCoordinates, activeDay || 0);
+          if (activeSegment.length > 1) {
+            map!.addSource("active-route", { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: activeSegment } } });
+            map!.addLayer({ id: "active-route", type: "line", source: "active-route", paint: { "line-color": "#ff7a45", "line-width": 6, "line-opacity": 0.95 } });
+          }
           const bounds = new mapboxgl.LngLatBounds(routeCoordinates[0], routeCoordinates[0]);
           routeCoordinates.slice(1).forEach((coordinate) => bounds.extend(coordinate));
           map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
@@ -296,6 +305,9 @@ function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: stri
     if (!coordinate || !mapRef.current) return;
     markerElements.current.forEach((element, index) => element.classList.toggle("active", index === activeDay));
     mapRef.current.flyTo({ center: coordinate, zoom: 8, duration: 900, essential: true });
+    const source = mapRef.current.getSource("active-route") as { setData: (data: object) => void } | undefined;
+    const activeSegment = routeSegment(routeCoordinatesFor(routeDays), activeDay ?? 0);
+    if (source && activeSegment.length > 1) source.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: activeSegment } });
   }, [activeDay, routeDays]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
