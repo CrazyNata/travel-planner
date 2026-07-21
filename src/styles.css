@@ -2002,7 +2002,7 @@ form.add-sight-day input { min-width: 0; flex: 1; border: 1px solid #ddd9f1; bor
 form.add-sight-day input:focus { border-color: #655fdf; box-shadow: 0 0 0 3px #655fdf14; }
 form.add-sight-day .accent { flex: none; border-radius: 9px; padding: 8px 11px; font-size: 0; }
 form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
-.sight-feature { display: grid; min-height: 400px; align-content: space-between; border-radius: 24px; background: linear-gradient(90deg, #20243aee 0%, #303653c7 55%, #30365370), url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/WeihnachtsmarktMuenchen.jpg/960px-WeihnachtsmarktMuenchen.jpg") center 44% / cover; padding: 24px 36px 34px; color: #fff; }
+.sight-feature { display: grid; min-height: 400px; align-content: space-between; border-radius: 24px; background: linear-gradient(125deg, #262941, #3b4265); padding: 24px 36px 34px; color: #fff; }
 .sight-feature > span { width: fit-content; border: 1px solid #ffffff38; border-radius: 999px; padding: 7px 10px; font-size: 11px; }
 .sight-feature p, .sight-feature h3, .sight-feature small { display: block; margin: 0; }
 .sight-feature p { color: #bfc5e5; font-size: 11px; font-weight: 800; text-transform: uppercase; }
