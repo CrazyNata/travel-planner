@@ -1966,6 +1966,22 @@ button {
   font: 600 29px/1.1 Unbounded, sans-serif;
   letter-spacing: -0.07em;
 }
+.sights-view { display: flex; border: 1px solid #dedbf0; border-radius: 13px; padding: 3px; background: #fff; }
+.sights-view button { padding: 8px 13px; color: #766f92; font-size: 12px; }
+.sights-view button.active { border-radius: 9px; background: var(--accent); color: #fff; }
+.sight-day-tabs { display: flex; gap: 9px; overflow-x: auto; margin-bottom: 24px; padding-bottom: 3px; }
+.sight-day-tabs button { min-width: 96px; border: 1px solid #e2dfef; border-radius: 13px; background: #fff; padding: 10px 12px; color: #6f6986; text-align: left; }
+.sight-day-tabs button.active { border-color: var(--accent); background: #f0efff; color: var(--accent); }
+.sight-day-tabs small, .sight-day-tabs b { display: block; }
+.sight-day-tabs small { font-size: 9px; text-transform: uppercase; }
+.sight-day-tabs b { margin-top: 4px; font-size: 12px; }
+.sight-feature { display: grid; min-height: 255px; align-content: space-between; border-radius: 24px; background: linear-gradient(125deg, #262941, #3b4265); padding: 22px 28px; color: #fff; }
+.sight-feature > span { width: fit-content; border: 1px solid #ffffff38; border-radius: 999px; padding: 7px 10px; font-size: 11px; }
+.sight-feature p, .sight-feature h3, .sight-feature small { display: block; margin: 0; }
+.sight-feature p { color: #bfc5e5; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.sight-feature h3 { margin: 8px 0; font: 600 34px Unbounded, sans-serif; letter-spacing: -0.08em; }
+.sight-feature small { max-width: 520px; color: #d2d6ec; font-size: 13px; }
+.sight-feature .accent { margin-top: 20px; background: #fff; color: #2f2b50; }
 .sights-empty {
   display: grid;
   justify-items: center;
