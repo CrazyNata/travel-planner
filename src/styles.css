@@ -2109,12 +2109,19 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   gap: 8px;
   padding-right: 4px;
 }
-.walking-points { min-width: 0; }
+.walking-points { position: relative; min-width: 0; }
 .walking-points h3 {
-  margin: 0 0 10px;
+  position: absolute;
+  top: -70px;
+  left: 0;
+  margin: 0;
   color: #302c4d;
-  font: 600 16px Unbounded, sans-serif;
+  font: 600 20px Unbounded, sans-serif;
   letter-spacing: -0.05em;
+}
+.walking-points .walking-list {
+  height: 450px;
+  max-height: 450px;
 }
 .walking-list button {
   min-height: 53px;
@@ -3236,6 +3243,14 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   }
   .walking-layout {
     grid-template-columns: 1fr;
+  }
+  .walking-points h3 {
+    position: static;
+    margin: 4px 0 10px;
+  }
+  .walking-points .walking-list {
+    height: auto;
+    max-height: 395px;
   }
   .draft-route-with-map > .map-card {
     margin-top: 0;
