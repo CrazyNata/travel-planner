@@ -225,6 +225,19 @@ const munichDayOneNotes = `🎅 Что обязательно попробова
 🥔 Картофельные оладьи (Kartoffelpuffer)
 🌭 Баварские сосиски`;
 
+const veronaDayTwoSights: StoredSight[] = [
+  { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
+  { id: "verona-arena", name: "Арена Вероны (Arena di Verona)", city: "Верона", walkDay: 2, walkOrder: 1, lnglat: [10.9942, 45.438], duration: "45 мин" },
+  { id: "verona-rigoletto", name: "Рождественская звезда Rigoletto", city: "Верона", walkDay: 2, walkOrder: 2, lnglat: [10.9923, 45.4384], duration: "20 мин" },
+  { id: "verona-mazzini", name: "Via Giuseppe Mazzini", city: "Верона", walkDay: 2, walkOrder: 3, lnglat: [10.9958, 45.4401], duration: "30 мин" },
+  { id: "verona-erbe", name: "Piazza delle Erbe", city: "Верона", walkDay: 2, walkOrder: 4, lnglat: [10.9972, 45.4431], duration: "30 мин" },
+  { id: "verona-signori", name: "Piazza dei Signori", city: "Верона", walkDay: 2, walkOrder: 5, lnglat: [10.9983, 45.4425], duration: "25 мин" },
+  { id: "verona-christkindlmarkt", name: "Рождественская ярмарка Christkindlmarkt", city: "Верона", walkDay: 2, walkOrder: 6, lnglat: [10.998, 45.4427], duration: "1 ч" },
+  { id: "verona-juliet", name: "Дворик Джульетты (Casa di Giulietta)", city: "Верона", walkDay: 2, walkOrder: 7, lnglat: [10.9994, 45.4429], duration: "30 мин" },
+  { id: "verona-ponte-pietra", name: "Ponte Pietra", city: "Верона", walkDay: 2, walkOrder: 8, lnglat: [11.0053, 45.4472], duration: "35 мин" },
+  { id: "verona-adige", name: "Набережная реки Адидже", city: "Верона", walkDay: 2, walkOrder: 9, lnglat: [11.0037, 45.4465], duration: "30 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1340,13 +1353,19 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
-  const sightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
+  const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
+  const sightDays = trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
+    ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
+    : savedSightDays;
   useEffect(() => {
     const selectDay = (event: Event) => setSelectedSightDayId((event as CustomEvent<string>).detail);
     window.addEventListener("odyssey-select-sight-day", selectDay);
     return () => window.removeEventListener("odyssey-select-sight-day", selectDay);
   }, []);
-  const tripSights = trip.sights || (trip.title.toLowerCase().includes("рождествен") ? munichDayOneSights : []);
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights];
+  const tripSights = trip.title.toLowerCase().includes("рождествен")
+    ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
+    : trip.sights || [];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
