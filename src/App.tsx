@@ -10,7 +10,7 @@ type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
-type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string };
+type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string };
 type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
 
 function mapsUrl(from: string, to: string) {
@@ -1204,12 +1204,52 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{cityFlag(city.name)} {city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
+function WalkingMap({ sights }: { sights: StoredSight[] }) {
+  const container = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    const coordinates = sights.map((sight) => sight.lnglat).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
+    if (!container.current || !token || !coordinates.length) return;
+    let map: Map | undefined;
+    let disposed = false;
+    void import("mapbox-gl").then(({ default: mapboxgl }) => {
+      if (disposed || !container.current) return;
+      mapboxgl.accessToken = token;
+      map = new mapboxgl.Map({ container: container.current, style: "mapbox://styles/mapbox/streets-v12", center: coordinates[0], zoom: 13, attributionControl: false });
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+      sights.forEach((sight, index) => {
+        if (!sight.lnglat) return;
+        const marker = document.createElement("span");
+        marker.className = "sight-map-marker";
+        marker.textContent = String(index + 1);
+        new mapboxgl.Marker({ element: marker }).setLngLat(sight.lnglat).addTo(map!);
+      });
+      map.on("load", () => {
+        if (coordinates.length > 1) {
+          map!.addSource("walking-route", { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } } });
+          map!.addLayer({ id: "walking-route", type: "line", source: "walking-route", paint: { "line-color": "#ef7b48", "line-width": 4, "line-opacity": 0.9 } });
+        }
+        const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
+        coordinates.slice(1).forEach((coordinate) => bounds.extend(coordinate));
+        map!.fitBounds(bounds, { padding: 38, maxZoom: 14 });
+      });
+    });
+    return () => { disposed = true; map?.remove(); };
+  }, [sights]);
+  return <div className="walking-map" ref={container} />;
+}
+
 function Sights({ sights, onToggle }: { sights: StoredSight[]; onToggle: (id: string) => void }) {
-  const [city, setCity] = useState("Все");
-  const cities = ["Все", ...Array.from(new Set(sights.map((sight) => sight.city))).sort()];
-  const filteredSights = city === "Все" ? sights : sights.filter((sight) => sight.city === city);
+  const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
+  const [city, setCity] = useState(cities[0] || "");
+  const citySights = sights.filter((sight) => sight.city === city);
+  const walkDays = Array.from(new Set(citySights.map((sight) => sight.walkDay || 1))).sort((a, b) => a - b);
+  const [walkDay, setWalkDay] = useState(walkDays[0] || 1);
+  useEffect(() => { if (!cities.includes(city)) setCity(cities[0] || ""); }, [sights]);
+  useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, sights]);
+  const routeSights = citySights.filter((sight) => (sight.walkDay || 1) === walkDay).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
   if (!sights.length) return <div className="empty-state">Достопримечательности пока не добавлены.</div>;
-  return <section className="sights-page"><header><div><p className="eyebrow">{sights.filter((sight) => sight.done).length} из {sights.length} посещено</p><h2>Достопримечательности</h2></div></header><div className="chips">{cities.map((item) => <button className={city === item ? "selected" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}</div><div className="sights-grid">{filteredSights.map((sight) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><p>{sight.city}</p><h3>{sight.name}</h3>{sight.group && <small>{sight.group}</small>}<label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section>;
+  return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{sights.filter((sight) => sight.done).length} из {sights.length} посещено</p><h2>Достопримечательности</h2></div><span>Планируйте прогулки по городам</span></header><section className="walking-planner"><header><div><b>Пеший маршрут</b><p>Выберите город и день. Точки идут в порядке прогулки и отмечены на карте.</p></div><span>⌄</span></header><div className="walking-controls"><select value={city} onChange={(event) => setCity(event.target.value)}>{cities.map((item) => <option value={item} key={item}>{item}</option>)}</select><select value={walkDay} onChange={(event) => setWalkDay(Number(event.target.value))}>{walkDays.map((item) => <option value={item} key={item}>День {item}</option>)}</select><span>{routeSights.length} мест</span></div><div className="walking-layout"><ol className="walking-list">{routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => onToggle(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>)}</ol><WalkingMap sights={routeSights} /></div></section><section className="sights-collection"><header><div><p className="eyebrow">День {walkDay} · {city}</p><h2>Места прогулки</h2></div><span>{routeSights.length} точек</span></header><div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section></section>;
 }
 
 function Workspace({ go, trip, sights, onToggleSight, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; sights: StoredSight[]; onToggleSight: (id: string) => void; onUpdateTrip: (trip: TripSummary) => void }) {
