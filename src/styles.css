@@ -1513,6 +1513,9 @@ button {
   grid-template-columns: 1fr 1fr 130px;
   gap: 9px;
 }
+.road-leg-times {
+  grid-template-columns: repeat(4, 100px);
+}
 .road-leg-editor label {
   display: grid;
   gap: 5px;
@@ -1533,14 +1536,6 @@ button {
 .road-leg-editor textarea {
   min-height: 66px;
   resize: vertical;
-}
-.avoid-tolls {
-  display: flex !important;
-  align-items: center;
-  gap: 9px;
-  border-radius: 10px;
-  background: #eeedff;
-  padding: 9px 11px;
 }
 .avoid-tolls input {
   width: 17px;
