@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoidTolls: boolean };
+type RoadLeg = { from: string; to: string; checkIn: string; notes: string; avoidTolls: boolean; mapsUrl?: string };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
@@ -583,11 +583,14 @@ function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSav
   const [checkIn, setCheckIn] = useState(roadLeg?.checkIn || "");
   const [notes, setNotes] = useState(roadLeg?.notes || "");
   const [avoidTolls, setAvoidTolls] = useState(roadLeg?.avoidTolls || false);
-  const mapsUrl = from.trim() && to.trim() ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.trim())}&destination=${encodeURIComponent(to.trim())}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}` : "";
-  return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkIn, notes: notes.trim(), avoidTolls }); }}>
+  const [customMapsUrl, setCustomMapsUrl] = useState(roadLeg?.mapsUrl || "");
+  const generatedMapsUrl = from.trim() && to.trim() ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.trim())}&destination=${encodeURIComponent(to.trim())}&travelmode=driving${avoidTolls ? "&avoid=tolls" : ""}` : "";
+  const mapsUrl = customMapsUrl.trim() || generatedMapsUrl;
+  return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkIn, notes: notes.trim(), avoidTolls, mapsUrl: customMapsUrl.trim() || undefined }); }}>
     <div className="road-leg-editor-title"><b>Автомобильный маршрут</b><span>Заполните переезд на этот день</span></div>
     <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label><label>Заселение в отель<input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} /></label></div>
     <label className="road-notes">Заметки<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Например, заправиться перед выездом" /></label>
+    <label className="road-notes">Ссылка Google Maps<input type="url" value={customMapsUrl} onChange={(event) => setCustomMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." /></label>
     <label className="avoid-tolls"><input type="checkbox" checked={avoidTolls} onChange={(event) => setAvoidTolls(event.target.checked)} /><span><b>Избегать платных дорог</b><small>Google Maps откроется с этим ограничением</small></span></label>
     {mapsUrl ? <GoogleMapsLink url={mapsUrl} /> : <div className="google-maps-preview"><b>Google Maps</b><span>Укажите откуда и куда, чтобы открыть или скопировать маршрут.</span></div>}
     <div className="road-leg-actions"><button type="button" className="secondary" onClick={onCancel}>Отмена</button><button className="accent">Сохранить маршрут</button></div>
@@ -606,7 +609,7 @@ function GoogleMapsLink({ url }: { url: string }) {
 
 function DraftRouteCard({ day, index, editing, onEdit, onSave, onCancel }: { day: DraftDay; index: number; editing: boolean; onEdit: () => void; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
   const roadLeg = day.roadLeg;
-  const mapsUrl = roadLeg ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(roadLeg.from)}&destination=${encodeURIComponent(roadLeg.to)}&travelmode=driving${roadLeg.avoidTolls ? "&avoid=tolls" : ""}` : "";
+  const mapsUrl = roadLeg ? roadLeg.mapsUrl || `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(roadLeg.from)}&destination=${encodeURIComponent(roadLeg.to)}&travelmode=driving${roadLeg.avoidTolls ? "&avoid=tolls" : ""}` : "";
   const itemCount = roadLeg ? 1 + Number(Boolean(roadLeg.checkIn)) + Number(Boolean(roadLeg.notes)) + Number(roadLeg.avoidTolls) : 0;
   return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from} <b>→</b> {roadLeg.to}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 3} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={mapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{roadLeg.avoidTolls && <p><i />Избегать платных дорог в навигаторе</p>}{roadLeg.checkIn && <p><i />Заселение в отель <b>{roadLeg.checkIn}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={mapsUrl} /></> : <div className="route-card-empty">Добавьте направление, заселение и дорожные заметки.</div>}</article>;
 }
