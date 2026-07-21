@@ -1635,6 +1635,13 @@ button {
   background: #fff;
   box-shadow: 0 2px 8px rgba(35, 32, 28, 0.04);
 }
+.draft-route-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px #4c46d61a;
+}
+.draft-route-card > header {
+  cursor: pointer;
+}
 .draft-route-card > header {
   display: flex;
   align-items: center;
@@ -1925,6 +1932,10 @@ button {
   font-style: normal;
   font-weight: 800;
   box-shadow: 0 2px 8px #0004;
+}
+.map-marker.active {
+  transform: scale(1.24);
+  background: #201d53;
 }
 .map-card footer {
   display: flex;

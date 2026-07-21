@@ -178,6 +178,14 @@ function mapLocation(city: string) {
   return Object.entries(mapLocations).find(([name]) => city.includes(name))?.[1];
 }
 
+function routeCoordinatesFor(days: DraftDay[]) {
+  return days.flatMap((day, index) => {
+    const leg = day.roadLeg;
+    if (!leg) return [];
+    return index === 0 ? [leg.from, leg.to] : [leg.to];
+  }).map(mapLocation).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
+}
+
 const winterPhotoCaptions = [
   ["Мюнхен", "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац."],
   ["Верона", "Зимняя Пьяцца Бра сияет огнями рождественской ярмарки у стен древней Арены. Вечерняя прогулка здесь соединяет итальянскую историю и праздничное настроение."],
@@ -207,8 +215,10 @@ function compressCoverPhoto(file: File) {
   });
 }
 
-function TripMap({ city, places = [], routeDays = [] }: { city?: string; places?: string[]; routeDays?: DraftDay[] }) {
+function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: string; places?: string[]; routeDays?: DraftDay[]; activeDay?: number }) {
   const container = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<Map | null>(null);
+  const markerElements = useRef<HTMLSpanElement[]>([]);
   const location = city ? mapLocation(city) : undefined;
 
   useEffect(() => {
@@ -220,12 +230,7 @@ function TripMap({ city, places = [], routeDays = [] }: { city?: string; places?
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       mapboxgl.accessToken = token;
-      const routeStops = routeDays.flatMap((day, index) => {
-        const leg = day.roadLeg;
-        if (!leg) return [];
-        return index === 0 ? [leg.from, leg.to] : [leg.to];
-      });
-      const routeCoordinates = routeStops.map(mapLocation).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
+      const routeCoordinates = routeCoordinatesFor(routeDays);
       map = new mapboxgl.Map({
         container: container.current,
         style: "mapbox://styles/mapbox/streets-v12",
@@ -233,13 +238,16 @@ function TripMap({ city, places = [], routeDays = [] }: { city?: string; places?
         zoom: routeCoordinates.length ? 5 : location ? 12 : 3,
         attributionControl: false,
       });
+      mapRef.current = map;
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
       if (routeCoordinates.length > 1) {
+        markerElements.current = [];
         routeCoordinates.forEach((coordinate, index) => {
           const element = document.createElement("span");
-          element.className = "map-marker";
+          element.className = index === activeDay ? "map-marker active" : "map-marker";
           element.textContent = String(index + 1);
+          markerElements.current.push(element);
           new mapboxgl.Marker({ element }).setLngLat(coordinate).addTo(map!);
         });
         map.on("load", () => {
@@ -278,8 +286,17 @@ function TripMap({ city, places = [], routeDays = [] }: { city?: string; places?
     return () => {
       disposed = true;
       map?.remove();
+      mapRef.current = null;
+      markerElements.current = [];
     };
   }, [city, location, places, routeDays]);
+
+  useEffect(() => {
+    const coordinate = activeDay === undefined ? undefined : routeCoordinatesFor(routeDays)[activeDay];
+    if (!coordinate || !mapRef.current) return;
+    markerElements.current.forEach((element, index) => element.classList.toggle("active", index === activeDay));
+    mapRef.current.flyTo({ center: coordinate, zoom: 8, duration: 900, essential: true });
+  }, [activeDay, routeDays]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return <div className="map map-unavailable">Карта станет доступна после настройки Mapbox.</div>;
@@ -702,22 +719,23 @@ function GoogleMapsLink({ url }: { url: string }) {
   return <div className="google-maps-link"><span><b>Google Maps</b><small>Автомобильный маршрут</small></span><a href={url} target="_blank" rel="noreferrer">Открыть ↗</a><button onClick={copy}>{copied ? "Скопировано" : "Копировать"}</button></div>;
 }
 
-function DraftRouteCard({ day, index, editing, onEdit, onChange, onSave, onCancel }: { day: DraftDay; index: number; editing: boolean; onEdit: () => void; onChange: (roadLeg: RoadLeg) => void; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
+function DraftRouteCard({ day, index, editing, selected, onSelect, onEdit, onChange, onSave, onCancel }: { day: DraftDay; index: number; editing: boolean; selected: boolean; onSelect: () => void; onEdit: () => void; onChange: (roadLeg: RoadLeg) => void; onSave: (roadLeg: RoadLeg) => void; onCancel: () => void }) {
   const roadLeg = day.roadLeg;
   const routeMapsUrl = roadLeg ? roadLeg.mapsUrl || mapsUrl(roadLeg.from, roadLeg.to) : "";
   const checkIn = [roadLeg?.checkInFrom, roadLeg?.checkInTo].filter(Boolean).join(" - ");
   const checkOut = [roadLeg?.checkOutFrom, roadLeg?.checkOutTo].filter(Boolean).join(" - ");
   const itemCount = roadLeg ? 1 + Number(Boolean(checkIn)) + Number(Boolean(checkOut)) + Number(Boolean(roadLeg.notes)) : 0;
   const checklist = [{ id: "departure", label: `Выезд из ${roadLeg?.from || "города"}` }, { id: "check-in", label: `Заселение в отель${checkIn ? ` ${checkIn}` : ""}` }, { id: "check-out", label: `Выселение из отеля${checkOut ? ` ${checkOut}` : ""}` }];
-  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{cityFlag(roadLeg.from)} {roadLeg.from || "Откуда"} <b>→</b> {cityFlag(roadLeg.to)} {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
+  return <article className={selected ? "draft-route-card selected" : "draft-route-card"}><header onClick={onSelect}><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{cityFlag(roadLeg.from)} {roadLeg.from || "Откуда"} <b>→</b> {cityFlag(roadLeg.to)} {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
 }
 
 function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEditingRoadDayChange, onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; editingRoadDay?: number | null; onEditingRoadDayChange?: (day: number | null) => void; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
   const [day, setDay] = useState(0);
+  const [selectedRouteDay, setSelectedRouteDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
   const currentDraftDay: DraftDay = draftDays[day] || { id: "day-1", places: [] };
-  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap routeDays={draftDays} /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
+  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} selected={selectedRouteDay === index} onSelect={() => setSelectedRouteDay(index)} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap routeDays={draftDays} activeDay={selectedRouteDay} /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
