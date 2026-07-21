@@ -628,11 +628,17 @@ function RoadLegEditor({ roadLeg, onChange, onSave, onCancel }: { roadLeg?: Road
   const generatedMapsUrl = from.trim() && to.trim() ? mapsUrl(from.trim(), to.trim()) : "";
   const routeMapsUrl = customMapsUrl.trim() || generatedMapsUrl;
   const emitChange = useEffectEvent(onChange);
+  const latestRoadLeg = useRef<RoadLeg | null>(null);
+  latestRoadLeg.current = { from: from.trim(), to: to.trim(), checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes: notes.trim(), mapsUrl: customMapsUrl.trim() || undefined };
   useEffect(() => {
     if (![from, to, checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes, customMapsUrl].some((value) => value.trim())) return;
     const timeout = window.setTimeout(() => emitChange({ from: from.trim(), to: to.trim(), checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes: notes.trim(), mapsUrl: customMapsUrl.trim() || undefined }), 500);
     return () => window.clearTimeout(timeout);
   }, [from, to, checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes, customMapsUrl]);
+  useEffect(() => () => {
+    const latest = latestRoadLeg.current;
+    if (latest && Object.values(latest).some(Boolean)) emitChange(latest);
+  }, []);
   return <form className="road-leg-editor" onSubmit={(event) => { event.preventDefault(); if (!from.trim() || !to.trim()) return; onSave({ from: from.trim(), to: to.trim(), checkInFrom, checkInTo, checkOutFrom, checkOutTo, notes: notes.trim(), mapsUrl: customMapsUrl.trim() || undefined }); }}>
     <div className="road-leg-editor-title"><b>Автомобильный маршрут</b><span>Заполните переезд на этот день</span></div>
     <div className="road-leg-fields"><label>Откуда<input value={from} onChange={(event) => setFrom(event.target.value)} placeholder="Например, Мюнхен" autoFocus /></label><label>Куда<input value={to} onChange={(event) => setTo(event.target.value)} placeholder="Например, Верона" /></label></div>
@@ -664,13 +670,12 @@ function DraftRouteCard({ day, index, editing, onEdit, onChange, onSave, onCance
   return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from || "Откуда"} <b>→</b> {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
 }
 
-function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
+function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEditingRoadDayChange, onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; editingRoadDay?: number | null; onEditingRoadDayChange?: (day: number | null) => void; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
   const [day, setDay] = useState(0);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
-  const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
   const currentDraftDay: DraftDay = draftDays[day] || { id: "day-1", places: [] };
-  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} onEdit={() => setEditingRoadDay(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); setEditingRoadDay(null); }} onCancel={() => setEditingRoadDay(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
+  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
@@ -1109,6 +1114,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
+  const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"]] : [
     ["overview", "Главная"],
@@ -1154,7 +1160,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       </header>
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
-        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
+        {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
