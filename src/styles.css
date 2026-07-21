@@ -2090,8 +2090,16 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 }
 .walking-list {
   max-height: 395px;
+  align-content: start;
   gap: 8px;
   padding-right: 4px;
+}
+.walking-points { min-width: 0; }
+.walking-points h3 {
+  margin: 0 0 10px;
+  color: #302c4d;
+  font: 600 16px Unbounded, sans-serif;
+  letter-spacing: -0.05em;
 }
 .walking-list button {
   min-height: 53px;
@@ -2118,8 +2126,9 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .walking-list button small { color: #8a84a2; }
 .walking-empty {
   display: grid;
-  min-height: 130px;
-  place-items: center;
+  min-height: 72px;
+  align-self: start;
+  place-items: stretch;
   border: 1px dashed #cbc7e8;
   border-radius: 14px;
   background: #ffffff88;
