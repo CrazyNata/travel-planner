@@ -2084,6 +2084,31 @@ button {
 }
 .walking-list button span { font-size: 12px; }
 .walking-list button small { color: #8a84a2; }
+.walking-empty {
+  display: grid;
+  min-height: 130px;
+  place-items: center;
+  border: 1px dashed #cbc7e8;
+  border-radius: 14px;
+  background: #ffffff88;
+  padding: 16px;
+}
+.walking-empty > button {
+  justify-content: center;
+  color: #5a54cc;
+}
+.walking-empty form {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+.walking-empty input {
+  border: 1px solid #dedbf2;
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 10px;
+  color: #373259;
+}
 .walking-map {
   min-height: 395px;
   border: 3px solid #e1dff0;

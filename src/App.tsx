@@ -1204,18 +1204,19 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{cityFlag(city.name)} {city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
-function WalkingMap({ sights }: { sights: StoredSight[] }) {
+function WalkingMap({ sights, city }: { sights: StoredSight[]; city?: string }) {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const coordinates = sights.map((sight) => sight.lnglat).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
-    if (!container.current || !token || !coordinates.length) return;
+    const fallbackLocation = city ? mapLocation(city) : undefined;
+    if (!container.current || !token || (!coordinates.length && !fallbackLocation)) return;
     let map: Map | undefined;
     let disposed = false;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       mapboxgl.accessToken = token;
-      map = new mapboxgl.Map({ container: container.current, style: "mapbox://styles/mapbox/streets-v12", center: coordinates[0], zoom: 13, attributionControl: false });
+      map = new mapboxgl.Map({ container: container.current, style: "mapbox://styles/mapbox/streets-v12", center: coordinates[0] || fallbackLocation!, zoom: coordinates.length ? 13 : 11, attributionControl: false });
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
       sights.forEach((sight, index) => {
         if (!sight.lnglat) return;
@@ -1239,9 +1240,10 @@ function WalkingMap({ sights }: { sights: StoredSight[] }) {
   return <div className="walking-map" ref={container} />;
 }
 
-function Sights({ sights, onToggle, onAdd }: { sights: StoredSight[]; onToggle: (id: string) => void; onAdd: (sight: StoredSight) => void }) {
+function Sights({ sights, defaultCity, onToggle, onAdd }: { sights: StoredSight[]; defaultCity?: string; onToggle: (id: string) => void; onAdd: (sight: StoredSight) => void }) {
   const [adding, setAdding] = useState(false);
   const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
+  if (!cities.length && defaultCity) cities.push(defaultCity);
   const [city, setCity] = useState(cities[0] || "");
   const citySights = sights.filter((sight) => sight.city === city);
   const walkDays = Array.from(new Set(citySights.map((sight) => sight.walkDay || 1))).sort((a, b) => a - b);
@@ -1249,8 +1251,8 @@ function Sights({ sights, onToggle, onAdd }: { sights: StoredSight[]; onToggle: 
   useEffect(() => { if (!cities.includes(city)) setCity(cities[0] || ""); }, [sights]);
   useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, sights]);
   const routeSights = citySights.filter((sight) => (sight.walkDay || 1) === walkDay).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
-  if (!sights.length) return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">Ваш список</p><h2>Достопримечательности</h2></div></header><section className="sights-empty"><b>Начните свою карту впечатлений</b><p>Добавляйте места по мере планирования, а затем соберите их в пешие маршруты.</p>{adding ? <form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const placeCity = String(form.get("city") || "").trim(); if (!name || !placeCity) return; onAdd({ id: crypto.randomUUID(), name, city: placeCity, walkDay: 1, walkOrder: 0 }); setAdding(false); }}><input name="name" placeholder="Название места" autoFocus /><input name="city" placeholder="Город" /><button className="accent">Добавить</button></form> : <button className="accent" onClick={() => setAdding(true)}>＋ Добавить первое место</button>}</section></section>;
-  return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{sights.filter((sight) => sight.done).length} из {sights.length} посещено</p><h2>Достопримечательности</h2></div><span>Планируйте прогулки по городам</span></header><section className="walking-planner"><header><div><b>Пеший маршрут</b><p>Выберите город и день. Точки идут в порядке прогулки и отмечены на карте.</p></div><span>⌄</span></header><div className="walking-controls"><select value={city} onChange={(event) => setCity(event.target.value)}>{cities.map((item) => <option value={item} key={item}>{item}</option>)}</select><select value={walkDay} onChange={(event) => setWalkDay(Number(event.target.value))}>{walkDays.map((item) => <option value={item} key={item}>День {item}</option>)}</select><span>{routeSights.length} мест</span></div><div className="walking-layout"><ol className="walking-list">{routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => onToggle(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>)}</ol><WalkingMap sights={routeSights} /></div></section><section className="sights-collection"><header><div><p className="eyebrow">День {walkDay} · {city}</p><h2>Места прогулки</h2></div><span>{routeSights.length} точек</span></header><div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div></section></section>;
+  const addSight = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const placeCity = String(form.get("city") || city).trim(); if (!name || !placeCity) return; onAdd({ id: crypto.randomUUID(), name, city: placeCity, walkDay, walkOrder: routeSights.length }); setAdding(false); };
+  return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{sights.length ? `${sights.filter((sight) => sight.done).length} из ${sights.length} посещено` : "Ваш список"}</p><h2>Достопримечательности</h2></div><span>Планируйте прогулки по городам</span></header><section className="walking-planner"><header><div><b>Пеший маршрут</b><p>Выберите город и день. Точки идут в порядке прогулки и отмечены на карте.</p></div><span>⌄</span></header><div className="walking-controls"><select value={city} onChange={(event) => setCity(event.target.value)}>{cities.map((item) => <option value={item} key={item}>{item}</option>)}</select><select value={walkDay} onChange={(event) => setWalkDay(Number(event.target.value))}>{walkDays.map((item) => <option value={item} key={item}>День {item}</option>)}</select><span>{routeSights.length} мест</span></div><div className="walking-layout"><ol className="walking-list">{routeSights.length ? routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => onToggle(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>) : <li className="walking-empty">{adding ? <form onSubmit={addSight}><input name="name" placeholder="Название места" autoFocus /><input name="city" placeholder="Город" defaultValue={city} /><button className="accent">Добавить</button></form> : <button onClick={() => setAdding(true)}><b>＋</b><span>Добавить первую точку</span></button>}</li>}</ol><WalkingMap sights={routeSights} city={city} /></div></section><section className="sights-collection"><header><div><p className="eyebrow">День {walkDay} · {city}</p><h2>Места прогулки</h2></div><span>{routeSights.length} точек</span></header>{routeSights.length ? <div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div> : <div className="sights-empty"><b>Маршрут пока пуст</b><p>Добавьте первое место в блоке пешего маршрута выше.</p></div>}</section></section>;
 }
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
@@ -1302,7 +1304,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
-        {tab === "sights" && <Sights sights={trip.sights || []} onToggle={(id) => onUpdateTrip({ ...trip, sights: trip.sights?.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) || [] })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...(trip.sights || []), sight] })} />}
+        {tab === "sights" && <Sights sights={trip.sights || []} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => onUpdateTrip({ ...trip, sights: trip.sights?.map((sight) => sight.id === id ? { ...sight, done: !sight.done } : sight) || [] })} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...(trip.sights || []), sight] })} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
