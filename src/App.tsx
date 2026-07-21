@@ -626,7 +626,7 @@ function RoadLegEditor({ roadLeg, onSave, onCancel }: { roadLeg?: RoadLeg; onSav
     <div className="road-leg-fields road-leg-times"><label>Заселение: с<input type="time" value={checkInFrom} onChange={(event) => setCheckInFrom(event.target.value)} /></label><label>Заселение: до<input type="time" value={checkInTo} onChange={(event) => setCheckInTo(event.target.value)} /></label><label>Выселение: с<input type="time" value={checkOutFrom} onChange={(event) => setCheckOutFrom(event.target.value)} /></label><label>Выселение: до<input type="time" value={checkOutTo} onChange={(event) => setCheckOutTo(event.target.value)} /></label></div>
     <label className="road-notes">Заметки<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Например, заправиться перед выездом" /></label>
     <label className="road-notes">Ссылка Google Maps<input type="url" value={customMapsUrl} onChange={(event) => setCustomMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." /></label>
-    {routeMapsUrl ? <GoogleMapsLink url={routeMapsUrl} /> : <div className="google-maps-preview"><b>Google Maps</b><span>Укажите откуда и куда, чтобы открыть или скопировать маршрут.</span></div>}
+    {routeMapsUrl && <GoogleMapsLink url={routeMapsUrl} />}
     <div className="road-leg-actions"><button type="button" className="secondary" onClick={onCancel}>Отмена</button><button className="accent">Сохранить маршрут</button></div>
   </form>;
 }
