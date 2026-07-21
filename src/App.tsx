@@ -159,11 +159,24 @@ const catalog = [
 ];
 
 const mapLocations: Record<string, [number, number]> = {
+  "Прага": [14.4378, 50.0755],
+  "Зальцбург": [13.045, 47.8095],
+  "Мюнхен": [11.582, 48.1351],
+  "Равенсбург": [9.611, 47.781],
+  "Верона": [10.9916, 45.4384],
   "Рим": [12.4964, 41.9028],
+  "Фильине-Вальдарно": [11.469, 43.62],
+  "Кьоджа": [12.278, 45.219],
+  "Милан": [9.19, 45.4642],
+  "Вальдидентро": [10.3, 46.49],
   "Флоренция": [11.2558, 43.7696],
   "Венеция": [12.3155, 45.4408],
   "Москва": [37.6173, 55.7558],
 };
+
+function mapLocation(city: string) {
+  return Object.entries(mapLocations).find(([name]) => city.includes(name))?.[1];
+}
 
 const winterPhotoCaptions = [
   ["Мюнхен", "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац."],
@@ -194,9 +207,9 @@ function compressCoverPhoto(file: File) {
   });
 }
 
-function TripMap({ city, places = [] }: { city?: string; places?: string[] }) {
+function TripMap({ city, places = [], routeDays = [] }: { city?: string; places?: string[]; routeDays?: DraftDay[] }) {
   const container = useRef<HTMLDivElement>(null);
-  const location = city ? mapLocations[city] : undefined;
+  const location = city ? mapLocation(city) : undefined;
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -207,16 +220,36 @@ function TripMap({ city, places = [] }: { city?: string; places?: string[] }) {
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       mapboxgl.accessToken = token;
+      const routeStops = routeDays.flatMap((day, index) => {
+        const leg = day.roadLeg;
+        if (!leg) return [];
+        return index === 0 ? [leg.from, leg.to] : [leg.to];
+      });
+      const routeCoordinates = routeStops.map(mapLocation).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
       map = new mapboxgl.Map({
         container: container.current,
         style: "mapbox://styles/mapbox/streets-v12",
-        center: location ?? mapLocations["Москва"],
-        zoom: location ? 12 : 3,
+        center: routeCoordinates[0] ?? location ?? mapLocations["Москва"],
+        zoom: routeCoordinates.length ? 5 : location ? 12 : 3,
         attributionControl: false,
       });
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
-      if (location && places.length) {
+      if (routeCoordinates.length > 1) {
+        routeCoordinates.forEach((coordinate, index) => {
+          const element = document.createElement("span");
+          element.className = "map-marker";
+          element.textContent = String(index + 1);
+          new mapboxgl.Marker({ element }).setLngLat(coordinate).addTo(map!);
+        });
+        map.on("load", () => {
+          map!.addSource("route", { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: routeCoordinates } } });
+          map!.addLayer({ id: "route", type: "line", source: "route", paint: { "line-color": "#4c46d6", "line-width": 3, "line-opacity": 0.72 } });
+          const bounds = new mapboxgl.LngLatBounds(routeCoordinates[0], routeCoordinates[0]);
+          routeCoordinates.slice(1).forEach((coordinate) => bounds.extend(coordinate));
+          map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
+        });
+      } else if (location && places.length) {
         const coordinates = places.map((_, index) => [
           location[0] + (index - 2) * 0.012,
           location[1] + ((index % 2 ? 1 : -1) * (index + 1)) * 0.006,
@@ -246,7 +279,7 @@ function TripMap({ city, places = [] }: { city?: string; places?: string[] }) {
       disposed = true;
       map?.remove();
     };
-  }, [city, location, places]);
+  }, [city, location, places, routeDays]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return <div className="map map-unavailable">Карта станет доступна после настройки Mapbox.</div>;
@@ -684,7 +717,7 @@ function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEd
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
   const currentDraftDay: DraftDay = draftDays[day] || { id: "day-1", places: [] };
-  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
+  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap routeDays={draftDays} /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>
