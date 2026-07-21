@@ -744,10 +744,30 @@ function DraftRouteCard({ day, index, editing, selected, onSelect, onEdit, onCha
 function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEditingRoadDayChange, onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; editingRoadDay?: number | null; onEditingRoadDayChange?: (day: number | null) => void; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
   const [day, setDay] = useState(0);
   const [selectedRouteDay, setSelectedRouteDay] = useState(0);
+  const [routeTotals, setRouteTotals] = useState<{ distance: number; duration: number } | null>(null);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   useEffect(() => setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))), [draftDays.length]);
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    const legs = draftDays.flatMap((day) => day.roadLeg ? [[mapLocation(day.roadLeg.from), mapLocation(day.roadLeg.to)]] : []).filter((leg): leg is [[number, number], [number, number]] => Boolean(leg[0] && leg[1]));
+    if (!token || !legs.length) {
+      setRouteTotals(null);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(legs.map(async ([from, to]) => {
+      const response = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${from.join(",")};${to.join(",")}?overview=false&access_token=${token}`);
+      const data = await response.json() as { routes?: { distance: number; duration: number }[] };
+      return data.routes?.[0];
+    })).then((routes) => {
+      const validRoutes = routes.filter((route): route is { distance: number; duration: number } => Boolean(route));
+      if (cancelled || validRoutes.length !== legs.length) return;
+      setRouteTotals(validRoutes.reduce<{ distance: number; duration: number }>((total, route) => ({ distance: total.distance + route.distance, duration: total.duration + route.duration }), { distance: 0, duration: 0 }));
+    }).catch(() => { if (!cancelled) setRouteTotals(null); });
+    return () => { cancelled = true; };
+  }, [draftDays]);
   const currentDraftDay: DraftDay = draftDays[day] || { id: "day-1", places: [] };
-  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} selected={selectedRouteDay === index} onSelect={() => setSelectedRouteDay(index)} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap routeDays={draftDays} activeDay={selectedRouteDay} /><footer><span>Общий маршрут</span><b>{draftDays.length} дней</b></footer></aside></div>;
+  if (isDraft) return <div className="draft-route-with-map"><div className="draft-route-cards"><div className="route-toolbar"><span>Планирование по дням · добавляйте автопереезды и дорожные заметки</span></div>{draftDays.map((draftDay, index) => <DraftRouteCard day={draftDay} index={index} editing={editingRoadDay === index} selected={selectedRouteDay === index} onSelect={() => setSelectedRouteDay(index)} onEdit={() => onEditingRoadDayChange?.(index)} onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })} onSave={(roadLeg) => { onUpdateDraftDay?.(index, { roadLeg }); onEditingRoadDayChange?.(null); }} onCancel={() => onEditingRoadDayChange?.(null)} key={draftDay.id} />)}<button className="add-route-day" onClick={onAddDraftDay}>＋ Добавить день</button></div><aside className="map-card"><TripMap routeDays={draftDays} activeDay={selectedRouteDay} /><footer><span>Общий маршрут</span><b>{draftDays.length} дней{routeTotals && ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`}</b></footer></aside></div>;
   const current = days[day];
   const daySelector = (
     <div className={`day-rail ${variant === "tabs" ? "horizontal" : ""}`}>

@@ -1628,6 +1628,9 @@ button {
 .draft-route-cards > .route-toolbar {
   margin-bottom: 2px;
 }
+.draft-route-with-map > .map-card {
+  margin-top: 38px;
+}
 .draft-route-card {
   overflow: hidden;
   border: 1px solid #e1dfec;
@@ -2749,6 +2752,9 @@ button {
 @media (max-width: 1050px) {
   .draft-route-with-map {
     grid-template-columns: 1fr;
+  }
+  .draft-route-with-map > .map-card {
+    margin-top: 0;
   }
 }
 @media (max-width: 520px) {
