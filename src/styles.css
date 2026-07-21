@@ -1975,6 +1975,15 @@ button {
 .sight-day-tabs small, .sight-day-tabs b { display: block; }
 .sight-day-tabs small { font-size: 9px; text-transform: uppercase; }
 .sight-day-tabs b { margin-top: 4px; font-size: 12px; }
+.sight-day { position: relative; min-width: 112px; }
+.sight-day > button:first-child { width: 100%; min-height: 62px; border-radius: 15px; background: linear-gradient(145deg, #fff, #f6f5ff); box-shadow: 0 4px 10px #3b35620a; }
+.sight-day.active > button:first-child { border-color: #655fdf; background: linear-gradient(145deg, #625cdd, #4b46cb); color: #fff; box-shadow: 0 8px 17px #4d47cf33; }
+.sight-day.active small { color: #d8d6ff; }
+.rename-day { position: absolute; right: 4px; bottom: 4px; min-width: auto !important; border: 0 !important; background: transparent !important; padding: 4px !important; color: #9690ad; font-size: 11px; }
+.sight-day.active .rename-day { color: #dddafe; }
+.add-sight-day { display: flex; align-items: center; min-width: 92px; border: 1px dashed #aaa5df; border-radius: 15px; background: #f9f8ff; color: #5852ce; padding: 10px; font-weight: 800; }
+form.add-sight-day { gap: 5px; padding: 5px; }
+form.add-sight-day input { width: 110px; border: 0; background: transparent; color: #34304c; }
 .sight-feature { display: grid; min-height: 255px; align-content: space-between; border-radius: 24px; background: linear-gradient(125deg, #262941, #3b4265); padding: 22px 28px; color: #fff; }
 .sight-feature > span { width: fit-content; border: 1px solid #ffffff38; border-radius: 999px; padding: 7px 10px; font-size: 11px; }
 .sight-feature p, .sight-feature h3, .sight-feature small { display: block; margin: 0; }
