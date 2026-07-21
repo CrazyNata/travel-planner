@@ -1262,7 +1262,8 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
-  const sightDays = trip.sightDays?.length ? trip.sightDays : draftDays.map((day, index) => ({ id: day.id, title: day.roadLeg?.to || day.roadLeg?.from || `День ${index + 1}` }));
+  const firstDraftDay = draftDays[0];
+  const sightDays = trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
