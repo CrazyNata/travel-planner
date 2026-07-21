@@ -1951,7 +1951,7 @@ button {
 }
 .sights-collection > header { padding: 0 0 14px; }
 .sights-collection .sights-grid { grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); gap: 18px; }
-.sights-collection .sight-card { position: relative; overflow: hidden; align-self: start; }
+.sights-collection .sight-card { position: relative; min-height: 360px; overflow: hidden; align-self: start; background: #343252; }
 .sights-collection .sight-card:not(:has(img))::before {
   display: block;
   height: 180px;
@@ -2233,7 +2233,7 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   box-shadow: 0 14px 26px rgba(38, 34, 65, .12);
   transform: translateY(-3px);
 }
-.sights-collection .sight-card img { height: 180px; }
+.sights-collection .sight-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .sights-collection .sight-number {
   top: 13px;
   left: 13px;
@@ -2241,15 +2241,15 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   border: 2px solid #fff;
   box-shadow: 0 3px 10px #211d4d55;
 }
-.sights-collection .sight-card > div { display: flex; min-height: 190px; flex-direction: column; padding: 16px 15px 14px; }
+.sights-collection .sight-card > div { position: relative; z-index: 1; display: flex; min-height: 360px; flex-direction: column; justify-content: flex-end; background: linear-gradient(180deg, transparent 28%, rgba(19, 18, 34, .16) 48%, rgba(19, 18, 34, .92) 100%); padding: 22px 17px 16px; }
 .sights-collection .sight-card p {
-  color: #716b9d;
+  color: #d8d5f1;
   font-weight: 800;
   text-transform: uppercase;
 }
 .sights-collection .sight-card h3 {
   min-height: 40px;
-  color: #302d48;
+  color: #fff;
   font: 800 15px/1.3 Manrope, sans-serif;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
@@ -2257,7 +2257,7 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .sights-collection .sight-card h3::after {
   display: block;
   margin-top: 9px;
-  color: #7b758f;
+  color: #eeedf8;
   font: 500 12px/1.45 Manrope, sans-serif;
   letter-spacing: 0;
 }
@@ -2279,7 +2279,7 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   margin-top: auto;
   border-top: 1px solid #edebf4;
   padding-top: 10px;
-  color: #69627f;
+  color: #f3f1fa;
   font-weight: 700;
 }
 .sights-collection .sight-card input {
