@@ -2205,10 +2205,10 @@ form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
   animation: sight-marker-bounce .72s cubic-bezier(.34, 1.56, .64, 1);
 }
 @keyframes sight-marker-bounce {
-  0%, 100% { translate: 0 0; }
-  35% { translate: 0 -22px; }
-  58% { translate: 0 0; }
-  75% { translate: 0 -9px; }
+  0%, 100% { translate: 0 0; scale: 1; background: #5751dc; }
+  35% { translate: 0 -26px; scale: 1.35; background: #ff7657; }
+  58% { translate: 0 0; scale: 1.08; background: #ff7657; }
+  75% { translate: 0 -10px; scale: 1.18; background: #655fdf; }
 }
 .sights-collection {
   margin-top: 34px;

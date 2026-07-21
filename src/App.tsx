@@ -1226,6 +1226,7 @@ function WalkingMap({ sights, city, activeSightId }: { sights: StoredSight[]; ci
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
   const [stats, setStats] = useState<{ distance: number; duration: number } | null>(null);
+  const routeKey = sights.map((sight) => `${sight.id}:${sight.lnglat?.join(",") || ""}`).join(";");
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const coordinates = sights.map((sight) => sight.lnglat).filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
@@ -1265,7 +1266,7 @@ function WalkingMap({ sights, city, activeSightId }: { sights: StoredSight[]; ci
       });
     });
     return () => { disposed = true; map?.remove(); mapRef.current = null; markerElements.current.clear(); };
-  }, [sights, city]);
+  }, [routeKey, city]);
   useEffect(() => {
     if (!activeSightId) return;
     const marker = markerElements.current.get(activeSightId);
