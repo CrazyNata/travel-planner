@@ -2003,6 +2003,9 @@ form.add-sight-day input:focus { border-color: #655fdf; box-shadow: 0 0 0 3px #6
 form.add-sight-day .accent { flex: none; border-radius: 9px; padding: 8px 11px; font-size: 0; }
 form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .sight-feature { display: grid; min-height: 465px; align-content: space-between; width: calc(100% + 80px); margin-inline: -40px; border-radius: 24px; background: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg") center 48% / cover; padding: 24px 76px 36px; color: #fff; }
+html[data-empty-sight-day="true"] .sight-feature {
+  background: radial-gradient(circle at 82% 25%, #7069df 0, transparent 17%), linear-gradient(135deg, #262941, #373d61);
+}
 .sight-feature > span { width: fit-content; border: 1px solid #ffffff38; border-radius: 999px; padding: 7px 10px; font-size: 11px; }
 .sight-feature p, .sight-feature h3, .sight-feature small { display: block; margin: 0; }
 .sight-feature p { color: #bfc5e5; font-size: 11px; font-weight: 800; text-transform: uppercase; }
