@@ -1714,6 +1714,25 @@ button {
   color: #403d4d;
   font-size: 13px;
 }
+.route-checklist label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 10px;
+  padding: 7px 0;
+  color: #403d4d;
+  font-size: 13px;
+}
+.route-checklist input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.route-checklist label.completed span {
+  color: #8a86a2;
+  text-decoration: line-through;
+}
 .route-checklist i {
   width: 20px;
   height: 20px;

@@ -5,11 +5,11 @@ import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab = "overview" | "route" | "bookings" | "budget" | "photos" | "members";
-type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string };
+type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string; completed?: string[] };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; places?: string[]; days?: DraftDay[] };
-type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; items?: { id?: string; title?: string }[] };
+type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
 type StoredTripPayload = { data?: { days?: StoredDay[]; trip?: { start?: string; end?: string }; [key: string]: unknown }; [key: string]: unknown };
 
 function mapsUrl(from: string, to: string) {
@@ -21,10 +21,17 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
   if (!storedDays?.length) return null;
   const days = storedDays.map((day, index) => {
     const [from = "", to = ""] = (day.city || "").split("→").map((city) => city.trim());
+    const completed = day.completed || day.items?.flatMap((item) => {
+      if (!item.done) return [];
+      if (item.title?.startsWith("Выезд")) return ["departure"];
+      if (item.title?.startsWith("Заселение")) return ["check-in"];
+      if (item.title?.startsWith("Выселение")) return ["check-out"];
+      return [];
+    }) || [];
     return {
       id: day.id || `saved-day-${index + 1}`,
       places: day.items?.map((item) => item.title || "").filter(Boolean) || [],
-      roadLeg: from || to ? { from, to, checkInFrom: day.checkInFrom || "", checkInTo: day.checkInTo || "", checkOutFrom: day.checkOutFrom || "", checkOutTo: day.checkOutTo || "", notes: "", mapsUrl: day.dayMapUrl } : undefined,
+      roadLeg: from || to ? { from, to, checkInFrom: day.checkInFrom || "", checkInTo: day.checkInTo || "", checkOutFrom: day.checkOutFrom || "", checkOutTo: day.checkOutTo || "", notes: "", mapsUrl: day.dayMapUrl, completed } : undefined,
     };
   });
   const start = payload.data?.trip?.start;
@@ -653,7 +660,8 @@ function DraftRouteCard({ day, index, editing, onEdit, onChange, onSave, onCance
   const checkIn = [roadLeg?.checkInFrom, roadLeg?.checkInTo].filter(Boolean).join(" - ");
   const checkOut = [roadLeg?.checkOutFrom, roadLeg?.checkOutTo].filter(Boolean).join(" - ");
   const itemCount = roadLeg ? 1 + Number(Boolean(checkIn)) + Number(Boolean(checkOut)) + Number(Boolean(roadLeg.notes)) : 0;
-  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from || "Откуда"} <b>→</b> {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist"><p><i />Выезд из {roadLeg.from}</p>{checkIn && <p><i />Заселение в отель <b>{checkIn}</b></p>}{checkOut && <p><i />Выселение из отеля <b>{checkOut}</b></p>}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
+  const checklist = [{ id: "departure", label: `Выезд из ${roadLeg?.from || "города"}` }, { id: "check-in", label: `Заселение в отель${checkIn ? ` ${checkIn}` : ""}` }, { id: "check-out", label: `Выселение из отеля${checkOut ? ` ${checkOut}` : ""}` }];
+  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from || "Откуда"} <b>→</b> {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
 }
 
 function RouteTab({ isDraft = false, draftDays = [], onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
@@ -1506,6 +1514,7 @@ export function App() {
         checkInTo: leg?.checkInTo || undefined,
         checkOutFrom: leg?.checkOutFrom || undefined,
         checkOutTo: leg?.checkOutTo || undefined,
+        completed: leg?.completed || [],
         items: day.places.map((title, itemIndex) => ({ ...existing.items?.[itemIndex], id: existing.items?.[itemIndex]?.id || crypto.randomUUID(), title })),
       };
     });
