@@ -1307,6 +1307,10 @@ function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRename
   const [adding, setAdding] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
+  useEffect(() => {
+    const dayId = days[selectedDay]?.id;
+    if (dayId) window.dispatchEvent(new CustomEvent("odyssey-select-sight-day", { detail: dayId }));
+  }, [selectedDay, days]);
   const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
   if (!cities.length && defaultCity) cities.push(defaultCity);
   const [city, setCity] = useState(cities[0] || "");
@@ -1333,9 +1337,15 @@ function SightNotes({ value, onChange }: { value: string; onChange: (value: stri
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
+  const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
   const sightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
+  useEffect(() => {
+    const selectDay = (event: Event) => setSelectedSightDayId((event as CustomEvent<string>).detail);
+    window.addEventListener("odyssey-select-sight-day", selectDay);
+    return () => window.removeEventListener("odyssey-select-sight-day", selectDay);
+  }, []);
   const tripSights = trip.sights || (trip.title.toLowerCase().includes("рождествен") ? munichDayOneSights : []);
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
@@ -1382,7 +1392,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
       <main className="workspace">
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
-        {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { const sight = tripSights.find((item) => item.id === id); const isCheckbox = document.activeElement instanceof HTMLInputElement && document.activeElement.type === "checkbox"; if (isCheckbox) { onUpdateTrip({ ...trip, sights: tripSights.map((item) => item.id === id ? { ...item, done: !item.done } : item) }); return; } if (!sight) return; window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${sight.name}, ${sight.city}`)}`, "_blank", "noopener,noreferrer"); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[sightDays[0].id] || (trip.title.toLowerCase().includes("рождествен") ? munichDayOneNotes : "")} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [sightDays[0].id]: value } })} /></>}
+        {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { const sight = tripSights.find((item) => item.id === id); const isCheckbox = document.activeElement instanceof HTMLInputElement && document.activeElement.type === "checkbox"; if (isCheckbox) { onUpdateTrip({ ...trip, sights: tripSights.map((item) => item.id === id ? { ...item, done: !item.done } : item) }); return; } if (!sight) return; window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${sight.name}, ${sight.city}`)}`, "_blank", "noopener,noreferrer"); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[selectedSightDayId] || (selectedSightDayId === "sights-day-1" && trip.title.toLowerCase().includes("рождествен") ? munichDayOneNotes : "")} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedSightDayId]: value } })} /></>}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
