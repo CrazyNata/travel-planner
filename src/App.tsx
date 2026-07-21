@@ -16,6 +16,14 @@ function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
 }
 
+function cityFlag(city: string) {
+  if (city.includes("Прага")) return "🇨🇿";
+  if (city.includes("Зальцбург")) return "🇦🇹";
+  if (city.includes("Мюнхен")) return "🇩🇪";
+  if (["Верона", "Рим", "Фильине", "Кьоджа", "Милан", "Вальдидентро", "Флоренция", "Венеция"].some((name) => city.includes(name))) return "🇮🇹";
+  return "";
+}
+
 function savedTrip(payload: StoredTripPayload): TripSummary | null {
   const storedDays = payload.data?.days;
   if (!storedDays?.length) return null;
@@ -667,7 +675,7 @@ function DraftRouteCard({ day, index, editing, onEdit, onChange, onSave, onCance
   const checkOut = [roadLeg?.checkOutFrom, roadLeg?.checkOutTo].filter(Boolean).join(" - ");
   const itemCount = roadLeg ? 1 + Number(Boolean(checkIn)) + Number(Boolean(checkOut)) + Number(Boolean(roadLeg.notes)) : 0;
   const checklist = [{ id: "departure", label: `Выезд из ${roadLeg?.from || "города"}` }, { id: "check-in", label: `Заселение в отель${checkIn ? ` ${checkIn}` : ""}` }, { id: "check-out", label: `Выселение из отеля${checkOut ? ` ${checkOut}` : ""}` }];
-  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{roadLeg.from || "Откуда"} <b>→</b> {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
+  return <article className="draft-route-card"><header><div className="draft-day-number"><b>{index + 1}</b><span>ДЕНЬ</span></div><div className="draft-route-title"><h2>{roadLeg ? <>{cityFlag(roadLeg.from)} {roadLeg.from || "Откуда"} <b>→</b> {cityFlag(roadLeg.to)} {roadLeg.to || "Куда"}</> : "Новый автопереезд"}</h2><span>{itemCount}/{roadLeg ? itemCount : 4} пунктов</span></div><div className="draft-route-actions">{roadLeg && <a href={routeMapsUrl} target="_blank" rel="noreferrer">↗ Карта</a>}<button onClick={onEdit}>{roadLeg ? "Изменить" : "＋ Маршрут"}</button></div></header>{editing ? <RoadLegEditor roadLeg={roadLeg} onChange={onChange} onSave={onSave} onCancel={onCancel} /> : roadLeg ? <><div className="route-checklist">{checklist.map((item) => <label className={roadLeg.completed?.includes(item.id) ? "completed" : ""} key={item.id}><input type="checkbox" checked={roadLeg.completed?.includes(item.id) || false} onChange={() => onChange({ ...roadLeg, completed: roadLeg.completed?.includes(item.id) ? roadLeg.completed.filter((id) => id !== item.id) : [...(roadLeg.completed || []), item.id] })} /><span>{item.label}</span></label>)}{roadLeg.notes && <p><i />{roadLeg.notes}</p>}</div><GoogleMapsLink url={routeMapsUrl} /></> : <div className="route-card-empty">Добавьте направление, время заселения и дорожные заметки.</div>}</article>;
 }
 
 function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEditingRoadDayChange, onAddDraftDay, onUpdateDraftDay }: { isDraft?: boolean; draftDays?: DraftDay[]; editingRoadDay?: number | null; onEditingRoadDayChange?: (day: number | null) => void; onAddDraftDay?: () => void; onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void }) {
@@ -1109,7 +1117,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     { name: "Флоренция", dates: "15–16 сентября", weather: "24°C · солнечно", image: "https://images.unsplash.com/photo-1544986581-efac024faf62?auto=format&fit=crop&w=900&q=80" },
     { name: "Венеция", dates: "17–19 сентября", weather: "20°C · облачно", image: "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80" },
   ];
-  return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
+  return <div className="trip-overview"><section className="overview-route"><span>ОБЩИЙ МАРШРУТ</span><h2>Москва <b>→</b> Рим <b>→</b> Флоренция <b>→</b> Венеция</h2><p>12–19 сентября 2026 · 8 дней · 3 города</p></section><section><div className="overview-section-head"><div><h2>Города поездки</h2><p>Прогноз предварительный</p></div></div><div className="city-overview-grid">{cities.map((city) => <article className="city-overview-card" key={city.name}><img src={city.image} alt={city.name} /><div><h3>{cityFlag(city.name)} {city.name}</h3><p>{city.dates}</p><b>{city.weather}</b></div></article>)}</div></section></div>;
 }
 
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
