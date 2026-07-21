@@ -1333,7 +1333,10 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const firstDraftDay = draftDays[0];
   const sightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const isChristmasTrip = trip.title.toLowerCase().includes("рождествен");
-  const tripSights = isChristmasTrip ? (trip.sights?.length ? trip.sights.map((sight) => ({ ...munichDayOneSights.find((item) => item.id === sight.id), ...sight })) : munichDayOneSights) : trip.sights || [];
+  const tripSights = isChristmasTrip ? (trip.sights?.length ? trip.sights.map((sight) => {
+    const defaultSight = munichDayOneSights.find((item) => item.id === sight.id);
+    return sight.id === "munich-karlstor" ? { ...defaultSight, ...sight, photo: defaultSight?.photo } : { ...defaultSight, ...sight };
+  }) : munichDayOneSights) : trip.sights || [];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
