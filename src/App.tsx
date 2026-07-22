@@ -652,18 +652,20 @@ function Sidebar({
 }) {
   const [settings, setSettings] = useState(false);
   const [panel, setPanel] = useState<"photo" | "password" | null>(null);
+  const closeSettings = () => { setSettings(false); setPanel(null); };
+  const closeSidebar = () => { closeSettings(); close(); };
   return (
     <>
       <button
         className={`scrim ${open ? "show" : ""}`}
-        onClick={close}
+        onClick={closeSidebar}
         aria-label="Закрыть меню"
       />
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="brand">
           <span>О</span>
           <b>Одиссея</b>
-          <button onClick={close}>×</button>
+          <button onClick={closeSidebar}>×</button>
         </div>
         <button className="primary" onClick={() => go("create")}>
           <span>＋</span> Новое путешествие
@@ -690,6 +692,7 @@ function Sidebar({
         <div className="account-wrap">
           {settings && (
             <div className="settings-popover">
+              <button className="settings-close" onClick={closeSettings} aria-label="Закрыть настройки">×</button>
               <b>Язык интерфейса</b>
               <div className="language-switch">
                 <button className="active">RU</button>
@@ -740,7 +743,7 @@ function Sidebar({
               </button>
             </div>
           )}
-          <button className="account" onClick={() => setSettings(!settings)}>
+          <button className="account" onClick={() => { setSettings(!settings); if (settings) setPanel(null); }}>
             <Avatar>
               {profileName
                 .split(" ")

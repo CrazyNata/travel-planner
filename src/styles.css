@@ -3517,6 +3517,8 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   color: #3a3c44;
   box-shadow: 0 16px 40px #14162829;
 }
+.settings-close { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; color: #716b83; font-size: 20px; line-height: 1; }
+.settings-close:hover { background: #eeedf5; color: #242136; }
 .settings-popover > b {
   display: block;
   padding: 0 2px 8px;
