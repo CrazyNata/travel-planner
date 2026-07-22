@@ -1661,7 +1661,9 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 11 && savedSightDays[10].title === "Равенсбург"
-      ? [...savedSightDays, { id: "sights-day-12", title: "Прага" }]
+      ? [...savedSightDays, { id: "sights-day-12", title: "Прага" }, { id: "sights-day-13", title: "Прага" }]
+    : isChristmasTrip && savedSightDays.length === 12 && savedSightDays[11].title === "Прага"
+      ? [...savedSightDays, { id: "sights-day-13", title: "Прага" }]
     : isChristmasTrip && savedSightDays.length === 10 && savedSightDays[9].title === "Милан"
       ? [...savedSightDays, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 9 && savedSightDays[8].title === "Венеция"
@@ -1669,7 +1671,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     : isChristmasTrip && savedSightDays.length === 8 && savedSightDays[7].title === "Кьоджа"
       ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
-      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }, { id: "sights-day-12", title: "Прага" }]
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }, { id: "sights-day-12", title: "Прага" }, { id: "sights-day-13", title: "Прага" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
