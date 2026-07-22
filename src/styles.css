@@ -2014,7 +2014,8 @@ form.add-sight-day .accent { flex: none; border-radius: 9px; padding: 8px 11px; 
 form.add-sight-day .accent::after { content: "✓"; font-size: 13px; }
 .sight-feature { display: grid; min-height: 465px; align-content: space-between; width: calc(100% + 80px); margin-inline: -40px; border-radius: 24px; background: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg") center 48% / cover; padding: 24px 76px 36px; color: #fff; }
 html[data-sight-city="Верона"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/0/09/Verona_-_Piazza_Bra_-_2022_Christmas_market_%2802%29.jpg"); background-position: center; }
-html[data-sight-city="Рим"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg"); background-position: center; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg"); background-position: center; }
+html[data-sight-city="Рим"][data-sight-day="4"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/3840px-Colosseo_2020.jpg"); background-position: center; }
 html[data-empty-sight-day="true"] .sight-feature {
   background: radial-gradient(circle at 82% 25%, #7069df 0, transparent 17%), linear-gradient(135deg, #262941, #373d61);
 }
@@ -2342,6 +2343,8 @@ html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-car
 html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(12) h3::after { content: "Праздничная ёлка на площади Испании."; }
 html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(13) h3::after { content: "Элегантная улица бутиков, ведущая к Piazza di Spagna."; }
 html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(14) h3::after { content: "Главная прогулочная улица исторического центра."; }
+html[data-sight-city="Рим"][data-sight-day="4"] .sights-collection .sight-card::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/3840px-Colosseo_2020.jpg") center / cover; }
+html[data-sight-city="Рим"][data-sight-day="4"] .sights-collection .sight-card h3::after { display: none; }
 html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px; bottom: 14px; left: auto; z-index: 2; width: 26px; height: 26px; border: 0; background: #fffffff2; color: #4f48d7; box-shadow: 0 3px 10px #11101d80; }
 .sights-collection > header .eyebrow { display: none; }
 .sights-collection > header h2 { font-size: 0; }
