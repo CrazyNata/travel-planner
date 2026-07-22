@@ -2395,7 +2395,22 @@ html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-car
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(12) h3::after { content: "Главная вечерняя площадь Трастевере."; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(13) h3::after { content: "Холм с панорамой города и собора Святого Петра."; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(14) h3::after { content: "Монументальный фонтан на Джаниколо."; }
-html[data-sight-city="Пиза"] .sights-collection .sight-card h3::after { display: none; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card h3::after { color: #eeedf6; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Главный архитектурный ансамбль Пизы под открытым небом."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(2) h3::after { content: "Знаменитая наклонная колокольня на площади Чудес."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(3) h3::after { content: "Романский собор с мраморным фасадом."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(4) h3::after { content: "Крупнейший баптистерий Италии с удивительной акустикой."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(5) h3::after { content: "Средневековый мемориальный комплекс у северной стены площади."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(6) h3::after { content: "Лучший ракурс для обязательного фото с наклонной башней."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(7) h3::after { content: "Прогулка вокруг площади и рождественская вечерняя подсветка."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(8) h3::after { content: "Историческая площадь рыцарского ордена Святого Стефана."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(9) h3::after { content: "Церковь с фасадом, спроектированным Вазари."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(10) h3::after { content: "Самая атмосферная улица старого центра Пизы."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(11) h3::after { content: "Площадь у Арно, соединяющая старый город и торговые улицы."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(12) h3::after { content: "Центральный мост через Арно с вечерними огнями."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(13) h3::after { content: "Спокойная прогулка вдоль реки через исторический центр."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(14) h3::after { content: "Главная праздничная ёлка у Corso Italia."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(15) h3::after { content: "Магазины, кафе и рождественские огни главной улицы."; }
 html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(1)::before { background: linear-gradient(#17142338, #17142388), url("https://commons.wikimedia.org/wiki/Special:FilePath/Piazza%20dei%20Miracoli%2C%20Pisa.jpg") center / cover; }
 html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(2)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/4/4b/Italy_-_Pisa_-_Leaning_Tower.jpg") center / cover; }
 html[data-sight-city="Пиза"] .sights-collection .sight-card:nth-child(3)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/8/85/Pisa_-_Cattedrale_da_Battistero_02.jpg") center / cover; }
