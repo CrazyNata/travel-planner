@@ -1350,9 +1350,12 @@ function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRename
   const citySights = sights.filter((sight) => sight.city === city);
   const walkDays = Array.from(new Set(citySights.map((sight) => sight.walkDay || 1))).sort((a, b) => a - b);
   const [walkDay, setWalkDay] = useState(walkDays[0] || 1);
-  useEffect(() => { if (!cities.includes(city)) setCity(cities[0] || ""); }, [sights]);
-  useEffect(() => { if (!walkDays.includes(walkDay)) setWalkDay(walkDays[0] || 1); }, [city, sights]);
-  const routeSights = citySights.filter((sight) => (sight.walkDay || 1) === walkDay).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
+  useEffect(() => {
+    const dayCity = days[selectedDay]?.title;
+    if (dayCity) setCity(dayCity);
+    setWalkDay(selectedDay + 1);
+  }, [selectedDay, days]);
+  const routeSights = sights.filter((sight) => (sight.walkDay || 1) === selectedDay + 1).sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
   const addSight = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const name = String(form.get("name") || "").trim(); const placeCity = String(form.get("city") || city).trim(); if (!name || !placeCity) return; onAdd({ id: crypto.randomUUID(), name, city: placeCity, walkDay, walkOrder: routeSights.length }); setAdding(false); };
   const featuredSource = routeSights.find((sight) => sight.id === "munich-christkindlmarkt" || sight.id === "verona-signori") || routeSights[0];
   const featured = featuredSource?.id === "munich-christkindlmarkt" ? { ...featuredSource, name: "Marienplatz (Christkindlmarkt)" } : featuredSource;
