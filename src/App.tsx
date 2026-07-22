@@ -380,6 +380,28 @@ const pisaDaySixSights: StoredSight[] = [
   { id: "pisa-corso", name: "Corso Italia", city: "Пиза", walkDay: 6, walkOrder: 14, lnglat: [10.402, 43.71], duration: "40 мин" },
 ];
 
+const chioggiaDayEightSights: StoredSight[] = [
+  { id: "chioggia-ponte-vigo", name: "Ponte Vigo", city: "Кьоджа", walkDay: 8, walkOrder: 0, lnglat: [12.2783, 45.2197], duration: "20 мин" },
+  { id: "chioggia-mark", name: "Колонна Святого Марка", city: "Кьоджа", walkDay: 8, walkOrder: 1, lnglat: [12.2783, 45.2197], duration: "15 мин" },
+  { id: "chioggia-vena", name: "Канал Vena", city: "Кьоджа", walkDay: 8, walkOrder: 2, lnglat: [12.279, 45.219], duration: "30 мин" },
+  { id: "chioggia-corso", name: "Corso del Popolo", city: "Кьоджа", walkDay: 8, walkOrder: 3, lnglat: [12.279, 45.218], duration: "35 мин" },
+  { id: "chioggia-cathedral", name: "Кафедральный собор Santa Maria Assunta", city: "Кьоджа", walkDay: 8, walkOrder: 4, lnglat: [12.2792, 45.2185], duration: "25 мин" },
+  { id: "chioggia-clock", name: "Torre dell'Orologio", city: "Кьоджа", walkDay: 8, walkOrder: 5, lnglat: [12.2789, 45.2184], duration: "15 мин" },
+  { id: "chioggia-palazzo", name: "Palazzo Comunale", city: "Кьоджа", walkDay: 8, walkOrder: 6, lnglat: [12.279, 45.2182], duration: "15 мин" },
+  { id: "chioggia-andrea", name: "Церковь Sant'Andrea", city: "Кьоджа", walkDay: 8, walkOrder: 7, lnglat: [12.2802, 45.219], duration: "20 мин" },
+  { id: "chioggia-garibaldi", name: "Porta Garibaldi", city: "Кьоджа", walkDay: 8, walkOrder: 8, lnglat: [12.2808, 45.2167], duration: "15 мин" },
+  { id: "chioggia-bridges", name: "Мостики через канал Vena", city: "Кьоджа", walkDay: 8, walkOrder: 9, lnglat: [12.2794, 45.2192], duration: "30 мин" },
+  { id: "chioggia-boats", name: "Рыбацкие домики и пришвартованные лодки", city: "Кьоджа", walkDay: 8, walkOrder: 10, lnglat: [12.2785, 45.2203], duration: "25 мин" },
+  { id: "chioggia-lagoon", name: "Набережная лагуны", city: "Кьоджа", walkDay: 8, walkOrder: 11, lnglat: [12.279, 45.221], duration: "30 мин" },
+  { id: "chioggia-port", name: "Порт Кьоджи", city: "Кьоджа", walkDay: 8, walkOrder: 12, lnglat: [12.284, 45.221], duration: "25 мин" },
+  { id: "chioggia-diga", name: "Прогулка по дамбе Diga Sottomarina", city: "Кьоджа", walkDay: 8, walkOrder: 13, lnglat: [12.306, 45.211], duration: "45 мин" },
+  { id: "chioggia-beach", name: "Пляж Sottomarina", city: "Кьоджа", walkDay: 8, walkOrder: 14, lnglat: [12.3, 45.208], duration: "30 мин" },
+  { id: "chioggia-view", name: "Панорамные виды на лагуну", city: "Кьоджа", walkDay: 8, walkOrder: 15, lnglat: [12.302, 45.211], duration: "20 мин" },
+  { id: "chioggia-tree", name: "Главная рождественская елка города", city: "Кьоджа", walkDay: 8, walkOrder: 16, lnglat: [12.279, 45.218], duration: "15 мин" },
+  { id: "chioggia-lights", name: "Рождественская иллюминация Corso del Popolo", city: "Кьоджа", walkDay: 8, walkOrder: 17, lnglat: [12.279, 45.218], duration: "20 мин" },
+  { id: "chioggia-market", name: "Рождественские ярмарочные домики", city: "Кьоджа", walkDay: 8, walkOrder: 18, lnglat: [12.2787, 45.2187], duration: "20 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1506,6 +1528,8 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
@@ -1551,7 +1575,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Сан-Марино" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: sanMarinoDaySevenNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
