@@ -1472,14 +1472,15 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
+  const isChristmasTrip = trip.isDraft || trip.title.toLowerCase().includes("рождествен");
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
-  const sightDays = trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
+  const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
-    : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
+    : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
-    : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
+    : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
-    : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
+    : isChristmasTrip && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
       ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
       : savedSightDays;
   useEffect(() => {
@@ -1516,7 +1517,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: "" } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...sanMarinoDaySixSights];
-  const tripSights = trip.title.toLowerCase().includes("рождествен")
+  const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
