@@ -2303,12 +2303,14 @@ html[data-empty-sight-day="true"] .sight-feature {
 }
 html[data-sight-city] .sights-collection .sight-card { min-height: 310px; background: #201d2a; }
 html[data-sight-city] .sights-collection .sight-card::before { position: absolute; inset: 0; z-index: 0; height: auto; }
+html[data-sight-city] .sights-collection .sight-card img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
 html[data-sight-city] .sights-collection .sight-card > div { position: relative; z-index: 1; min-height: 308px; justify-content: flex-end; background: linear-gradient(transparent 14%, #14111de8 100%); }
 html[data-sight-city] .sights-collection .sight-card p,
 html[data-sight-city] .sights-collection .sight-card h3,
 html[data-sight-city] .sights-collection .sight-card small,
 html[data-sight-city] .sights-collection .sight-card label { color: #fff; }
 html[data-sight-city] .sights-collection .sight-card label { margin-top: 10px; border-color: #ffffff42; }
+html[data-sight-city] .sights-collection .sight-card h3::after { color: #eeedf6; }
 html[data-sight-city="Мюнхен"] .sights-collection .sight-card::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg") center / cover; }
 html[data-sight-city="Верона"] .sights-collection .sight-card h3::after { color: #eeedf6; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Главная площадь Вероны у стен античного амфитеатра."; }
