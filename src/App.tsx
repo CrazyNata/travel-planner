@@ -278,22 +278,6 @@ const romeDayThreeSights: StoredSight[] = [
   { id: "rome-condotti", name: "Via Condotti", city: "Рим", walkDay: 3, walkOrder: 6, lnglat: [12.4798, 41.9055], duration: "30 мин" },
 ];
 
-const romeDayFourSights: StoredSight[] = [
-  { id: "rome-colosseum", name: "Колизей", city: "Рим", walkDay: 4, walkOrder: 0, lnglat: [12.4922, 41.8902], duration: "1 ч" },
-  { id: "rome-constantine", name: "Арка Константина", city: "Рим", walkDay: 4, walkOrder: 1, lnglat: [12.4909, 41.8899], duration: "20 мин" },
-  { id: "rome-forum", name: "Римский форум", city: "Рим", walkDay: 4, walkOrder: 2, lnglat: [12.4853, 41.8925], duration: "1,5 ч" },
-  { id: "rome-palatine", name: "Палатинский холм", city: "Рим", walkDay: 4, walkOrder: 3, lnglat: [12.4882, 41.889], duration: "1 ч" },
-  { id: "rome-capitoline", name: "Капитолийская площадь", city: "Рим", walkDay: 4, walkOrder: 4, lnglat: [12.4828, 41.8933], duration: "30 мин" },
-  { id: "rome-forum-view", name: "Смотровая площадка на Римский форум", city: "Рим", walkDay: 4, walkOrder: 5, lnglat: [12.4835, 41.8927], duration: "25 мин" },
-  { id: "rome-venezia", name: "Piazza Venezia", city: "Рим", walkDay: 4, walkOrder: 6, lnglat: [12.4828, 41.8962], duration: "25 мин" },
-  { id: "rome-vittoriano", name: "Монумент Виктору Эммануилу II", city: "Рим", walkDay: 4, walkOrder: 7, lnglat: [12.4826, 41.8947], duration: "40 мин" },
-  { id: "rome-venezia-tree", name: "Главная рождественская елка на Piazza Venezia", city: "Рим", walkDay: 4, walkOrder: 8, lnglat: [12.4827, 41.8957], duration: "20 мин" },
-  { id: "rome-corso", name: "Via del Corso", city: "Рим", walkDay: 4, walkOrder: 9, lnglat: [12.4797, 41.9002], duration: "30 мин" },
-  { id: "rome-alberto-sordi", name: "Galleria Alberto Sordi", city: "Рим", walkDay: 4, walkOrder: 10, lnglat: [12.4792, 41.8992], duration: "25 мин" },
-  { id: "rome-popolo", name: "Piazza del Popolo", city: "Рим", walkDay: 4, walkOrder: 11, lnglat: [12.4769, 41.91], duration: "30 мин" },
-  { id: "rome-pincio", name: "Терраса Pincio", city: "Рим", walkDay: 4, walkOrder: 12, lnglat: [12.4778, 41.9122], duration: "35 мин" },
-];
-
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1400,9 +1384,8 @@ function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRename
   useEffect(() => {
     document.documentElement.dataset.emptySightDay = featured ? "false" : "true";
     document.documentElement.dataset.sightCity = city;
-    document.documentElement.dataset.sightDay = String(selectedDay + 1);
-    return () => { delete document.documentElement.dataset.emptySightDay; delete document.documentElement.dataset.sightCity; delete document.documentElement.dataset.sightDay; };
-  }, [Boolean(featured), city, selectedDay]);
+    return () => { delete document.documentElement.dataset.emptySightDay; delete document.documentElement.dataset.sightCity; };
+  }, [Boolean(featured), city]);
   return <section className="sights-page"><header className="sights-heading"><div><p className="eyebrow">{city || "Путешествие"} · День {selectedDay + 1}</p><h2>Места дня</h2></div><div className="sights-view"><button className="active">Журнал</button><button>Карта</button></div></header><div className="sight-day-tabs">{days.map((day, index) => <div className={selectedDay === index ? "sight-day active" : "sight-day"} key={day.id}><button onClick={() => { setSelectedDay(index); setCity(day.title); setWalkDay(index + 1); }}><small>День {index + 1}</small><b>{day.title}</b></button><button className="rename-day" onClick={() => { const title = window.prompt("Название дня", day.title)?.trim(); if (title) onRenameDay(day.id, title); }}>✎</button></div>)}{addingDay ? <form className="add-sight-day" onSubmit={(event) => { event.preventDefault(); const title = String(new FormData(event.currentTarget).get("title") || "").trim(); if (!title) return; onAddDay(title); setAddingDay(false); }}><input name="title" placeholder="Например, Рим" autoFocus /><button className="accent">Добавить</button></form> : <button className="add-sight-day" onClick={() => setAddingDay(true)}>＋ День</button>}</div><section className="sight-feature"><span>★ Место дня</span><div><p>{featured ? featured.city : "Ваш маршрут"}</p><h3>{featured ? featured.name : "Добавьте первое место"}</h3><small>{featured ? "Откройте карточку, чтобы добавить детали и время посещения." : "Соберите собственный список достопримечательностей для этого дня."}</small><button className="accent" onClick={() => setAdding(true)}>＋ Добавить в маршрут</button></div></section><section className="walking-planner"><header><div><b>Карта прогулки</b><p>Точки дня и их порядок будут показаны на карте.</p></div><span>{routeSights.length} мест</span></header><div className="walking-layout"><WalkingMap sights={routeSights} city={city} /><div className="walking-points"><h3>Список мест</h3><ol className="walking-list">{routeSights.length ? routeSights.map((sight, index) => <li key={sight.id}><button onClick={() => onToggle(sight.id)} className={sight.done ? "done" : ""}><b>{index + 1}</b><span>{sight.name}</span><small>{sight.done ? "Посещено" : "Отметить"}</small></button></li>) : <li className="walking-empty">{adding ? <form onSubmit={addSight}><input name="name" placeholder="Название места" autoFocus /><input name="city" placeholder="Город" defaultValue={city} /><button className="accent">Добавить</button></form> : <button onClick={() => setAdding(true)}><b>＋</b><span>Добавить первую точку</span></button>}</li>}</ol></div></div></section><section className="sights-collection"><header><div><p className="eyebrow">Ещё рядом</p><h2>Места дня</h2></div><span>{routeSights.length} точек</span></header>{routeSights.length ? <div className="sights-grid">{routeSights.map((sight, index) => <article className={sight.done ? "sight-card visited" : "sight-card"} key={sight.id}>{sight.photo && <img src={sight.photo} alt="" />}<div><b className="sight-number">{index + 1}</b><p>{sight.subcategory || sight.group || "Достопримечательность"}</p><h3>{sight.name}</h3><label><input type="checkbox" checked={sight.done || false} onChange={() => onToggle(sight.id)} />{sight.done ? "Посещено" : "Отметить посещение"}</label></div></article>)}</div> : <div className="sights-empty"><b>День пока свободен</b><p>Добавьте места, которые хотите посетить.</p></div>}</section></section>;
 }
 
@@ -1417,11 +1400,9 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
-  const sightDays = trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
-    ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }]
-    : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
-      ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
-      : savedSightDays;
+  const sightDays = trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
+    ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
+    : savedSightDays;
   useEffect(() => {
     const index = Math.min(Number(localStorage.getItem("odyssey-selected-sight-day") || 0), sightDays.length - 1);
     setSelectedSightDayId(sightDays[index]?.id || sightDays[0].id);
@@ -1445,7 +1426,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: romeDayThreeNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
     ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
     : trip.sights || [];
