@@ -1391,6 +1391,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (trip.sightNotes?.["sights-day-2"] !== legacyVeronaDayTwoNotes) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, "sights-day-2": veronaDayTwoNotes } });
   }, [trip, onUpdateTrip]);
+  useEffect(() => {
+    const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
+    if (selectedDay?.title !== "Верона" || trip.sightNotes?.[selectedDay.id]) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: veronaDayTwoNotes } });
+  }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
     ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
