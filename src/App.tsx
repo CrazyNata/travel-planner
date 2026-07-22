@@ -292,6 +292,22 @@ const chioggiaDayEightNotes = `🎄🍴 Что обязательно попро
 🍦 Джелато
 🍋 Limoncello или местный ликер после ужина`;
 
+const veniceDayNineNotes = `🎄🍴 Что обязательно попробовать
+☕ Горячий шоколад (Cioccolata Calda) — густой и насыщенный
+🍷 Vin Brulé — горячее пряное вино
+🥪 Cicchetti — знаменитые венецианские закуски
+🦑 Черное ризотто с каракатицей (Risotto al Nero di Seppia)
+🦀 Spaghetti alle Vongole — паста с моллюсками
+🐟 Baccalà Mantecato — крем из соленой трески на тосте
+🦐 Fritto Misto di Mare — жареные морепродукты
+🍰 Pandoro — рождественский десерт родом из региона Венето
+🍞 Panettone — классическая рождественская выпечка
+🍪 Baicoli — традиционное венецианское печенье
+🌰 Жареные каштаны
+🍦 Джелато
+☕ Выпить эспрессо в историческом кафе
+🎁 Купить венецианское печенье, шоколад или рождественские сладости в подарок`;
+
 const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
   { id: "verona-arena", name: "Арена Вероны (Arena di Verona)", city: "Верона", walkDay: 2, walkOrder: 1, lnglat: [10.9942, 45.438], duration: "45 мин" },
@@ -1622,6 +1638,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (selectedDay?.title !== "Кьоджа" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: chioggiaDayEightNotes } });
+  }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
+  useEffect(() => {
+    const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
+    if (selectedDay?.title !== "Венеция" || trip.sightNotes?.[selectedDay.id]) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: veniceDayNineNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights];
   const tripSights = isChristmasTrip
