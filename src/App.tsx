@@ -495,6 +495,26 @@ const milanDayTenSights: StoredSight[] = [
   { id: "milan-quadrilatero", name: "Quadrilatero della Moda", city: "Милан", walkDay: 10, walkOrder: 18, lnglat: [9.196, 45.469], duration: "30 мин" },
 ];
 
+const ravensburgDayElevenSights: StoredSight[] = [
+  { id: "ravens-marienplatz", name: "Marienplatz", city: "Равенсбург", walkDay: 11, walkOrder: 0, lnglat: [9.6119, 47.782], duration: "20 мин" },
+  { id: "ravens-market", name: "Рождественская ярмарка Ravensburger Christkindlesmarkt", city: "Равенсбург", walkDay: 11, walkOrder: 1, lnglat: [9.6119, 47.782], duration: "1 ч" },
+  { id: "ravens-mehlsack", name: "Mehlsack", city: "Равенсбург", walkDay: 11, walkOrder: 2, lnglat: [9.6112, 47.7833], duration: "20 мин" },
+  { id: "ravens-veitsburg", name: "Veitsburg", city: "Равенсбург", walkDay: 11, walkOrder: 3, lnglat: [9.6146, 47.787], duration: "45 мин" },
+  { id: "ravens-liebfrauen", name: "Liebfrauenkirche", city: "Равенсбург", walkDay: 11, walkOrder: 4, lnglat: [9.6124, 47.783], duration: "20 мин" },
+  { id: "ravens-stadtkirche", name: "Evangelische Stadtkirche", city: "Равенсбург", walkDay: 11, walkOrder: 5, lnglat: [9.6121, 47.7818], duration: "20 мин" },
+  { id: "ravens-old-town", name: "Исторический Старый город", city: "Равенсбург", walkDay: 11, walkOrder: 6, lnglat: [9.612, 47.782], duration: "40 мин" },
+  { id: "ravens-marktstrasse", name: "Marktstraße", city: "Равенсбург", walkDay: 11, walkOrder: 7, lnglat: [9.612, 47.7822], duration: "25 мин" },
+  { id: "ravens-kirchstrasse", name: "Kirchstraße", city: "Равенсбург", walkDay: 11, walkOrder: 8, lnglat: [9.6106, 47.7822], duration: "20 мин" },
+  { id: "ravens-store", name: "Музей и фирменный магазин Ravensburger", city: "Равенсбург", walkDay: 11, walkOrder: 9, lnglat: [9.6134, 47.7813], duration: "40 мин" },
+  { id: "ravens-obertor", name: "Obertor", city: "Равенсбург", walkDay: 11, walkOrder: 10, lnglat: [9.611, 47.7801], duration: "15 мин" },
+  { id: "ravens-frauentor", name: "Frauentor", city: "Равенсбург", walkDay: 11, walkOrder: 11, lnglat: [9.6142, 47.7823], duration: "15 мин" },
+  { id: "ravens-gruner", name: "Grüner Turm", city: "Равенсбург", walkDay: 11, walkOrder: 12, lnglat: [9.6098, 47.7828], duration: "15 мин" },
+  { id: "ravens-waaghaus", name: "Waaghaus", city: "Равенсбург", walkDay: 11, walkOrder: 13, lnglat: [9.6115, 47.7818], duration: "15 мин" },
+  { id: "ravens-park", name: "Veitsburg Park", city: "Равенсбург", walkDay: 11, walkOrder: 14, lnglat: [9.6142, 47.7863], duration: "30 мин" },
+  { id: "ravens-view", name: "Смотровая площадка Veitsburg", city: "Равенсбург", walkDay: 11, walkOrder: 15, lnglat: [9.6146, 47.787], duration: "20 мин" },
+  { id: "ravens-houses", name: "Средневековые фахверковые дома Равенсбурга", city: "Равенсбург", walkDay: 11, walkOrder: 16, lnglat: [9.612, 47.782], duration: "25 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1624,12 +1644,14 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 10 && savedSightDays[9].title === "Милан"
+      ? [...savedSightDays, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 9 && savedSightDays[8].title === "Венеция"
-      ? [...savedSightDays, { id: "sights-day-10", title: "Милан" }]
+      ? [...savedSightDays, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 8 && savedSightDays[7].title === "Кьоджа"
-      ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }]
+      ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
-      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }]
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
@@ -1690,7 +1712,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Милан" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: milanDayTenNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights, ...ravensburgDayElevenSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
