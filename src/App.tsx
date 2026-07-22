@@ -305,6 +305,23 @@ const romeDayFourSights: StoredSight[] = [
   { id: "rome-pincio", name: "Терраса Pincio", city: "Рим", walkDay: 4, walkOrder: 16, lnglat: [12.4778, 41.9122], duration: "35 мин" },
 ];
 
+const romeDayFiveSights: StoredSight[] = [
+  { id: "rome-st-peter-square", name: "Площадь Святого Петра", city: "Рим", walkDay: 5, walkOrder: 0, lnglat: [12.4539, 41.9022], duration: "30 мин" },
+  { id: "rome-st-peter-basilica", name: "Собор Святого Петра", city: "Рим", walkDay: 5, walkOrder: 1, lnglat: [12.4539, 41.9022], duration: "1,5 ч" },
+  { id: "rome-vatican-tree", name: "Главная рождественская елка Ватикана", city: "Рим", walkDay: 5, walkOrder: 2, lnglat: [12.4538, 41.9023], duration: "20 мин" },
+  { id: "rome-vatican-nativity", name: "Рождественский вертеп", city: "Рим", walkDay: 5, walkOrder: 3, lnglat: [12.4536, 41.9024], duration: "20 мин" },
+  { id: "rome-conciliazione", name: "Via della Conciliazione", city: "Рим", walkDay: 5, walkOrder: 4, lnglat: [12.4595, 41.902], duration: "30 мин" },
+  { id: "rome-borgo-pio", name: "Район Borgo Pio", city: "Рим", walkDay: 5, walkOrder: 5, lnglat: [12.4574, 41.904], duration: "40 мин" },
+  { id: "rome-umberto", name: "Мост Умберто I", city: "Рим", walkDay: 5, walkOrder: 6, lnglat: [12.4752, 41.903], duration: "30 мин" },
+  { id: "rome-tiber-walk", name: "Прогулка по набережной Тибра", city: "Рим", walkDay: 5, walkOrder: 7, lnglat: [12.471, 41.899], duration: "45 мин" },
+  { id: "rome-tiberina", name: "Остров Тиберина", city: "Рим", walkDay: 5, walkOrder: 8, lnglat: [12.4781, 41.8932], duration: "30 мин" },
+  { id: "rome-trastevere", name: "Район Трастевере", city: "Рим", walkDay: 5, walkOrder: 9, lnglat: [12.4699, 41.888], duration: "1 ч" },
+  { id: "rome-santa-maria", name: "Базилика Santa Maria in Trastevere", city: "Рим", walkDay: 5, walkOrder: 10, lnglat: [12.4708, 41.8896], duration: "30 мин" },
+  { id: "rome-santa-maria-square", name: "Piazza Santa Maria in Trastevere", city: "Рим", walkDay: 5, walkOrder: 11, lnglat: [12.4707, 41.8897], duration: "25 мин" },
+  { id: "rome-janiculum", name: "Холм Джаниколо (Janiculum Hill)", city: "Рим", walkDay: 5, walkOrder: 12, lnglat: [12.4608, 41.8934], duration: "45 мин" },
+  { id: "rome-acqua-paola", name: "Фонтан Аква Паола", city: "Рим", walkDay: 5, walkOrder: 13, lnglat: [12.456, 41.8893], duration: "25 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1429,7 +1446,9 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const firstDraftDay = draftDays[0];
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const sightDays = trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
-    ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }]
+    ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }]
+    : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
+      ? [...savedSightDays, { id: "sights-day-5", title: "Рим" }]
     : trip.title.toLowerCase().includes("рождествен") && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
       ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
       : savedSightDays;
@@ -1456,7 +1475,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: romeDayThreeNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
     : trip.sights || [];
