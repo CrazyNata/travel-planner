@@ -562,6 +562,20 @@ const pragueDayFourteenSights: StoredSight[] = [
   { id: "prague-final", name: "Финальная прогулка по Старому городу в рождественской подсветке", city: "Прага", walkDay: 14, walkOrder: 12, lnglat: [14.421, 50.087], duration: "40 мин" },
 ];
 
+const pragueDayThirteenSights: StoredSight[] = [
+  { id: "prague-castle", name: "Пражский Град", city: "Прага", walkDay: 13, walkOrder: 0, lnglat: [14.4, 50.091], duration: "1 ч" },
+  { id: "prague-vit", name: "Собор Святого Вита", city: "Прага", walkDay: 13, walkOrder: 1, lnglat: [14.4, 50.0909], duration: "40 мин" },
+  { id: "prague-palace", name: "Старый королевский дворец", city: "Прага", walkDay: 13, walkOrder: 2, lnglat: [14.3998, 50.0913], duration: "30 мин" },
+  { id: "prague-george", name: "Базилика Святого Георгия", city: "Прага", walkDay: 13, walkOrder: 3, lnglat: [14.403, 50.0912], duration: "25 мин" },
+  { id: "prague-golden", name: "Золотая улочка", city: "Прага", walkDay: 13, walkOrder: 4, lnglat: [14.405, 50.091], duration: "30 мин" },
+  { id: "prague-castle-view", name: "Смотровая площадка у Пражского Града", city: "Прага", walkDay: 13, walkOrder: 5, lnglat: [14.3975, 50.0916], duration: "20 мин" },
+  { id: "prague-hrad", name: "Градчанская площадь", city: "Прага", walkDay: 13, walkOrder: 6, lnglat: [14.3965, 50.0895], duration: "20 мин" },
+  { id: "prague-stairs", name: "Новая Замковая лестница", city: "Прага", walkDay: 13, walkOrder: 7, lnglat: [14.4025, 50.089], duration: "20 мин" },
+  { id: "prague-nicholas-mala", name: "Церковь Святого Николая (Мала Страна)", city: "Прага", walkDay: 13, walkOrder: 8, lnglat: [14.404, 50.088], duration: "25 мин" },
+  { id: "prague-vltava-bank", name: "Набережная Влтавы", city: "Прага", walkDay: 13, walkOrder: 9, lnglat: [14.407, 50.086], duration: "30 мин" },
+  { id: "prague-miru-market", name: "Рождественская ярмарка на площади Мира или у Пражского Града", city: "Прага", walkDay: 13, walkOrder: 10, lnglat: [14.437, 50.075], duration: "45 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1768,7 +1782,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Прага" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: pragueNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights, ...ravensburgDayElevenSights, ...pragueDayTwelveSights, ...pragueDayFourteenSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights, ...ravensburgDayElevenSights, ...pragueDayTwelveSights, ...pragueDayThirteenSights, ...pragueDayFourteenSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
