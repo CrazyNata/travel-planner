@@ -225,12 +225,16 @@ const munichDayOneNotes = `🎅 Что обязательно попробова
 🥔 Картофельные оладьи (Kartoffelpuffer)
 🌭 Баварские сосиски`;
 
-const veronaDayTwoNotes = `🎅 Что я бы обязательно попробовала за один вечер
-⭐ Pandoro (обязательно — это родина десерта).
-🍷 Vin Brulé.
-🌰 Жареные каштаны.
-🥜 Карамелизированный миндаль.
-🍫 Горячий итальянский шоколад.`;
+const veronaDayTwoNotes = `🎄 Pandoro (главный рождественский кекс, родом из Вероны)
+🍷 Vin Brulé (итальянский глинтвейн)
+🌰 Жареные каштаны (Caldarroste)
+🥜 Карамелизированный миндаль (Mandorle Pralinate)
+🍫 Горячий итальянский шоколад (Cioccolata Calda)
+🍪 Рождественские имбирные пряники (Lebkuchen)
+⭐ Рождественское печенье и марципан
+🧀 Местные сыры (Monte Veronese)
+🍷 Бокал вина Amarone della Valpolicella
+🎁 Рождественские сладости и деликатесы на ярмарке Christkindlmarkt`;
 
 const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
