@@ -814,6 +814,7 @@ button {
 }
 .restaurants-page { max-width: 1060px; margin: 0 auto; padding: 38px 0; }
 .restaurants-page > header { display: flex; align-items: start; justify-content: space-between; }
+.restaurants-page .eyebrow { display: none; }
 .restaurants-page h2 { margin: 8px 0 24px; font: 600 36px/1 Unbounded, sans-serif; letter-spacing: -.07em; }
 .restaurant-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
 .restaurant-filters > span { color: #9a96aa; font-size: 10px; font-weight: 800; }
