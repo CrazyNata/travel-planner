@@ -225,6 +225,13 @@ const munichDayOneNotes = `🎅 Что обязательно попробова
 🥔 Картофельные оладьи (Kartoffelpuffer)
 🌭 Баварские сосиски`;
 
+const legacyVeronaDayTwoNotes = `🎅 Что я бы обязательно попробовала за один вечер
+⭐ Pandoro (обязательно — это родина десерта).
+🍷 Vin Brulé.
+🌰 Жареные каштаны.
+🥜 Карамелизированный миндаль.
+🍫 Горячий итальянский шоколад.`;
+
 const veronaDayTwoNotes = `🎄 Pandoro (главный рождественский кекс, родом из Вероны)
 🍷 Vin Brulé (итальянский глинтвейн)
 🌰 Жареные каштаны (Caldarroste)
@@ -1330,8 +1337,10 @@ function WalkingMap({ sights, city, activeSightId }: { sights: StoredSight[]; ci
 function Sights({ sights, days, defaultCity, onToggle, onAdd, onAddDay, onRenameDay }: { sights: StoredSight[]; days: { id: string; title: string }[]; defaultCity?: string; onToggle: (id: string) => void; onAdd: (sight: StoredSight) => void; onAddDay: (title: string) => void; onRenameDay: (id: string, title: string) => void }) {
   const [adding, setAdding] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedDay, setSelectedDay] = useState(() => Number(localStorage.getItem("odyssey-selected-sight-day") || 0));
   useEffect(() => {
+    if (selectedDay >= days.length) { setSelectedDay(0); return; }
+    localStorage.setItem("odyssey-selected-sight-day", String(selectedDay));
     const dayId = days[selectedDay]?.id;
     if (dayId) window.dispatchEvent(new CustomEvent("odyssey-select-sight-day", { detail: dayId }));
   }, [selectedDay, days]);
@@ -1374,6 +1383,10 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     window.addEventListener("odyssey-select-sight-day", selectDay);
     return () => window.removeEventListener("odyssey-select-sight-day", selectDay);
   }, []);
+  useEffect(() => {
+    if (trip.sightNotes?.["sights-day-2"] !== legacyVeronaDayTwoNotes) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, "sights-day-2": veronaDayTwoNotes } });
+  }, [trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
     ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
