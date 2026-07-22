@@ -350,6 +350,24 @@ const sanMarinoDaySixSights: StoredSight[] = [
   { id: "san-marino-market", name: "Рождественские ярмарочные домики", city: "Сан-Марино", walkDay: 7, walkOrder: 14, lnglat: [12.4471, 43.936], duration: "20 мин" },
 ];
 
+const pisaDaySixSights: StoredSight[] = [
+  { id: "pisa-miracoli", name: "Piazza dei Miracoli", city: "Пиза", walkDay: 6, walkOrder: 0, lnglat: [10.3966, 43.723], duration: "30 мин" },
+  { id: "pisa-tower", name: "Пизанская башня", city: "Пиза", walkDay: 6, walkOrder: 1, lnglat: [10.3966, 43.723], duration: "45 мин" },
+  { id: "pisa-cathedral", name: "Кафедральный собор Пизы", city: "Пиза", walkDay: 6, walkOrder: 2, lnglat: [10.3958, 43.723], duration: "30 мин" },
+  { id: "pisa-baptistery", name: "Баптистерий Святого Иоанна", city: "Пиза", walkDay: 6, walkOrder: 3, lnglat: [10.3949, 43.723], duration: "30 мин" },
+  { id: "pisa-camposanto", name: "Монументальное кладбище Кампосанто", city: "Пиза", walkDay: 6, walkOrder: 4, lnglat: [10.3946, 43.724], duration: "30 мин" },
+  { id: "pisa-photo", name: "Классическое фото с башней", city: "Пиза", walkDay: 6, walkOrder: 5, lnglat: [10.3964, 43.7228], duration: "20 мин" },
+  { id: "pisa-lights", name: "Прогулка по Piazza dei Miracoli", city: "Пиза", walkDay: 6, walkOrder: 6, lnglat: [10.3961, 43.7234], duration: "30 мин" },
+  { id: "pisa-cavalieri", name: "Piazza dei Cavalieri", city: "Пиза", walkDay: 6, walkOrder: 7, lnglat: [10.4011, 43.7197], duration: "25 мин" },
+  { id: "pisa-santo-stefano", name: "Церковь Santo Stefano dei Cavalieri", city: "Пиза", walkDay: 6, walkOrder: 8, lnglat: [10.401, 43.7194], duration: "20 мин" },
+  { id: "pisa-borgo", name: "Borgo Stretto", city: "Пиза", walkDay: 6, walkOrder: 9, lnglat: [10.4057, 43.7177], duration: "35 мин" },
+  { id: "pisa-garibaldi", name: "Piazza Garibaldi", city: "Пиза", walkDay: 6, walkOrder: 10, lnglat: [10.4057, 43.7157], duration: "20 мин" },
+  { id: "pisa-ponte-mezzo", name: "Мост Ponte di Mezzo", city: "Пиза", walkDay: 6, walkOrder: 11, lnglat: [10.4055, 43.715], duration: "20 мин" },
+  { id: "pisa-arno", name: "Набережная реки Арно", city: "Пиза", walkDay: 6, walkOrder: 12, lnglat: [10.4053, 43.7147], duration: "30 мин" },
+  { id: "pisa-tree", name: "Главная рождественская елка", city: "Пиза", walkDay: 6, walkOrder: 13, lnglat: [10.4002, 43.708], duration: "20 мин" },
+  { id: "pisa-corso", name: "Corso Italia", city: "Пиза", walkDay: 6, walkOrder: 14, lnglat: [10.402, 43.71], duration: "40 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1516,7 +1534,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Сан-Марино" || trip.sightNotes?.[selectedDay.id] !== pisaDaySixNotes) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: "" } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...sanMarinoDaySixSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
