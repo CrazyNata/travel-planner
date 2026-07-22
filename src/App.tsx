@@ -417,6 +417,32 @@ const chioggiaDayEightSights: StoredSight[] = [
   { id: "chioggia-market", name: "Рождественские ярмарочные домики", city: "Кьоджа", walkDay: 8, walkOrder: 18, lnglat: [12.2787, 45.2187], duration: "20 мин" },
 ];
 
+const veniceDayNineSights: StoredSight[] = [
+  { id: "venice-scalzi", name: "Мост Скальци", city: "Венеция", walkDay: 9, walkOrder: 0, lnglat: [12.3212, 45.4411], duration: "15 мин" },
+  { id: "venice-grand-canal-walk", name: "Прогулка вдоль Гранд-канала", city: "Венеция", walkDay: 9, walkOrder: 1, lnglat: [12.326, 45.4385], duration: "30 мин" },
+  { id: "venice-vaporetto", name: "Вапоретто по Гранд-каналу", city: "Венеция", walkDay: 9, walkOrder: 2, lnglat: [12.327, 45.439], duration: "45 мин" },
+  { id: "venice-rialto", name: "Мост Риальто", city: "Венеция", walkDay: 9, walkOrder: 3, lnglat: [12.3358, 45.438], duration: "25 мин" },
+  { id: "venice-market", name: "Рынок Риальто", city: "Венеция", walkDay: 9, walkOrder: 4, lnglat: [12.3339, 45.4392], duration: "30 мин" },
+  { id: "venice-san-polo", name: "Улочки района Сан-Поло", city: "Венеция", walkDay: 9, walkOrder: 5, lnglat: [12.331, 45.437], duration: "35 мин" },
+  { id: "venice-frari", name: "Базилика Санта-Мария-Глориоза-деи-Фрари", city: "Венеция", walkDay: 9, walkOrder: 6, lnglat: [12.3275, 45.437], duration: "30 мин" },
+  { id: "venice-acqua-alta", name: "Libreria Acqua Alta", city: "Венеция", walkDay: 9, walkOrder: 7, lnglat: [12.3427, 45.4389], duration: "25 мин" },
+  { id: "venice-sighs", name: "Мост Вздохов", city: "Венеция", walkDay: 9, walkOrder: 8, lnglat: [12.3416, 45.4341], duration: "15 мин" },
+  { id: "venice-san-marco", name: "Площадь Сан-Марко", city: "Венеция", walkDay: 9, walkOrder: 9, lnglat: [12.338, 45.434], duration: "30 мин" },
+  { id: "venice-basilica", name: "Собор Святого Марка", city: "Венеция", walkDay: 9, walkOrder: 10, lnglat: [12.3398, 45.4345], duration: "30 мин" },
+  { id: "venice-clock", name: "Часовая башня Святого Марка", city: "Венеция", walkDay: 9, walkOrder: 11, lnglat: [12.3386, 45.4344], duration: "15 мин" },
+  { id: "venice-doge", name: "Дворец дожей", city: "Венеция", walkDay: 9, walkOrder: 12, lnglat: [12.3404, 45.4337], duration: "1 ч" },
+  { id: "venice-riva", name: "Набережная Riva degli Schiavoni", city: "Венеция", walkDay: 9, walkOrder: 13, lnglat: [12.343, 45.433], duration: "30 мин" },
+  { id: "venice-dogana", name: "Punta della Dogana", city: "Венеция", walkDay: 9, walkOrder: 14, lnglat: [12.3349, 45.4294], duration: "25 мин" },
+  { id: "venice-salute", name: "Базилика Santa Maria della Salute", city: "Венеция", walkDay: 9, walkOrder: 15, lnglat: [12.336, 45.4306], duration: "30 мин" },
+  { id: "venice-academy", name: "Мост Академии", city: "Венеция", walkDay: 9, walkOrder: 16, lnglat: [12.3285, 45.4318], duration: "20 мин" },
+  { id: "venice-academy-view", name: "Смотровая площадка у моста Академии", city: "Венеция", walkDay: 9, walkOrder: 17, lnglat: [12.3285, 45.4318], duration: "20 мин" },
+  { id: "venice-tree", name: "Главная рождественская елка на Piazza San Marco", city: "Венеция", walkDay: 9, walkOrder: 18, lnglat: [12.338, 45.434], duration: "15 мин" },
+  { id: "venice-lights", name: "Рождественская подсветка площади Сан-Марко", city: "Венеция", walkDay: 9, walkOrder: 19, lnglat: [12.338, 45.434], duration: "20 мин" },
+  { id: "venice-fairs", name: "Рождественские ярмарки Campo Santo Stefano и Campo San Polo", city: "Венеция", walkDay: 9, walkOrder: 20, lnglat: [12.3305, 45.435], duration: "40 мин" },
+  { id: "venice-mercerie", name: "Бутики и праздничные витрины на Mercerie", city: "Венеция", walkDay: 9, walkOrder: 21, lnglat: [12.3388, 45.4355], duration: "30 мин" },
+  { id: "venice-evening", name: "Вечерняя прогулка по освещенным каналам", city: "Венеция", walkDay: 9, walkOrder: 22, lnglat: [12.334, 45.436], duration: "45 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1543,8 +1569,10 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 8 && savedSightDays[7].title === "Кьоджа"
+      ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }]
     : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
-      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }]
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
@@ -1595,7 +1623,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Кьоджа" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: chioggiaDayEightNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
