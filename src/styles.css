@@ -2301,6 +2301,15 @@ html[data-empty-sight-day="true"] .sight-feature {
   height: 18px;
   border-radius: 5px;
 }
+html[data-sight-city="Верона"] .sights-collection .sight-card { min-height: 370px; background: #201d2a; }
+html[data-sight-city="Верона"] .sights-collection .sight-card::before { position: absolute; inset: 0; z-index: 0; height: auto; }
+html[data-sight-city="Верона"] .sights-collection .sight-card > div { position: relative; z-index: 1; min-height: 368px; justify-content: flex-end; background: linear-gradient(transparent 28%, #14111de8 100%); }
+html[data-sight-city="Верона"] .sights-collection .sight-card p,
+html[data-sight-city="Верона"] .sights-collection .sight-card h3,
+html[data-sight-city="Верона"] .sights-collection .sight-card small,
+html[data-sight-city="Верона"] .sights-collection .sight-card label { color: #fff; }
+html[data-sight-city="Верона"] .sights-collection .sight-card h3::after { display: none; }
+html[data-sight-city="Верона"] .sights-collection .sight-card label { border-color: #ffffff42; }
 .sights-collection > header .eyebrow { display: none; }
 .sights-collection > header h2 { font-size: 0; }
 .sights-collection > header h2::after {
