@@ -2017,6 +2017,7 @@ html[data-sight-city="Верона"] .sight-feature { background-image: linear-g
 html[data-sight-city="Рим"][data-sight-day="3"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg"); background-position: center; }
 html[data-sight-city="Рим"][data-sight-day="4"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/3840px-Colosseo_2020.jpg"); background-position: center; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/St_Peter%27s_Square%2C_Vatican_City_-_April_2007.jpg/3840px-St_Peter%27s_Square%2C_Vatican_City_-_April_2007.jpg"); background-position: center; }
+html[data-sight-city="Пиза"] .sight-feature { background-image: linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("https://upload.wikimedia.org/wikipedia/commons/4/4b/Italy_-_Pisa_-_Leaning_Tower.jpg"); background-position: center 42%; }
 html[data-empty-sight-day="true"] .sight-feature {
   background: radial-gradient(circle at 82% 25%, #7069df 0, transparent 17%), linear-gradient(135deg, #262941, #373d61);
 }
@@ -2394,6 +2395,7 @@ html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-car
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(12) h3::after { content: "Главная вечерняя площадь Трастевере."; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(13) h3::after { content: "Холм с панорамой города и собора Святого Петра."; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(14) h3::after { content: "Монументальный фонтан на Джаниколо."; }
+html[data-sight-city="Пиза"] .sights-collection .sight-card h3::after { display: none; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(1)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/St_Peter%27s_Square%2C_Vatican_City_-_April_2007.jpg/3840px-St_Peter%27s_Square%2C_Vatican_City_-_April_2007.jpg") center / cover; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(2)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg/3840px-Basilica_di_San_Pietro_in_Vaticano_September_2015-1a.jpg") center / cover; }
 html[data-sight-city="Рим"][data-sight-day="5"] .sights-collection .sight-card:nth-child(3)::before { background: linear-gradient(#17142338, #17142388), url("https://commons.wikimedia.org/wiki/Special:FilePath/Vatican%20Christmas%20Tree.jpg") center / cover; }
