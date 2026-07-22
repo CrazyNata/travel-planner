@@ -1379,6 +1379,10 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
     : savedSightDays;
   useEffect(() => {
+    const index = Math.min(Number(localStorage.getItem("odyssey-selected-sight-day") || 0), sightDays.length - 1);
+    setSelectedSightDayId(sightDays[index]?.id || sightDays[0].id);
+  }, [sightDays]);
+  useEffect(() => {
     const selectDay = (event: Event) => setSelectedSightDayId((event as CustomEvent<string>).detail);
     window.addEventListener("odyssey-select-sight-day", selectDay);
     return () => window.removeEventListener("odyssey-select-sight-day", selectDay);
