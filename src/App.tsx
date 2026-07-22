@@ -256,6 +256,16 @@ const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-adige", name: "Набережная реки Адидже", city: "Верона", walkDay: 2, walkOrder: 9, lnglat: [11.0037, 45.4465], duration: "30 мин" },
 ];
 
+const romeDayThreeSights: StoredSight[] = [
+  { id: "rome-navona", name: "Piazza Navona (рождественская ярмарка)", city: "Рим", walkDay: 3, walkOrder: 0, lnglat: [12.4731, 41.8992], duration: "1 ч" },
+  { id: "rome-pantheon", name: "Пантеон", city: "Рим", walkDay: 3, walkOrder: 1, lnglat: [12.4769, 41.8986], duration: "40 мин" },
+  { id: "rome-rotonda", name: "Piazza della Rotonda", city: "Рим", walkDay: 3, walkOrder: 2, lnglat: [12.4767, 41.899], duration: "20 мин" },
+  { id: "rome-trevi", name: "Фонтан Треви", city: "Рим", walkDay: 3, walkOrder: 3, lnglat: [12.4833, 41.9009], duration: "30 мин" },
+  { id: "rome-spanish-steps", name: "Испанская лестница", city: "Рим", walkDay: 3, walkOrder: 4, lnglat: [12.4828, 41.906], duration: "30 мин" },
+  { id: "rome-spagna-tree", name: "Рождественская елка на Piazza di Spagna", city: "Рим", walkDay: 3, walkOrder: 5, lnglat: [12.4824, 41.906], duration: "20 мин" },
+  { id: "rome-condotti", name: "Via Condotti", city: "Рим", walkDay: 3, walkOrder: 6, lnglat: [12.4798, 41.9055], duration: "30 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1399,7 +1409,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Верона" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: veronaDayTwoNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
     ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
     : trip.sights || [];
