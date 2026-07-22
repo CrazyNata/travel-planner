@@ -812,6 +812,19 @@ button {
   border-color: var(--accent);
   color: #23201c;
 }
+.restaurants-page { max-width: 1060px; margin: 0 auto; padding: 38px 0; }
+.restaurants-page > header { display: flex; align-items: start; justify-content: space-between; }
+.restaurants-page h2 { margin: 8px 0 24px; font: 600 36px/1 Unbounded, sans-serif; letter-spacing: -.07em; }
+.restaurant-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
+.restaurant-filters > span { color: #9a96aa; font-size: 10px; font-weight: 800; }
+.restaurant-filters button { border: 1px solid #e5e2ef; border-radius: 999px; background: #fff; padding: 9px 15px; color: #78738a; font-weight: 700; }
+.restaurant-filters button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.restaurant-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 28px; }
+.restaurant-card { overflow: hidden; border: 1px solid #e4e1ed; border-radius: 18px; background: #fff; box-shadow: 0 8px 18px #201d3a0d; }
+.restaurant-photo { position: relative; height: 170px; background: #b79375; padding: 14px; color: #fff; }
+.restaurant-card.c1 .restaurant-photo { background: #95a28b; }.restaurant-card.c2 .restaurant-photo { background: #ad909a; }.restaurant-card.c3 .restaurant-photo { background: #8b9aaa; }.restaurant-card.c4 .restaurant-photo { background: #baa984; }.restaurant-card.c5 .restaurant-photo { background: #9291a6; }
+.restaurant-photo span,.restaurant-photo b,.restaurant-photo small { position: absolute; border-radius: 999px; padding: 6px 10px; font-size: 11px; }.restaurant-photo span { top: 14px; left: 14px; background: #31394788; }.restaurant-photo b { top: 14px; right: 14px; background: #fff; color: #423a31; }.restaurant-photo small { right: 14px; bottom: 14px; background: #25252599; }
+.restaurant-card > div:last-child { padding: 16px; }.restaurant-card p { margin: 0; color: #99a0b2; font-size: 11px; font-weight: 800; text-transform: uppercase; }.restaurant-card h3 { margin: 10px 0 14px; font: 700 20px/1.1 Unbounded, sans-serif; letter-spacing: -.06em; }.restaurant-card > div small { display: block; margin: 8px 0; color: #777188; }.restaurant-card footer { display: flex; justify-content: space-between; margin-top: 16px; border-top: 1px solid #eceaf2; padding-top: 15px; color: var(--accent); font-weight: 800; }.restaurant-card footer i { color: #c7b37b; font-style: normal; }
 .workspace {
   max-width: 1240px;
   margin: auto;

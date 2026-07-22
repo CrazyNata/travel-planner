@@ -4,7 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
-type Tab = "overview" | "route" | "sights" | "bookings" | "budget" | "photos" | "members";
+type Tab = "overview" | "route" | "sights" | "restaurants" | "bookings" | "budget" | "photos" | "members";
 type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string; completed?: string[] };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
@@ -1253,6 +1253,21 @@ function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEd
   );
 }
 
+function Restaurants() {
+  const [city, setCity] = useState("Все · 6");
+  const [status, setStatus] = useState("Все статусы");
+  const places = [
+    ["Roscióli Salumeria", "Рим", "были", "4.7", "Via dei Giubbonari, 21", "13 сент · 21:00"],
+    ["Emma Pizzeria", "Рим", "бронь", "4.6", "Via del Monte della Farina, 28", "12 сент · 20:30"],
+    ["Trattoria Mario", "Флоренция", "хочу", "4.8", "Via Rosina, 2", "15 сент · 13:00"],
+    ["Caffè Gilli", "Флоренция", "бронь", "4.5", "Via Roma, 1", "15 сент · 10:30"],
+    ["Osteria alle Testiere", "Венеция", "хочу", "4.9", "Calle del Mondo Novo, 5801", "17 сент · 19:30"],
+    ["Trattoria da Remigio", "Венеция", "были", "4.4", "Castello, 3416", "18 сент · 20:00"],
+  ];
+  const visible = places.filter((place) => (city === "Все · 6" || place[1] === city.split(" · ")[0]) && (status === "Все статусы" || place[2] === status));
+  return <section className="restaurants-page"><header><div><p className="eyebrow">ИТАЛИЯ · РИМ, ФЛОРЕНЦИЯ, ВЕНЕЦИЯ</p><h2>Рестораны</h2></div><button className="accent">＋ Добавить</button></header><div className="restaurant-filters"><span>ГОРОД</span>{["Все · 6", "Рим · 2", "Флоренция · 2", "Венеция · 2"].map((item) => <button className={city === item ? "active" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}</div><div className="restaurant-filters status">{["Все статусы", "хочу", "бронь", "были"].map((item) => <button className={status === item ? "active" : ""} onClick={() => setStatus(item)} key={item}>{item}</button>)}</div><div className="restaurant-grid">{visible.map((place, index) => <article className={`restaurant-card c${index % 6}`} key={place[0]}><div className="restaurant-photo"><span>{place[2]}</span><b>★ {place[3]}</b><small>€€</small></div><div><p>🇮🇹 {place[1]}</p><h3>{place[0]}</h3><small>◷ {place[5]}</small><small>⌖ {place[4]}</small><footer>Забронировать стол → <i>♡</i></footer></div></article>)}</div></section>;
+}
+
 function Bookings() {
   const tickets = [
     ["Колизей", "13 сен · 09:00 · 3 взр.", "5 400 ₽"],
@@ -1786,7 +1801,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
-  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"], ["restaurants", "Рестораны"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
     ["bookings", "Жильё и транспорт"],
@@ -1832,6 +1847,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
         {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { const sight = tripSights.find((item) => item.id === id); const isCheckbox = document.activeElement instanceof HTMLInputElement && document.activeElement.type === "checkbox"; if (isCheckbox) { onUpdateTrip({ ...trip, sights: tripSights.map((item) => item.id === id ? { ...item, done: !item.done } : item) }); return; } if (!sight) return; window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); const query = sight.lnglat ? `${sight.lnglat[1]},${sight.lnglat[0]}` : `${sight.name}, ${sight.city}`; window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[selectedSightDayId] || (selectedSightDayId === "sights-day-1" && trip.title.toLowerCase().includes("рождествен") ? munichDayOneNotes : selectedSightDayId === "sights-day-2" ? veronaDayTwoNotes : "")} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedSightDayId]: value } })} /></>}
+        {tab === "restaurants" && <Restaurants />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
