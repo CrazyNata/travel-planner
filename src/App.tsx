@@ -1474,18 +1474,15 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const firstDraftDay = draftDays[0];
   const isChristmasTrip = trip.isDraft || trip.title.toLowerCase().includes("рождествен");
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
-  const normalizedSightDays = savedSightDays.length === 7 && savedSightDays[5].title === "Пиза" && savedSightDays[6].title === "Сан-Марино"
-    ? [...savedSightDays.slice(0, 5), { ...savedSightDays[5], title: "Сан-Марино" }]
-    : savedSightDays;
-  const sightDays = isChristmasTrip && normalizedSightDays.length === 3 && normalizedSightDays[2].title === "Рим"
-    ? [...normalizedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
-    : isChristmasTrip && normalizedSightDays.length === 5 && normalizedSightDays[4].title === "Рим"
-      ? [...normalizedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
-    : isChristmasTrip && normalizedSightDays.length === 4 && normalizedSightDays[3].title === "Рим"
-      ? [...normalizedSightDays, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
-    : isChristmasTrip && normalizedSightDays.length === 1 && normalizedSightDays[0].id === "sights-day-1"
-      ? [...normalizedSightDays, { id: "sights-day-2", title: "Верона" }]
-      : normalizedSightDays;
+  const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
+    ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
+      ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
+      ? [...savedSightDays, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 1 && savedSightDays[0].id === "sights-day-1"
+      ? [...savedSightDays, { id: "sights-day-2", title: "Верона" }]
+      : savedSightDays;
   useEffect(() => {
     const index = Math.min(Number(localStorage.getItem("odyssey-selected-sight-day") || 0), sightDays.length - 1);
     setSelectedSightDayId(sightDays[index]?.id || sightDays[0].id);
