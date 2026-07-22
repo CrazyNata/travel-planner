@@ -265,6 +265,18 @@ const pisaDaySixNotes = `🎄🍴 Что обязательно попробов
 ☕ Эспрессо или капучино в уютном кафе с видом на исторический центр
 🌰 Жареные каштаны (если продаются на рождественских ярмарках)`;
 
+const sanMarinoDaySevenNotes = `🎄🍴 Что обязательно попробовать
+☕ Горячий шоколад (Cioccolata Calda) — идеален для прогулки по зимнему Сан-Марино
+🍷 Vin Brulé — горячее пряное вино
+🍰 Torta Tre Monti — самый знаменитый десерт Сан-Марино с вафлями, шоколадом и ореховым кремом
+🍪 Panettone — классическая рождественская выпечка
+🧀 Пьядина (Piadina) — лепешка с прошутто, сыром или рукколой
+🥩 Тальятелле с рагу — одно из традиционных блюд региона
+🧀 Местные сыры и салями — отличный вариант для перекуса
+🍦 Джелато — если погода позволит
+🍬 Купить Torta Tre Monti в подарок домой
+🎁 Заглянуть в магазины за местными ликерами, шоколадом и рождественскими сувенирами`;
+
 const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
   { id: "verona-arena", name: "Арена Вероны (Arena di Verona)", city: "Верона", walkDay: 2, walkOrder: 1, lnglat: [10.9942, 45.438], duration: "45 мин" },
@@ -1533,6 +1545,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (selectedDay?.title !== "Сан-Марино" || trip.sightNotes?.[selectedDay.id] !== pisaDaySixNotes) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: "" } });
+  }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
+  useEffect(() => {
+    const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
+    if (selectedDay?.title !== "Сан-Марино" || trip.sightNotes?.[selectedDay.id]) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: sanMarinoDaySevenNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights];
   const tripSights = isChristmasTrip
