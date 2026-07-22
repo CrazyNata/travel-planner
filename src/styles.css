@@ -2301,15 +2301,26 @@ html[data-empty-sight-day="true"] .sight-feature {
   height: 18px;
   border-radius: 5px;
 }
-html[data-sight-city="Верона"] .sights-collection .sight-card { min-height: 370px; background: #201d2a; }
+html[data-sight-city="Верона"] .sights-collection .sight-card { min-height: 330px; background: #201d2a; }
 html[data-sight-city="Верона"] .sights-collection .sight-card::before { position: absolute; inset: 0; z-index: 0; height: auto; }
-html[data-sight-city="Верона"] .sights-collection .sight-card > div { position: relative; z-index: 1; min-height: 368px; justify-content: flex-end; background: linear-gradient(transparent 28%, #14111de8 100%); }
+html[data-sight-city="Верона"] .sights-collection .sight-card > div { position: relative; z-index: 1; min-height: 328px; justify-content: flex-end; background: linear-gradient(transparent 22%, #14111de8 100%); }
 html[data-sight-city="Верона"] .sights-collection .sight-card p,
 html[data-sight-city="Верона"] .sights-collection .sight-card h3,
 html[data-sight-city="Верона"] .sights-collection .sight-card small,
 html[data-sight-city="Верона"] .sights-collection .sight-card label { color: #fff; }
-html[data-sight-city="Верона"] .sights-collection .sight-card h3::after { display: none; }
+html[data-sight-city="Верона"] .sights-collection .sight-card h3::after { color: #eeedf6; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Главная площадь Вероны у стен античного амфитеатра."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(2) h3::after { content: "Римский амфитеатр I века и главный символ города."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(3) h3::after { content: "Праздничная инсталляция на Piazza Bra."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(4) h3::after { content: "Главная торговая улица в рождественских огнях."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(5) h3::after { content: "Историческая рыночная площадь в сердце Старого города."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(6) h3::after { content: "Площадь Синьории, где проходит Verona Christkindlmarkt."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(7) h3::after { content: "Рождественские домики, угощения и подарки."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(8) h3::after { content: "Знаменитый дворик с балконом Джульетты."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(9) h3::after { content: "Древнеримский мост с красивым вечерним видом."; }
+html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10) h3::after { content: "Прогулка вдоль Адидже и огней Старого города."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card label { border-color: #ffffff42; }
+html[data-sight-city="Верона"] .sights-collection .sight-number { width: 26px; height: 26px; border: 0; background: #fffffff2; color: #4f48d7; box-shadow: 0 3px 10px #11101d80; }
 .sights-collection > header .eyebrow { display: none; }
 .sights-collection > header h2 { font-size: 0; }
 .sights-collection > header h2::after {
