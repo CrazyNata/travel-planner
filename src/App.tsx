@@ -255,6 +255,16 @@ const romeDayThreeNotes = `🎅 Что обязательно попробова
 🎄 Saltimbocca alla Romana
 🎄 Тирамису`;
 
+const pisaDaySixNotes = `🎄🍴 Что обязательно попробовать
+☕ Горячий шоколад (Cioccolata Calda) — густой итальянский горячий шоколад
+🍰 Buccellato Toscano — традиционный тосканский рождественский кекс
+🍪 Ricciarelli — мягкое миндальное рождественское печенье
+🍫 Panforte — пряный рождественский десерт с орехами и цукатами
+🥐 Panettone — классический итальянский рождественский кулич
+🍦 Джелато — даже зимой в Италии его едят круглый год
+☕ Эспрессо или капучино в уютном кафе с видом на исторический центр
+🌰 Жареные каштаны (если продаются на рождественских ярмарках)`;
+
 const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
   { id: "verona-arena", name: "Арена Вероны (Arena di Verona)", city: "Верона", walkDay: 2, walkOrder: 1, lnglat: [10.9942, 45.438], duration: "45 мин" },
@@ -1494,6 +1504,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: romeDayThreeNotes } });
+  }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
+  useEffect(() => {
+    const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
+    if (selectedDay?.title !== "Пиза" || trip.sightNotes?.[selectedDay.id]) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: pisaDaySixNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
