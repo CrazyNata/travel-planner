@@ -2313,10 +2313,10 @@ html[data-sight-city] .sights-collection .sight-card label { color: #fff; }
 html[data-sight-city] .sights-collection .sight-card label { margin-top: 10px; border-color: #ffffff42; }
 html[data-sight-city] .sights-collection .sight-card h3::after { color: #eeedf6; }
 html[data-sight-city="Мюнхен"] .sights-collection .sight-card::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg") center / cover; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(1)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg") center / cover; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(2)::before, html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(3)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Pantheon_%28Rome%29_-_Right_side_and_front.jpg/3840px-Pantheon_%28Rome%29_-_Right_side_and_front.jpg") center / cover; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(4)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Trevi_Fountain_-_Roma.jpg/3840px-Trevi_Fountain_-_Roma.jpg") center / cover; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(5)::before, html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(6)::before, html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(7)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/b/b8/Piazza_di_Spagna_%28Rome%29_0004.jpg") center / cover; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(1)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(2)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(3)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg") center / cover; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(4)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(5)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(6)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(7)::before, html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(8)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Pantheon_%28Rome%29_-_Right_side_and_front.jpg/3840px-Pantheon_%28Rome%29_-_Right_side_and_front.jpg") center / cover; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(9)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Trevi_Fountain_-_Roma.jpg/3840px-Trevi_Fountain_-_Roma.jpg") center / cover; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(n + 10)::before { background: linear-gradient(#17142338, #17142388), url("https://upload.wikimedia.org/wikipedia/commons/b/b8/Piazza_di_Spagna_%28Rome%29_0004.jpg") center / cover; }
 html[data-sight-city="Верона"] .sights-collection .sight-card h3::after { color: #eeedf6; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Главная площадь Вероны у стен античного амфитеатра."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(2) h3::after { content: "Римский амфитеатр I века и главный символ города."; }
@@ -2328,13 +2328,20 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(7)
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(8) h3::after { content: "Знаменитый дворик с балконом Джульетты."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(9) h3::after { content: "Древнеримский мост с красивым вечерним видом."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10) h3::after { content: "Прогулка вдоль Адидже и огней Старого города."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Праздничная ярмарка среди барочных фонтанов Piazza Navona."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(2) h3::after { content: "Античный храм с знаменитым куполом и окулюсом."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(3) h3::after { content: "Площадь у Пантеона с фонтаном и вечерней атмосферой."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(4) h3::after { content: "Самый известный фонтан Рима. Не забудьте бросить монетку."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(5) h3::after { content: "Лестница между Piazza di Spagna и Trinità dei Monti."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(6) h3::after { content: "Праздничная ёлка на площади Испании."; }
-html[data-sight-city="Рим"] .sights-collection .sight-card:nth-child(7) h3::after { content: "Элегантная улица бутиков, ведущая к Piazza di Spagna."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(1) h3::after { content: "Праздничная ярмарка среди барочных фонтанов Piazza Navona."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(2) h3::after { content: "Барочный фонтан Бернини с обелиском в центре площади."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(3) h3::after { content: "Церковь с куполами, создающая ансамбль Piazza Navona."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(4) h3::after { content: "Античный храм с знаменитым куполом и окулюсом."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(5) h3::after { content: "Площадь у Пантеона с фонтаном и вечерней атмосферой."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(6) h3::after { content: "Античный храм, встроенный в палаццо на Piazza di Pietra."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(7) h3::after { content: "Площадь у правительственного дворца Монтечиторио."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(8) h3::after { content: "Римская триумфальная колонна II века."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(9) h3::after { content: "Самый известный фонтан Рима. Не забудьте бросить монетку."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(10) h3::after { content: "Площадь у подножия Испанской лестницы."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(11) h3::after { content: "Лестница между Piazza di Spagna и Trinità dei Monti."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(12) h3::after { content: "Праздничная ёлка на площади Испании."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(13) h3::after { content: "Элегантная улица бутиков, ведущая к Piazza di Spagna."; }
+html[data-sight-city="Рим"][data-sight-day="3"] .sights-collection .sight-card:nth-child(14) h3::after { content: "Главная прогулочная улица исторического центра."; }
 html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px; bottom: 14px; left: auto; z-index: 2; width: 26px; height: 26px; border: 0; background: #fffffff2; color: #4f48d7; box-shadow: 0 3px 10px #11101d80; }
 .sights-collection > header .eyebrow { display: none; }
 .sights-collection > header h2 { font-size: 0; }

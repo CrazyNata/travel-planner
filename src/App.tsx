@@ -270,12 +270,19 @@ const veronaDayTwoSights: StoredSight[] = [
 
 const romeDayThreeSights: StoredSight[] = [
   { id: "rome-navona", name: "Piazza Navona (рождественская ярмарка)", city: "Рим", walkDay: 3, walkOrder: 0, lnglat: [12.4731, 41.8992], duration: "1 ч" },
-  { id: "rome-pantheon", name: "Пантеон", city: "Рим", walkDay: 3, walkOrder: 1, lnglat: [12.4769, 41.8986], duration: "40 мин" },
-  { id: "rome-rotonda", name: "Piazza della Rotonda", city: "Рим", walkDay: 3, walkOrder: 2, lnglat: [12.4767, 41.899], duration: "20 мин" },
-  { id: "rome-trevi", name: "Фонтан Треви", city: "Рим", walkDay: 3, walkOrder: 3, lnglat: [12.4833, 41.9009], duration: "30 мин" },
-  { id: "rome-spanish-steps", name: "Испанская лестница", city: "Рим", walkDay: 3, walkOrder: 4, lnglat: [12.4828, 41.906], duration: "30 мин" },
-  { id: "rome-spagna-tree", name: "Рождественская елка на Piazza di Spagna", city: "Рим", walkDay: 3, walkOrder: 5, lnglat: [12.4824, 41.906], duration: "20 мин" },
-  { id: "rome-condotti", name: "Via Condotti", city: "Рим", walkDay: 3, walkOrder: 6, lnglat: [12.4798, 41.9055], duration: "30 мин" },
+  { id: "rome-four-rivers", name: "Фонтан Четырех рек", city: "Рим", walkDay: 3, walkOrder: 1, lnglat: [12.4733, 41.8992], duration: "20 мин" },
+  { id: "rome-sant-agnese", name: "Церковь Sant'Agnese in Agone", city: "Рим", walkDay: 3, walkOrder: 2, lnglat: [12.4735, 41.8991], duration: "25 мин" },
+  { id: "rome-pantheon", name: "Пантеон", city: "Рим", walkDay: 3, walkOrder: 3, lnglat: [12.4769, 41.8986], duration: "40 мин" },
+  { id: "rome-rotonda", name: "Piazza della Rotonda", city: "Рим", walkDay: 3, walkOrder: 4, lnglat: [12.4767, 41.899], duration: "20 мин" },
+  { id: "rome-hadrian", name: "Храм Адриана", city: "Рим", walkDay: 3, walkOrder: 5, lnglat: [12.4793, 41.9002], duration: "20 мин" },
+  { id: "rome-colonna", name: "Piazza Colonna", city: "Рим", walkDay: 3, walkOrder: 6, lnglat: [12.4792, 41.901], duration: "20 мин" },
+  { id: "rome-marcus-aurelius", name: "Колонна Марка Аврелия", city: "Рим", walkDay: 3, walkOrder: 7, lnglat: [12.4794, 41.9014], duration: "15 мин" },
+  { id: "rome-trevi", name: "Фонтан Треви", city: "Рим", walkDay: 3, walkOrder: 8, lnglat: [12.4833, 41.9009], duration: "30 мин" },
+  { id: "rome-spagna", name: "Piazza di Spagna", city: "Рим", walkDay: 3, walkOrder: 9, lnglat: [12.4824, 41.906], duration: "20 мин" },
+  { id: "rome-spanish-steps", name: "Испанская лестница", city: "Рим", walkDay: 3, walkOrder: 10, lnglat: [12.4828, 41.906], duration: "30 мин" },
+  { id: "rome-spagna-tree", name: "Рождественская елка на Piazza di Spagna", city: "Рим", walkDay: 3, walkOrder: 11, lnglat: [12.4824, 41.906], duration: "20 мин" },
+  { id: "rome-condotti", name: "Via Condotti", city: "Рим", walkDay: 3, walkOrder: 12, lnglat: [12.4798, 41.9055], duration: "30 мин" },
+  { id: "rome-corso", name: "Via del Corso", city: "Рим", walkDay: 3, walkOrder: 13, lnglat: [12.4793, 41.9014], duration: "30 мин" },
 ];
 
 function compressCoverPhoto(file: File) {
@@ -1428,7 +1435,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
-    ? [...defaultChristmasSights.map((sight) => trip.sights?.find((saved) => saved.id === sight.id) || sight), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
+    ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id))]
     : trip.sights || [];
   const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"]] : [
     ["overview", "Главная"],
