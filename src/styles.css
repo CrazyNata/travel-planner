@@ -2320,7 +2320,7 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(8)
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(9) h3::after { content: "Древнеримский мост с красивым вечерним видом."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10) h3::after { content: "Прогулка вдоль Адидже и огней Старого города."; }
 html[data-sight-city="Верона"] .sights-collection .sight-card label { border-color: #ffffff42; }
-html[data-sight-city="Верона"] .sights-collection .sight-number { width: 26px; height: 26px; border: 0; background: #fffffff2; color: #4f48d7; box-shadow: 0 3px 10px #11101d80; }
+html[data-sight-city="Верона"] .sights-collection .sight-number { top: auto; right: 14px; bottom: 14px; left: auto; z-index: 2; width: 26px; height: 26px; border: 0; background: #fffffff2; color: #4f48d7; box-shadow: 0 3px 10px #11101d80; }
 .sights-collection > header .eyebrow { display: none; }
 .sights-collection > header h2 { font-size: 0; }
 .sights-collection > header h2::after {
