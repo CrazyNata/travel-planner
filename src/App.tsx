@@ -531,6 +531,22 @@ const pragueDayTwelveSights: StoredSight[] = [
   { id: "prague-evening", name: "Вечерняя прогулка по освещенному Карлову мосту", city: "Прага", walkDay: 12, walkOrder: 12, lnglat: [14.4114, 50.0865], duration: "30 мин" },
 ];
 
+const pragueDayFourteenSights: StoredSight[] = [
+  { id: "prague-wenceslas", name: "Вацлавская площадь", city: "Прага", walkDay: 14, walkOrder: 0, lnglat: [14.4281, 50.081], duration: "30 мин" },
+  { id: "prague-wenceslas-market", name: "Рождественская ярмарка на Вацлавской площади", city: "Прага", walkDay: 14, walkOrder: 1, lnglat: [14.4281, 50.081], duration: "1 ч" },
+  { id: "prague-prikope", name: "Торговая улица Na Příkopě", city: "Прага", walkDay: 14, walkOrder: 2, lnglat: [14.427, 50.085], duration: "30 мин" },
+  { id: "prague-palladium", name: "Торговый центр Palladium", city: "Прага", walkDay: 14, walkOrder: 3, lnglat: [14.4282, 50.089], duration: "30 мин" },
+  { id: "prague-republic-market", name: "Рождественский рынок на площади Республики", city: "Прага", walkDay: 14, walkOrder: 4, lnglat: [14.4288, 50.089], duration: "30 мин" },
+  { id: "prague-powder", name: "Пороховая башня", city: "Прага", walkDay: 14, walkOrder: 5, lnglat: [14.4275, 50.0875], duration: "20 мин" },
+  { id: "prague-municipal", name: "Общественный дом", city: "Прага", walkDay: 14, walkOrder: 6, lnglat: [14.4292, 50.0878], duration: "20 мин" },
+  { id: "prague-letna", name: "Парк Летна", city: "Прага", walkDay: 14, walkOrder: 7, lnglat: [14.424, 50.096], duration: "30 мин" },
+  { id: "prague-metronome", name: "Летенский метроном", city: "Прага", walkDay: 14, walkOrder: 8, lnglat: [14.424, 50.0965], duration: "20 мин" },
+  { id: "prague-view", name: "Панорамный вид на Прагу", city: "Прага", walkDay: 14, walkOrder: 9, lnglat: [14.4237, 50.0962], duration: "20 мин" },
+  { id: "prague-cech", name: "Чехов мост", city: "Прага", walkDay: 14, walkOrder: 10, lnglat: [14.417, 50.093], duration: "20 мин" },
+  { id: "prague-vltava", name: "Вечерняя прогулка по набережной Влтавы", city: "Прага", walkDay: 14, walkOrder: 11, lnglat: [14.417, 50.091], duration: "30 мин" },
+  { id: "prague-final", name: "Финальная прогулка по Старому городу в рождественской подсветке", city: "Прага", walkDay: 14, walkOrder: 12, lnglat: [14.421, 50.087], duration: "40 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1671,7 +1687,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     : isChristmasTrip && savedSightDays.length === 8 && savedSightDays[7].title === "Кьоджа"
       ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }]
     : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
-      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }, { id: "sights-day-12", title: "Прага" }, { id: "sights-day-13", title: "Прага" }]
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }, { id: "sights-day-11", title: "Равенсбург" }, { id: "sights-day-12", title: "Прага" }, { id: "sights-day-13", title: "Прага" }, { id: "sights-day-14", title: "Прага" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
@@ -1732,7 +1748,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Милан" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: milanDayTenNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights, ...ravensburgDayElevenSights, ...pragueDayTwelveSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights, ...ravensburgDayElevenSights, ...pragueDayTwelveSights, ...pragueDayFourteenSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
