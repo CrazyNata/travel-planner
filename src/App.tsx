@@ -243,6 +243,18 @@ const veronaDayTwoNotes = `🎄 Pandoro (главный рождественск
 🍷 Бокал вина Amarone della Valpolicella
 🎁 Рождественские сладости и деликатесы на ярмарке Christkindlmarkt`;
 
+const romeDayThreeNotes = `🎅 Что обязательно попробовать в Риме перед Рождеством
+🎄 Panettone
+🎄 Pandoro
+🎄 Горячий шоколад (Cioccolata Calda)
+🎄 Maritozzo con panna
+🎄 Жареные каштаны (Caldarroste)
+🎄 Supplì
+🎄 Cacio e Pepe
+🎄 Carbonara
+🎄 Saltimbocca alla Romana
+🎄 Тирамису`;
+
 const veronaDayTwoSights: StoredSight[] = [
   { id: "verona-piazza-bra", name: "Piazza Bra", city: "Верона", walkDay: 2, walkOrder: 0, lnglat: [10.9915, 45.4384], duration: "25 мин" },
   { id: "verona-arena", name: "Арена Вероны (Arena di Verona)", city: "Верона", walkDay: 2, walkOrder: 1, lnglat: [10.9942, 45.438], duration: "45 мин" },
@@ -1408,6 +1420,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (selectedDay?.title !== "Верона" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: veronaDayTwoNotes } });
+  }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
+  useEffect(() => {
+    const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
+    if (selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id]) return;
+    onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: romeDayThreeNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights];
   const tripSights = trip.title.toLowerCase().includes("рождествен")
