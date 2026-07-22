@@ -333,21 +333,21 @@ const romeDayFiveSights: StoredSight[] = [
 ];
 
 const sanMarinoDaySixSights: StoredSight[] = [
-  { id: "san-marino-porta", name: "Porta San Francesco", city: "Сан-Марино", walkDay: 6, walkOrder: 0, lnglat: [12.4475, 43.9357], duration: "15 мин" },
-  { id: "san-marino-streets", name: "Средневековые улочки исторического центра", city: "Сан-Марино", walkDay: 6, walkOrder: 1, lnglat: [12.4478, 43.9354], duration: "20 мин" },
-  { id: "san-marino-basilica", name: "Базилика Сан-Марино", city: "Сан-Марино", walkDay: 6, walkOrder: 2, lnglat: [12.4473, 43.9361], duration: "20 мин" },
-  { id: "san-marino-liberty", name: "Piazza della Libertà", city: "Сан-Марино", walkDay: 6, walkOrder: 3, lnglat: [12.447, 43.9363], duration: "20 мин" },
-  { id: "san-marino-guard", name: "Смена караула у Правительственного дворца", city: "Сан-Марино", walkDay: 6, walkOrder: 4, lnglat: [12.447, 43.9363], duration: "15 мин" },
-  { id: "san-marino-palazzo", name: "Palazzo Pubblico", city: "Сан-Марино", walkDay: 6, walkOrder: 5, lnglat: [12.447, 43.9363], duration: "20 мин" },
-  { id: "san-marino-liberty-view", name: "Смотровая площадка Piazza della Libertà", city: "Сан-Марино", walkDay: 6, walkOrder: 6, lnglat: [12.4468, 43.9364], duration: "15 мин" },
-  { id: "san-marino-eugippo", name: "Via Eugippo и Contrada del Collegio", city: "Сан-Марино", walkDay: 6, walkOrder: 7, lnglat: [12.4462, 43.9354], duration: "20 мин" },
-  { id: "san-marino-guaita", name: "Первая башня Гуаита (Guaita)", city: "Сан-Марино", walkDay: 6, walkOrder: 8, lnglat: [12.4477, 43.934], duration: "25 мин" },
-  { id: "san-marino-passo", name: "Панорамная тропа Passo delle Streghe", city: "Сан-Марино", walkDay: 6, walkOrder: 9, lnglat: [12.4487, 43.9327], duration: "25 мин" },
-  { id: "san-marino-cesta", name: "Виды на Вторую башню Честа", city: "Сан-Марино", walkDay: 6, walkOrder: 10, lnglat: [12.4504, 43.9316], duration: "20 мин" },
-  { id: "san-marino-panorama", name: "Панорамные виды на Апеннины и побережье Адриатики", city: "Сан-Марино", walkDay: 6, walkOrder: 11, lnglat: [12.4495, 43.932], duration: "20 мин" },
-  { id: "san-marino-tree", name: "Главная рождественская елка на Piazza della Libertà", city: "Сан-Марино", walkDay: 6, walkOrder: 12, lnglat: [12.447, 43.9363], duration: "15 мин" },
-  { id: "san-marino-lights", name: "Рождественская иллюминация исторического центра", city: "Сан-Марино", walkDay: 6, walkOrder: 13, lnglat: [12.4474, 43.9358], duration: "20 мин" },
-  { id: "san-marino-market", name: "Рождественские ярмарочные домики", city: "Сан-Марино", walkDay: 6, walkOrder: 14, lnglat: [12.4471, 43.936], duration: "20 мин" },
+  { id: "san-marino-porta", name: "Porta San Francesco", city: "Сан-Марино", walkDay: 7, walkOrder: 0, lnglat: [12.4475, 43.9357], duration: "15 мин" },
+  { id: "san-marino-streets", name: "Средневековые улочки исторического центра", city: "Сан-Марино", walkDay: 7, walkOrder: 1, lnglat: [12.4478, 43.9354], duration: "20 мин" },
+  { id: "san-marino-basilica", name: "Базилика Сан-Марино", city: "Сан-Марино", walkDay: 7, walkOrder: 2, lnglat: [12.4473, 43.9361], duration: "20 мин" },
+  { id: "san-marino-liberty", name: "Piazza della Libertà", city: "Сан-Марино", walkDay: 7, walkOrder: 3, lnglat: [12.447, 43.9363], duration: "20 мин" },
+  { id: "san-marino-guard", name: "Смена караула у Правительственного дворца", city: "Сан-Марино", walkDay: 7, walkOrder: 4, lnglat: [12.447, 43.9363], duration: "15 мин" },
+  { id: "san-marino-palazzo", name: "Palazzo Pubblico", city: "Сан-Марино", walkDay: 7, walkOrder: 5, lnglat: [12.447, 43.9363], duration: "20 мин" },
+  { id: "san-marino-liberty-view", name: "Смотровая площадка Piazza della Libertà", city: "Сан-Марино", walkDay: 7, walkOrder: 6, lnglat: [12.4468, 43.9364], duration: "15 мин" },
+  { id: "san-marino-eugippo", name: "Via Eugippo и Contrada del Collegio", city: "Сан-Марино", walkDay: 7, walkOrder: 7, lnglat: [12.4462, 43.9354], duration: "20 мин" },
+  { id: "san-marino-guaita", name: "Первая башня Гуаита (Guaita)", city: "Сан-Марино", walkDay: 7, walkOrder: 8, lnglat: [12.4477, 43.934], duration: "25 мин" },
+  { id: "san-marino-passo", name: "Панорамная тропа Passo delle Streghe", city: "Сан-Марино", walkDay: 7, walkOrder: 9, lnglat: [12.4487, 43.9327], duration: "25 мин" },
+  { id: "san-marino-cesta", name: "Виды на Вторую башню Честа", city: "Сан-Марино", walkDay: 7, walkOrder: 10, lnglat: [12.4504, 43.9316], duration: "20 мин" },
+  { id: "san-marino-panorama", name: "Панорамные виды на Апеннины и побережье Адриатики", city: "Сан-Марино", walkDay: 7, walkOrder: 11, lnglat: [12.4495, 43.932], duration: "20 мин" },
+  { id: "san-marino-tree", name: "Главная рождественская елка на Piazza della Libertà", city: "Сан-Марино", walkDay: 7, walkOrder: 12, lnglat: [12.447, 43.9363], duration: "15 мин" },
+  { id: "san-marino-lights", name: "Рождественская иллюминация исторического центра", city: "Сан-Марино", walkDay: 7, walkOrder: 13, lnglat: [12.4474, 43.9358], duration: "20 мин" },
+  { id: "san-marino-market", name: "Рождественские ярмарочные домики", city: "Сан-Марино", walkDay: 7, walkOrder: 14, lnglat: [12.4471, 43.936], duration: "20 мин" },
 ];
 
 function compressCoverPhoto(file: File) {
