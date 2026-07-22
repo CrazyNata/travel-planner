@@ -459,6 +459,28 @@ const veniceDayNineSights: StoredSight[] = [
   { id: "venice-evening", name: "Вечерняя прогулка по освещенным каналам", city: "Венеция", walkDay: 9, walkOrder: 22, lnglat: [12.334, 45.436], duration: "45 мин" },
 ];
 
+const milanDayTenSights: StoredSight[] = [
+  { id: "milan-centrale", name: "Milano Centrale", city: "Милан", walkDay: 10, walkOrder: 0, lnglat: [9.2044, 45.4859], duration: "30 мин" },
+  { id: "milan-centrale-hall", name: "Главный зал и фасад вокзала", city: "Милан", walkDay: 10, walkOrder: 1, lnglat: [9.2044, 45.4859], duration: "20 мин" },
+  { id: "milan-buenos-aires", name: "Corso Buenos Aires", city: "Милан", walkDay: 10, walkOrder: 2, lnglat: [9.214, 45.478], duration: "40 мин" },
+  { id: "milan-duomo", name: "Миланский собор (Duomo di Milano)", city: "Милан", walkDay: 10, walkOrder: 3, lnglat: [9.19, 45.4641], duration: "1 ч" },
+  { id: "milan-duomo-square", name: "Piazza del Duomo", city: "Милан", walkDay: 10, walkOrder: 4, lnglat: [9.19, 45.4641], duration: "30 мин" },
+  { id: "milan-tree", name: "Главная рождественская елка Милана", city: "Милан", walkDay: 10, walkOrder: 5, lnglat: [9.19, 45.4641], duration: "15 мин" },
+  { id: "milan-lights", name: "Рождественская иллюминация площади", city: "Милан", walkDay: 10, walkOrder: 6, lnglat: [9.19, 45.4641], duration: "20 мин" },
+  { id: "milan-galleria", name: "Galleria Vittorio Emanuele II", city: "Милан", walkDay: 10, walkOrder: 7, lnglat: [9.1919, 45.4658], duration: "30 мин" },
+  { id: "milan-coffee", name: "Историческое кафе в галерее", city: "Милан", walkDay: 10, walkOrder: 8, lnglat: [9.1919, 45.4658], duration: "30 мин" },
+  { id: "milan-scala-square", name: "Piazza della Scala", city: "Милан", walkDay: 10, walkOrder: 9, lnglat: [9.1897, 45.4663], duration: "15 мин" },
+  { id: "milan-scala", name: "Театр Ла Скала", city: "Милан", walkDay: 10, walkOrder: 10, lnglat: [9.1899, 45.4662], duration: "20 мин" },
+  { id: "milan-mercanti", name: "Via Mercanti", city: "Милан", walkDay: 10, walkOrder: 11, lnglat: [9.1883, 45.464], duration: "20 мин" },
+  { id: "milan-sforza", name: "Замок Сфорца", city: "Милан", walkDay: 10, walkOrder: 12, lnglat: [9.1797, 45.4705], duration: "45 мин" },
+  { id: "milan-sempione", name: "Парк Семпионе", city: "Милан", walkDay: 10, walkOrder: 13, lnglat: [9.176, 45.4725], duration: "40 мин" },
+  { id: "milan-pace", name: "Арка Мира (Arco della Pace)", city: "Милан", walkDay: 10, walkOrder: 14, lnglat: [9.1728, 45.476], duration: "20 мин" },
+  { id: "milan-dante", name: "Via Dante", city: "Милан", walkDay: 10, walkOrder: 15, lnglat: [9.184, 45.467], duration: "25 мин" },
+  { id: "milan-market", name: "Рождественские ярмарки и праздничные лавки", city: "Милан", walkDay: 10, walkOrder: 16, lnglat: [9.188, 45.465], duration: "30 мин" },
+  { id: "milan-monte", name: "Via Monte Napoleone", city: "Милан", walkDay: 10, walkOrder: 17, lnglat: [9.195, 45.469], duration: "30 мин" },
+  { id: "milan-quadrilatero", name: "Quadrilatero della Moda", city: "Милан", walkDay: 10, walkOrder: 18, lnglat: [9.196, 45.469], duration: "30 мин" },
+];
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -1585,10 +1607,12 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const savedSightDays = trip.sightDaysVersion === 1 && trip.sightDays?.length ? trip.sightDays : [{ id: "sights-day-1", title: firstDraftDay.roadLeg?.to || firstDraftDay.roadLeg?.from || "Первый день" }];
   const sightDays = isChristmasTrip && savedSightDays.length === 3 && savedSightDays[2].title === "Рим"
     ? [...savedSightDays, { id: "sights-day-4", title: "Рим" }, { id: "sights-day-5", title: "Рим" }, { id: "sights-day-6", title: "Сан-Марино" }]
+    : isChristmasTrip && savedSightDays.length === 9 && savedSightDays[8].title === "Венеция"
+      ? [...savedSightDays, { id: "sights-day-10", title: "Милан" }]
     : isChristmasTrip && savedSightDays.length === 8 && savedSightDays[7].title === "Кьоджа"
-      ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }]
+      ? [...savedSightDays, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }]
     : isChristmasTrip && savedSightDays.length === 7 && savedSightDays[6].title === "Сан-Марино"
-      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }]
+      ? [...savedSightDays, { id: "sights-day-8", title: "Кьоджа" }, { id: "sights-day-9", title: "Венеция" }, { id: "sights-day-10", title: "Милан" }]
     : isChristmasTrip && savedSightDays.length === 5 && savedSightDays[4].title === "Рим"
       ? [...savedSightDays, { id: "sights-day-6", title: "Сан-Марино" }]
     : isChristmasTrip && savedSightDays.length === 4 && savedSightDays[3].title === "Рим"
@@ -1644,7 +1668,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
     if (selectedDay?.title !== "Венеция" || trip.sightNotes?.[selectedDay.id]) return;
     onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedDay.id]: veniceDayNineNotes } });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights];
+  const defaultChristmasSights = [...munichDayOneSights, ...veronaDayTwoSights, ...romeDayThreeSights, ...romeDayFourSights, ...romeDayFiveSights, ...pisaDaySixSights, ...sanMarinoDaySixSights, ...chioggiaDayEightSights, ...veniceDayNineSights, ...milanDayTenSights];
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
