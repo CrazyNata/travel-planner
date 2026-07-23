@@ -663,6 +663,17 @@ function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: stri
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef<HTMLSpanElement[]>([]);
   const location = city ? mapLocation(city) : undefined;
+  const [storedRouteDays] = useState<DraftDay[]>(() => {
+    if (city || places.length || routeDays.length) return [];
+    try {
+      const activeTripId = localStorage.getItem("odyssey-active-trip");
+      const trips = JSON.parse(localStorage.getItem("odyssey-drafts") || "[]") as TripSummary[];
+      return trips.find((trip) => trip.id === activeTripId)?.days || [];
+    } catch {
+      return [];
+    }
+  });
+  const displayedRouteDays = routeDays.length ? routeDays : storedRouteDays;
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -673,7 +684,7 @@ function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: stri
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       mapboxgl.accessToken = token;
-      const routeCoordinates = routeCoordinatesFor(routeDays);
+        const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
       map = new mapboxgl.Map({
         container: container.current,
         style: "mapbox://styles/mapbox/streets-v12",
@@ -737,17 +748,17 @@ function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: stri
       mapRef.current = null;
       markerElements.current = [];
     };
-  }, [city, location, places, routeDays]);
+  }, [city, location, places, displayedRouteDays]);
 
   useEffect(() => {
-    const coordinate = activeDay === undefined ? undefined : routeCoordinatesFor(routeDays)[activeDay];
+    const coordinate = activeDay === undefined ? undefined : routeCoordinatesFor(displayedRouteDays)[activeDay];
     if (!coordinate || !mapRef.current) return;
     markerElements.current.forEach((element, index) => element.classList.toggle("active", index === activeDay));
     mapRef.current.flyTo({ center: coordinate, zoom: 8, duration: 900, essential: true });
     const source = mapRef.current.getSource("active-route") as { setData: (data: object) => void } | undefined;
-    const activeSegment = routeSegment(routeCoordinatesFor(routeDays), activeDay ?? 0);
+    const activeSegment = routeSegment(routeCoordinatesFor(displayedRouteDays), activeDay ?? 0);
     if (source && activeSegment.length > 1) source.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: activeSegment } });
-  }, [activeDay, routeDays]);
+  }, [activeDay, displayedRouteDays]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return <div className="map map-unavailable">Карта станет доступна после настройки Mapbox.</div>;
