@@ -869,6 +869,14 @@ button {
 .stay-statuses button { border: 1px solid #e1e4ea; border-radius: 9px; background: #fff; padding: 7px 10px; color: #8b94a6; font-size: 10px; font-weight: 800; }.stay-statuses button.active.бронь { border-color: #5b874f; background: #5b874f; color: #fff; }.stay-statuses button.active.оплачено { border-color: var(--accent); background: var(--accent); color: #fff; }.stay-statuses button.active.хочу { border-color: #c29139; background: #c29139; color: #fff; }.stay-statuses button.active.пожили { border-color: #89909e; background: #89909e; color: #fff; }
 .accommodation-body > small { display: block; overflow: hidden; border-radius: 9px; background: #f3f4f7; padding: 10px 12px; color: #7d8799; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .accommodation-body footer { display: flex; justify-content: space-between; margin-top: 14px; }.accommodation-body footer a { color: var(--accent); font-size: 11px; font-weight: 800; text-decoration: none; }.accommodation-body footer button { border: 0; background: transparent; color: #b7bdc9; font-size: 11px; }
+.accommodation-modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: #17192385; padding: 16px; }
+.accommodation-modal { width: min(565px, 100%); max-height: calc(100vh - 32px); overflow: auto; border-radius: 18px; background: #fff; color: #252939; }
+.accommodation-modal header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7ed; padding: 21px 25px; }.accommodation-modal h2 { margin: 0; font: 600 23px Unbounded, sans-serif; letter-spacing: -.05em; }.accommodation-modal header button { width: 34px; height: 34px; border: 0; border-radius: 10px; background: #f1f2f6; color: #51596a; font-size: 21px; }
+.accommodation-modal > section,.accommodation-modal > label,.accommodation-modal > .accommodation-form-grid { margin: 16px 25px; }.accommodation-modal > section > b,.accommodation-modal label { display: grid; gap: 9px; color: #30384b; font-size: 12px; font-weight: 800; }
+.accommodation-upload { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, 87px); gap: 8px; margin-top: 10px; }.accommodation-upload > div { display: grid; place-items: center; border: 1px dashed #afb4be; border-radius: 14px; color: #8d929b; font-size: 22px; text-align: center; }.accommodation-upload .accommodation-cover { grid-row: span 2; }.accommodation-upload span { display: block; margin-top: 6px; color: #555c6b; font-size: 11px; line-height: 1.55; }.accommodation-upload u { font-size: 10px; }
+.accommodation-form-statuses { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }.accommodation-form-statuses button { border: 1px solid #e1e4eb; border-radius: 999px; background: #f7f8fb; padding: 8px 15px; color: #8290a6; font-size: 12px; font-weight: 800; }.accommodation-form-statuses button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.accommodation-modal input,.accommodation-modal select,.accommodation-modal textarea { width: 100%; border: 1px solid #dce0e8; border-radius: 11px; background: #fafbfc; padding: 12px 13px; color: #2f3748; font: 13px Manrope, sans-serif; }.accommodation-modal textarea { min-height: 72px; resize: vertical; }
+.accommodation-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.accommodation-modal footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e5e7ed; padding: 18px 25px; }.accommodation-modal footer button { border: 1px solid #dfe2e9; border-radius: 11px; background: #fff; padding: 11px 15px; color: #555d6d; font-weight: 800; }.accommodation-modal footer .accent { border-color: var(--accent); background: var(--accent); color: #fff; }
 .workspace {
   max-width: 1240px;
   margin: auto;
@@ -4117,6 +4125,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .accommodation-heading { align-items: flex-start; flex-direction: column; }
   .accommodation-heading .accent { width: 100%; }
   .accommodation-grid { grid-template-columns: 1fr; }
+  .accommodation-modal-backdrop { padding: 0; align-items: end; }
+  .accommodation-modal { width: 100%; max-height: 94vh; border-radius: 18px 18px 0 0; }
+  .accommodation-modal header,.accommodation-modal footer { padding-right: 18px; padding-left: 18px; }
+  .accommodation-modal > section,.accommodation-modal > label,.accommodation-modal > .accommodation-form-grid { margin-right: 18px; margin-left: 18px; }
+  .accommodation-form-grid { grid-template-columns: 1fr; gap: 12px; }
 }
 
 .budget-cards b {
