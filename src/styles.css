@@ -885,6 +885,16 @@ button {
   font-size: 11px;
   font-weight: 800;
 }
+.edit-trip {
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  padding: 13px 19px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px #4c46d64d;
+}
 .tabs {
   display: flex;
   max-width: 1180px;

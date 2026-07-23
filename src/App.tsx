@@ -2084,6 +2084,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
             <p>{trip.isDraft ? (trip.cities || "Даты, города и маршрут пока не заполнены") : trip.dates}</p>
             {statusMenuOpen && <div className="status-menu" role="dialog" aria-label="Статус путешествия"><b>Статус путешествия</b>{["Активное", "Предстоящее", "Черновик", "Завершённое"].map((status) => <button className={trip.status === status ? "selected" : ""} onClick={() => { onUpdateTrip({ ...trip, status }); setStatusMenuOpen(false); }} key={status}>● {status}</button>)}</div>}
           </div>
+          {tab === "overview" && <button className="edit-trip" onClick={() => { setTab("route"); localStorage.setItem("odyssey-trip-tab", "route"); }}>✎ Редактировать</button>}
           {!trip.isDraft && <div className="share">
             <div>
               <Avatar>АС</Avatar>
