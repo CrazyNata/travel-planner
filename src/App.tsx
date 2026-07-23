@@ -1253,7 +1253,20 @@ function RouteTab({ isDraft = false, draftDays = [], editingRoadDay = null, onEd
   );
 }
 
-function Restaurants() {
+function RestaurantPage({ sights }: { sights: StoredSight[] }) {
+  const [city, setCity] = useState("Все города");
+  const [status, setStatus] = useState("Все статусы");
+  const [openFilter, setOpenFilter] = useState<"city" | "status" | null>(null);
+  const places = [["Roscióli Salumeria", "Рим", "были", "4.7", "Via dei Giubbonari, 21", "13 сент · 21:00"], ["Emma Pizzeria", "Рим", "бронь", "4.6", "Via del Monte della Farina, 28", "12 сент · 20:30"], ["Trattoria Mario", "Флоренция", "хочу", "4.8", "Via Rosina, 2", "15 сент · 13:00"], ["Caffè Gilli", "Флоренция", "бронь", "4.5", "Via Roma, 1", "15 сент · 10:30"], ["Osteria alle Testiere", "Венеция", "хочу", "4.9", "Calle del Mondo Novo, 5801", "17 сент · 19:30"], ["Trattoria da Remigio", "Венеция", "были", "4.4", "Castello, 3416", "18 сент · 20:00"]];
+  const cities = Array.from(new Set(sights.map((sight) => sight.city).filter(Boolean))).sort();
+  const statusLabels: Record<string, string> = { "Все статусы": "Все статусы", хочу: "Хочу", бронь: "Забронировано", были: "Были" };
+  const visible = places.filter((place) => (city === "Все города" || place[1] === city) && (status === "Все статусы" || place[2] === status));
+  const choose = (kind: "city" | "status", value: string) => { if (kind === "city") setCity(value); else setStatus(value); setOpenFilter(null); };
+  return <section className="restaurants-page"><header><div><p className="eyebrow">РЕСТОРАНЫ ПО МАРШРУТУ</p><h2>Рестораны</h2></div></header><div className="restaurant-dropdowns"><div className="restaurant-dropdown"><span>ГОРОД</span><button className="restaurant-dropdown-trigger" aria-expanded={openFilter === "city"} onClick={() => setOpenFilter(openFilter === "city" ? null : "city")}>{city}<i>⌄</i></button>{openFilter === "city" && <div className="restaurant-dropdown-menu">{["Все города", ...cities].map((item) => <button className={city === item ? "active" : ""} onClick={() => choose("city", item)} key={item}>{item}</button>)}</div>}</div><div className="restaurant-dropdown"><span>ФИЛЬТРЫ</span><button className="restaurant-dropdown-trigger" aria-expanded={openFilter === "status"} onClick={() => setOpenFilter(openFilter === "status" ? null : "status")}>{statusLabels[status]}<i>⌄</i></button>{openFilter === "status" && <div className="restaurant-dropdown-menu">{Object.keys(statusLabels).map((item) => <button className={status === item ? "active" : ""} onClick={() => choose("status", item)} key={item}>{statusLabels[item]}</button>)}</div>}</div></div><div className="restaurant-grid">{visible.map((place, index) => <article className={`restaurant-card c${index % 6}`} key={place[0]}><div className="restaurant-photo"><span>{place[2]}</span><b>★ {place[3]}</b><small>€€</small></div><div><p>{cityFlag(place[1])} {place[1]}</p><h3>{place[0]}</h3><small>◷ {place[5]}</small><small>⌖ {place[4]}</small><footer>Забронировать стол → <i>♡</i></footer></div></article>)}</div></section>;
+}
+
+function Restaurants({ sights }: { sights: StoredSight[] }) {
+  return <RestaurantPage sights={sights} />;
   const [city, setCity] = useState("Все · 6");
   const [status, setStatus] = useState("Все статусы");
   const [adding, setAdding] = useState(false);
@@ -1848,7 +1861,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "overview" && <TripOverview trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
         {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { const sight = tripSights.find((item) => item.id === id); const isCheckbox = document.activeElement instanceof HTMLInputElement && document.activeElement.type === "checkbox"; if (isCheckbox) { onUpdateTrip({ ...trip, sights: tripSights.map((item) => item.id === id ? { ...item, done: !item.done } : item) }); return; } if (!sight) return; window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); const query = sight.lnglat ? `${sight.lnglat[1]},${sight.lnglat[0]}` : `${sight.name}, ${sight.city}`; window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[selectedSightDayId] || (selectedSightDayId === "sights-day-1" && trip.title.toLowerCase().includes("рождествен") ? munichDayOneNotes : selectedSightDayId === "sights-day-2" ? veronaDayTwoNotes : "")} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedSightDayId]: value } })} /></>}
-        {tab === "restaurants" && <Restaurants />}
+        {tab === "restaurants" && <Restaurants sights={tripSights} />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
