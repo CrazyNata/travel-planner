@@ -4,7 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
-type Tab = "overview" | "route" | "sights" | "restaurants" | "bookings" | "budget" | "photos" | "members";
+type Tab = "overview" | "route" | "sights" | "restaurants" | "accommodation" | "bookings" | "budget" | "photos" | "members";
 type RoadLeg = { from: string; to: string; checkInFrom: string; checkInTo: string; checkOutFrom: string; checkOutTo: string; notes: string; mapsUrl?: string; completed?: string[] };
 type DraftDay = { id: string; places: string[]; roadLeg?: RoadLeg };
 type CoverPhoto = { id: string; image: string; city?: string; description?: string };
@@ -1282,6 +1282,23 @@ function Restaurants({ sights }: { sights: StoredSight[] }) {
   return <><section className="restaurants-page"><header><div><p className="eyebrow">ИТАЛИЯ · РИМ, ФЛОРЕНЦИЯ, ВЕНЕЦИЯ</p><h2>Рестораны</h2></div><button className="accent" onClick={() => setAdding(true)}>＋ Добавить</button></header><div className="restaurant-filters"><span>ГОРОД</span>{["Все · 6", "Рим · 2", "Флоренция · 2", "Венеция · 2"].map((item) => <button className={city === item ? "active" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}</div><div className="restaurant-filters status">{["Все статусы", "хочу", "бронь", "были"].map((item) => <button className={status === item ? "active" : ""} onClick={() => setStatus(item)} key={item}>{item}</button>)}</div><div className="restaurant-grid">{visible.map((place, index) => <article className={`restaurant-card c${index % 6}`} key={place[0]}><div className="restaurant-photo"><span>{place[2]}</span><b>★ {place[3]}</b><small>€€</small></div><div><p>🇮🇹 {place[1]}</p><h3>{place[0]}</h3><small>◷ {place[5]}</small><small>⌖ {place[4]}</small><footer>Забронировать стол → <i>♡</i></footer></div></article>)}</div></section>{adding && <div className="restaurant-modal-backdrop" onClick={() => setAdding(false)}><form className="restaurant-modal" onClick={(event) => event.stopPropagation()}><header><h2>Новый ресторан</h2><button type="button" onClick={() => setAdding(false)}>×</button></header><div className="restaurant-upload"><div>▧<br />Обложка — перетащите фото<br /><u>or browse files</u></div><div>▧<br />＋ Фото<br /><u>or browse files</u></div><div>▧<br />＋ Фото<br /><u>or browse files</u></div></div><label>Название<input defaultValue="Trattoria Mario" /></label><div className="restaurant-form-grid"><label>Город<select defaultValue="Флоренция"><option>Флоренция</option><option>Рим</option><option>Венеция</option></select></label><label>Кухня<input defaultValue="Тоскана" /></label><label>Дата и время<input defaultValue="15 сент · 13:00" /></label><label>Средний чек<div className="price-options"><button type="button" className="selected">€€</button><button type="button">€€€</button><button type="button">€€€€</button></div></label></div><label>Адрес<input defaultValue="Via Rosina, 2" /></label><label>Статус<div className="price-options"><button type="button" className="selected">хочу</button><button type="button">бронь</button><button type="button">были</button></div></label><footer><button type="button" onClick={() => setAdding(false)}>Отмена</button><button className="accent" type="button" onClick={() => setAdding(false)}>Сохранить</button></footer></form></div>}</>;
 }
 
+function Accommodation() {
+  const stays = [
+    { name: "Mendelkoul room surroundings", city: "Зальцбург, Австрия", dates: "25–26 сен · 1 ночь", price: "€65", status: "бронь", details: "Апартаменты с 1 спальней. Адрес: Helmberg..." },
+    { name: "Residenze MQuadro", city: "Верона, Италия", dates: "26–27 сен · 1 ночь", price: "€91,24", status: "бронь", details: "Апартаменты с 2 спальнями. Адрес: Via B. G..." },
+    { name: "La casa al @Pianeto", city: "Рим, Италия", dates: "27–30 сен · 3 ночи", price: "€434,98", status: "оплачено", details: "Апартаменты с 1 спальней, до 4 гостей. PIN..." },
+    { name: "Villa delle Rose", city: "Флоренция, Италия", dates: "30 сен – 2 окт · 2 ночи", price: "€210", status: "пожили", details: "Номер с видом на город. Адрес будет добавлен." },
+    { name: "Casa Sulla Laguna", city: "Венеция, Италия", dates: "2–4 окт · 2 ночи", price: "€286", status: "хочу", details: "Апартаменты у канала, до 3 гостей." },
+    { name: "Palazzo Milano", city: "Милан, Италия", dates: "4–6 окт · 2 ночи", price: "€318", status: "бронь", details: "Двухместный номер в центре города." },
+  ];
+  const [filter, setFilter] = useState("Все");
+  const [statuses, setStatuses] = useState<Record<string, string>>(() => Object.fromEntries(stays.map((stay) => [stay.name, stay.status])));
+  const [adding, setAdding] = useState(false);
+  const visible = stays.filter((stay) => filter === "Все" || statuses[stay.name] === filter);
+  const statusLabels = ["хочу", "бронь", "оплачено", "пожили"];
+  return <><section className="accommodation-page"><header className="accommodation-heading"><h2>Жильё</h2><button className="accent" onClick={() => setAdding(true)}>＋ Добавить жильё</button></header><div className="accommodation-tabs"><button className="active">Список жилья</button><button onClick={() => setFilter("отмена")}>Отмена</button></div><div className="accommodation-filters">{["Все", "хочу", "бронь", "оплачено"].map((item) => <button className={filter === item ? "active" : ""} onClick={() => setFilter(item)} key={item}>{item === "Все" ? `Все · ${stays.length}` : item === "бронь" ? "Забронировано" : item[0].toUpperCase() + item.slice(1)}</button>)}</div><div className="accommodation-grid">{visible.map((stay, index) => <article className={`accommodation-card c${index % 6}`} key={stay.name}><div className="accommodation-photo"><span className={`stay-badge ${statuses[stay.name]}`}>{statuses[stay.name]}</span><button aria-label="Предыдущее фото">‹</button><button aria-label="Следующее фото">›</button><i>● ● ●</i></div><div className="accommodation-body"><p>{cityFlag(stay.city)} {stay.city}</p><h3>{stay.name}</h3><div className="stay-price"><span>{stay.dates}</span><b>{stay.price}</b></div><div className="stay-statuses">{statusLabels.map((item) => <button className={statuses[stay.name] === item ? `active ${item}` : ""} onClick={() => setStatuses({ ...statuses, [stay.name]: item })} key={item}>{item}</button>)}</div><small>{stay.details}</small><footer><a href="https://www.booking.com/" target="_blank" rel="noreferrer">Ссылка на Букинг →</a><button>удалить</button></footer></div></article>)}</div></section>{adding && <div className="restaurant-modal-backdrop" onClick={() => setAdding(false)}><form className="restaurant-modal" onClick={(event) => event.stopPropagation()}><header><h2>Новое жильё</h2><button type="button" onClick={() => setAdding(false)}>×</button></header><label>Название<input autoFocus placeholder="Например, Hotel Artemide" /></label><div className="restaurant-form-grid"><label>Город<input placeholder="Рим" /></label><label>Даты<input placeholder="12–15 сентября" /></label></div><footer><button type="button" onClick={() => setAdding(false)}>Отмена</button><button className="accent">Сохранить жильё</button></footer></form></div>}</>;
+}
+
 function Bookings() {
   const tickets = [
     ["Колизей", "13 сен · 09:00 · 3 взр.", "5 400 ₽"],
@@ -1815,10 +1832,11 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
-  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"], ["restaurants", "Рестораны"]] : [
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"], ["restaurants", "Рестораны"], ["accommodation", "Жильё"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
-    ["bookings", "Жильё и транспорт"],
+    ["accommodation", "Жильё"],
+    ["bookings", "Транспорт и билеты"],
     ["budget", "Бюджет"],
     ["photos", "Фото"],
     ["members", "Участники"],
@@ -1862,6 +1880,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "route" && <RouteTab isDraft={trip.isDraft} draftDays={draftDays} editingRoadDay={editingRoadDay} onEditingRoadDayChange={setEditingRoadDay} onAddDraftDay={() => onUpdateTrip({ ...trip, places: undefined, days: [...draftDays, { id: crypto.randomUUID(), places: [] }] })} onUpdateDraftDay={(day, changes) => onUpdateTrip({ ...trip, places: undefined, days: draftDays.map((item, index) => index === day ? { ...item, ...changes } : item) })} />}
         {tab === "sights" && <><Sights sights={tripSights} days={sightDays} defaultCity={trip.cities.split(",")[0]?.trim()} onToggle={(id) => { const sight = tripSights.find((item) => item.id === id); const isCheckbox = document.activeElement instanceof HTMLInputElement && document.activeElement.type === "checkbox"; if (isCheckbox) { onUpdateTrip({ ...trip, sights: tripSights.map((item) => item.id === id ? { ...item, done: !item.done } : item) }); return; } if (!sight) return; window.dispatchEvent(new CustomEvent("odyssey-focus-sight", { detail: id })); const query = sight.lnglat ? `${sight.lnglat[1]},${sight.lnglat[0]}` : `${sight.name}, ${sight.city}`; window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer"); }} onAdd={(sight) => onUpdateTrip({ ...trip, sights: [...tripSights, sight] })} onAddDay={(title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title }] })} onRenameDay={(id, title) => onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day) => day.id === id ? { ...day, title } : day) })} /><SightNotes value={trip.sightNotes?.[selectedSightDayId] || (selectedSightDayId === "sights-day-1" && trip.title.toLowerCase().includes("рождествен") ? munichDayOneNotes : selectedSightDayId === "sights-day-2" ? veronaDayTwoNotes : "")} onChange={(value) => onUpdateTrip({ ...trip, sightNotes: { ...trip.sightNotes, [selectedSightDayId]: value } })} /></>}
         {tab === "restaurants" && <Restaurants sights={tripSights} />}
+        {tab === "accommodation" && <Accommodation />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}

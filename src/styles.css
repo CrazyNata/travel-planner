@@ -842,6 +842,33 @@ button {
 .restaurant-card.c1 .restaurant-photo { background: #95a28b; }.restaurant-card.c2 .restaurant-photo { background: #ad909a; }.restaurant-card.c3 .restaurant-photo { background: #8b9aaa; }.restaurant-card.c4 .restaurant-photo { background: #baa984; }.restaurant-card.c5 .restaurant-photo { background: #9291a6; }
 .restaurant-photo span,.restaurant-photo b,.restaurant-photo small { position: absolute; border-radius: 999px; padding: 6px 10px; font-size: 11px; }.restaurant-photo span { top: 14px; left: 14px; background: #31394788; }.restaurant-photo b { top: 14px; right: 14px; background: #fff; color: #423a31; }.restaurant-photo small { right: 14px; bottom: 14px; background: #25252599; }
 .restaurant-card > div:last-child { padding: 16px; }.restaurant-card p { margin: 0; color: #99a0b2; font-size: 11px; font-weight: 800; text-transform: uppercase; }.restaurant-card h3 { margin: 10px 0 14px; font: 700 20px/1.1 Unbounded, sans-serif; letter-spacing: -.06em; }.restaurant-card > div small { display: block; margin: 8px 0; color: #777188; }.restaurant-card footer { display: flex; justify-content: space-between; margin-top: 16px; border-top: 1px solid #eceaf2; padding-top: 15px; color: var(--accent); font-weight: 800; }.restaurant-card footer i { color: #c7b37b; font-style: normal; }
+.accommodation-page { max-width: 1030px; }
+.accommodation-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.accommodation-heading h2 { margin: 0; font: 600 36px/1 Unbounded, sans-serif; letter-spacing: -.07em; }
+.accommodation-heading .accent { border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 12px 17px; color: #fff; font-weight: 800; box-shadow: 0 8px 18px #4c46d64d; }
+.accommodation-tabs { display: flex; gap: 28px; margin-top: 22px; border-bottom: 1px solid #e2e3e8; }
+.accommodation-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 0 3px 14px; color: #9aa1b2; font-size: 13px; font-weight: 800; }
+.accommodation-tabs button.active { border-color: var(--accent); color: #22242b; }
+.accommodation-filters { display: flex; flex-wrap: wrap; gap: 9px; margin: 27px 0 26px; }
+.accommodation-filters button { border: 1px solid #e2e4ea; border-radius: 999px; background: #fff; padding: 8px 15px; color: #788196; font-size: 12px; font-weight: 800; }
+.accommodation-filters button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.accommodation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.accommodation-card { overflow: hidden; border-radius: 17px; background: #fff; box-shadow: 0 8px 22px #25233414; }
+.accommodation-photo { position: relative; height: 190px; background: #c3ad91; }
+.accommodation-card.c1 .accommodation-photo { background: #9dafb4; }.accommodation-card.c2 .accommodation-photo { background: #b89c81; }.accommodation-card.c3 .accommodation-photo { background: #a7b79d; }.accommodation-card.c4 .accommodation-photo { background: #aaa0b3; }.accommodation-card.c5 .accommodation-photo { background: #baa58c; }
+.stay-badge { position: absolute; top: 13px; left: 13px; border-radius: 999px; background: #5b874f; padding: 6px 11px; color: #fff; font-size: 10px; font-weight: 800; box-shadow: 0 4px 8px #19201533; }
+.stay-badge.оплачено { background: var(--accent); }.stay-badge.хочу { background: #c29139; }.stay-badge.пожили { background: #89909e; }
+.accommodation-photo > button { position: absolute; top: 50%; width: 34px; height: 34px; transform: translateY(-50%); border: 0; border-radius: 50%; background: #25262a80; color: #fff; font-size: 22px; line-height: 1; }
+.accommodation-photo > button:nth-of-type(1) { left: 12px; }.accommodation-photo > button:nth-of-type(2) { right: 12px; }
+.accommodation-photo i { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 9px; font-style: normal; letter-spacing: 3px; }
+.accommodation-body { padding: 16px 17px 14px; }
+.accommodation-body > p { margin: 0; color: #9aa4b6; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.accommodation-body h3 { overflow: hidden; margin: 8px 0 12px; font: 600 18px/1.15 Unbounded, sans-serif; letter-spacing: -.055em; text-overflow: ellipsis; white-space: nowrap; }
+.stay-price { display: flex; align-items: center; justify-content: space-between; color: #8d97aa; font-size: 12px; }.stay-price b { color: #20242e; font-size: 17px; }
+.stay-statuses { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.stay-statuses button { border: 1px solid #e1e4ea; border-radius: 9px; background: #fff; padding: 7px 10px; color: #8b94a6; font-size: 10px; font-weight: 800; }.stay-statuses button.active.бронь { border-color: #5b874f; background: #5b874f; color: #fff; }.stay-statuses button.active.оплачено { border-color: var(--accent); background: var(--accent); color: #fff; }.stay-statuses button.active.хочу { border-color: #c29139; background: #c29139; color: #fff; }.stay-statuses button.active.пожили { border-color: #89909e; background: #89909e; color: #fff; }
+.accommodation-body > small { display: block; overflow: hidden; border-radius: 9px; background: #f3f4f7; padding: 10px 12px; color: #7d8799; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.accommodation-body footer { display: flex; justify-content: space-between; margin-top: 14px; }.accommodation-body footer a { color: var(--accent); font-size: 11px; font-weight: 800; text-decoration: none; }.accommodation-body footer button { border: 0; background: transparent; color: #b7bdc9; font-size: 11px; }
 .workspace {
   max-width: 1240px;
   margin: auto;
@@ -4067,6 +4094,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 }
 
 @media (max-width: 760px) {
+  .accommodation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .city-overview-grid,
   .overview-draft {
     grid-template-columns: 1fr;
@@ -4083,6 +4111,12 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .ticket-grid {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 520px) {
+  .accommodation-heading { align-items: flex-start; flex-direction: column; }
+  .accommodation-heading .accent { width: 100%; }
+  .accommodation-grid { grid-template-columns: 1fr; }
 }
 
 .budget-cards b {
