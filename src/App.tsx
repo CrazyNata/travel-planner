@@ -1569,49 +1569,68 @@ function Photos() {
 }
 
 function Members() {
-  const people: [string, string, string, string, "sand" | "green" | "blue"][] =
-    [
-      ["АС", "Анна Соколова", "anna@mail.ru", "Владелец", "sand"],
-      ["МК", "Максим Крылов", "maxim@mail.ru", "Редактор", "green"],
-      ["ДВ", "Дарья Волкова", "darya@mail.ru", "Читатель", "blue"],
-    ];
+  type Member = { id: string; initials: string; name: string; email: string; role: "Владелец" | "Редактор" | "Читатель"; tone: "sand" | "green" | "blue" };
+  const [people, setPeople] = useState<Member[]>([
+    { id: "anna", initials: "АС", name: "Анна Соколова", email: "anna@mail.ru", role: "Владелец", tone: "sand" },
+    { id: "maxim", initials: "МК", name: "Максим Крылов", email: "maxim@mail.ru", role: "Редактор", tone: "green" },
+    { id: "darya", initials: "ДВ", name: "Дарья Волкова", email: "darya@mail.ru", role: "Читатель", tone: "blue" },
+  ]);
+  const [email, setEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<Member["role"]>("Редактор");
+  const [publicLinkEnabled, setPublicLinkEnabled] = useState(true);
+  const [published, setPublished] = useState(false);
+  const [copyLabel, setCopyLabel] = useState("Копировать");
+  const publicUrl = "odyssey.travel/p/italy-8d-a1b2";
+  const inviteMember = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || people.some((person) => person.email === trimmedEmail)) return;
+    const name = trimmedEmail.split("@")[0] || trimmedEmail;
+    setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
+    setEmail("");
+  };
+  const copyPublicLink = async () => {
+    if (navigator.clipboard) await navigator.clipboard.writeText(`${window.location.origin}/${publicUrl}`).catch(() => undefined);
+    setCopyLabel("Скопировано");
+    window.setTimeout(() => setCopyLabel("Копировать"), 1800);
+  };
   return (
     <div className="members">
       <article className="panel">
-        {people.map(([initials, name, email, role, tone]) => (
-          <div className="member" key={name}>
-            <Avatar tone={tone}>{initials}</Avatar>
+        {people.map((person) => (
+          <div className="member" key={person.id}>
+            <Avatar tone={person.tone}>{person.initials}</Avatar>
             <span>
-              <b>{name}</b>
-              <small>{email}</small>
+              <b>{person.name}</b>
+              <small>{person.email}</small>
             </span>
-            <button>{role}⌄</button>
+            {person.role === "Владелец" ? <span className="member-role">Владелец</span> : <select aria-label={`Роль ${person.name}`} value={person.role} onChange={(event) => setPeople((current) => current.map((item) => item.id === person.id ? { ...item, role: event.target.value as Member["role"] } : item))}><option>Редактор</option><option>Читатель</option></select>}
           </div>
         ))}
-        <div className="invite">
-          <input placeholder="e-mail нового участника" />
-          <button>Редактор⌄</button>
+        <form className="invite" onSubmit={inviteMember}>
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="e-mail нового участника" aria-label="E-mail нового участника" />
+          <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as Member["role"])} aria-label="Роль нового участника"><option>Редактор</option><option>Читатель</option></select>
           <button className="accent">Пригласить</button>
-        </div>
+        </form>
       </article>
       <article className="panel public-link">
         <h2>
-          Публичная ссылка <i />
+          Публичная ссылка <button className={`link-toggle ${publicLinkEnabled ? "active" : ""}`} type="button" role="switch" aria-checked={publicLinkEnabled} aria-label="Включить публичную ссылку" onClick={() => setPublicLinkEnabled((enabled) => !enabled)}><i /></button>
         </h2>
         <p>
           Любой, у кого есть ссылка, может просматривать маршрут без прав на
           редактирование.
         </p>
         <div>
-          <code>odyssey.travel/p/italy-8d-a1b2</code>
-          <button>Копировать</button>
+          <code>{publicUrl}</code>
+          <button type="button" onClick={() => void copyPublicLink()} disabled={!publicLinkEnabled}>{copyLabel}</button>
         </div>
         <div className="public-catalog">
           <span>
             <b>Опубликовать в каталоге</b>
             <small>Другие смогут найти и скопировать ваш маршрут</small>
           </span>
-          <button>Опубликовать</button>
+          <button type="button" onClick={() => setPublished((value) => !value)}>{published ? "Опубликовано" : "Опубликовать"}</button>
         </div>
       </article>
     </div>

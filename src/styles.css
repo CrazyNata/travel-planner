@@ -3010,7 +3010,10 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   font-size: 13px;
 }
 .member button,
-.invite button {
+.member select,
+.invite button,
+.invite select,
+.member-role {
   border: 1px solid #eae2d7;
   border-radius: 9px;
   background: #f7f2ec;
@@ -3037,11 +3040,30 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   display: flex;
   justify-content: space-between;
 }
-.public-link h2 i {
-  width: 40px;
-  height: 24px;
+.link-toggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border: 0;
   border-radius: 15px;
+  background: #d9d9e3;
+  padding: 0;
+}
+.link-toggle i {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .16s ease;
+}
+.link-toggle.active {
   background: var(--accent);
+}
+.link-toggle.active i {
+  transform: translateX(18px);
 }
 .public-link p {
   color: #9c948a;
@@ -3068,6 +3090,21 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   color: #fff;
   font-size: 11px;
   font-weight: 800;
+}
+.public-link .link-toggle {
+  flex: 0 0 44px;
+  background: #d9d9e3;
+}
+.public-link .link-toggle.active {
+  background: var(--accent);
+}
+.public-link .link-toggle i {
+  width: 18px;
+  height: 18px;
+}
+.public-link > div > button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 .public-link .public-catalog {
@@ -3135,6 +3172,17 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   padding: 8px 14px;
   font-size: 13px;
 }
+.members .member select,
+.members .member-role {
+  min-width: 101px;
+  padding: 8px 14px;
+  color: #6e675e;
+  font-size: 13px;
+  font-weight: 700;
+}
+.members .member-role {
+  text-align: center;
+}
 
 .members .invite {
   gap: 12px;
@@ -3152,6 +3200,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 
 .members .invite button {
   padding: 11px 14px;
+  font-size: 14px;
+}
+.members .invite select {
+  padding: 11px 14px;
+  color: #6e675e;
   font-size: 14px;
 }
 
