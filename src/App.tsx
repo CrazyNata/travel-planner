@@ -1825,7 +1825,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
     return () => { cancelled = true; };
   }, [trip.id]);
   useEffect(() => {
-    const clearedKey = `odyssey-cover-cleared-${trip.id}`;
+    const clearedKey = `odyssey-cover-cleared-v2-${trip.id}`;
     if (!trip.isDraft || localStorage.getItem(clearedKey)) return;
     localStorage.setItem(clearedKey, "true");
     if (trip.coverImage || trip.coverPhotos?.length) onUpdateTrip({ ...trip, coverImage: undefined, coverPhotos: [] });
