@@ -11,7 +11,7 @@ type CoverPhoto = { id: string; image: string; city?: string; description?: stri
 type TripSummary = { id: string; title: string; dates: string; cities: string; status: string; progress: number; tone: string; isDraft?: boolean; coverImage?: string; coverPhotos?: CoverPhoto[]; coverCity?: string; coverDescription?: string; coverTextColor?: string; overviewMapPoints?: string[]; places?: string[]; days?: DraftDay[]; sights?: StoredSight[]; sightDays?: { id: string; title: string }[]; sightDaysVersion?: number; sightNotes?: Record<string, string> };
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
 type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string; description?: string; duration?: string };
-type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string; isDraft?: boolean; status?: string }; [key: string]: unknown }; [key: string]: unknown };
+type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string; isDraft?: boolean; status?: string; coverImage?: string; coverPhotos?: CoverPhoto[]; coverTextColor?: string; overviewMapPoints?: string[] }; [key: string]: unknown }; [key: string]: unknown };
 
 function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
@@ -122,6 +122,10 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     tone: "stone",
     // List status must not switch the route into a different interface.
     isDraft: true,
+    coverImage: payload.data?.trip?.coverImage,
+    coverPhotos: payload.data?.trip?.coverPhotos,
+    coverTextColor: payload.data?.trip?.coverTextColor,
+    overviewMapPoints: payload.data?.trip?.overviewMapPoints,
     days,
   };
 }
@@ -1770,12 +1774,7 @@ function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; on
   const selectPhotos = (files?: FileList | File[] | null) => {
     const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
     if (!images.length) return;
-    void Promise.all(images.map((file) => new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    }))).then(setSelectedPhotos).catch(() => undefined);
+    void Promise.all(images.map(compressCoverPhoto)).then(setSelectedPhotos).catch(() => undefined);
   };
   const selectPhoto = (file?: File) => selectPhotos(file ? [file] : []);
   const save = () => {
@@ -2548,7 +2547,7 @@ export function App() {
         items: day.places.map((title, itemIndex) => ({ ...existing.items?.[itemIndex], id: existing.items?.[itemIndex]?.id || crypto.randomUUID(), title })),
       };
     });
-    const nextPayload: StoredTripPayload = { ...storedPayload, data: { ...storedPayload.data, days: updatedDays, trip: { ...storedPayload.data.trip, isDraft: true, status: trip.status } } };
+    const nextPayload: StoredTripPayload = { ...storedPayload, data: { ...storedPayload.data, days: updatedDays, trip: { ...storedPayload.data.trip, isDraft: true, status: trip.status, coverImage: trip.coverImage, coverPhotos: trip.coverPhotos, coverTextColor: trip.coverTextColor, overviewMapPoints: trip.overviewMapPoints } } };
     setStoredPayload(nextPayload);
     void supabase.from("trip_state").update({ payload: nextPayload }).eq("id", "main").then(({ error }) => {
       if (error) console.error("Could not save the trip.", error);
