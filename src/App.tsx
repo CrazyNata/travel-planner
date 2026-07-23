@@ -1617,6 +1617,21 @@ function Members() {
     setSendingInvite(true);
     setInviteMessage("");
     const name = trimmedEmail.split("@")[0] || trimmedEmail;
+    const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip`;
+    const addMember = () => {
+      setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
+      setEmail("");
+    };
+    const sendFallbackEmail = async () => {
+      const { error } = await supabase.auth.signInWithOtp({ email: trimmedEmail, options: { emailRedirectTo: redirectTo } });
+      if (error) {
+        setInviteMessage(error.message || "Не удалось отправить письмо.");
+        return false;
+      }
+      addMember();
+      setInviteMessage(`Письмо со ссылкой для входа отправлено на ${trimmedEmail}.`);
+      return true;
+    };
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       setInviteMessage("Войдите в аккаунт, чтобы отправить приглашение.");
@@ -1631,18 +1646,16 @@ function Members() {
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: trimmedEmail, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` }),
+        body: JSON.stringify({ email: trimmedEmail, name, redirectTo }),
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        setInviteMessage(payload?.error || "Не удалось отправить приглашение.");
+        await sendFallbackEmail();
         return;
       }
-      setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
-      setEmail("");
+      addMember();
       setInviteMessage(`Приглашение отправлено на ${trimmedEmail}.`);
     } catch {
-      setInviteMessage("Не удалось связаться с сервисом приглашений.");
+      await sendFallbackEmail();
     } finally {
       setSendingInvite(false);
     }
