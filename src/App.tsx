@@ -1540,26 +1540,23 @@ function Budget() {
 }
 
 function Photos() {
-  const [city, setCity] = useState("Все · 48");
+  const [query, setQuery] = useState("");
   const [uploaded, setUploaded] = useState<{ id: string; image: string; date?: string; city?: string }[]>([]);
   const input = useRef<HTMLInputElement>(null);
-  const filters = ["Все · 48", "Рим · 21", "Флоренция · 14", "Венеция · 13"];
   const uploadPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     const photos = await Promise.all(Array.from(files).filter((file) => file.type.startsWith("image/")).map(async (file) => ({ id: crypto.randomUUID(), image: URL.createObjectURL(file), ...await readPhotoMetadata(file) })));
     setUploaded((current) => [...photos, ...current]);
   };
-  const visibleUploads = city === "Все · 48" ? uploaded : uploaded.filter((photo) => photo.city === city.split(" · ")[0]);
+  const visibleUploads = uploaded.filter((photo) => `${photo.city || ""} ${photo.date || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <section className="photos-page">
       <input ref={input} className="photo-file-input" type="file" accept="image/*" multiple onChange={(event) => { void uploadPhotos(event.target.files); event.target.value = ""; }} />
       <header className="photos-heading"><div><h2>Фотоальбом</h2><p>48 фото · снимки всех участников поездки</p></div><button className="accent" onClick={() => input.current?.click()}>↑ Загрузить</button></header>
-      <div className="photo-filters">
-        {filters.map((item) => <button className={city === item ? "active" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}
-      </div>
+      <label className="photo-search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по дате или месту" /></label>
       <div className="photo-grid">
         {visibleUploads.map((photo) => <div className="photo uploaded-photo" style={{ backgroundImage: `url(${photo.image})` }} key={photo.id}><span>{photo.city || "Место не определено"}{photo.date ? ` · ${photo.date}` : " · дата не определена"}</span></div>)}
-        {Array.from({ length: 9 }, (_, index) => (
+        {!query && Array.from({ length: 9 }, (_, index) => (
           <div
             className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`}
             key={index}
