@@ -987,6 +987,12 @@ button {
   font-size: 13px;
   text-align: center;
 }
+.editor-photo-drop.has-photo {
+  background-position: center;
+  background-size: cover;
+  color: #fff;
+  font-weight: 800;
+}
 .editor-photo-drop input { display: none; }
 .editor-photo-drop svg { width: 27px; height: 27px; stroke: #868b95; stroke-width: 1.7; }
 .editor-photo-drop small { font-size: 11px; }
