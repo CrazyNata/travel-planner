@@ -39,6 +39,10 @@ function normalizeTripDates(dates: string) {
   return match ? formatTripDates(match[1], match[2]) : dates;
 }
 
+function savedStatus(tripId: string, fallback: string) {
+  return localStorage.getItem(`odyssey-trip-${tripId}-status`) || fallback;
+}
+
 function cityFlag(city: string) {
   if (city.includes("Прага")) return "🇨🇿";
   if (city.includes("Зальцбург")) return "🇦🇹";
@@ -113,7 +117,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     title: "Путешествие",
     dates: formatTripDates(start, end),
     cities: storedDays.map((day) => day.city).filter(Boolean).slice(0, 3).join(" · "),
-    status: payload.data?.trip?.status || (payload.data?.trip?.isDraft === false ? "Предстоящее" : "Черновик"),
+    status: savedStatus("supabase-main", payload.data?.trip?.status || (payload.data?.trip?.isDraft === false ? "Предстоящее" : "Черновик")),
     progress: 0,
     tone: "stone",
     // List status must not switch the route into a different interface.
@@ -2445,6 +2449,9 @@ export function App() {
   useEffect(() => {
     localStorage.setItem("odyssey-active-trip", activeTrip.id);
   }, [activeTrip.id]);
+  useEffect(() => {
+    localStorage.setItem(`odyssey-trip-${activeTrip.id}-status`, activeTrip.status);
+  }, [activeTrip.id, activeTrip.status]);
   const go = (next: View) => {
     localStorage.setItem("odyssey-current-view", next);
     setView(next);
@@ -2452,6 +2459,7 @@ export function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const updateTrip = (trip: TripSummary) => {
+    localStorage.setItem(`odyssey-trip-${trip.id}-status`, trip.status);
     setActiveTrip(trip);
     setDrafts((items) => items.map((item) => item.id === trip.id ? trip : item));
     if (trip.id !== "supabase-main" || !storedPayload?.data) return;
