@@ -1740,6 +1740,25 @@ function Members({ trip }: { trip: TripSummary }) {
   );
 }
 
+function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void; onClose: () => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const routeCities = Array.from(new Set([...(trip.cities || "").split(/[·,]/).map((city) => city.trim()), ...(trip.days || []).flatMap((day) => day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [])].filter(Boolean)));
+  const [cityIndex, setCityIndex] = useState(0);
+  const [caption, setCaption] = useState("");
+  const [weatherCities, setWeatherCities] = useState(routeCities);
+  const [mapPoints, setMapPoints] = useState((trip.days || []).flatMap((day) => day.places).filter(Boolean).slice(0, 5));
+  const city = routeCities[cityIndex] || "Город";
+  const addMapPoint = () => {
+    const point = window.prompt("Точка маршрута")?.trim();
+    if (point) setMapPoints((points) => [...points, point]);
+  };
+  const addWeatherCity = () => {
+    const nextCity = window.prompt("Город для погоды")?.trim();
+    if (nextCity) setWeatherCities((cities) => [...cities, nextCity]);
+  };
+  return <div className="overview-editor-backdrop" onClick={onClose}><section className="overview-editor" role="dialog" aria-modal="true" aria-labelledby="overview-editor-title" onClick={(event) => event.stopPropagation()}><header><h2 id="overview-editor-title">Редактирование главной</h2><button type="button" onClick={onClose} aria-label="Закрыть">×</button></header><div className="overview-editor-content"><div className="editor-city-head"><b>Слайд города</b><span><button type="button" onClick={() => setCityIndex((index) => (index - 1 + routeCities.length) % routeCities.length)} disabled={routeCities.length < 2}>‹</button><strong>{city}</strong><button type="button" onClick={() => setCityIndex((index) => (index + 1) % routeCities.length)} disabled={routeCities.length < 2}>›</button></span></div><div className="editor-photo-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); input.current?.click(); }}><input ref={input} type="file" accept="image/*" /><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m4 18 5-5 3 3 3-3 5 5" /></svg><span>Перетащите фото города</span><small>or <button type="button" onClick={() => input.current?.click()}>browse files</button></small></div><input className="editor-field" value={city} readOnly /><textarea className="editor-caption" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Описание города на главной" /><div className="editor-colors"><b>Цвет текста на фото</b><span><i className="active" /><i /><i /><i /></span></div><section className="editor-section"><header><b>Маршрут на карте</b><small>{mapPoints.length} точек</small></header><div className="editor-chips">{mapPoints.map((point, index) => <button type="button" key={`${point}-${index}`}>Точка {index + 1}<i onClick={(event) => { event.stopPropagation(); setMapPoints((points) => points.filter((_, pointIndex) => pointIndex !== index)); }}>×</i></button>)}</div><button type="button" className="editor-add" onClick={addMapPoint}>＋ Добавить точку</button></section><section className="editor-section"><header><b>Города для погоды</b></header><div className="editor-weather-cities">{weatherCities.map((weatherCity, index) => <label key={`${weatherCity}-${index}`}><input value={weatherCity} onChange={(event) => setWeatherCities((cities) => cities.map((item, cityIndex) => cityIndex === index ? event.target.value : item))} /><button type="button" onClick={() => setWeatherCities((cities) => cities.filter((_, cityIndex) => cityIndex !== index))}>×</button></label>)}</div><button type="button" className="editor-add" onClick={addWeatherCity}>＋ Добавить город</button></section></div><footer><button type="button" onClick={onClose}>Отмена</button><button className="accent" type="button" onClick={() => { onUpdateTrip({ ...trip, cities: weatherCities.join(", ") }); onClose(); }}>Готово</button></footer></section></div>;
+}
+
 const winterCities = [
   { name: "Мюнхен", latitude: 48.1374, longitude: 11.5755 },
   { name: "Верона", latitude: 45.4384, longitude: 10.9916 },
@@ -1972,6 +1991,7 @@ function SightNotes({ value, onChange }: { value: string; onChange: (value: stri
 function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
+  const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
@@ -2084,7 +2104,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
             <p>{trip.isDraft ? (trip.cities || "Даты, города и маршрут пока не заполнены") : trip.dates}</p>
             {statusMenuOpen && <div className="status-menu" role="dialog" aria-label="Статус путешествия"><b>Статус путешествия</b>{["Активное", "Предстоящее", "Черновик", "Завершённое"].map((status) => <button className={trip.status === status ? "selected" : ""} onClick={() => { onUpdateTrip({ ...trip, status }); setStatusMenuOpen(false); }} key={status}>● {status}</button>)}</div>}
           </div>
-          {tab === "overview" && <button className="edit-trip" onClick={() => { setTab("route"); localStorage.setItem("odyssey-trip-tab", "route"); }}>✎ Редактировать</button>}
+          {tab === "overview" && <button className="edit-trip" onClick={() => setOverviewEditorOpen(true)}>✎ Редактировать</button>}
           {!trip.isDraft && <div className="share">
             <div>
               <Avatar>АС</Avatar>
@@ -2117,6 +2137,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "photos" && <Photos />}
         {tab === "members" && <Members trip={trip} />}
       </main>
+      {overviewEditorOpen && <OverviewEditor trip={trip} onUpdateTrip={onUpdateTrip} onClose={() => setOverviewEditorOpen(false)} />}
     </div>
   );
 }
