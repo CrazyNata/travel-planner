@@ -828,16 +828,6 @@ button {
   font-size: 11px;
   font-weight: 800;
 }
-.publish-trip {
-  border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  padding: 12px 18px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  box-shadow: 0 8px 18px #4c46d64d;
-}
 .tabs {
   display: flex;
   max-width: 1180px;
