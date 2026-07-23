@@ -3254,6 +3254,9 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   padding: 11px 14px;
   font-size: 14px;
 }
+.members .invite .invite-name {
+  flex: .65;
+}
 
 .members .invite button {
   padding: 11px 14px;

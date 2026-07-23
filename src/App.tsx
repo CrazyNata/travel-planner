@@ -1598,6 +1598,7 @@ function Members() {
     { id: "maxim", initials: "МК", name: "Максим Крылов", email: "maxim@mail.ru", role: "Редактор", tone: "green" },
     { id: "darya", initials: "ДВ", name: "Дарья Волкова", email: "darya@mail.ru", role: "Читатель", tone: "blue" },
   ]);
+  const [inviteName, setInviteName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Member["role"]>("Редактор");
   const [inviteMessage, setInviteMessage] = useState("");
@@ -1616,10 +1617,11 @@ function Members() {
     }
     setSendingInvite(true);
     setInviteMessage("");
-    const name = trimmedEmail.split("@")[0] || trimmedEmail;
+    const name = inviteName.trim() || trimmedEmail.split("@")[0] || trimmedEmail;
     const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip`;
     const addMember = () => {
       setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
+      setInviteName("");
       setEmail("");
     };
     const sendFallbackEmail = async () => {
@@ -1679,6 +1681,7 @@ function Members() {
           </div>
         ))}
         <form className="invite" onSubmit={(event) => void inviteMember(event)}>
+          <input className="invite-name" value={inviteName} onChange={(event) => setInviteName(event.target.value)} placeholder="Имя участника" aria-label="Имя нового участника" />
           <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="e-mail нового участника" aria-label="E-mail нового участника" />
           <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as Member["role"])} aria-label="Роль нового участника"><option>Редактор</option><option>Читатель</option></select>
           <button className="accent" disabled={sendingInvite}>{sendingInvite ? "Отправляем..." : "Пригласить"}</button>
