@@ -3487,6 +3487,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .members .member-role {
   text-align: center;
 }
+.members .member .member-remove {
+  border-color: #f1d4d4;
+  background: #fff7f7;
+  color: #b34343;
+}
 
 .members .invite {
   gap: 12px;

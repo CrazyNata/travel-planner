@@ -1720,7 +1720,7 @@ function Members({ trip }: { trip: TripSummary }) {
               <b>{person.name}</b>
               <small>{person.email}</small>
             </span>
-            {person.role === "Владелец" ? <span className="member-role">Владелец</span> : <select aria-label={`Роль ${person.name}`} value={person.role} onChange={(event) => setPeople((current) => current.map((item) => item.id === person.id ? { ...item, role: event.target.value as Member["role"] } : item))}><option>Редактор</option><option>Читатель</option></select>}
+            {person.role === "Владелец" ? <span className="member-role">Владелец</span> : <><select aria-label={`Роль ${person.name}`} value={person.role} onChange={(event) => setPeople((current) => current.map((item) => item.id === person.id ? { ...item, role: event.target.value as Member["role"] } : item))}><option>Редактор</option><option>Читатель</option></select><button type="button" className="member-remove" onClick={() => { setPeople((current) => current.filter((item) => item.id !== person.id)); setInviteMessage(`${person.name} удалён из поездки.`); }}>Удалить</button></>}
           </div>
         ))}
         <form className="invite" onSubmit={(event) => void inviteMember(event)}>
