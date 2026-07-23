@@ -2890,9 +2890,10 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 145px;
+  grid-auto-rows: 160px;
   gap: 10px;
 }
+.photos-page { max-width: 900px; }.photos-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 17px; }.photos-heading h2 { margin: 0 0 5px; font: 600 25px/1 Unbounded, sans-serif; letter-spacing: -.055em; }.photos-heading p { margin: 0; color: #99a3b5; font-size: 13px; }.photos-heading .accent { border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 12px 17px; color: #fff; font-weight: 800; box-shadow: 0 8px 18px #4c46d64d; }.photo-filters { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 18px; }.photo-filters button { border: 1px solid #e1e4eb; border-radius: 999px; background: #fff; padding: 8px 15px; color: #778398; font-size: 12px; font-weight: 800; }.photo-filters button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .photo {
   border-radius: 14px;
   background: linear-gradient(135deg, #5a54d8, #8f89ec);
