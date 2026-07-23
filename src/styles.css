@@ -1058,17 +1058,17 @@ button {
 .weather-switch {
   display: flex;
   flex: none;
-  border-radius: 10px;
+  border-radius: 13px;
   background: #e9eaee;
-  padding: 3px;
+  padding: 4px;
 }
 .weather-switch button {
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  padding: 7px 10px;
+  padding: 9px 13px;
   color: #77736c;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
 }
 .weather-switch button.active {
