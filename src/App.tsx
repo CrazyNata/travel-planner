@@ -2328,7 +2328,6 @@ export function App() {
       if (!payload || !trip) return;
       setStoredPayload(payload);
       setDrafts((items) => [...items.filter((item) => item.id !== trip.id), trip]);
-      setActiveTrip((current) => current.id === trip.id ? trip : current);
     };
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
