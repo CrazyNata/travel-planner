@@ -1950,14 +1950,14 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
   const tripSights = isChristmasTrip
     ? [...defaultChristmasSights.map((sight) => ({ ...sight, done: trip.sights?.find((saved) => saved.id === sight.id)?.done })), ...(trip.sights || []).filter((sight) => !defaultChristmasSights.some((defaultSight) => defaultSight.id === sight.id) && !(sight.walkDay === 6 && sight.city === "Пиза"))]
     : trip.sights || [];
-  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"], ["restaurants", "Рестораны"], ["accommodation", "Жильё"], ["budget", "Бюджет"], ["photos", "Фото"], ["members", "Участники"]] : [
+  const labels: [Tab, string][] = trip.isDraft ? [["overview", "Главная"], ["route", "Маршрут"], ["sights", "Достопримечательности"], ["restaurants", "Рестораны"], ["accommodation", "Жильё"], ["budget", "Бюджет"], ["members", "Участники"], ["photos", "Фото"]] : [
     ["overview", "Главная"],
     ["route", "Маршрут"],
     ["accommodation", "Жильё"],
     ["bookings", "Транспорт и билеты"],
     ["budget", "Бюджет"],
-    ["photos", "Фото"],
     ["members", "Участники"],
+    ["photos", "Фото"],
   ];
   return (
     <div>
