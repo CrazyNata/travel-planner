@@ -25,6 +25,47 @@ function cityFlag(city: string) {
   return "";
 }
 
+type PhotoMetadata = { date?: string; city?: string };
+
+function photoCity(latitude?: number, longitude?: number) {
+  if (latitude === undefined || longitude === undefined) return undefined;
+  const cities = [[41.9, 12.5, "Рим"], [43.77, 11.25, "Флоренция"], [45.44, 12.33, "Венеция"]] as const;
+  return cities.map(([lat, lng, city]) => ({ city, distance: Math.hypot(latitude - lat, longitude - lng) })).sort((a, b) => a.distance - b.distance)[0]?.distance < .55 ? cities.map(([lat, lng, city]) => ({ city, distance: Math.hypot(latitude - lat, longitude - lng) })).sort((a, b) => a.distance - b.distance)[0]?.city : undefined;
+}
+
+async function readPhotoMetadata(file: File): Promise<PhotoMetadata> {
+  if (!file.type.includes("jpeg")) return {};
+  const data = new DataView(await file.arrayBuffer());
+  let offset = 2;
+  while (offset + 4 < data.byteLength) {
+    if (data.getUint8(offset) !== 0xff) break;
+    const marker = data.getUint8(offset + 1);
+    const size = data.getUint16(offset + 2, false);
+    if (marker !== 0xe1 || data.getUint32(offset + 4, false) !== 0x45786966) { offset += size + 2; continue; }
+    const tiff = offset + 10;
+    const little = data.getUint16(tiff, false) === 0x4949;
+    const u16 = (position: number) => data.getUint16(position, little);
+    const u32 = (position: number) => data.getUint32(position, little);
+    const ascii = (position: number, length: number) => String.fromCharCode(...Array.from({ length: length - 1 }, (_, index) => data.getUint8(position + index)));
+    const ifd = (position: number) => { const count = u16(position); return Array.from({ length: count }, (_, index) => { const entry = position + 2 + index * 12; return { tag: u16(entry), type: u16(entry + 2), count: u32(entry + 4), value: entry + 8, offset: u32(entry + 8) }; }); };
+    const base = tiff;
+    const entries = ifd(base + u32(base + 4));
+    const dateEntry = entries.find((entry) => entry.tag === 0x9003 || entry.tag === 0x0132);
+    const gpsEntry = entries.find((entry) => entry.tag === 0x8825);
+    const date = dateEntry ? ascii(base + dateEntry.offset, dateEntry.count).replace(/:/g, ".").replace(" ", " · ") : undefined;
+    if (!gpsEntry) return { date };
+    const gps = ifd(base + gpsEntry.offset);
+    const gpsValue = (tag: number) => gps.find((entry) => entry.tag === tag);
+    const rational = (entry?: { offset: number; count: number }) => entry ? Array.from({ length: entry.count }, (_, index) => { const point = base + entry.offset + index * 8; return u32(point) / u32(point + 4); }) : [];
+    const latitudeParts = rational(gpsValue(2)); const longitudeParts = rational(gpsValue(4));
+    const latitude = latitudeParts.length === 3 ? latitudeParts[0] + latitudeParts[1] / 60 + latitudeParts[2] / 3600 : undefined;
+    const longitude = longitudeParts.length === 3 ? longitudeParts[0] + longitudeParts[1] / 60 + longitudeParts[2] / 3600 : undefined;
+    const ref = (tag: number) => { const entry = gpsValue(tag); return entry ? String.fromCharCode(data.getUint8(base + entry.offset)) : ""; };
+    return { date, city: photoCity(ref(1) === "S" && latitude ? -latitude : latitude, ref(3) === "W" && longitude ? -longitude : longitude) };
+  }
+  return {};
+}
+
 function savedTrip(payload: StoredTripPayload): TripSummary | null {
   const storedDays = payload.data?.days;
   if (!storedDays?.length) return null;
@@ -1499,18 +1540,26 @@ function Budget() {
 }
 
 function Photos() {
+  const [city, setCity] = useState("Все · 48");
+  const [uploaded, setUploaded] = useState<{ id: string; image: string; date?: string; city?: string }[]>([]);
+  const input = useRef<HTMLInputElement>(null);
+  const filters = ["Все · 48", "Рим · 21", "Флоренция · 14", "Венеция · 13"];
+  const uploadPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const photos = await Promise.all(Array.from(files).filter((file) => file.type.startsWith("image/")).map(async (file) => ({ id: crypto.randomUUID(), image: URL.createObjectURL(file), ...await readPhotoMetadata(file) })));
+    setUploaded((current) => [...photos, ...current]);
+  };
+  const visibleUploads = city === "Все · 48" ? uploaded : uploaded.filter((photo) => photo.city === city.split(" · ")[0]);
   return (
-    <div>
-      <SectionHead title="Фотоальбом" />
-      <p className="lead">48 фото · снимки всех участников поездки</p>
-      <div className="chips">
-        <button className="selected">Все · 48</button>
-        <button>Рим · 21</button>
-        <button>Флоренция · 14</button>
-        <button>Венеция · 13</button>
+    <section className="photos-page">
+      <input ref={input} className="photo-file-input" type="file" accept="image/*" multiple onChange={(event) => { void uploadPhotos(event.target.files); event.target.value = ""; }} />
+      <header className="photos-heading"><div><h2>Фотоальбом</h2><p>48 фото · снимки всех участников поездки</p></div><button className="accent" onClick={() => input.current?.click()}>↑ Загрузить</button></header>
+      <div className="photo-filters">
+        {filters.map((item) => <button className={city === item ? "active" : ""} onClick={() => setCity(item)} key={item}>{item}</button>)}
       </div>
       <div className="photo-grid">
-        {Array.from({ length: 10 }, (_, index) => (
+        {visibleUploads.map((photo) => <div className="photo uploaded-photo" style={{ backgroundImage: `url(${photo.image})` }} key={photo.id}><span>{photo.city || "Место не определено"}{photo.date ? ` · ${photo.date}` : " · дата не определена"}</span></div>)}
+        {Array.from({ length: 9 }, (_, index) => (
           <div
             className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`}
             key={index}
@@ -1518,11 +1567,8 @@ function Photos() {
             {index === 0 && <span>Колизей · 13 сен</span>}
           </div>
         ))}
-        <button className="photo-add">
-          ＋<small>Добавить</small>
-        </button>
       </div>
-    </div>
+    </section>
   );
 }
 
