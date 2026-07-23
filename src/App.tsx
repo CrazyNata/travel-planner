@@ -1591,13 +1591,25 @@ function Photos() {
   );
 }
 
-function Members() {
+function Members({ tripId }: { tripId: string }) {
   type Member = { id: string; initials: string; name: string; email: string; role: "Владелец" | "Редактор" | "Читатель"; tone: "sand" | "green" | "blue" };
-  const [people, setPeople] = useState<Member[]>([
+  const defaultPeople: Member[] = [
     { id: "anna", initials: "АС", name: "Анна Соколова", email: "anna@mail.ru", role: "Владелец", tone: "sand" },
     { id: "maxim", initials: "МК", name: "Максим Крылов", email: "maxim@mail.ru", role: "Редактор", tone: "green" },
     { id: "darya", initials: "ДВ", name: "Дарья Волкова", email: "darya@mail.ru", role: "Читатель", tone: "blue" },
-  ]);
+  ];
+  const membersStorageKey = `odyssey-trip-${tripId}-members`;
+  const [people, setPeople] = useState<Member[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(membersStorageKey) || "[]") as Member[];
+      return saved.length ? saved : defaultPeople;
+    } catch {
+      return defaultPeople;
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem(membersStorageKey, JSON.stringify(people));
+  }, [membersStorageKey, people]);
   const [inviteName, setInviteName] = useState("");
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Member["role"]>("Редактор");
@@ -2079,7 +2091,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
-        {tab === "members" && <Members />}
+        {tab === "members" && <Members tripId={trip.id} />}
       </main>
     </div>
   );
