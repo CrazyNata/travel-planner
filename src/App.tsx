@@ -12,6 +12,8 @@ type TripSummary = { id: string; title: string; dates: string; cities: string; s
 type StoredDay = { id?: string; city?: string; dayMapUrl?: string; checkInFrom?: string; checkInTo?: string; checkOutFrom?: string; checkOutTo?: string; completed?: string[]; items?: { id?: string; title?: string; done?: boolean }[] };
 type StoredSight = { id: string; name: string; city: string; done?: boolean; group?: string; photo?: string; lnglat?: [number, number]; walkDay?: number; walkOrder?: number; subcategory?: string; description?: string; duration?: string };
 type StoredTripPayload = { data?: { days?: StoredDay[]; sights?: StoredSight[]; trip?: { start?: string; end?: string; isDraft?: boolean; status?: string; coverImage?: string; coverPhotos?: CoverPhoto[]; coverTextColor?: string; overviewMapPoints?: string[] }; [key: string]: unknown }; [key: string]: unknown };
+const emptyPlaces: string[] = [];
+const emptyRouteDays: DraftDay[] = [];
 
 function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
@@ -666,7 +668,7 @@ function compressCoverPhoto(file: File) {
   });
 }
 
-function TripMap({ city, places = [], routeDays = [], activeDay }: { city?: string; places?: string[]; routeDays?: DraftDay[]; activeDay?: number }) {
+function TripMap({ city, places = emptyPlaces, routeDays = emptyRouteDays, activeDay }: { city?: string; places?: string[]; routeDays?: DraftDay[]; activeDay?: number }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef<HTMLSpanElement[]>([]);
