@@ -807,6 +807,56 @@ button {
   color: #4e7443;
   font: 700 10px Manrope;
 }
+.trip-title-block {
+  position: relative;
+}
+.draft-status {
+  display: inline-block;
+  margin-left: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #e4f0de;
+  padding: 6px 12px;
+  color: #4e7443;
+  font: 700 13px Manrope, sans-serif;
+  vertical-align: middle;
+}
+.draft-status-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 282px;
+  border: 1px solid #e3e6df;
+  border-radius: 14px;
+  background: #fff;
+  padding: 15px;
+  box-shadow: 0 14px 30px #20231d1f;
+  animation: draft-status-slide .16s ease-out;
+}
+.draft-status-menu b {
+  font-size: 13px;
+}
+.trip-heading .draft-status-menu p {
+  margin: 4px 0 13px;
+  color: #8a8279;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.draft-status-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  background: #e7e8fb;
+  padding: 10px 12px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+@keyframes draft-status-slide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .trip-heading p {
   margin: 7px 0 0;
   color: var(--muted);
