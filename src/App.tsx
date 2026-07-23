@@ -1866,10 +1866,7 @@ function TripOverview({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip:
   const [activePhoto, setActivePhoto] = useState(0);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const isWinterRoute = trip.title.toLowerCase().includes("рождествен") || trip.cities.includes("Мюнхен") || trip.cities.includes("Прага");
-  const coverPhotos = (trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity, description: trip.coverDescription }] : []).filter((photo) => photo.id !== "verona-cover").map((photo, index) => {
-    const caption = isWinterRoute ? winterPhotoCaptions[index] : undefined;
-    return { ...photo, city: photo.city || caption?.[0], description: photo.description || caption?.[1] };
-  });
+  const coverPhotos = (trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage, city: trip.coverCity, description: trip.coverDescription }] : []).filter((photo) => photo.id !== "verona-cover");
   const activeCover = coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
   const uploadCoverPhoto = async (file: Blob, extension: string) => {
     const { data: { session } } = await supabase.auth.getSession();

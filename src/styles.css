@@ -1374,6 +1374,9 @@ button {
   text-align: left;
   text-shadow: 0 2px 9px rgba(0, 0, 0, 0.45);
 }
+.cover-photo-caption { display: none; }
+.cover-photo-caption:has(span) { display: flex; }
+.cover-photo-caption b { display: none !important; }
 .cover-photo-caption b,
 .cover-photo-caption span {
   display: block;
@@ -1430,7 +1433,7 @@ button {
   bottom: 88px;
   left: 48px;
   color: #fff;
-  content: "Мюнхен";
+  content: none;
   font: 600 26px/1.1 Unbounded, sans-serif;
   letter-spacing: -.05em;
   text-shadow: 0 2px 8px #25263070;
@@ -1441,7 +1444,7 @@ button {
   bottom: 27px;
   left: 48px;
   color: #fff;
-  content: "Столица Баварии в декабре превращается в светящуюся рождественскую сцену. Готические башни Новой ратуши возвышаются над ярмаркой на Мариенплац.";
+  content: none;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
