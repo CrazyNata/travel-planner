@@ -1591,14 +1591,14 @@ function Photos() {
   );
 }
 
-function Members({ tripId }: { tripId: string }) {
+function Members({ trip }: { trip: TripSummary }) {
   type Member = { id: string; initials: string; name: string; email: string; role: "Владелец" | "Редактор" | "Читатель"; tone: "sand" | "green" | "blue" };
   const defaultPeople: Member[] = [
     { id: "anna", initials: "АС", name: "Анна Соколова", email: "anna@mail.ru", role: "Владелец", tone: "sand" },
     { id: "maxim", initials: "МК", name: "Максим Крылов", email: "maxim@mail.ru", role: "Редактор", tone: "green" },
     { id: "darya", initials: "ДВ", name: "Дарья Волкова", email: "darya@mail.ru", role: "Читатель", tone: "blue" },
   ];
-  const membersStorageKey = `odyssey-trip-${tripId}-members`;
+  const membersStorageKey = `odyssey-trip-${trip.id}-members`;
   const [people, setPeople] = useState<Member[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(membersStorageKey) || "[]") as Member[];
@@ -1652,6 +1652,7 @@ function Members({ tripId }: { tripId: string }) {
       setSendingInvite(false);
       return;
     }
+    const inviterName = session.user.user_metadata.full_name || session.user.email?.split("@")[0] || "Участник путешествия";
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invite`, {
         method: "POST",
@@ -1660,7 +1661,7 @@ function Members({ tripId }: { tripId: string }) {
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: trimmedEmail, name, redirectTo }),
+        body: JSON.stringify({ email: trimmedEmail, name, role: inviteRole, redirectTo, trip: { title: trip.title, dates: trip.dates, cities: trip.cities, inviterName, participants: people.map((person) => person.name) } }),
       });
       if (!response.ok) {
         await sendFallbackEmail();
@@ -2091,7 +2092,7 @@ function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip:
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
-        {tab === "members" && <Members tripId={trip.id} />}
+        {tab === "members" && <Members trip={trip} />}
       </main>
     </div>
   );
