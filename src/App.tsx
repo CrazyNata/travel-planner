@@ -653,13 +653,13 @@ function compressCoverPhoto(file: File) {
     const source = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
-      const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+      const scale = Math.min(1, 900 / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(image.width * scale);
       canvas.height = Math.round(image.height * scale);
       canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(source);
-      resolve(canvas.toDataURL("image/jpeg", 0.76));
+      resolve(canvas.toDataURL("image/jpeg", 0.68));
     };
     image.onerror = () => { URL.revokeObjectURL(source); reject(new Error("Image decoding failed")); };
     image.src = source;
