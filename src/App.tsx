@@ -34,6 +34,11 @@ function formatTripDates(start?: string, end?: string) {
   return `${range} · ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
 }
 
+function normalizeTripDates(dates: string) {
+  const match = dates.match(/^(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})$/);
+  return match ? formatTripDates(match[1], match[2]) : dates;
+}
+
 function cityFlag(city: string) {
   if (city.includes("Прага")) return "🇨🇿";
   if (city.includes("Зальцбург")) return "🇦🇹";
@@ -1041,7 +1046,7 @@ function CreateTrip({ go, onCreate }: { go: (view: View) => void; onCreate: (tri
           const formData = new FormData(event.currentTarget);
           const title = String(formData.get("title") || "").trim() || "Без названия";
           const cities = String(formData.get("cities") || "").trim();
-          onCreate({ id: crypto.randomUUID(), title, cities, dates: startDate && endDate ? `${startDate} – ${endDate}` : "Даты не выбраны · черновик", status: "Черновик", progress: 0, tone: "stone", isDraft: true, coverImage });
+          onCreate({ id: crypto.randomUUID(), title, cities, dates: startDate && endDate ? formatTripDates(startDate, endDate) : "Даты не выбраны · черновик", status: "Черновик", progress: 0, tone: "stone", isDraft: true, coverImage });
         }}
       >
         <label>
@@ -2295,7 +2300,7 @@ export function App() {
     try {
       const saved = JSON.parse(localStorage.getItem("odyssey-drafts") || "[]") as TripSummary[];
       // Earlier versions used isDraft for both status and interface mode.
-      return saved.map((trip) => ({ ...trip, isDraft: true }));
+      return saved.map((trip) => ({ ...trip, dates: normalizeTripDates(trip.dates), isDraft: true }));
     } catch {
       return [];
     }
