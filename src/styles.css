@@ -996,8 +996,10 @@ button {
 .editor-photo-list { display: flex; flex-wrap: wrap; gap: 8px; margin: -2px 0 12px; }
 .editor-photo-list > div { position: relative; width: 62px; height: 48px; border-radius: 8px; background-position: center; background-size: cover; }
 .editor-photo-list > div[draggable="true"] { cursor: grab; }.editor-photo-list > div.dragging { opacity: .45; cursor: grabbing; }
+.editor-photo-list > div.active { box-shadow: 0 0 0 3px var(--accent); }
 .editor-photo-list > div button { position: absolute; top: -5px; right: -5px; width: 19px; height: 19px; border: 0; border-radius: 50%; background: #252638; color: #fff; font-size: 14px; line-height: 1; }
 .editor-add-photos { min-height: 48px; border: 1px dashed #bfc3cf; border-radius: 8px; background: #fff; padding: 0 12px; color: var(--accent); font-size: 12px; font-weight: 800; }
+.editor-photo-hint { margin: 0 0 9px; color: #707785; font-size: 12px; }
 .editor-photo-drop input { display: none; }
 .editor-photo-drop svg { width: 27px; height: 27px; stroke: #868b95; stroke-width: 1.7; }
 .editor-photo-drop small { font-size: 11px; }
