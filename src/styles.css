@@ -1045,6 +1045,9 @@ button {
   color: #23201c;
 }
 .restaurants-page { max-width: 1060px; margin: 0 auto; padding: 38px 0; }
+.restaurants-with-add { position: relative; max-width: 1060px; margin: 0 auto; }
+.restaurants-with-add .restaurants-page { margin: 0; }
+.restaurant-add-button { position: absolute; top: 38px; right: 0; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 13px 19px; color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 20px #4c46d64d; }
 .restaurants-page > header { display: flex; align-items: start; justify-content: space-between; }
 .restaurants-page .eyebrow { display: block; margin: 0; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
 .restaurants-page > header .accent { border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 13px 19px; color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 8px 20px #4c46d64d; }

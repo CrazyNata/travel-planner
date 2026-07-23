@@ -1345,7 +1345,8 @@ function RestaurantPage({ sights }: { sights: StoredSight[] }) {
 }
 
 function Restaurants({ sights }: { sights: StoredSight[] }) {
-  return <RestaurantPage sights={sights} />;
+  const [addingRestaurant, setAddingRestaurant] = useState(false);
+  return <div className="restaurants-with-add"><RestaurantPage sights={sights} /><button className="restaurant-add-button" onClick={() => setAddingRestaurant(true)}>＋ Добавить</button>{addingRestaurant && <div className="restaurant-modal-backdrop" onClick={() => setAddingRestaurant(false)}><form className="restaurant-modal" onSubmit={(event) => { event.preventDefault(); setAddingRestaurant(false); }} onClick={(event) => event.stopPropagation()}><header><h2>Новый ресторан</h2><button type="button" onClick={() => setAddingRestaurant(false)}>×</button></header><label>Название<input autoFocus placeholder="Например, Trattoria Mario" /></label><div className="restaurant-form-grid"><label>Город<select defaultValue="Рим"><option>Рим</option><option>Флоренция</option><option>Венеция</option></select></label><label>Кухня<input placeholder="Например, итальянская" /></label><label>Дата и время<input type="datetime-local" /></label><label>Средний чек<input placeholder="€€" /></label></div><footer><button type="button" onClick={() => setAddingRestaurant(false)}>Отмена</button><button className="accent">Добавить</button></footer></form></div>}</div>;
   const [city, setCity] = useState("Все · 6");
   const [status, setStatus] = useState("Все статусы");
   const [adding, setAdding] = useState(false);
