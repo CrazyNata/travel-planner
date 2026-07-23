@@ -3264,6 +3264,15 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   color: #6e675e;
   font-size: 14px;
 }
+.members .invite button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+.member-invite-message {
+  margin: -6px 0 12px;
+  color: #6e675e;
+  font-size: 12px;
+}
 
 .members .public-link {
   padding: 22px;

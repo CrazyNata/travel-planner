@@ -1600,17 +1600,52 @@ function Members() {
   ]);
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Member["role"]>("Редактор");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [sendingInvite, setSendingInvite] = useState(false);
   const [publicLinkEnabled, setPublicLinkEnabled] = useState(true);
   const [published, setPublished] = useState(false);
   const [copyLabel, setCopyLabel] = useState("Копировать");
   const publicUrl = "odyssey.travel/p/italy-8d-a1b2";
-  const inviteMember = (event: FormEvent<HTMLFormElement>) => {
+  const inviteMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
-    if (!trimmedEmail || people.some((person) => person.email === trimmedEmail)) return;
+    if (!trimmedEmail) return;
+    if (people.some((person) => person.email === trimmedEmail)) {
+      setInviteMessage("Этот участник уже добавлен.");
+      return;
+    }
+    setSendingInvite(true);
+    setInviteMessage("");
     const name = trimmedEmail.split("@")[0] || trimmedEmail;
-    setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
-    setEmail("");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setInviteMessage("Войдите в аккаунт, чтобы отправить приглашение.");
+      setSendingInvite(false);
+      return;
+    }
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invite`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: trimmedEmail, name, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip` }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        setInviteMessage(payload?.error || "Не удалось отправить приглашение.");
+        return;
+      }
+      setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
+      setEmail("");
+      setInviteMessage(`Приглашение отправлено на ${trimmedEmail}.`);
+    } catch {
+      setInviteMessage("Не удалось связаться с сервисом приглашений.");
+    } finally {
+      setSendingInvite(false);
+    }
   };
   const copyPublicLink = async () => {
     if (navigator.clipboard) await navigator.clipboard.writeText(`${window.location.origin}/${publicUrl}`).catch(() => undefined);
@@ -1630,11 +1665,12 @@ function Members() {
             {person.role === "Владелец" ? <span className="member-role">Владелец</span> : <select aria-label={`Роль ${person.name}`} value={person.role} onChange={(event) => setPeople((current) => current.map((item) => item.id === person.id ? { ...item, role: event.target.value as Member["role"] } : item))}><option>Редактор</option><option>Читатель</option></select>}
           </div>
         ))}
-        <form className="invite" onSubmit={inviteMember}>
+        <form className="invite" onSubmit={(event) => void inviteMember(event)}>
           <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="e-mail нового участника" aria-label="E-mail нового участника" />
           <select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as Member["role"])} aria-label="Роль нового участника"><option>Редактор</option><option>Читатель</option></select>
-          <button className="accent">Пригласить</button>
+          <button className="accent" disabled={sendingInvite}>{sendingInvite ? "Отправляем..." : "Пригласить"}</button>
         </form>
+        {inviteMessage && <p className="member-invite-message" role="status">{inviteMessage}</p>}
       </article>
       <article className="panel public-link">
         <h2>
