@@ -1483,12 +1483,11 @@ button {
   display: none;
 }
 .add-cover-photo {
-  display: none;
+  display: none !important;
   position: absolute;
   top: 14px;
   right: 14px;
   z-index: 1;
-  display: grid;
   width: 40px;
   height: 40px;
   place-items: center;
