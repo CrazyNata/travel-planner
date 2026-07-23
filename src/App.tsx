@@ -17,6 +17,23 @@ function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
 }
 
+function formatTripDates(start?: string, end?: string) {
+  if (!start || !end) return "Даты путешествия";
+  const startDate = new Date(`${start}T00:00:00Z`);
+  const endDate = new Date(`${end}T00:00:00Z`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return `${start} – ${end}`;
+  const days = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+  const month = new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: "UTC" });
+  const startMonth = month.format(startDate);
+  const endMonth = month.format(endDate);
+  const startYear = startDate.getUTCFullYear();
+  const endYear = endDate.getUTCFullYear();
+  const range = startMonth === endMonth && startYear === endYear
+    ? `${startDate.getUTCDate()}–${endDate.getUTCDate()} ${startMonth} ${startYear}`
+    : `${startDate.getUTCDate()} ${startMonth} ${startYear} – ${endDate.getUTCDate()} ${endMonth} ${endYear}`;
+  return `${range} · ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
+}
+
 function cityFlag(city: string) {
   if (city.includes("Прага")) return "🇨🇿";
   if (city.includes("Зальцбург")) return "🇦🇹";
@@ -89,7 +106,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
   return {
     id: "supabase-main",
     title: "Путешествие",
-    dates: start && end ? `${start} - ${end}` : "Даты путешествия",
+    dates: formatTripDates(start, end),
     cities: storedDays.map((day) => day.city).filter(Boolean).slice(0, 3).join(" · "),
     status: payload.data?.trip?.isDraft === false ? "Предстоящее" : "Черновик",
     progress: 0,
