@@ -1011,9 +1011,8 @@ button {
 .editor-caption { min-height: 74px; margin-top: 10px; resize: vertical; }
 .editor-colors { justify-content: flex-start; margin: 20px 0 26px; }
 .editor-colors > span { display: flex; gap: 9px; }
-.editor-colors i { width: 25px; height: 25px; border: 1px solid #dedfe4; border-radius: 50%; background: #fff; }
-.editor-colors i.active { border: 2px solid var(--accent); box-shadow: inset 0 0 0 3px #fff; }
-.editor-colors i:nth-child(2) { background: #f9d79c; }.editor-colors i:nth-child(3) { background: #121317; }.editor-colors i:nth-child(4) { background: #c8c6ff; }
+.editor-colors button { width: 25px; height: 25px; border: 1px solid #dedfe4; border-radius: 50%; padding: 0; }
+.editor-colors button.active { border: 2px solid var(--accent); box-shadow: inset 0 0 0 3px #fff; }
 .editor-section { border-top: 1px solid #e9eaee; padding: 22px 0; }
 .editor-section > header small { color: #98a0ad; font-size: 12px; }
 .editor-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 13px 0 9px; }
