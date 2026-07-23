@@ -1421,7 +1421,8 @@ function SectionHead({ title }: { title: string }) {
   );
 }
 
-function Budget() {
+function LegacyBudget() {
+  const [adding, setAdding] = useState(false);
   const cats = [
     ["Жильё", 64, "67 100 ₽"],
     ["Транспорт", 41, "43 300 ₽"],
@@ -1430,7 +1431,8 @@ function Budget() {
     ["Прочее", 8, "6 800 ₽"],
   ] as const;
   return (
-    <div className="budget">
+    <><div className="budget">
+      <div className="budget-actions"><h2>Бюджет поездки</h2><button className="accent" onClick={() => setAdding(true)}>＋ Добавить трату</button></div>
       <div className="budget-cards">
         <article>
           <span>Общий бюджет</span>
@@ -1482,8 +1484,18 @@ function Budget() {
           <button className="send-reminders">Отправить напоминания</button>
         </article>
       </div>
-    </div>
+    </div>{adding && <div className="restaurant-modal-backdrop" onClick={() => setAdding(false)}><form className="restaurant-modal budget-modal" onSubmit={(event) => { event.preventDefault(); setAdding(false); }} onClick={(event) => event.stopPropagation()}><header><h2>Новая трата</h2><button type="button" onClick={() => setAdding(false)}>×</button></header><label>Название<input autoFocus placeholder="Например, билеты в музей" /></label><div className="restaurant-form-grid"><label>Категория<select defaultValue="Активности и билеты"><option>Жильё</option><option>Транспорт</option><option>Еда и рестораны</option><option>Активности и билеты</option><option>Прочее</option></select></label><label>Сумма<input placeholder="0 ₽" inputMode="numeric" /></label><label>Оплатил<select><option>Анна</option><option>Максим</option><option>Дарья</option></select></label><label>Дата<input type="date" /></label></div><footer><button type="button" onClick={() => setAdding(false)}>Отмена</button><button className="accent">Добавить трату</button></footer></form></div>}</>
   );
+}
+
+function ExpenseForm({ onClose }: { onClose: () => void }) {
+  const [category, setCategory] = useState("Еда");
+  return <div className="expense-modal-backdrop" onClick={onClose}><form className="expense-modal" onSubmit={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => event.stopPropagation()}><header><h2>Новая трата</h2><button type="button" onClick={onClose}>×</button></header><label>Название<input autoFocus placeholder="Напр. Ужин в Трастевере" /></label><div className="expense-form-grid"><label>Сумма, ₽<input defaultValue="4 200" inputMode="numeric" /></label><label>Кто платил<select defaultValue="Анна"><option>Анна</option><option>Максим</option><option>Дарья</option></select></label></div><section><b>Категория</b><div>{["Еда", "Транспорт", "Жильё", "Активности", "Прочее"].map((item) => <button type="button" className={category === item ? "active" : ""} onClick={() => setCategory(item)} key={item}>{item}</button>)}</div></section><footer><button type="button" onClick={onClose}>Отмена</button><button className="accent">Добавить</button></footer></form></div>;
+}
+
+function Budget() {
+  const [adding, setAdding] = useState(false);
+  return <div onClickCapture={(event) => { if (event.target instanceof HTMLButtonElement && event.target.closest(".budget-actions")) { event.stopPropagation(); setAdding(true); } }}><LegacyBudget />{adding && <ExpenseForm onClose={() => setAdding(false)} />}</div>;
 }
 
 function Photos() {
