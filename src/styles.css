@@ -2872,6 +2872,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .split > b {
   color: #4e7443;
 }
+.split > b.negative { color: #c85240; }
 
 .send-reminders {
   width: 100%;

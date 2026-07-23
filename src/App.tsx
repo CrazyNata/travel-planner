@@ -1466,17 +1466,17 @@ function Budget() {
           <h2>Разделить расходы</h2>
           <p>Поровну между 3 участниками</p>
           {[
-            ["АС", "Анна", "+ 39 600 ₽"],
-            ["МК", "Максим", "− 6 600 ₽"],
-            ["ДВ", "Дарья", "− 33 000 ₽"],
+            ["АС", "Анна", "оплатила 98 500 ₽", "+ 39 600 ₽"],
+            ["МК", "Максим", "оплатил 52 300 ₽", "− 6 600 ₽"],
+            ["ДВ", "Дарья", "оплатила 25 900 ₽", "− 33 000 ₽"],
           ].map((item) => (
             <div className="split" key={item[1]}>
               <Avatar>{item[0]}</Avatar>
               <span>
                 <b>{item[1]}</b>
-                <small>оплачено участником</small>
+                <small>{item[2]}</small>
               </span>
-              <b>{item[2]}</b>
+              <b className={item[3].startsWith("+") ? "positive" : "negative"}>{item[3]}</b>
             </div>
           ))}
           <button className="send-reminders">Отправить напоминания</button>
