@@ -1543,12 +1543,18 @@ function Photos() {
   const [query, setQuery] = useState("");
   const [uploaded, setUploaded] = useState<{ id: string; image: string; date?: string; city?: string }[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  const samples = [
+    ["Колизей", "Рим", "13 сен"], ["Пантеон", "Рим", "13 сен"], ["Фонтан Треви", "Рим", "14 сен"],
+    ["Санта-Мария-дель-Фьоре", "Флоренция", "15 сен"], ["Понте Веккьо", "Флоренция", "16 сен"], ["Сады Боболи", "Флоренция", "16 сен"],
+    ["Площадь Сан-Марко", "Венеция", "17 сен"], ["Гранд-канал", "Венеция", "17 сен"], ["Остров Бурано", "Венеция", "18 сен"],
+  ] as const;
   const uploadPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     const photos = await Promise.all(Array.from(files).filter((file) => file.type.startsWith("image/")).map(async (file) => ({ id: crypto.randomUUID(), image: URL.createObjectURL(file), ...await readPhotoMetadata(file) })));
     setUploaded((current) => [...photos, ...current]);
   };
   const visibleUploads = uploaded.filter((photo) => `${photo.city || ""} ${photo.date || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const visibleSamples = samples.filter(([name, place, date]) => `${name} ${place} ${date}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <section className="photos-page">
       <input ref={input} className="photo-file-input" type="file" accept="image/*" multiple onChange={(event) => { void uploadPhotos(event.target.files); event.target.value = ""; }} />
@@ -1556,14 +1562,7 @@ function Photos() {
       <label className="photo-search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по дате или месту" /></label>
       <div className="photo-grid">
         {visibleUploads.map((photo) => <div className="photo uploaded-photo" style={{ backgroundImage: `url(${photo.image})` }} key={photo.id}><span>{photo.city || "Место не определено"}{photo.date ? ` · ${photo.date}` : " · дата не определена"}</span></div>)}
-        {!query && Array.from({ length: 9 }, (_, index) => (
-          <div
-            className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`}
-            key={index}
-          >
-            {index === 0 && <span>Колизей · 13 сен</span>}
-          </div>
-        ))}
+        {visibleSamples.map(([name, place, date], index) => <div className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`} key={name}><span className="photo-label">{place} · {date}</span></div>)}
       </div>
     </section>
   );
