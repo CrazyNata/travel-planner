@@ -1660,7 +1660,7 @@ function Members({ trip }: { trip: TripSummary }) {
     setSendingInvite(true);
     setInviteMessage("");
     const name = inviteName.trim() || trimmedEmail.split("@")[0] || trimmedEmail;
-    const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}?invite=trip`;
+    const redirectTo = "https://crazynata.github.io/travel-planner/?invite=trip";
     const addMember = () => {
       setPeople((current) => [...current, { id: crypto.randomUUID(), initials: name.slice(0, 2).toUpperCase(), name, email: trimmedEmail, role: inviteRole, tone: "blue" }]);
       setInviteName("");
