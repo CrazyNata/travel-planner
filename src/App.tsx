@@ -1753,7 +1753,8 @@ function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; on
   const routeCities = Array.from(new Set([...(trip.cities || "").split(/[·,]/).map((city) => city.trim()), ...(trip.days || []).flatMap((day) => day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [])].filter(Boolean)));
   const [cityIndex, setCityIndex] = useState(0);
   const [caption, setCaption] = useState("");
-  const [selectedPhoto, setSelectedPhoto] = useState("");
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const selectedPhoto = selectedPhotos[0] || "";
   const [textColor, setTextColor] = useState(trip.coverTextColor || "#ffffff");
   const [weatherCities, setWeatherCities] = useState(routeCities);
   const [mapPoints, setMapPoints] = useState(trip.overviewMapPoints || routeCities);
@@ -1766,15 +1767,20 @@ function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; on
     const nextCity = window.prompt("Город для погоды")?.trim();
     if (nextCity) setWeatherCities((cities) => [...cities, nextCity]);
   };
-  const selectPhoto = (file?: File) => {
-    if (!file?.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => setSelectedPhoto(String(reader.result));
-    reader.readAsDataURL(file);
+  const selectPhotos = (files?: FileList | File[] | null) => {
+    const images = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
+    if (!images.length) return;
+    void Promise.all(images.map((file) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    }))).then(setSelectedPhotos).catch(() => undefined);
   };
+  const selectPhoto = (file?: File) => selectPhotos(file ? [file] : []);
   const save = () => {
     const existingPhotos = trip.coverPhotos?.length ? trip.coverPhotos : trip.coverImage ? [{ id: "legacy-cover", image: trip.coverImage }] : [];
-    const nextPhotos = selectedPhoto ? [...existingPhotos.filter((photo) => photo.city !== city), { id: crypto.randomUUID(), image: selectedPhoto, city, description: caption, textColor }] : existingPhotos;
+    const nextPhotos = selectedPhotos.length ? [...existingPhotos.filter((photo) => photo.city !== city), ...selectedPhotos.map((image) => ({ id: crypto.randomUUID(), image, city, description: caption, textColor }))] : existingPhotos;
     onUpdateTrip({ ...trip, cities: weatherCities.join(", "), coverImage: nextPhotos[0]?.image, coverPhotos: nextPhotos, coverTextColor: textColor, overviewMapPoints: mapPoints });
     onClose();
   };
@@ -1785,7 +1791,7 @@ function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; on
         <header><h2 id="overview-editor-title">Редактирование главной</h2><button type="button" onClick={onClose} aria-label="Закрыть">×</button></header>
         <div className="overview-editor-content">
           <div className="editor-city-head"><b>Слайд города</b><span><button type="button" onClick={() => setCityIndex((index) => (index - 1 + routeCities.length) % routeCities.length)} disabled={routeCities.length < 2}>‹</button><strong>{city}</strong><button type="button" onClick={() => setCityIndex((index) => (index + 1) % routeCities.length)} disabled={routeCities.length < 2}>›</button></span></div>
-          <div className={`editor-photo-drop ${selectedPhoto ? "has-photo" : ""}`} style={selectedPhoto ? { backgroundImage: `linear-gradient(#11182733, #11182733), url(${selectedPhoto})` } : undefined} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectPhoto(event.dataTransfer.files[0]); }}><input ref={input} type="file" accept="image/*" onChange={(event) => { selectPhoto(event.target.files?.[0]); event.target.value = ""; }} />{selectedPhoto ? <span>Фото выбрано</span> : <><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m4 18 5-5 3 3 3-3 5 5" /></svg><span>Перетащите фото города</span><small>or <button type="button" onClick={() => input.current?.click()}>browse files</button></small></>}</div>
+          <div className={`editor-photo-drop ${selectedPhotos.length ? "has-photo" : ""}`} style={selectedPhotos.length ? { backgroundImage: `linear-gradient(#11182733, #11182733), url(${selectedPhotos[0]})` } : undefined} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectPhotos(event.dataTransfer.files); }}><input ref={input} type="file" accept="image/*" multiple onChange={(event) => { selectPhotos(event.target.files); event.target.value = ""; }} />{selectedPhotos.length ? <span>Выбрано фото: {selectedPhotos.length}</span> : <><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m4 18 5-5 3 3 3-3 5 5" /></svg><span>Перетащите фото города</span><small>or <button type="button" onClick={() => input.current?.click()}>browse files</button></small></>}</div>
           <input className="editor-field" value={city} readOnly /><textarea className="editor-caption" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Описание города на главной" />
           <div className="editor-colors"><b>Цвет текста на фото</b><span>{colors.map((color) => <button type="button" className={textColor === color ? "active" : ""} style={{ background: color }} onClick={() => setTextColor(color)} aria-label={`Выбрать цвет ${color}`} key={color} />)}</span></div>
           <section className="editor-section"><header><b>Маршрут на карте</b><small>{mapPoints.length} точек</small></header><div className="editor-chips">{mapPoints.map((point, index) => <button type="button" key={`${point}-${index}`}>Точка {index + 1}<i onClick={(event) => { event.stopPropagation(); setMapPoints((points) => points.filter((_, pointIndex) => pointIndex !== index)); }}>×</i></button>)}</div><button type="button" className="editor-add" onClick={addMapPoint}>＋ Добавить точку</button></section>
