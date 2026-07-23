@@ -813,39 +813,44 @@ button {
 .status-picker {
   display: inline-block;
   margin-left: 10px;
-  border: 0;
+  border: 1px solid #dcdaf8;
   border-radius: 999px;
-  background: #e4f0de;
+  background: #eeedff;
   padding: 6px 12px;
-  color: #4e7443;
+  color: var(--accent);
   font: 700 14px Manrope, sans-serif;
   vertical-align: middle;
+}
+.status-picker:hover {
+  border-color: var(--accent);
+  background: #e5e4ff;
 }
 .status-menu {
   position: absolute;
   z-index: 10;
   top: calc(100% + 10px);
   right: 0;
-  width: 282px;
-  border: 1px solid #e3e6df;
-  border-radius: 14px;
+  width: 264px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   background: #fff;
-  padding: 15px;
-  box-shadow: 0 14px 30px #20231d1f;
+  padding: 12px;
+  box-shadow: 0 16px 36px #20223024;
   animation: status-menu-slide .16s ease-out;
 }
 .status-menu b {
   display: block;
-  margin-bottom: 7px;
-  font-size: 13px;
+  margin: 2px 5px 8px;
+  color: #282a32;
+  font-size: 12px;
 }
 .status-menu button {
   width: 100%;
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
-  padding: 9px 10px;
-  color: #625e57;
+  padding: 10px 11px;
+  color: #6f7080;
   text-align: left;
   font-size: 12px;
   font-weight: 800;
