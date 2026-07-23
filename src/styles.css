@@ -1249,6 +1249,12 @@ button {
   background: #fff;
   padding: 15px;
 }
+.weather-card.has-photo {
+  border: 0;
+  background-position: center;
+  background-size: cover;
+  color: #fff;
+}
 .weather-card h3,
 .weather-card b,
 .weather-card span,
@@ -1272,6 +1278,9 @@ button {
   font-size: 11px;
   line-height: 1.35;
 }
+.weather-card.has-photo b,
+.weather-card.has-photo span,
+.weather-card.has-photo p { color: #fff; }
 .overview-draft {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 360px;
