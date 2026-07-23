@@ -1796,7 +1796,7 @@ function OverviewEditor({ trip, onUpdateTrip, onClose }: { trip: TripSummary; on
   const activePhoto = savedPhotos.find((photo) => photo.id === activePhotoId);
   const updateActivePhoto = (changes: Partial<CoverPhoto>) => setSavedPhotos((photos) => photos.map((photo) => photo.id === activePhotoId ? { ...photo, ...changes } : photo));
   return (
-    <div className="overview-editor-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="overview-editor-backdrop">
       <section className="overview-editor" role="dialog" aria-modal="true" aria-labelledby="overview-editor-title" onClick={(event) => event.stopPropagation()}>
         <header><h2 id="overview-editor-title">Редактирование главной</h2><button type="button" onClick={onClose} aria-label="Закрыть">×</button></header>
         <div className="overview-editor-content">
