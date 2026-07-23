@@ -1882,11 +1882,11 @@ function SightNotes({ value, onChange }: { value: string; onChange: (value: stri
   return <section className="sight-notes"><div><span>✎</span><div><h3>Заметки</h3><p>Адреса, билеты, идеи и всё, что пригодится в прогулке.</p></div></div><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder="Например: купить билеты заранее, прийти к открытию..." /></section>;
 }
 
-function Workspace({ go, trip, onUpdateTrip, onPublish }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void; onPublish: (trip: TripSummary) => void }) {
+function Workspace({ go, trip, onUpdateTrip }: { go: (view: View) => void; trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview");
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
-  const [draftStatusOpen, setDraftStatusOpen] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const draftDays = trip.days?.length ? trip.days : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
   const isChristmasTrip = trip.isDraft || trip.title.toLowerCase().includes("рождествен");
@@ -1992,10 +1992,10 @@ function Workspace({ go, trip, onUpdateTrip, onPublish }: { go: (view: View) => 
         <div className="trip-heading">
           <div className="trip-title-block">
             <h1>
-              {trip.title} {trip.status === "Черновик" ? <button className="draft-status" onClick={() => setDraftStatusOpen((open) => !open)} aria-expanded={draftStatusOpen}>● Черновик</button> : <span>● {trip.status}</span>}
+              {trip.title} <button className="status-picker" onClick={() => setStatusMenuOpen((open) => !open)} aria-expanded={statusMenuOpen}>● {trip.status}</button>
             </h1>
             <p>{trip.isDraft ? (trip.cities || "Даты, города и маршрут пока не заполнены") : trip.dates}</p>
-            {trip.status === "Черновик" && draftStatusOpen && <div className="draft-status-menu" role="dialog" aria-label="Статус путешествия"><b>Черновик</b><p>Маршрут ещё не виден среди предстоящих поездок.</p><button onClick={() => onPublish({ ...trip, status: "Предстоящее" })}>Переместить в предстоящие</button></div>}
+            {statusMenuOpen && <div className="status-menu" role="dialog" aria-label="Статус путешествия"><b>Статус путешествия</b>{["Активное", "Предстоящее", "Черновик", "Завершённое"].map((status) => <button className={trip.status === status ? "selected" : ""} onClick={() => { onUpdateTrip({ ...trip, status }); setStatusMenuOpen(false); }} key={status}>● {status}</button>)}</div>}
           </div>
           {!trip.isDraft && <div className="share">
             <div>
@@ -2413,7 +2413,7 @@ export function App() {
         </button>
         {view === "trips" && <Trips go={go} profileName={profileName} drafts={drafts} onOpenTrip={(trip) => { setActiveTrip(trip); go("trip"); }} />}
         {view === "create" && <CreateTrip go={go} onCreate={(trip) => { setDrafts((items) => [...items, trip]); setActiveTrip(trip); go("trip"); }} />}
-        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} onPublish={(trip) => { updateTrip(trip); go("trips"); }} />}
+        {view === "trip" && <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} />}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>

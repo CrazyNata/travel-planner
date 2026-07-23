@@ -810,7 +810,7 @@ button {
 .trip-title-block {
   position: relative;
 }
-.draft-status {
+.status-picker {
   display: inline-block;
   margin-left: 10px;
   border: 0;
@@ -818,10 +818,10 @@ button {
   background: #e4f0de;
   padding: 6px 12px;
   color: #4e7443;
-  font: 700 13px Manrope, sans-serif;
+  font: 700 14px Manrope, sans-serif;
   vertical-align: middle;
 }
-.draft-status-menu {
+.status-menu {
   position: absolute;
   z-index: 10;
   top: calc(100% + 10px);
@@ -832,28 +832,30 @@ button {
   background: #fff;
   padding: 15px;
   box-shadow: 0 14px 30px #20231d1f;
-  animation: draft-status-slide .16s ease-out;
+  animation: status-menu-slide .16s ease-out;
 }
-.draft-status-menu b {
+.status-menu b {
+  display: block;
+  margin-bottom: 7px;
   font-size: 13px;
 }
-.trip-heading .draft-status-menu p {
-  margin: 4px 0 13px;
-  color: #8a8279;
-  font-size: 12px;
-  line-height: 1.45;
-}
-.draft-status-menu button {
+.status-menu button {
   width: 100%;
   border: 0;
   border-radius: 9px;
-  background: #e7e8fb;
-  padding: 10px 12px;
-  color: var(--accent);
+  background: transparent;
+  padding: 9px 10px;
+  color: #625e57;
+  text-align: left;
   font-size: 12px;
   font-weight: 800;
 }
-@keyframes draft-status-slide {
+.status-menu button:hover,
+.status-menu button.selected {
+  background: #e7e8fb;
+  color: var(--accent);
+}
+@keyframes status-menu-slide {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
 }
