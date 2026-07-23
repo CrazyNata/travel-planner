@@ -829,7 +829,7 @@ button {
 .restaurants-page h2 { margin: 8px 0 24px; font: 600 36px/1 Unbounded, sans-serif; letter-spacing: -.07em; }
 .restaurant-dropdowns { display: flex; width: 100%; flex-wrap: wrap; gap: 12px; margin: 10px 0 24px; }
 .restaurant-dropdown { position: relative; display: grid; gap: 6px; }
-.restaurant-dropdown > span { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.restaurant-dropdown > span { padding-left: 17px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
 .restaurant-dropdown-trigger { display: flex; min-width: 197px; align-items: center; justify-content: space-between; gap: 22px; border: 1px solid #e7dfd5; border-radius: 999px; background: #fff; padding: 10px 17px; color: #6e675e; font: 700 14px Manrope, sans-serif; text-align: left; transition: border-color .15s, color .15s, background .15s; }
 .restaurant-dropdown-trigger:hover,.restaurant-dropdown-trigger[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: #f4f3ff; }
 .restaurant-dropdown-trigger i { color: currentColor; font-size: 18px; font-style: normal; line-height: 1; }
