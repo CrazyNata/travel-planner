@@ -2403,13 +2403,13 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10
 .sight-day-tabs::-webkit-scrollbar { height: 5px; }
 .sight-day-tabs::-webkit-scrollbar-track { background: transparent; }
 .sight-day-tabs::-webkit-scrollbar-thumb { border-radius: 999px; background: #c3bfe7; }
-.sight-day-tabs button { min-width: 0; border: 1px solid #e2dfef; border-radius: 13px; background: #fff; padding: 10px 14px; color: #6f6986; text-align: left; }
+.sight-day-tabs button { min-width: 90px; border: 1px solid #e2dfef; border-radius: 14px; background: #fff; padding: 13px 15px; color: #6f6986; text-align: left; }
 .sight-day-tabs button.active { border-color: var(--accent); background: #f0efff; color: var(--accent); }
 .sight-day-tabs small, .sight-day-tabs b { display: block; }
-.sight-day-tabs small { font-size: 9px; text-transform: uppercase; }
-.sight-day-tabs b { margin-top: 4px; font-size: 12px; }
+.sight-day-tabs small { font-size: 10px; text-transform: uppercase; }
+.sight-day-tabs b { margin-top: 5px; font-size: 13px; }
 .sight-day { position: relative; flex: none; min-width: 0; }
-.sight-day > button:first-child { min-height: 53px; border-radius: 14px; background: #fff; box-shadow: 0 3px 8px #3b35620a; }
+.sight-day > button:first-child { min-height: 68px; border-radius: 14px; background: #fff; box-shadow: 0 3px 8px #3b35620a; }
 .sight-day.active > button:first-child { border-color: #4c46d6; background: #4c46d6; color: #fff; box-shadow: none; }
 .sight-day.active small { color: #d8d6ff; }
 .rename-day { position: absolute; right: 4px; bottom: 4px; min-width: auto !important; border: 0 !important; background: transparent !important; padding: 4px !important; color: #9690ad; font-size: 11px; opacity: 0; }
