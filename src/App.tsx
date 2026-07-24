@@ -7164,7 +7164,7 @@ function Sights({
   onToggle: (id: string) => void;
   onAdd: (sight: StoredSight) => void;
   onAddDay: (title: string) => void;
-  onCreateDay: (city: string, featured: string, places: string[]) => void;
+  onCreateDay: (dayIndex: number, city: string, featured: string, places: string[]) => void;
   onRenameDay: (id: string, title: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -7414,12 +7414,12 @@ function Sights({
         )}
       </section>
     </section>
-    {dayEditorOpen && <DayEditor dayNumber={days.length + 1} onClose={() => setDayEditorOpen(false)} onSave={(nextCity, featuredPlace, places) => { onCreateDay(nextCity, featuredPlace, places); setDayEditorOpen(false); }} />}
+    {dayEditorOpen && <DayEditor dayNumber={selectedDay + 1} defaultCity={days[selectedDay]?.title || city} onClose={() => setDayEditorOpen(false)} onSave={(nextCity, featuredPlace, places) => { onCreateDay(selectedDay, nextCity, featuredPlace, places); setDayEditorOpen(false); }} />}
     </>
   );
 }
 
-function DayEditor({ dayNumber, onClose, onSave }: { dayNumber: number; onClose: () => void; onSave: (city: string, featured: string, places: string[]) => void }) {
+function DayEditor({ dayNumber, defaultCity, onClose, onSave }: { dayNumber: number; defaultCity: string; onClose: () => void; onSave: (city: string, featured: string, places: string[]) => void }) {
   const [places, setPlaces] = useState<string[]>([]);
   const [place, setPlace] = useState("");
   const addPlace = () => {
@@ -7428,7 +7428,7 @@ function DayEditor({ dayNumber, onClose, onSave }: { dayNumber: number; onClose:
     setPlaces((current) => [...current, value]);
     setPlace("");
   };
-  return <div className="day-editor-backdrop" onClick={onClose}><form className="day-editor" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const city = String(data.get("city") || "").trim(); const featured = String(data.get("featured") || "").trim(); if (!city) return; onSave(city, featured, places); }}><header><div><small>ДЕНЬ {dayNumber}</small><h2>Новый день маршрута</h2></div><button type="button" onClick={onClose} aria-label="Закрыть">×</button></header><label>Город<input name="city" placeholder="Напр. Болонья" autoFocus /></label><label>Фото дня<input name="photo" type="file" accept="image/*" /></label><label>Главная достопримечательность<input name="featured" placeholder="Напр. Две башни" /></label><section><div><b>Список мест</b><small>{places.length} мест</small></div><div className="day-place-input"><input value={place} onChange={(event) => setPlace(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addPlace(); } }} placeholder="Добавить место..." /><button type="button" onClick={addPlace}>+</button></div>{places.length > 0 && <ol>{places.map((item, index) => <li key={`${item}-${index}`}>{item}<button type="button" onClick={() => setPlaces((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></li>)}</ol>}</section><footer><button type="button" onClick={onClose}>Отмена</button><button className="accent">Добавить день</button></footer></form></div>;
+  return <div className="day-editor-backdrop" onClick={onClose}><form className="day-editor" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const city = String(data.get("city") || "").trim(); const featured = String(data.get("featured") || "").trim(); if (!city) return; onSave(city, featured, places); }}><header><div><small>ДЕНЬ {dayNumber}</small><h2>День маршрута</h2></div><button type="button" onClick={onClose} aria-label="Закрыть">×</button></header><label>Город<input name="city" defaultValue={defaultCity} placeholder="Напр. Болонья" autoFocus /></label><label>Фото дня<input name="photo" type="file" accept="image/*" /></label><label>Главная достопримечательность<input name="featured" placeholder="Напр. Две башни" /></label><section><div><b>Список мест</b><small>{places.length} мест</small></div><div className="day-place-input"><input value={place} onChange={(event) => setPlace(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addPlace(); } }} placeholder="Добавить место..." /><button type="button" onClick={addPlace}>+</button></div>{places.length > 0 && <ol>{places.map((item, index) => <li key={`${item}-${index}`}>{item}<button type="button" onClick={() => setPlaces((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></li>)}</ol>}</section><footer><button type="button" onClick={onClose}>Отмена</button><button className="accent">Сохранить день</button></footer></form></div>;
 }
 
 function SightNotes({
@@ -7893,10 +7893,10 @@ function Workspace({
                   sightDays: [...sightDays, { id: crypto.randomUUID(), title }],
                 })
               }
-              onCreateDay={(city, featured, places) => {
-                const dayNumber = sightDays.length + 1;
+              onCreateDay={(dayIndex, city, featured, places) => {
+                const dayNumber = dayIndex + 1;
                 const newSights = [featured, ...places].filter(Boolean).map((name, index) => ({ id: crypto.randomUUID(), name, city, walkDay: dayNumber, walkOrder: index }));
-                onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: [...sightDays, { id: crypto.randomUUID(), title: city }], sights: [...tripSights, ...newSights] });
+                onUpdateTrip({ ...trip, sightDaysVersion: 1, sightDays: sightDays.map((day, index) => index === dayIndex ? { ...day, title: city } : day), sights: [...tripSights, ...newSights] });
               }}
               onRenameDay={(id, title) =>
                 onUpdateTrip({
