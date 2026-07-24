@@ -59,7 +59,7 @@ type TripSummary = {
   places?: string[];
   days?: DraftDay[];
   sights?: StoredSight[];
-  sightDays?: { id: string; title: string; photo?: string }[];
+  sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
   sightDaysVersion?: number;
   sightNotes?: Record<string, string>;
 };
@@ -7159,7 +7159,7 @@ function Sights({
   onRenameDay,
 }: {
   sights: StoredSight[];
-  days: { id: string; title: string; photo?: string }[];
+  days: { id: string; title: string; photo?: string; photoPosition?: number }[];
   defaultCity?: string;
   onToggle: (id: string) => void;
   onAdd: (sight: StoredSight) => void;
@@ -7170,6 +7170,7 @@ function Sights({
     featured: string,
     places: string[],
     photo?: string,
+    photoPosition?: number,
   ) => void;
   onRenameDay: (id: string, title: string) => void;
 }) {
@@ -7314,7 +7315,7 @@ function Sights({
             </button>
           )}
         </div>
-        <section className="sight-feature" style={days[selectedDay]?.photo ? { backgroundImage: `linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("${days[selectedDay].photo}")` } : undefined}>
+        <section className="sight-feature" style={days[selectedDay]?.photo ? { backgroundImage: `linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("${days[selectedDay].photo}")`, backgroundPosition: `center ${days[selectedDay].photoPosition ?? 50}%` } : undefined}>
           <span>★ Место дня</span>
           <div>
             <p>{featured ? featured.city : "Ваш маршрут"}</p>
@@ -7432,8 +7433,8 @@ function Sights({
           dayNumber={selectedDay + 1}
           defaultCity={days[selectedDay]?.title || city}
           onClose={() => setDayEditorOpen(false)}
-          onSave={(nextCity, featuredPlace, places, photo) => {
-            onCreateDay(selectedDay, nextCity, featuredPlace, places, photo);
+          onSave={(nextCity, featuredPlace, places, photo, photoPosition) => {
+            onCreateDay(selectedDay, nextCity, featuredPlace, places, photo, photoPosition);
             setDayEditorOpen(false);
           }}
         />
@@ -7451,11 +7452,12 @@ function DayEditor({
   dayNumber: number;
   defaultCity: string;
   onClose: () => void;
-  onSave: (city: string, featured: string, places: string[], photo?: string) => void;
+  onSave: (city: string, featured: string, places: string[], photo?: string, photoPosition?: number) => void;
 }) {
   const [places, setPlaces] = useState<string[]>([]);
   const [place, setPlace] = useState("");
   const [photo, setPhoto] = useState<string>();
+  const [photoPosition, setPhotoPosition] = useState(50);
   const addPlace = () => {
     const value = place.trim();
     if (!value) return;
@@ -7473,7 +7475,7 @@ function DayEditor({
           const city = String(data.get("city") || "").trim();
           const featured = String(data.get("featured") || "").trim();
           if (!city) return;
-          onSave(city, featured, places, photo);
+          onSave(city, featured, places, photo, photoPosition);
         }}
       >
         <header>
@@ -7497,7 +7499,7 @@ function DayEditor({
         <label>
           Фото дня
           <input name="photo" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhoto(String(reader.result)); reader.readAsDataURL(file); }} />
-          {photo && <img className="day-photo-preview" src={photo} alt="Выбранное фото дня" />}
+          {photo && <><img className="day-photo-preview" src={photo} alt="Выбранное фото дня" style={{ objectPosition: `center ${photoPosition}%` }} /><label className="day-photo-crop">Фрагмент фото<input type="range" min="0" max="100" value={photoPosition} onChange={(event) => setPhotoPosition(Number(event.target.value))} /></label></>}
         </label>
         <label>
           Главная достопримечательность
@@ -8017,7 +8019,7 @@ function Workspace({
                   sightDays: [...sightDays, { id: crypto.randomUUID(), title }],
                 })
               }
-              onCreateDay={(dayIndex, city, featured, places, photo) => {
+              onCreateDay={(dayIndex, city, featured, places, photo, photoPosition) => {
                 const dayNumber = dayIndex + 1;
                 const newSights = [featured, ...places]
                   .filter(Boolean)
@@ -8032,7 +8034,7 @@ function Workspace({
                   ...trip,
                   sightDaysVersion: 1,
                   sightDays: sightDays.map((day, index) =>
-                    index === dayIndex ? { ...day, title: city, ...(photo ? { photo } : {}) } : day,
+                    index === dayIndex ? { ...day, title: city, ...(photo ? { photo, photoPosition } : {}) } : day,
                   ),
                   sights: [...tripSights, ...newSights],
                 });
