@@ -7173,7 +7173,7 @@ function Sights({
   onCreateDay: (
     dayIndex: number,
     city: string,
-    featured: string,
+    featured: { name: string; description?: string; photo?: string },
     places: DayPlaceDraft[],
     photo?: string,
     photoPosition?: number,
@@ -7463,7 +7463,7 @@ function DayEditor({
   dayNumber: number;
   defaultCity: string;
   onClose: () => void;
-  onSave: (city: string, featured: string, places: DayPlaceDraft[], photo?: string, photoPosition?: number) => void;
+  onSave: (city: string, featured: DayPlaceDraft, places: DayPlaceDraft[], photo?: string, photoPosition?: number) => void;
 }) {
   const [places, setPlaces] = useState<DayPlaceDraft[]>([]);
   const [place, setPlace] = useState("");
@@ -7471,6 +7471,7 @@ function DayEditor({
   const [placeDescription, setPlaceDescription] = useState("");
   const [placePhoto, setPlacePhoto] = useState<string>();
   const [photo, setPhoto] = useState<string>();
+  const [featuredPhoto, setFeaturedPhoto] = useState<string>();
   const [photoPosition, setPhotoPosition] = useState(50);
   const addPlace = () => {
     const value = place.trim();
@@ -7489,7 +7490,7 @@ function DayEditor({
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           const city = String(data.get("city") || "").trim();
-          const featured = String(data.get("featured") || "").trim();
+          const featured = { name: String(data.get("featured") || "").trim(), description: String(data.get("featuredDescription") || "").trim() || undefined, photo: featuredPhoto };
           if (!city) return;
           onSave(city, featured, places, photo, photoPosition);
         }}
@@ -7521,6 +7522,7 @@ function DayEditor({
           Главная достопримечательность
           <input name="featured" placeholder="Напр. Две башни" />
         </label>
+        <div className="featured-place-details"><textarea name="featuredDescription" placeholder="Описание объекта: что важно увидеть, время посещения, заметки..." /><label className="featured-photo-upload">Фото объекта<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setFeaturedPhoto(String(reader.result)); reader.readAsDataURL(file); }} />{featuredPhoto && <img src={featuredPhoto} alt="Фото объекта" />}</label></div>
         <section>
           <div>
             <b>Список мест</b>
@@ -8042,7 +8044,7 @@ function Workspace({
               }
               onCreateDay={(dayIndex, city, featured, places, photo, photoPosition) => {
                 const dayNumber = dayIndex + 1;
-                const newSights = [{ name: featured, subcategory: "Главная достопримечательность" }, ...places]
+                const newSights = [{ ...featured, subcategory: "Главная достопримечательность" }, ...places]
                   .filter((place) => place.name)
                   .map((place, index) => ({
                     id: crypto.randomUUID(),
