@@ -1670,11 +1670,10 @@ function Members({ trip }: { trip: TripSummary }) {
       const { error } = await supabase.auth.signInWithOtp({ email: trimmedEmail, options: { emailRedirectTo: redirectTo } });
       if (error) {
         setInviteMessage(error.message || "Не удалось отправить письмо.");
-        return false;
+        return;
       }
       addMember();
       setInviteMessage(`Письмо со ссылкой для входа отправлено на ${trimmedEmail}.`);
-      return true;
     };
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -1682,25 +1681,10 @@ function Members({ trip }: { trip: TripSummary }) {
       setSendingInvite(false);
       return;
     }
-    const inviterName = session.user.user_metadata.full_name || session.user.email?.split("@")[0] || "Участник путешествия";
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-invite`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: trimmedEmail, name, role: inviteRole, redirectTo, trip: { title: trip.title, dates: trip.dates, cities: trip.cities, inviterName, participants: people.map((person) => person.name) } }),
-      });
-      if (!response.ok) {
-        await sendFallbackEmail();
-        return;
-      }
-      addMember();
-      setInviteMessage(`Приглашение отправлено на ${trimmedEmail}.`);
-    } catch {
       await sendFallbackEmail();
+    } catch {
+      setInviteMessage("Не удалось отправить письмо.");
     } finally {
       setSendingInvite(false);
     }
