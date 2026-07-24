@@ -7514,11 +7514,6 @@ function DayEditor({
           />
         </label>
         <label>
-          Фото дня
-          <input name="photo" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPhoto(String(reader.result)); reader.readAsDataURL(file); }} />
-          {photo && <><img className="day-photo-preview" src={photo} alt="Выбранное фото дня" style={{ objectPosition: `center ${photoPosition}%` }} /><label className="day-photo-crop">Фрагмент фото<input type="range" min="0" max="100" value={photoPosition} onChange={(event) => setPhotoPosition(Number(event.target.value))} /></label></>}
-        </label>
-        <label>
           Главная достопримечательность
           <input name="featured" placeholder="Напр. Две башни" />
         </label>
