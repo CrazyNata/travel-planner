@@ -2387,6 +2387,7 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10
 
 /* The walking planner is a distinct Odyssey workspace, not a generic map panel. */
 .sights-page {
+  position: relative;
   padding-bottom: 38px;
 }
 .sights-heading {
@@ -2437,8 +2438,10 @@ html[data-empty-sight-day="true"] .sight-feature {
 .sight-feature p { color: #bfc5e5; font-size: 11px; font-weight: 800; text-transform: uppercase; }
 .sight-feature h3 { margin: 8px 0; font: 600 34px Unbounded, sans-serif; letter-spacing: -0.08em; }
 .sight-feature small { max-width: 520px; color: #d2d6ec; font-size: 13px; }
-.sight-feature .accent { margin-top: 20px; background: #fff; color: #2f2b50; }
+.sight-feature .accent { position: absolute; top: 17px; right: 0; margin: 0; border-radius: 12px; background: #5b56df; color: #fff; box-shadow: 0 9px 17px #514bd240; font-size: 0; }
+.sight-feature .accent::after { content: "+ Добавить"; font-size: 14px; }
 @media (max-width: 760px) {
+  .sight-feature .accent { top: 8px; }
   .sight-feature { width: auto; min-height: 360px; margin-inline: 0; padding: 20px 22px 26px; }
   .sight-feature h3 { font-size: 28px; }
 }
