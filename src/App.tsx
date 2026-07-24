@@ -88,6 +88,7 @@ type StoredSight = {
   description?: string;
   duration?: string;
 };
+type DayPlaceDraft = Pick<StoredSight, "name" | "subcategory" | "description" | "photo">;
 type StoredTripPayload = {
   data?: {
     days?: StoredDay[];
@@ -7173,7 +7174,7 @@ function Sights({
     dayIndex: number,
     city: string,
     featured: string,
-    places: string[],
+    places: DayPlaceDraft[],
     photo?: string,
     photoPosition?: number,
   ) => void;
@@ -7213,6 +7214,10 @@ function Sights({
   const routeSights = sights
     .filter((sight) => (sight.walkDay || 1) === selectedDay + 1)
     .sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
+  const [categoryFilter, setCategoryFilter] = useState("Все");
+  const [statusFilter, setStatusFilter] = useState("Все");
+  const categories = ["Все", ...Array.from(new Set(routeSights.map((sight) => sight.subcategory || sight.group || "Достопримечательность")))];
+  const visibleSights = routeSights.filter((sight) => (categoryFilter === "Все" || (sight.subcategory || sight.group || "Достопримечательность") === categoryFilter) && (statusFilter === "Все" || (statusFilter === "Посещено" ? sight.done : !sight.done)));
   const addSight = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -7397,9 +7402,10 @@ function Sights({
             </div>
             <span>{routeSights.length} точек</span>
           </header>
-          {routeSights.length ? (
+          <div className="sight-filters"><div>{categories.map((category) => <button type="button" className={categoryFilter === category ? "active" : ""} onClick={() => setCategoryFilter(category)} key={category}>{category}</button>)}</div><div><button type="button" className={statusFilter === "Все" ? "active" : ""} onClick={() => setStatusFilter("Все")}>Все</button><button type="button" className={statusFilter === "Не посещено" ? "active" : ""} onClick={() => setStatusFilter("Не посещено")}>Не посещено</button><button type="button" className={statusFilter === "Посещено" ? "active" : ""} onClick={() => setStatusFilter("Посещено")}>Посещено</button></div></div>
+          {visibleSights.length ? (
             <div className="sights-grid">
-              {routeSights.map((sight, index) => (
+              {visibleSights.map((sight, index) => (
                 <article
                   className={sight.done ? "sight-card visited" : "sight-card"}
                   key={sight.id}
@@ -7457,17 +7463,22 @@ function DayEditor({
   dayNumber: number;
   defaultCity: string;
   onClose: () => void;
-  onSave: (city: string, featured: string, places: string[], photo?: string, photoPosition?: number) => void;
+  onSave: (city: string, featured: string, places: DayPlaceDraft[], photo?: string, photoPosition?: number) => void;
 }) {
-  const [places, setPlaces] = useState<string[]>([]);
+  const [places, setPlaces] = useState<DayPlaceDraft[]>([]);
   const [place, setPlace] = useState("");
+  const [placeCategory, setPlaceCategory] = useState("Достопримечательность");
+  const [placeDescription, setPlaceDescription] = useState("");
+  const [placePhoto, setPlacePhoto] = useState<string>();
   const [photo, setPhoto] = useState<string>();
   const [photoPosition, setPhotoPosition] = useState(50);
   const addPlace = () => {
     const value = place.trim();
     if (!value) return;
-    setPlaces((current) => [...current, value]);
+    setPlaces((current) => [...current, { name: value, subcategory: placeCategory, description: placeDescription.trim() || undefined, photo: placePhoto }]);
     setPlace("");
+    setPlaceDescription("");
+    setPlacePhoto(undefined);
   };
   return (
     <div className="day-editor-backdrop" onClick={onClose}>
@@ -7531,11 +7542,16 @@ function DayEditor({
               +
             </button>
           </div>
+          <div className="day-place-details">
+            <select value={placeCategory} onChange={(event) => setPlaceCategory(event.target.value)}><option>Достопримечательность</option><option>Музей</option><option>Ресторан</option><option>Прогулка</option><option>Покупки</option></select>
+            <input value={placeDescription} onChange={(event) => setPlaceDescription(event.target.value)} placeholder="Короткое описание" />
+            <input type="file" accept="image/*" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPlacePhoto(String(reader.result)); reader.readAsDataURL(file); }} />
+          </div>
           {places.length > 0 && (
             <ol>
               {places.map((item, index) => (
-                <li key={`${item}-${index}`}>
-                  {item}
+                <li key={`${item.name}-${index}`}>
+                  <span>{item.photo && <img src={item.photo} alt="" />}{item.name}<small>{item.subcategory}</small></span>
                   <button
                     type="button"
                     onClick={() =>
@@ -8026,11 +8042,11 @@ function Workspace({
               }
               onCreateDay={(dayIndex, city, featured, places, photo, photoPosition) => {
                 const dayNumber = dayIndex + 1;
-                const newSights = [featured, ...places]
-                  .filter(Boolean)
-                  .map((name, index) => ({
+                const newSights = [{ name: featured, subcategory: "Главная достопримечательность" }, ...places]
+                  .filter((place) => place.name)
+                  .map((place, index) => ({
                     id: crypto.randomUUID(),
-                    name,
+                    ...place,
                     city,
                     walkDay: dayNumber,
                     walkOrder: index,
