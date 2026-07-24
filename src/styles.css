@@ -2415,8 +2415,8 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10
 .rename-day { position: absolute; right: 4px; bottom: 4px; min-width: auto !important; border: 0 !important; background: transparent !important; padding: 4px !important; color: #9690ad; font-size: 11px; opacity: 0; }
 .sight-day:hover .rename-day, .rename-day:focus-visible { opacity: 1; }
 .sight-day.active .rename-day { color: #dddafe; }
-.add-sight-day { display: flex; min-width: 104px; min-height: 62px; align-items: center; justify-content: center; flex: none; border: 1px dashed #aaa5df; border-radius: 15px; background: linear-gradient(145deg, #fbfaff, #f2f0ff); color: #5852ce; padding: 10px 14px; font-weight: 800; }
-.add-sight-day:hover { border-color: #655fdf; background: #efedff; }
+.add-sight-day { display: flex; min-width: 90px; min-height: 68px; align-items: center; justify-content: center; flex: none; border: 1px dashed #cbd0df; border-radius: 14px; background: #fff; color: #4c46d6; padding: 13px 15px; font-size: 13px; font-weight: 800; }
+.add-sight-day:hover { border-color: #4c46d6; background: #f5f4ff; }
 form.add-sight-day { width: 224px; min-width: 224px; align-items: stretch; justify-content: stretch; gap: 7px; border-style: solid; padding: 7px; }
 form.add-sight-day input { min-width: 0; flex: 1; border: 1px solid #ddd9f1; border-radius: 9px; background: #fff; padding: 8px 10px; color: #34304c; font: 700 11px Manrope, sans-serif; outline: none; }
 form.add-sight-day input:focus { border-color: #655fdf; box-shadow: 0 0 0 3px #655fdf14; }
