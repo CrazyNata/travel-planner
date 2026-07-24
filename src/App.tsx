@@ -101,6 +101,8 @@ type StoredTripPayload = {
       coverPhotos?: CoverPhoto[];
       coverTextColor?: string;
       overviewMapPoints?: string[];
+      sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
+      sightDaysVersion?: number;
     };
     [key: string]: unknown;
   };
@@ -334,6 +336,9 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     coverPhotos: payload.data?.trip?.coverPhotos,
     coverTextColor: payload.data?.trip?.coverTextColor,
     overviewMapPoints: payload.data?.trip?.overviewMapPoints,
+    sights: payload.data?.sights,
+    sightDays: payload.data?.trip?.sightDays,
+    sightDaysVersion: payload.data?.trip?.sightDaysVersion,
     days,
   };
 }
@@ -8565,6 +8570,7 @@ export function App() {
       data: {
         ...storedPayload.data,
         days: updatedDays,
+        sights: trip.sights,
         trip: {
           ...storedPayload.data.trip,
           isDraft: true,
@@ -8573,6 +8579,8 @@ export function App() {
           coverPhotos: trip.coverPhotos,
           coverTextColor: trip.coverTextColor,
           overviewMapPoints: trip.overviewMapPoints,
+          sightDays: trip.sightDays,
+          sightDaysVersion: trip.sightDaysVersion,
         },
       },
     };
