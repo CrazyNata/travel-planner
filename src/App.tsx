@@ -3271,7 +3271,7 @@ function Trips({
         </button>
       </div>
       {editingTrip && (
-        <OverviewEditor
+        <TripCardEditor
           trip={editingTrip}
           onUpdateTrip={onUpdateTrip}
           onClose={() => setEditingTrip(null)}
@@ -6052,6 +6052,126 @@ function Members({ trip }: { trip: TripSummary }) {
           </button>
         </div>
       </article>
+    </div>
+  );
+}
+
+function TripCardEditor({
+  trip,
+  onUpdateTrip,
+  onClose,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+  onClose: () => void;
+}) {
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState(trip.title);
+  const [startDate, setStartDate] = useState(trip.startDate || "");
+  const [endDate, setEndDate] = useState(trip.endDate || "");
+  const [coverImage, setCoverImage] = useState(trip.coverImage || "");
+  const [coverChanged, setCoverChanged] = useState(false);
+  const selectCover = (file?: File) => {
+    if (!file?.type.startsWith("image/")) return;
+    void compressCoverPhoto(file)
+      .then((image) => {
+        setCoverImage(image);
+        setCoverChanged(true);
+      })
+      .catch(() => window.alert("Не удалось обработать фотографию."));
+  };
+  const save = () => {
+    if ((startDate && !endDate) || (!startDate && endDate)) {
+      window.alert("Укажите дату начала и дату окончания путешествия.");
+      return;
+    }
+    if (startDate && endDate && startDate > endDate) {
+      window.alert("Дата окончания не может быть раньше даты начала.");
+      return;
+    }
+    onUpdateTrip({
+      ...trip,
+      title: title.trim() || "Без названия",
+      startDate,
+      endDate,
+      dates: startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates,
+      coverImage,
+      coverPhotos: coverChanged
+        ? coverImage
+          ? [{ id: crypto.randomUUID(), image: coverImage }]
+          : []
+        : trip.coverPhotos,
+    });
+    onClose();
+  };
+  return (
+    <div className="overview-editor-backdrop" onClick={onClose}>
+      <section
+        className="trip-card-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trip-card-editor-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <h2 id="trip-card-editor-title">Редактирование путешествия</h2>
+          <button type="button" onClick={onClose} aria-label="Закрыть">
+            ×
+          </button>
+        </header>
+        <div>
+          <label>
+            Название путешествия
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Название путешествия"
+            />
+          </label>
+          <section>
+            <DatePicker
+              label="Дата начала"
+              value={startDate}
+              onChange={setStartDate}
+            />
+            <DatePicker
+              label="Дата окончания"
+              value={endDate}
+              onChange={setEndDate}
+            />
+          </section>
+          {!startDate && !endDate && trip.dates && (
+            <small>Текущие даты: {trip.dates}</small>
+          )}
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => {
+              selectCover(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            className={`trip-cover-picker ${coverImage ? "has-image" : ""}`}
+            style={
+              coverImage ? { backgroundImage: `url(${coverImage})` } : undefined
+            }
+            onClick={() => photoInput.current?.click()}
+          >
+            <span>{coverImage ? "Изменить обложку" : "Добавить обложку"}</span>
+          </button>
+        </div>
+        <footer>
+          <button type="button" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="accent" type="button" onClick={save}>
+            Сохранить
+          </button>
+        </footer>
+      </section>
     </div>
   );
 }
