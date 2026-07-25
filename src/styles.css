@@ -1262,7 +1262,7 @@ button {
 .accommodation-filters button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 .accommodation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .accommodation-card { overflow: hidden; border-radius: 17px; background: #fff; box-shadow: 0 8px 22px #25233414; }
-.accommodation-photo { position: relative; height: 190px; background: #c3ad91; }
+.accommodation-photo { position: relative; height: 230px; background: #c3ad91; }
 .accommodation-card.c1 .accommodation-photo { background: #9dafb4; }.accommodation-card.c2 .accommodation-photo { background: #b89c81; }.accommodation-card.c3 .accommodation-photo { background: #a7b79d; }.accommodation-card.c4 .accommodation-photo { background: #aaa0b3; }.accommodation-card.c5 .accommodation-photo { background: #baa58c; }
 .stay-badge { position: absolute; top: 13px; left: 13px; border-radius: 999px; background: #5b874f; padding: 6px 11px; color: #fff; font-size: 10px; font-weight: 800; box-shadow: 0 4px 8px #19201533; }
 .stay-badge.оплачено { background: var(--accent); }.stay-badge.хочу { background: #c29139; }.stay-badge.пожили { background: #89909e; }
