@@ -465,6 +465,35 @@ const mapLocations: Record<string, [number, number]> = {
   Москва: [37.6173, 55.7558],
 };
 
+const sightFallbackPhotos: Record<string, string> = {
+  Мюнхен:
+    "https://images.unsplash.com/photo-1595867818082-083862f3d630?auto=format&fit=crop&w=900&q=80",
+  Верона:
+    "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=900&q=80",
+  Рим:
+    "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80",
+  "Сан-Марино":
+    "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
+  Пиза:
+    "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=900&q=80",
+  Кьоджа:
+    "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
+  Венеция:
+    "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
+  Милан:
+    "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
+  Равенсбург:
+    "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=900&q=80",
+  Прага:
+    "https://images.unsplash.com/photo-1541849546-216549ae216d?auto=format&fit=crop&w=900&q=80",
+};
+const defaultSightPhoto =
+  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=900&q=80";
+
+function sightPhoto(sight: StoredSight) {
+  return sight.photo || sightFallbackPhotos[sight.city] || defaultSightPhoto;
+}
+
 function mapLocation(city: string) {
   return Object.entries(mapLocations).find(([name]) =>
     city.includes(name),
@@ -7632,7 +7661,7 @@ function Sights({
                   className={sight.done ? "sight-card visited" : "sight-card"}
                   key={sight.id}
                 >
-                  {sight.photo && <img src={sight.photo} alt="" />}
+                  <img src={sightPhoto(sight)} alt={`${sight.name}, ${sight.city}`} />
                   <div>
                     <b className="sight-number">{index + 1}</b>
                     <p>
@@ -8240,9 +8269,7 @@ function Workspace({
                 window.dispatchEvent(
                   new CustomEvent("odyssey-focus-sight", { detail: id }),
                 );
-                const query = sight.lnglat
-                  ? `${sight.lnglat[1]},${sight.lnglat[0]}`
-                  : `${sight.name}, ${sight.city}`;
+                const query = `${sight.name}, ${sight.city}`;
                 window.open(
                   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
                   "_blank",
