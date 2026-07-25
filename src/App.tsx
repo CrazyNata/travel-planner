@@ -2688,6 +2688,18 @@ function TripMap({
     }
   });
   const displayedRouteDays = routeDays.length ? routeDays : storedRouteDays;
+  const routeKey = displayedRouteDays
+    .map((day) =>
+      [
+        day.id,
+        day.roadLeg?.from,
+        day.roadLeg?.to,
+        day.roadLeg?.mapsUrl,
+      ].join(":"),
+    )
+    .join("|");
+  const locationKey = location?.join(",") || "";
+  const placesKey = places.join("|");
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -2814,7 +2826,7 @@ function TripMap({
       mapRef.current = null;
       markerElements.current = [];
     };
-  }, [city, location, places, displayedRouteDays]);
+  }, [city, locationKey, placesKey, routeKey]);
 
   useEffect(() => {
     const coordinate =
@@ -2843,7 +2855,7 @@ function TripMap({
         properties: {},
         geometry: { type: "LineString", coordinates: activeSegment },
       });
-  }, [activeDay, displayedRouteDays]);
+  }, [activeDay, routeKey]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return (
