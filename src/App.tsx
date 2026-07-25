@@ -3136,14 +3136,17 @@ function Trips({
   profileName,
   drafts,
   onOpenTrip,
+  onUpdateTrip,
 }: {
   go: (view: View) => void;
   profileName: string;
   drafts: TripSummary[];
   onOpenTrip: (trip: TripSummary) => void;
+  onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [filter, setFilter] = useState("all");
   const [cardMenuTripId, setCardMenuTripId] = useState<string | null>(null);
+  const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
   const allTrips = [...trips, ...drafts];
   const filters = [
     ["all", `Все · ${allTrips.length}`],
@@ -3221,8 +3224,8 @@ function Trips({
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        localStorage.setItem("odyssey-open-trip-editor", trip.id);
-                        onOpenTrip(trip);
+                        setCardMenuTripId(null);
+                        setEditingTrip(trip);
                       }}
                     >
                       <span>Редактировать</span>
@@ -3267,6 +3270,13 @@ function Trips({
           <span>С нуля или из шаблона</span>
         </button>
       </div>
+      {editingTrip && (
+        <OverviewEditor
+          trip={editingTrip}
+          onUpdateTrip={onUpdateTrip}
+          onClose={() => setEditingTrip(null)}
+        />
+      )}
     </div>
   );
 }
@@ -7707,11 +7717,6 @@ function Workspace({
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  useEffect(() => {
-    if (localStorage.getItem("odyssey-open-trip-editor") !== trip.id) return;
-    localStorage.removeItem("odyssey-open-trip-editor");
-    setOverviewEditorOpen(true);
-  }, [trip.id]);
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
@@ -8743,6 +8748,7 @@ export function App() {
             go={go}
             profileName={profileName}
             drafts={drafts}
+            onUpdateTrip={updateTrip}
             onOpenTrip={(trip) => {
               setActiveTrip(trip);
               go("trip");
