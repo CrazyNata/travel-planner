@@ -465,33 +465,25 @@ const mapLocations: Record<string, [number, number]> = {
   Москва: [37.6173, 55.7558],
 };
 
-const sightFallbackPhotos: Record<string, string> = {
-  Мюнхен:
-    "https://images.unsplash.com/photo-1595867818082-083862f3d630?auto=format&fit=crop&w=900&q=80",
-  Верона:
-    "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=900&q=80",
-  Рим:
-    "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=900&q=80",
-  "Сан-Марино":
-    "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
-  Пиза:
-    "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=900&q=80",
-  Кьоджа:
-    "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
-  Венеция:
-    "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
-  Милан:
-    "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
-  Равенсбург:
-    "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=900&q=80",
-  Прага:
-    "https://images.unsplash.com/photo-1541849546-216549ae216d?auto=format&fit=crop&w=900&q=80",
-};
-const defaultSightPhoto =
-  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=900&q=80";
+const sightFallbackGallery = [
+  "https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/5/5f/Piazza_Bra%2C_Verona.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Arena-XE3F2406a.jpg/1920px-Arena-XE3F2406a.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Pantheon_%28Rome%29_-_Right_side_and_front.jpg/3840px-Pantheon_%28Rome%29_-_Right_side_and_front.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Trevi_Fountain_-_Roma.jpg/3840px-Trevi_Fountain_-_Roma.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/3840px-Colosseo_2020.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Arch_of_Constantine_%28Rome%29_-_South_side%2C_from_Via_triumphalis.jpg/3840px-Arch_of_Constantine_%28Rome%29_-_South_side%2C_from_Via_triumphalis.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Foro_Romano_Musei_Capitolini_Roma.jpg/3840px-Foro_Romano_Musei_Capitolini_Roma.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Palatine_Hill_from_across_the_Circus_Maximus_April_2019.jpg/3840px-Palatine_Hill_from_across_the_Circus_Maximus_April_2019.jpg",
+  "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1541849546-216549ae216d?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=900&q=80",
+];
 
-function sightPhoto(sight: StoredSight) {
-  return sight.photo || sightFallbackPhotos[sight.city] || defaultSightPhoto;
+function sightPhoto(sight: StoredSight, index: number) {
+  return sight.photo || sightFallbackGallery[index % sightFallbackGallery.length];
 }
 
 function mapLocation(city: string) {
@@ -7661,7 +7653,10 @@ function Sights({
                   className={sight.done ? "sight-card visited" : "sight-card"}
                   key={sight.id}
                 >
-                  <img src={sightPhoto(sight)} alt={`${sight.name}, ${sight.city}`} />
+                  <img
+                    src={sightPhoto(sight, index)}
+                    alt={`${sight.name}, ${sight.city}`}
+                  />
                   <div>
                     <b className="sight-number">{index + 1}</b>
                     <p>
