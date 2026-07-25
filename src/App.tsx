@@ -45,6 +45,8 @@ type TripSummary = {
   id: string;
   title: string;
   dates: string;
+  startDate?: string;
+  endDate?: string;
   cities: string;
   status: string;
   progress: number;
@@ -94,6 +96,7 @@ type StoredTripPayload = {
     days?: StoredDay[];
     sights?: StoredSight[];
     trip?: {
+      title?: string;
       start?: string;
       end?: string;
       isDraft?: boolean;
@@ -317,8 +320,10 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
   const end = payload.data?.trip?.end;
   return {
     id: "supabase-main",
-    title: "Путешествие",
+    title: payload.data?.trip?.title || "Путешествие",
     dates: formatTripDates(start, end),
+    startDate: start,
+    endDate: end,
     cities: storedDays
       .map((day) => day.city)
       .filter(Boolean)
@@ -3183,7 +3188,14 @@ function Trips({
             key={trip.title}
             onClick={() => onOpenTrip(trip)}
           >
-            <div className={`cover ${trip.tone}`}>
+            <div
+              className={`cover ${trip.tone} ${trip.coverImage ? "has-image" : ""}`}
+              style={
+                trip.coverImage
+                  ? { backgroundImage: `url(${trip.coverImage})` }
+                  : undefined
+              }
+            >
               <span className="status">● {trip.status}</span>
               <span className="cover-label">обложка</span>
               <div className="avatars">
@@ -3321,6 +3333,8 @@ function CreateTrip({
               startDate && endDate
                 ? formatTripDates(startDate, endDate)
                 : "Даты не выбраны · черновик",
+            startDate,
+            endDate,
             status: "Черновик",
             progress: 0,
             tone: "stone",
@@ -6036,6 +6050,9 @@ function OverviewEditor({
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [draggedNewPhoto, setDraggedNewPhoto] = useState<number | null>(null);
   const [textColor, setTextColor] = useState(trip.coverTextColor || "#ffffff");
+  const [title, setTitle] = useState(trip.title);
+  const [startDate, setStartDate] = useState(trip.startDate || "");
+  const [endDate, setEndDate] = useState(trip.endDate || "");
   const [weatherCities, setWeatherCities] = useState(routeCities);
   const [mapPoints, setMapPoints] = useState(
     trip.overviewMapPoints || routeCities,
@@ -6070,8 +6087,20 @@ function OverviewEditor({
   };
   const selectPhoto = (file?: File) => selectPhotos(file ? [file] : []);
   const save = () => {
+    if ((startDate && !endDate) || (!startDate && endDate)) {
+      window.alert("Укажите дату начала и дату окончания путешествия.");
+      return;
+    }
+    if (startDate && endDate && startDate > endDate) {
+      window.alert("Дата окончания не может быть раньше даты начала.");
+      return;
+    }
     onUpdateTrip({
       ...trip,
+      title: title.trim() || "Без названия",
+      startDate,
+      endDate,
+      dates: startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates,
       cities: weatherCities.join(", "),
       coverImage: savedPhotos[0]?.image,
       coverPhotos: savedPhotos,
@@ -6104,6 +6133,32 @@ function OverviewEditor({
           </button>
         </header>
         <div className="overview-editor-content">
+          <section className="trip-profile-fields">
+            <label>
+              Название путешествия
+              <input
+                className="editor-field"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Название путешествия"
+              />
+            </label>
+            <div>
+              <DatePicker
+                label="Дата начала"
+                value={startDate}
+                onChange={setStartDate}
+              />
+              <DatePicker
+                label="Дата окончания"
+                value={endDate}
+                onChange={setEndDate}
+              />
+            </div>
+            {!startDate && !endDate && trip.dates && (
+              <small>Текущие даты: {trip.dates}</small>
+            )}
+          </section>
           <div
             className={`editor-photo-drop ${activePhoto ? "has-photo" : ""}`}
             style={
@@ -6735,7 +6790,7 @@ function TripOverview({
     return () => {
       cancelled = true;
     };
-  }, [trip.id]);
+  }, [trip.id, trip.coverPhotos]);
   useEffect(() => {
     const clearedKey = `odyssey-cover-cleared-v3-${trip.id}`;
     if (!trip.isDraft || localStorage.getItem(clearedKey)) return;
@@ -8586,6 +8641,9 @@ export function App() {
         sights: trip.sights,
         trip: {
           ...storedPayload.data.trip,
+          title: trip.title,
+          start: trip.startDate,
+          end: trip.endDate,
           isDraft: true,
           status: trip.status,
           coverImage: trip.coverImage,

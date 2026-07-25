@@ -357,6 +357,10 @@ button {
     #dcd6ca 26px
   );
 }
+.cover.has-image {
+  background-position: center;
+  background-size: cover;
+}
 .status {
   position: absolute;
   top: 13px;
@@ -949,6 +953,32 @@ button {
 .overview-editor-content {
   overflow-y: auto;
   padding: 26px;
+}
+.trip-profile-fields {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e9eaee;
+  padding-bottom: 24px;
+}
+.trip-profile-fields > label {
+  display: grid;
+  gap: 8px;
+  color: #30384b;
+  font-size: 12px;
+  font-weight: 800;
+}
+.trip-profile-fields > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.trip-profile-fields > small {
+  color: #7c8492;
+  font-size: 11px;
+}
+@media (max-width: 520px) {
+  .trip-profile-fields > div { grid-template-columns: 1fr; }
 }
 .editor-city-head,
 .editor-section > header,
