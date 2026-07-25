@@ -465,25 +465,60 @@ const mapLocations: Record<string, [number, number]> = {
   Москва: [37.6173, 55.7558],
 };
 
-const sightFallbackGallery = [
-  "https://upload.wikimedia.org/wikipedia/commons/6/65/WeihnachtsmarktMuenchen.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/5/5f/Piazza_Bra%2C_Verona.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Arena-XE3F2406a.jpg/1920px-Arena-XE3F2406a.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Piazza_Navona_%28Rome%29_at_night.jpg/3840px-Piazza_Navona_%28Rome%29_at_night.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Pantheon_%28Rome%29_-_Right_side_and_front.jpg/3840px-Pantheon_%28Rome%29_-_Right_side_and_front.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Trevi_Fountain_-_Roma.jpg/3840px-Trevi_Fountain_-_Roma.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Colosseo_2020.jpg/3840px-Colosseo_2020.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Arch_of_Constantine_%28Rome%29_-_South_side%2C_from_Via_triumphalis.jpg/3840px-Arch_of_Constantine_%28Rome%29_-_South_side%2C_from_Via_triumphalis.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Foro_Romano_Musei_Capitolini_Roma.jpg/3840px-Foro_Romano_Musei_Capitolini_Roma.jpg",
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Palatine_Hill_from_across_the_Circus_Maximus_April_2019.jpg/3840px-Palatine_Hill_from_across_the_Circus_Maximus_April_2019.jpg",
-  "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1541849546-216549ae216d?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=900&q=80",
-];
+const sightImageCache = new globalThis.Map<string, string>();
 
-function sightPhoto(sight: StoredSight, index: number) {
-  return sight.photo || sightFallbackGallery[index % sightFallbackGallery.length];
+function SightCardImage({ sight }: { sight: StoredSight }) {
+  const cacheKey = `${sight.name}|${sight.city}`;
+  const [image, setImage] = useState(
+    () => sight.photo || sightImageCache.get(cacheKey) || "",
+  );
+  useEffect(() => {
+    if (sight.photo) {
+      setImage(sight.photo);
+      return;
+    }
+    const cached = sightImageCache.get(cacheKey);
+    if (cached) {
+      setImage(cached);
+      return;
+    }
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      action: "query",
+      generator: "search",
+      gsrsearch: `${sight.name} ${sight.city}`,
+      gsrnamespace: "6",
+      prop: "imageinfo",
+      iiprop: "url",
+      iiurlwidth: "900",
+      format: "json",
+      origin: "*",
+    });
+    void fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
+      signal: controller.signal,
+    })
+      .then((response) => response.json())
+      .then((data: {
+        query?: {
+          pages?: Record<
+            string,
+            { index?: number; imageinfo?: { thumburl?: string }[] }
+          >;
+        };
+      }) => {
+        const photo = Object.values(data.query?.pages || {})
+          .sort((first, second) => (first.index || 0) - (second.index || 0))
+          .find((page) => page.imageinfo?.[0]?.thumburl)?.imageinfo?.[0]
+          ?.thumburl;
+        if (!photo) return;
+        sightImageCache.set(cacheKey, photo);
+        setImage(photo);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [cacheKey, sight.city, sight.name, sight.photo]);
+  if (!image) return null;
+  return <img src={image} alt={`${sight.name}, ${sight.city}`} />;
 }
 
 function mapLocation(city: string) {
@@ -7653,10 +7688,7 @@ function Sights({
                   className={sight.done ? "sight-card visited" : "sight-card"}
                   key={sight.id}
                 >
-                  <img
-                    src={sightPhoto(sight, index)}
-                    alt={`${sight.name}, ${sight.city}`}
-                  />
+                  <SightCardImage sight={sight} />
                   <div>
                     <b className="sight-number">{index + 1}</b>
                     <p>
