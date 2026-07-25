@@ -3143,6 +3143,7 @@ function Trips({
   onOpenTrip: (trip: TripSummary) => void;
 }) {
   const [filter, setFilter] = useState("all");
+  const [cardMenuTripId, setCardMenuTripId] = useState<string | null>(null);
   const allTrips = [...trips, ...drafts];
   const filters = [
     ["all", `Все · ${allTrips.length}`],
@@ -3196,6 +3197,40 @@ function Trips({
                   : undefined
               }
             >
+              <div
+                className="trip-card-actions"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="trip-card-menu-trigger"
+                  onClick={() =>
+                    setCardMenuTripId((id) => (id === trip.id ? null : trip.id))
+                  }
+                  aria-label={`Настройки: ${trip.title}`}
+                  aria-expanded={cardMenuTripId === trip.id}
+                  aria-haspopup="menu"
+                >
+                  <i />
+                  <i />
+                  <i />
+                </button>
+                {cardMenuTripId === trip.id && (
+                  <div className="trip-card-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        localStorage.setItem("odyssey-open-trip-editor", trip.id);
+                        onOpenTrip(trip);
+                      }}
+                    >
+                      <span>Редактировать</span>
+                      <small>Название, даты и обложка</small>
+                    </button>
+                  </div>
+                )}
+              </div>
               <span className="status">● {trip.status}</span>
               <span className="cover-label">обложка</span>
               <div className="avatars">
@@ -7672,7 +7707,11 @@ function Workspace({
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [tripMenuOpen, setTripMenuOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("odyssey-open-trip-editor") !== trip.id) return;
+    localStorage.removeItem("odyssey-open-trip-editor");
+    setOverviewEditorOpen(true);
+  }, [trip.id]);
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
@@ -7988,36 +8027,14 @@ function Workspace({
               </div>
             )}
           </div>
-          <div className="trip-actions">
+          {tab === "overview" && (
             <button
-              type="button"
-              className="trip-menu-trigger"
-              onClick={() => setTripMenuOpen((open) => !open)}
-              aria-label="Настройки путешествия"
-              aria-expanded={tripMenuOpen}
-              aria-haspopup="menu"
+              className="edit-trip"
+              onClick={() => setOverviewEditorOpen(true)}
             >
-              <i />
-              <i />
-              <i />
+              ✎ Редактировать
             </button>
-            {tripMenuOpen && (
-              <div className="trip-menu" role="menu">
-                <b>Настройки путешествия</b>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setTripMenuOpen(false);
-                    setOverviewEditorOpen(true);
-                  }}
-                >
-                  <span>Редактировать путешествие</span>
-                  <small>Название, даты и обложка</small>
-                </button>
-              </div>
-            )}
-          </div>
+          )}
           {!trip.isDraft && (
             <div className="share">
               <div>
