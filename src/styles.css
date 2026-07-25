@@ -168,7 +168,6 @@ button {
 .sidebar nav button:hover {
   background: #212228;
   color: #fff;
-  box-shadow: inset 3px 0 var(--accent);
 }
 .account {
   display: flex;
