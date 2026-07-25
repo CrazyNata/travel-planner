@@ -3186,7 +3186,7 @@ function Trips({
         ))}
       </div>
       <div className="trip-grid">
-        {filteredTrips.map((trip, index) => (
+        {filteredTrips.map((trip) => (
           <article
             className="trip-card"
             key={trip.title}
@@ -3235,16 +3235,6 @@ function Trips({
                 )}
               </div>
               <span className="status">● {trip.status}</span>
-              <span className="cover-label">обложка</span>
-              <div className="avatars">
-                <Avatar>АС</Avatar>
-                {index === 0 && (
-                  <>
-                    <Avatar tone="green">МК</Avatar>
-                    <Avatar>+1</Avatar>
-                  </>
-                )}
-              </div>
             </div>
             <div className="trip-info">
               <h2>{trip.title}</h2>
