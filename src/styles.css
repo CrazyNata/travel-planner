@@ -889,16 +889,68 @@ button {
   font-size: 11px;
   font-weight: 800;
 }
-.edit-trip {
-  border: 0;
-  border-radius: 13px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  padding: 13px 19px;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  box-shadow: 0 8px 20px #4c46d64d;
+.trip-actions {
+  position: relative;
+  margin-left: auto;
 }
+.trip-menu-trigger {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-content: center;
+  gap: 3px;
+  border: 1px solid #dedbe7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px #1c1e2910;
+}
+.trip-menu-trigger:hover,
+.trip-menu-trigger[aria-expanded="true"] {
+  border-color: #c8c4f4;
+  background: #f4f3ff;
+}
+.trip-menu-trigger i {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #56576a;
+}
+.trip-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 248px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  padding: 10px;
+  box-shadow: 0 16px 36px #20223024;
+  animation: status-menu-slide .16s ease-out;
+}
+.trip-menu > b {
+  display: block;
+  margin: 3px 6px 8px;
+  color: #6f7080;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.trip-menu button {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 11px;
+  color: #272937;
+  text-align: left;
+}
+.trip-menu button:hover { background: #f1f0ff; }
+.trip-menu button span { font-size: 12px; font-weight: 800; }
+.trip-menu button small { color: #808494; font-size: 11px; }
 .overview-editor-backdrop {
   position: fixed;
   inset: 0;
@@ -3886,6 +3938,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .trip-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .trip-actions {
+    position: absolute;
+    top: 72px;
+    right: 18px;
   }
   .share {
     width: 100%;

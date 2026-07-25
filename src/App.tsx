@@ -7672,6 +7672,7 @@ function Workspace({
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [tripMenuOpen, setTripMenuOpen] = useState(false);
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
@@ -7987,14 +7988,36 @@ function Workspace({
               </div>
             )}
           </div>
-          {tab === "overview" && (
+          <div className="trip-actions">
             <button
-              className="edit-trip"
-              onClick={() => setOverviewEditorOpen(true)}
+              type="button"
+              className="trip-menu-trigger"
+              onClick={() => setTripMenuOpen((open) => !open)}
+              aria-label="Настройки путешествия"
+              aria-expanded={tripMenuOpen}
+              aria-haspopup="menu"
             >
-              ✎ Редактировать
+              <i />
+              <i />
+              <i />
             </button>
-          )}
+            {tripMenuOpen && (
+              <div className="trip-menu" role="menu">
+                <b>Настройки путешествия</b>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setTripMenuOpen(false);
+                    setOverviewEditorOpen(true);
+                  }}
+                >
+                  <span>Редактировать путешествие</span>
+                  <small>Название, даты и обложка</small>
+                </button>
+              </div>
+            )}
+          </div>
           {!trip.isDraft && (
             <div className="share">
               <div>
