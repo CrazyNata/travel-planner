@@ -7644,17 +7644,6 @@ function OverviewEditor({
   );
 }
 
-const winterCities = [
-  { name: "Мюнхен", latitude: 48.1374, longitude: 11.5755 },
-  { name: "Верона", latitude: 45.4384, longitude: 10.9916 },
-  { name: "Рим", latitude: 41.9028, longitude: 12.4964 },
-  { name: "Кьоджа", latitude: 45.2186, longitude: 12.2789 },
-  { name: "Венеция", latitude: 45.4408, longitude: 12.3155 },
-  { name: "Милан", latitude: 45.4642, longitude: 9.19 },
-  { name: "Равенсбург", latitude: 47.781, longitude: 9.612 },
-  { name: "Прага", latitude: 50.0755, longitude: 14.4378 },
-];
-
 const weatherDescription = (code: number) => {
   if (code === 0) return "Ясно";
   if (code <= 3) return "Облачно";
@@ -7665,8 +7654,12 @@ const weatherDescription = (code: number) => {
 };
 
 function WeatherOverview({
+  cities,
+  tripDates,
   coverPhotos = weatherCoverPhotos,
 }: {
+  cities: string[];
+  tripDates: string;
   coverPhotos?: CoverPhoto[];
 }) {
   const [mode, setMode] = useState<"now" | "trip">("now");
@@ -7674,11 +7667,29 @@ function WeatherOverview({
     Record<string, { temperature: number; code: number }>
   >({});
   const [failed, setFailed] = useState(false);
+  const weatherCities = cities.reduce<
+    { name: string; latitude: number; longitude: number }[]
+  >((result, name) => {
+    const match = Object.entries(mapLocations).find(([city]) =>
+      name.includes(city),
+    );
+    if (!match || result.some((city) => city.name === match[0])) return result;
+    result.push({
+      name: match[0],
+      latitude: match[1][1],
+      longitude: match[1][0],
+    });
+    return result;
+  }, []);
+  const weatherKey = weatherCities
+    .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
+    .join("|");
 
   useEffect(() => {
+    if (!weatherCities.length) return;
     let cancelled = false;
-    const latitude = winterCities.map((city) => city.latitude).join(",");
-    const longitude = winterCities.map((city) => city.longitude).join(",");
+    const latitude = weatherCities.map((city) => city.latitude).join(",");
+    const longitude = weatherCities.map((city) => city.longitude).join(",");
     void fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=celsius`,
     )
@@ -7692,7 +7703,7 @@ function WeatherOverview({
         const entries = data.map(
           (item, index) =>
             [
-              winterCities[index].name,
+              weatherCities[index].name,
               {
                 temperature: item.current.temperature_2m,
                 code: item.current.weather_code,
@@ -7707,7 +7718,7 @@ function WeatherOverview({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [weatherKey]);
 
   return (
     <section className="weather-overview">
@@ -7717,7 +7728,7 @@ function WeatherOverview({
           <p>
             {mode === "now"
               ? "Текущая погода в городах поездки"
-              : "19 декабря 2026 - 3 января 2027"}
+              : tripDates}
           </p>
         </div>
         <div className="weather-switch" role="group" aria-label="Период погоды">
@@ -7737,12 +7748,11 @@ function WeatherOverview({
       </header>
       {mode === "trip" && (
         <p className="weather-notice">
-          Точный прогноз для поездки появится 3 декабря 2026 года, примерно за
-          16 дней до выезда.
+          Точный прогноз появится примерно за 16 дней до начала поездки.
         </p>
       )}
       <div className="weather-grid">
-        {winterCities.map((city) => {
+        {weatherCities.map((city) => {
           const current = weather[city.name];
           const photo = coverPhotos.find(
             (item) =>
@@ -7797,10 +7807,6 @@ function TripOverview({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [activePhoto, setActivePhoto] = useState(0);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
-  const isWinterRoute =
-    trip.title.toLowerCase().includes("рождествен") ||
-    trip.cities.includes("Мюнхен") ||
-    trip.cities.includes("Прага");
   const overviewCities =
     trip.overviewMapPoints?.length
       ? trip.overviewMapPoints
@@ -7966,7 +7972,11 @@ function TripOverview({
             </footer>
           </aside>
         </div>
-        {isWinterRoute && <WeatherOverview coverPhotos={coverPhotos} />}
+        <WeatherOverview
+          cities={overviewCities}
+          tripDates={trip.dates}
+          coverPhotos={coverPhotos}
+        />
       </div>
     );
   if (trip.isDraft)
@@ -8086,7 +8096,7 @@ function TripOverview({
             </footer>
           </aside>
         </div>
-        {isWinterRoute && <WeatherOverview />}
+        <WeatherOverview cities={overviewCities} tripDates={trip.dates} />
       </div>
     );
   const cities = [
