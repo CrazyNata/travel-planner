@@ -74,6 +74,7 @@ type TripSummary = {
   sightDaysVersion?: number;
   sightNotes?: Record<string, string>;
   restaurants?: ImportedRestaurant[];
+  accommodations?: SavedAccommodation[];
   members?: TripMember[];
   publicLinkEnabled?: boolean;
   published?: boolean;
@@ -5803,42 +5804,13 @@ function AccommodationForm({
   );
 }
 
-function AccommodationList() {
-  const staticStays: {
-    name: string;
-    city: string;
-    dates: string;
-    price: string;
-    status: string;
-    details: string;
-    photos?: string[];
-    photoTransforms?: { offsetX?: number; offsetY?: number }[];
-    bookingUrl?: string;
-  }[] = [];
-  const [savedStays, setSavedStays] = useState<SavedAccommodation[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return;
-      const { data: accommodations, error } = await supabase
-        .from("user_data")
-        .select("value")
-        .eq("user_id", data.session.user.id)
-        .eq("key", "odyssey-accommodations")
-        .maybeSingle();
-      if (error) {
-        console.error("Could not load accommodations.", error);
-        return;
-      }
-      if (!cancelled && Array.isArray(accommodations?.value)) {
-        setSavedStays(accommodations.value as SavedAccommodation[]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const stays = [...staticStays, ...savedStays];
+function AccommodationList({
+  stays,
+  onChange,
+}: {
+  stays: SavedAccommodation[];
+  onChange: (accommodations: SavedAccommodation[]) => void;
+}) {
   const [filter, setFilter] = useState("Все");
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
@@ -5851,14 +5823,12 @@ function AccommodationList() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedAccommodation | null>(null);
   const saveStay = (stay: SavedAccommodation) => {
-    setSavedStays((current) => {
-      const index = current.findIndex((item) => item.id === stay.id);
-      const next = index === -1
-        ? [...current, stay]
-        : current.map((item) => (item.id === stay.id ? stay : item));
-      void saveUserData("odyssey-accommodations", next);
-      return next;
-    });
+    const index = stays.findIndex((item) => item.id === stay.id);
+    onChange(
+      index === -1
+        ? [...stays, stay]
+        : stays.map((item) => (item.id === stay.id ? stay : item)),
+    );
     setStatuses((current) => ({ ...current, [stay.name]: stay.status }));
   };
   const visible = stays.filter(
@@ -6005,15 +5975,13 @@ function AccommodationList() {
                   </a>
                   <button
                     type="button"
-                    onClick={() =>
-                      setSavedStays((current) => {
-                        const next = current.filter(
-                          (item) => item.id !== (stay as SavedAccommodation).id,
-                        );
-                        void saveUserData("odyssey-accommodations", next);
-                        return next;
-                      })
-                    }
+                      onClick={() =>
+                        onChange(
+                          stays.filter(
+                            (item) => item.id !== (stay as SavedAccommodation).id,
+                          ),
+                        )
+                      }
                   >
                     удалить
                   </button>
@@ -6114,35 +6082,14 @@ function AccommodationList() {
 }
 
 function CancellationPage({
+  accommodations,
   onShowList,
   onAdd,
 }: {
+  accommodations: SavedAccommodation[];
   onShowList: () => void;
   onAdd: () => void;
 }) {
-  const [accommodations, setAccommodations] = useState<SavedAccommodation[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return;
-      const { data: saved, error } = await supabase
-        .from("user_data")
-        .select("value")
-        .eq("user_id", data.session.user.id)
-        .eq("key", "odyssey-accommodations")
-        .maybeSingle();
-      if (error) {
-        console.error("Could not load accommodations.", error);
-        return;
-      }
-      if (!cancelled && Array.isArray(saved?.value)) {
-        setAccommodations(saved.value as SavedAccommodation[]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const cancellationList = accommodations
@@ -6233,7 +6180,13 @@ function CancellationPage({
   );
 }
 
-function Accommodation() {
+function Accommodation({
+  trip,
+  onUpdateTrip,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+}) {
   const [showCancellation, setShowCancellation] = useState(false);
   const [adding, setAdding] = useState(false);
   if (showCancellation)
@@ -6241,6 +6194,7 @@ function Accommodation() {
       <>
         {
           <CancellationPage
+            accommodations={trip.accommodations || []}
             onShowList={() => setShowCancellation(false)}
             onAdd={() => setAdding(true)}
           />
@@ -6259,7 +6213,12 @@ function Accommodation() {
           setShowCancellation(true);
       }}
     >
-      <AccommodationList />
+      <AccommodationList
+        stays={trip.accommodations || []}
+        onChange={(accommodations) =>
+          onUpdateTrip({ ...trip, accommodations })
+        }
+      />
     </div>
   );
 }
@@ -9331,7 +9290,9 @@ function Workspace({
         {tab === "restaurants" && (
           <Restaurants trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
-        {tab === "accommodation" && <Accommodation />}
+        {tab === "accommodation" && (
+          <Accommodation trip={trip} onUpdateTrip={onUpdateTrip} />
+        )}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
