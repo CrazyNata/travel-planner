@@ -73,6 +73,7 @@ type TripSummary = {
   sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
   sightDaysVersion?: number;
   sightNotes?: Record<string, string>;
+  restaurants?: ImportedRestaurant[];
   members?: TripMember[];
   publicLinkEnabled?: boolean;
   published?: boolean;
@@ -4366,39 +4367,22 @@ function RouteTab({
   );
 }
 
-function RestaurantPage() {
+function RestaurantPage({
+  places,
+  onChange,
+}: {
+  places: ImportedRestaurant[];
+  onChange: (restaurants: ImportedRestaurant[]) => void;
+}) {
   const [city, setCity] = useState("Все города");
   const [status, setStatus] = useState("Все статусы");
   const [openFilter, setOpenFilter] = useState<"city" | "status" | null>(null);
-  const [places, setPlaces] = useState<ImportedRestaurant[]>([]);
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
     photos: string[];
     index: number;
   } | null>(null);
   const [editing, setEditing] = useState<ImportedRestaurant | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return;
-      const { data: restaurants, error } = await supabase
-        .from("user_data")
-        .select("value")
-        .eq("user_id", data.session.user.id)
-        .eq("key", "odyssey-restaurants")
-        .maybeSingle();
-      if (error) {
-        console.error("Could not load restaurants.", error);
-        return;
-      }
-      if (!cancelled && Array.isArray(restaurants?.value)) {
-        setPlaces(restaurants.value as ImportedRestaurant[]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const cities = Array.from(
     new Set(places.map((place) => place.city).filter(Boolean)),
   ).sort();
@@ -4425,21 +4409,15 @@ function RestaurantPage() {
     });
   };
   const saveRestaurant = (restaurant: ImportedRestaurant) => {
-    setPlaces((current) => {
-      const next = current.map((place) =>
+    onChange(
+      places.map((place) =>
         place.id === restaurant.id ? restaurant : place,
-      );
-      void saveUserData("odyssey-restaurants", next);
-      return next;
-    });
+      ),
+    );
     setEditing(null);
   };
   const deleteRestaurant = (restaurantId: string) => {
-    setPlaces((current) => {
-      const next = current.filter((place) => place.id !== restaurantId);
-      void saveUserData("odyssey-restaurants", next);
-      return next;
-    });
+    onChange(places.filter((place) => place.id !== restaurantId));
     setEditing(null);
   };
   return (
@@ -4920,11 +4898,20 @@ function RestaurantEditor({
   );
 }
 
-function Restaurants({ sights }: { sights: StoredSight[] }) {
+function Restaurants({
+  trip,
+  onUpdateTrip,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+}) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
   return (
     <div className="restaurants-with-add">
-      <RestaurantPage />
+      <RestaurantPage
+        places={trip.restaurants || []}
+        onChange={(restaurants) => onUpdateTrip({ ...trip, restaurants })}
+      />
       <button
         className="restaurant-add-button"
         onClick={() => setAddingRestaurant(true)}
@@ -4938,7 +4925,10 @@ function Restaurants({ sights }: { sights: StoredSight[] }) {
   );
   return (
     <div className="restaurants-with-add">
-      <RestaurantPage />
+      <RestaurantPage
+        places={trip.restaurants || []}
+        onChange={(restaurants) => onUpdateTrip({ ...trip, restaurants })}
+      />
       <button
         className="restaurant-add-button"
         onClick={() => setAddingRestaurant(true)}
@@ -7905,6 +7895,16 @@ function TripOverview({
     trip.title.toLowerCase().includes("рождествен") ||
     trip.cities.includes("Мюнхен") ||
     trip.cities.includes("Прага");
+  const overviewCities =
+    trip.overviewMapPoints?.length
+      ? trip.overviewMapPoints
+      : Array.from(
+          new Set(
+            (trip.days || []).flatMap((day) =>
+              day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+            ).filter(Boolean),
+          ),
+        );
   const coverPhotos = (
     trip.coverPhotos?.length
       ? trip.coverPhotos
@@ -8053,10 +8053,10 @@ function TripOverview({
             </section>
           </div>
           <aside className="map-card">
-            <TripMap />
+            <TripMap routeDays={trip.days} />
             <footer>
               <span>Общий маршрут</span>
-              <b>0 городов</b>
+              <b>{overviewCities.length} городов</b>
             </footer>
           </aside>
         </div>
@@ -8173,10 +8173,10 @@ function TripOverview({
             )}
           </div>
           <aside className="map-card">
-            <TripMap />
+            <TripMap routeDays={trip.days} />
             <footer>
               <span>Общий маршрут</span>
-              <b>0 городов</b>
+              <b>{overviewCities.length} городов</b>
             </footer>
           </aside>
         </div>
@@ -9328,7 +9328,9 @@ function Workspace({
             />
           </>
         )}
-        {tab === "restaurants" && <Restaurants sights={tripSights} />}
+        {tab === "restaurants" && (
+          <Restaurants trip={trip} onUpdateTrip={onUpdateTrip} />
+        )}
         {tab === "accommodation" && <Accommodation />}
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
