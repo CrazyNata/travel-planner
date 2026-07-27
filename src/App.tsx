@@ -6853,35 +6853,7 @@ function Members({
   trip: TripSummary;
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
-  const defaultPeople: TripMember[] = [
-    {
-      id: "anna",
-      initials: "АС",
-      name: "Анна Соколова",
-      email: "anna@mail.ru",
-      role: "Владелец",
-      tone: "sand",
-    },
-    {
-      id: "maxim",
-      initials: "МК",
-      name: "Максим Крылов",
-      email: "maxim@mail.ru",
-      role: "Редактор",
-      tone: "green",
-    },
-    {
-      id: "darya",
-      initials: "ДВ",
-      name: "Дарья Волкова",
-      email: "darya@mail.ru",
-      role: "Читатель",
-      tone: "blue",
-    },
-  ];
-  const [people, setPeople] = useState<TripMember[]>(
-    trip.members?.length ? trip.members : defaultPeople,
-  );
+  const [people, setPeople] = useState<TripMember[]>(trip.members || []);
   const updatePeople = (update: (current: TripMember[]) => TripMember[]) => {
     setPeople((current) => {
       const next = update(current);
@@ -6912,8 +6884,9 @@ function Members({
     setInviteMessage("");
     const name =
       inviteName.trim() || trimmedEmail.split("@")[0] || trimmedEmail;
-    const redirectTo =
-      "https://crazynata.github.io/travel-planner/?invite=trip";
+    const redirectTo = `${window.location.origin}/?next=${encodeURIComponent(
+      `/trips/${trip.id}/overview`,
+    )}`;
     const addMember = () => {
       updatePeople((current) => [
         ...current,
@@ -6929,20 +6902,6 @@ function Members({
       setInviteName("");
       setEmail("");
     };
-    const sendFallbackEmail = async () => {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmedEmail,
-        options: { emailRedirectTo: redirectTo },
-      });
-      if (error) {
-        setInviteMessage(error.message || "Не удалось отправить письмо.");
-        return;
-      }
-      addMember();
-      setInviteMessage(
-        `Письмо со ссылкой для входа отправлено на ${trimmedEmail}.`,
-      );
-    };
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -6952,9 +6911,37 @@ function Members({
       return;
     }
     try {
-      await sendFallbackEmail();
-    } catch {
-      setInviteMessage("Не удалось отправить письмо.");
+      const { error } = await supabase.functions.invoke("send-invite", {
+        body: {
+          email: trimmedEmail,
+          name,
+          role: inviteRole,
+          redirectTo,
+          tripId: trip.id,
+          trip: {
+            title: trip.title,
+            dates: trip.dates,
+            cities: trip.cities,
+            inviterName: people.find((person) => person.role === "Владелец")?.name,
+            participants: people.map((person) => person.name),
+          },
+        },
+      });
+      if (error) {
+        const response = error.context;
+        const details = response instanceof Response
+          ? await response.json().catch(() => null) as { error?: string } | null
+          : null;
+        throw new Error(details?.error || error.message);
+      }
+      addMember();
+      setInviteMessage(`Приглашение отправлено на ${trimmedEmail}.`);
+    } catch (error) {
+      setInviteMessage(
+        error instanceof Error
+          ? error.message
+          : "Не удалось отправить приглашение.",
+      );
     } finally {
       setSendingInvite(false);
     }
@@ -9731,17 +9718,11 @@ export function App() {
         user.user_metadata.full_name || user.email || "Путешественник",
       );
       if (!shouldNavigate) return;
-      const isTripInvitation =
-        new URLSearchParams(window.location.search).get("invite") === "trip";
+      const nextPath = new URLSearchParams(window.location.search).get("next");
+      const inviteTrip = nextPath && matchPath("/trips/:tripId/:tab?", nextPath);
       if (location.pathname === "/auth" || location.pathname === "/") {
-        go(isTripInvitation ? "trip" : "trips");
+        navigate(inviteTrip ? nextPath : "/trips", { replace: true });
       }
-      if (isTripInvitation)
-        window.history.replaceState(
-          {},
-          "",
-          `${window.location.pathname}${window.location.hash}`,
-        );
     };
     const loadSavedTrip = async () => {
       const { data, error } = await supabase
@@ -9764,8 +9745,7 @@ export function App() {
     const loadUserData = async (userId: string) => {
       const { data, error } = await supabase
         .from("trips")
-        .select("id,payload")
-        .eq("owner_id", userId);
+        .select("id,payload");
       if (error) {
         console.error("Could not load trips.", error);
         return;
@@ -9932,15 +9912,21 @@ export function App() {
             }}
           />
         )}
-        {view === "trip" && (
-          <Workspace
-            go={go}
-            trip={activeTrip}
-            onUpdateTrip={updateTrip}
-            tab={routeTab}
-            onTabChange={(tab) => navigate(`/trips/${activeTrip.id}/${tab}`)}
-          />
-        )}
+        {view === "trip" && (() => {
+          const routeTrip = [...drafts, ...trips].find(
+            (trip) => trip.id === routeTripId,
+          );
+          if (!routeTrip) return <main className="workspace">Загрузка путешествия...</main>;
+          return (
+            <Workspace
+              go={go}
+              trip={routeTrip}
+              onUpdateTrip={updateTrip}
+              tab={routeTab}
+              onTabChange={(tab) => navigate(`/trips/${routeTrip.id}/${tab}`)}
+            />
+          );
+        })()}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
