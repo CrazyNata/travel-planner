@@ -8774,8 +8774,7 @@ function Workspace({
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
-  const isChristmasTrip =
-    trip.isDraft || trip.title.toLowerCase().includes("рождествен");
+  const useDemoSightContent = false;
   const savedSightDays =
     trip.sightDaysVersion === 1 && trip.sightDays?.length
       ? trip.sightDays
@@ -8789,7 +8788,7 @@ function Workspace({
           },
         ];
   const sightDays =
-    isChristmasTrip &&
+    useDemoSightContent &&
     savedSightDays.length === 3 &&
     savedSightDays[2].title === "Рим"
       ? [
@@ -8798,7 +8797,7 @@ function Workspace({
           { id: "sights-day-5", title: "Рим" },
           { id: "sights-day-6", title: "Сан-Марино" },
         ]
-      : isChristmasTrip &&
+      : useDemoSightContent &&
           savedSightDays.length === 11 &&
           savedSightDays[10].title === "Равенсбург"
         ? [
@@ -8806,15 +8805,15 @@ function Workspace({
             { id: "sights-day-12", title: "Прага" },
             { id: "sights-day-13", title: "Прага" },
           ]
-        : isChristmasTrip &&
+        : useDemoSightContent &&
             savedSightDays.length === 12 &&
             savedSightDays[11].title === "Прага"
           ? [...savedSightDays, { id: "sights-day-13", title: "Прага" }]
-          : isChristmasTrip &&
+          : useDemoSightContent &&
               savedSightDays.length === 10 &&
               savedSightDays[9].title === "Милан"
             ? [...savedSightDays, { id: "sights-day-11", title: "Равенсбург" }]
-            : isChristmasTrip &&
+            : useDemoSightContent &&
                 savedSightDays.length === 9 &&
                 savedSightDays[8].title === "Венеция"
               ? [
@@ -8822,7 +8821,7 @@ function Workspace({
                   { id: "sights-day-10", title: "Милан" },
                   { id: "sights-day-11", title: "Равенсбург" },
                 ]
-              : isChristmasTrip &&
+              : useDemoSightContent &&
                   savedSightDays.length === 8 &&
                   savedSightDays[7].title === "Кьоджа"
                 ? [
@@ -8831,7 +8830,7 @@ function Workspace({
                     { id: "sights-day-10", title: "Милан" },
                     { id: "sights-day-11", title: "Равенсбург" },
                   ]
-                : isChristmasTrip &&
+                : useDemoSightContent &&
                     savedSightDays.length === 7 &&
                     savedSightDays[6].title === "Сан-Марино"
                   ? [
@@ -8844,14 +8843,14 @@ function Workspace({
                       { id: "sights-day-13", title: "Прага" },
                       { id: "sights-day-14", title: "Прага" },
                     ]
-                  : isChristmasTrip &&
+                  : useDemoSightContent &&
                       savedSightDays.length === 5 &&
                       savedSightDays[4].title === "Рим"
                     ? [
                         ...savedSightDays,
                         { id: "sights-day-6", title: "Сан-Марино" },
                       ]
-                    : isChristmasTrip &&
+                    : useDemoSightContent &&
                         savedSightDays.length === 4 &&
                         savedSightDays[3].title === "Рим"
                       ? [
@@ -8859,7 +8858,7 @@ function Workspace({
                           { id: "sights-day-5", title: "Рим" },
                           { id: "sights-day-6", title: "Сан-Марино" },
                         ]
-                      : isChristmasTrip &&
+                      : useDemoSightContent &&
                           savedSightDays.length === 1 &&
                           savedSightDays[0].id === "sights-day-1"
                         ? [
@@ -8879,7 +8878,7 @@ function Workspace({
       window.removeEventListener("odyssey-select-sight-day", selectDay);
   }, []);
   useEffect(() => {
-    if (trip.sightNotes?.["sights-day-2"] !== legacyVeronaDayTwoNotes) return;
+    if (!useDemoSightContent || trip.sightNotes?.["sights-day-2"] !== legacyVeronaDayTwoNotes) return;
     onUpdateTrip({
       ...trip,
       sightNotes: { ...trip.sightNotes, "sights-day-2": veronaDayTwoNotes },
@@ -8887,7 +8886,7 @@ function Workspace({
   }, [trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Верона" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Верона" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8896,7 +8895,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Рим" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8905,7 +8904,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Пиза" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Пиза" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8915,6 +8914,7 @@ function Workspace({
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (
+      !useDemoSightContent ||
       selectedDay?.title !== "Сан-Марино" ||
       trip.sightNotes?.[selectedDay.id] !== pisaDaySixNotes
     )
@@ -8927,6 +8927,7 @@ function Workspace({
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
     if (
+      !useDemoSightContent ||
       selectedDay?.title !== "Сан-Марино" ||
       trip.sightNotes?.[selectedDay.id]
     )
@@ -8941,7 +8942,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Кьоджа" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Кьоджа" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8953,7 +8954,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Венеция" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Венеция" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8962,7 +8963,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Милан" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Милан" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8971,7 +8972,7 @@ function Workspace({
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
   useEffect(() => {
     const selectedDay = sightDays.find((day) => day.id === selectedSightDayId);
-    if (selectedDay?.title !== "Прага" || trip.sightNotes?.[selectedDay.id])
+    if (!useDemoSightContent || selectedDay?.title !== "Прага" || trip.sightNotes?.[selectedDay.id])
       return;
     onUpdateTrip({
       ...trip,
@@ -8994,7 +8995,7 @@ function Workspace({
     ...pragueDayThirteenSights,
     ...pragueDayFourteenSights,
   ];
-  const tripSights = isChristmasTrip
+  const tripSights = useDemoSightContent
     ? [
         ...defaultChristmasSights.map((sight) => ({
           ...sight,
@@ -9216,9 +9217,9 @@ function Workspace({
               value={
                 trip.sightNotes?.[selectedSightDayId] ||
                 (selectedSightDayId === "sights-day-1" &&
-                trip.title.toLowerCase().includes("рождествен")
+                useDemoSightContent
                   ? munichDayOneNotes
-                  : selectedSightDayId === "sights-day-2"
+                  : useDemoSightContent && selectedSightDayId === "sights-day-2"
                     ? veronaDayTwoNotes
                     : "")
               }
