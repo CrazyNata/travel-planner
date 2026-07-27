@@ -24,6 +24,10 @@ VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_<key>
 ```
 
+## Хранение данных
+
+Supabase является единственным постоянным хранилищем данных приложения. Браузерные хранилища не используются для данных, черновиков или состояния интерфейса. Исключение: токен Supabase Auth может храниться для функции «Запомнить меня». Полные правила находятся в `AGENTS.md`.
+
 ## Публикация на GitHub Pages
 
 Workflow `.github/workflows/deploy-pages.yml` публикует сайт после каждого push в `main`.

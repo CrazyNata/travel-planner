@@ -8,7 +8,8 @@ import {
 } from "react";
 import type { Map } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { supabase } from "./supabase";
+import { matchPath, useLocation, useNavigate } from "react-router-dom";
+import { setAuthSessionPersistence, supabase } from "./supabase";
 
 type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
 type Tab =
@@ -41,6 +42,14 @@ type CoverPhoto = {
   textColor?: string;
 };
 let weatherCoverPhotos: CoverPhoto[] = [];
+type TripMember = {
+  id: string;
+  initials: string;
+  name: string;
+  email: string;
+  role: "Владелец" | "Редактор" | "Читатель";
+  tone: "sand" | "green" | "blue";
+};
 type TripSummary = {
   id: string;
   title: string;
@@ -64,6 +73,62 @@ type TripSummary = {
   sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
   sightDaysVersion?: number;
   sightNotes?: Record<string, string>;
+  members?: TripMember[];
+  publicLinkEnabled?: boolean;
+  published?: boolean;
+};
+type TripRow = {
+  id: string;
+  payload: TripSummary;
+};
+type SavedAccommodation = {
+  id: string;
+  name: string;
+  city: string;
+  dates: string;
+  days: number;
+  deadline: string;
+  progress: number;
+  status: string;
+  price: string;
+  bookingUrl: string;
+  details: string;
+  photos: string[];
+  photoTransforms?: {
+    offsetX?: number;
+    offsetY?: number;
+    scaleX?: number;
+    scaleY?: number;
+  }[];
+};
+type ImportedRestaurant = {
+  id: string;
+  name: string;
+  city: string;
+  status: string;
+  note?: string;
+  link?: string;
+  price?: string;
+  googleRating?: number;
+  googleReviews?: number;
+  photos?: string[];
+  placeType?: string;
+  categories?: string[];
+  priority?: boolean;
+  dogFriendly?: boolean;
+};
+type BudgetScope = "общий" | "семья" | "личный";
+type BudgetExpense = {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  scope: BudgetScope;
+  paidBy: string;
+  date?: string;
+};
+type BudgetSplit = {
+  groups: { id: string; name: string; people: number }[];
 };
 type StoredDay = {
   id?: string;
@@ -107,6 +172,10 @@ type StoredTripPayload = {
       overviewMapPoints?: string[];
       sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
       sightDaysVersion?: number;
+      sightNotes?: Record<string, string>;
+      members?: TripMember[];
+      publicLinkEnabled?: boolean;
+      published?: boolean;
     };
     [key: string]: unknown;
   };
@@ -147,10 +216,6 @@ function normalizeTripDates(dates: string) {
     /^(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})$/,
   );
   return match ? formatTripDates(match[1], match[2]) : dates;
-}
-
-function savedStatus(tripId: string, fallback: string) {
-  return localStorage.getItem(`odyssey-trip-${tripId}-status`) || fallback;
 }
 
 function cityFlag(city: string) {
@@ -329,11 +394,9 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
       .filter(Boolean)
       .slice(0, 3)
       .join(" · "),
-    status: savedStatus(
-      "supabase-main",
+    status:
       payload.data?.trip?.status ||
-        (payload.data?.trip?.isDraft === false ? "Предстоящее" : "Черновик"),
-    ),
+      (payload.data?.trip?.isDraft === false ? "Предстоящее" : "Черновик"),
     progress: 0,
     tone: "stone",
     // List status must not switch the route into a different interface.
@@ -345,8 +408,58 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     sights: payload.data?.sights,
     sightDays: payload.data?.trip?.sightDays,
     sightDaysVersion: payload.data?.trip?.sightDaysVersion,
+    sightNotes: payload.data?.trip?.sightNotes,
+    members: payload.data?.trip?.members,
+    publicLinkEnabled: payload.data?.trip?.publicLinkEnabled,
+    published: payload.data?.trip?.published,
     days,
   };
+}
+
+function tripFromRow(row: TripRow): TripSummary | null {
+  if (!row.payload || typeof row.payload.title !== "string") return null;
+  return {
+    ...row.payload,
+    id: row.id,
+    dates: normalizeTripDates(row.payload.dates),
+    isDraft: true,
+  } satisfies TripSummary;
+}
+
+async function saveUserData(key: string, value: unknown) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return;
+  const { error } = await supabase.from("user_data").upsert(
+    { user_id: session.user.id, key, value },
+    { onConflict: "user_id,key" },
+  );
+  if (error) console.error(`Could not save ${key}.`, error);
+}
+
+const tripSaveQueues = new globalThis.Map<string, Promise<void>>();
+
+function saveTripToSupabase(trip: TripSummary) {
+  const previous = tripSaveQueues.get(trip.id) || Promise.resolve();
+  const next = previous
+    .catch(() => undefined)
+    .then(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { error } = await supabase.from("trips").upsert(
+        { id: trip.id, owner_id: session.user.id, payload: trip },
+        { onConflict: "id" },
+      );
+      if (error) throw error;
+    })
+    .catch((error) => console.error("Could not save the trip.", error))
+    .finally(() => {
+      if (tripSaveQueues.get(trip.id) === next) tripSaveQueues.delete(trip.id);
+    });
+  tripSaveQueues.set(trip.id, next);
 }
 
 const trips: TripSummary[] = [
@@ -464,6 +577,85 @@ const mapLocations: Record<string, [number, number]> = {
   Венеция: [12.3155, 45.4408],
   Москва: [37.6173, 55.7558],
 };
+
+const accommodationCities = [
+  "Амстердам, Нидерланды",
+  "Барселона, Испания",
+  "Берлин, Германия",
+  "Болонья, Италия",
+  "Будапешт, Венгрия",
+  "Венеция, Италия",
+  "Верона, Италия",
+  "Вена, Австрия",
+  "Гамбург, Германия",
+  "Генуя, Италия",
+  "Дубай, ОАЭ",
+  "Кёльн, Германия",
+  "Кьоджа, Италия",
+  "Лиссабон, Португалия",
+  "Лондон, Великобритания",
+  "Мадрид, Испания",
+  "Милан, Италия",
+  "Мюнхен, Германия",
+  "Неаполь, Италия",
+  "Париж, Франция",
+  "Прага, Чехия",
+  "Равенсбург, Германия",
+  "Рим, Италия",
+  "Сан-Марино, Сан-Марино",
+  "Стамбул, Турция",
+  "Турин, Италия",
+  "Фильине-Вальдарно, Италия",
+  "Флоренция, Италия",
+  "Цюрих, Швейцария",
+  "Зальцбург, Австрия",
+];
+
+function externalUrl(value: string) {
+  if (!value) return "#";
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+function accommodationDateParts(value?: string) {
+  const [checkIn = "2026-09-27", checkOut = "2026-09-30"] =
+    value?.split(/\s+[–-]\s+/) || [];
+  return { checkIn, checkOut };
+}
+
+function formatAccommodationDates(value: string) {
+  const [startValue, endValue] = value.split(/\s+[–-]\s+/);
+  const start = new Date(`${startValue}T00:00:00Z`);
+  const end = new Date(`${endValue}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return value;
+  const nights = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000));
+  const month = new Intl.DateTimeFormat("ru-RU", {
+    month: "short",
+    timeZone: "UTC",
+  }).format;
+  const range =
+    start.getUTCMonth() === end.getUTCMonth()
+      ? `${start.getUTCDate()}–${end.getUTCDate()} ${month(end).replace(".", "")}`
+      : `${start.getUTCDate()} ${month(start).replace(".", "")} – ${end.getUTCDate()} ${month(end).replace(".", "")}`;
+  const nightLabel =
+    nights % 10 === 1 && nights % 100 !== 11
+      ? "ночь"
+      : nights % 10 >= 2 && nights % 10 <= 4 && (nights % 100 < 10 || nights % 100 >= 20)
+        ? "ночи"
+        : "ночей";
+  return `${range} · ${nights} ${nightLabel}`;
+}
+
+function formatAccommodationPrice(value: string) {
+  const amount = value.trim();
+  if (!amount) return "";
+  return /^[€$£₽]/.test(amount) || /[€$£₽]$/.test(amount)
+    ? amount
+    : `€${amount}`;
+}
+
+function mapStyle() {
+  return "mapbox://styles/mapbox/streets-v12";
+}
 
 const sightImageCache = new globalThis.Map<string, string>();
 
@@ -2731,19 +2923,7 @@ function TripMap({
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef<HTMLSpanElement[]>([]);
   const location = city ? mapLocation(city) : undefined;
-  const [storedRouteDays] = useState<DraftDay[]>(() => {
-    if (city || places.length || routeDays.length) return [];
-    try {
-      const activeTripId = localStorage.getItem("odyssey-active-trip");
-      const trips = JSON.parse(
-        localStorage.getItem("odyssey-drafts") || "[]",
-      ) as TripSummary[];
-      return trips.find((trip) => trip.id === activeTripId)?.days || [];
-    } catch {
-      return [];
-    }
-  });
-  const displayedRouteDays = routeDays.length ? routeDays : storedRouteDays;
+  const displayedRouteDays = routeDays;
   const routeKey = displayedRouteDays
     .map((day) =>
       [
@@ -2762,6 +2942,7 @@ function TripMap({
     if (!container.current || !token) return;
     let disposed = false;
     let map: Map | undefined;
+    let resizeObserver: ResizeObserver | undefined;
 
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
@@ -2769,12 +2950,14 @@ function TripMap({
       const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
       map = new mapboxgl.Map({
         container: container.current,
-        style: "mapbox://styles/mapbox/streets-v12",
+        style: mapStyle(),
         center: routeCoordinates[0] ?? location ?? mapLocations["Москва"],
         zoom: routeCoordinates.length ? 5 : location ? 12 : 3,
         attributionControl: false,
       });
       mapRef.current = map;
+      resizeObserver = new ResizeObserver(() => map?.resize());
+      resizeObserver.observe(container.current);
       map.addControl(
         new mapboxgl.NavigationControl({ showCompass: false }),
         "top-right",
@@ -2878,6 +3061,7 @@ function TripMap({
 
     return () => {
       disposed = true;
+      resizeObserver?.disconnect();
       map?.remove();
       mapRef.current = null;
       markerElements.current = [];
@@ -4182,62 +4366,41 @@ function RouteTab({
   );
 }
 
-function RestaurantPage({ sights }: { sights: StoredSight[] }) {
+function RestaurantPage() {
   const [city, setCity] = useState("Все города");
   const [status, setStatus] = useState("Все статусы");
   const [openFilter, setOpenFilter] = useState<"city" | "status" | null>(null);
-  const places = [
-    [
-      "Roscióli Salumeria",
-      "Рим",
-      "были",
-      "4.7",
-      "Via dei Giubbonari, 21",
-      "13 сент · 21:00",
-    ],
-    [
-      "Emma Pizzeria",
-      "Рим",
-      "бронь",
-      "4.6",
-      "Via del Monte della Farina, 28",
-      "12 сент · 20:30",
-    ],
-    [
-      "Trattoria Mario",
-      "Флоренция",
-      "хочу",
-      "4.8",
-      "Via Rosina, 2",
-      "15 сент · 13:00",
-    ],
-    [
-      "Caffè Gilli",
-      "Флоренция",
-      "бронь",
-      "4.5",
-      "Via Roma, 1",
-      "15 сент · 10:30",
-    ],
-    [
-      "Osteria alle Testiere",
-      "Венеция",
-      "хочу",
-      "4.9",
-      "Calle del Mondo Novo, 5801",
-      "17 сент · 19:30",
-    ],
-    [
-      "Trattoria da Remigio",
-      "Венеция",
-      "были",
-      "4.4",
-      "Castello, 3416",
-      "18 сент · 20:00",
-    ],
-  ];
+  const [places, setPlaces] = useState<ImportedRestaurant[]>([]);
+  const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
+  const [expandedPhoto, setExpandedPhoto] = useState<{
+    photos: string[];
+    index: number;
+  } | null>(null);
+  const [editing, setEditing] = useState<ImportedRestaurant | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: restaurants, error } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "odyssey-restaurants")
+        .maybeSingle();
+      if (error) {
+        console.error("Could not load restaurants.", error);
+        return;
+      }
+      if (!cancelled && Array.isArray(restaurants?.value)) {
+        setPlaces(restaurants.value as ImportedRestaurant[]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const cities = Array.from(
-    new Set(sights.map((sight) => sight.city).filter(Boolean)),
+    new Set(places.map((place) => place.city).filter(Boolean)),
   ).sort();
   const statusLabels: Record<string, string> = {
     "Все статусы": "Все статусы",
@@ -4247,15 +4410,40 @@ function RestaurantPage({ sights }: { sights: StoredSight[] }) {
   };
   const visible = places.filter(
     (place) =>
-      (city === "Все города" || place[1] === city) &&
-      (status === "Все статусы" || place[2] === status),
+      (city === "Все города" || place.city === city) &&
+      (status === "Все статусы" || place.status === status),
   );
   const choose = (kind: "city" | "status", value: string) => {
     if (kind === "city") setCity(value);
     else setStatus(value);
     setOpenFilter(null);
   };
+  const preloadPhotos = (photos: string[]) => {
+    photos.forEach((photo) => {
+      const image = new Image();
+      image.src = photo;
+    });
+  };
+  const saveRestaurant = (restaurant: ImportedRestaurant) => {
+    setPlaces((current) => {
+      const next = current.map((place) =>
+        place.id === restaurant.id ? restaurant : place,
+      );
+      void saveUserData("odyssey-restaurants", next);
+      return next;
+    });
+    setEditing(null);
+  };
+  const deleteRestaurant = (restaurantId: string) => {
+    setPlaces((current) => {
+      const next = current.filter((place) => place.id !== restaurantId);
+      void saveUserData("odyssey-restaurants", next);
+      return next;
+    });
+    setEditing(null);
+  };
   return (
+    <>
     <section className="restaurants-page">
       <header>
         <div>
@@ -4316,34 +4504,182 @@ function RestaurantPage({ sights }: { sights: StoredSight[] }) {
         </div>
       </div>
       <div className="restaurant-grid">
-        {visible.map((place, index) => (
-          <article className={`restaurant-card c${index % 6}`} key={place[0]}>
-            <div className="restaurant-photo">
-              <span>{place[2]}</span>
-              <b>★ {place[3]}</b>
-              <small>€€</small>
+        {visible.map((place, index) => {
+          const photos = place.photos?.filter(Boolean) || [];
+          const photoIndex = (activePhotos[place.id] || 0) % Math.max(photos.length, 1);
+          const changePhoto = (offset: number) => {
+            if (photos.length < 2) return;
+            setActivePhotos((current) => ({
+              ...current,
+              [place.id]: (photoIndex + offset + photos.length) % photos.length,
+            }));
+          };
+          return (
+            <article className={`restaurant-card c${index % 6}`} key={place.id}>
+            <div
+              className="restaurant-photo"
+              onMouseEnter={() => preloadPhotos(photos)}
+              onTouchStart={() => preloadPhotos(photos)}
+              onClick={() => {
+                if (photos[photoIndex]) {
+                  setExpandedPhoto({ photos, index: photoIndex });
+                }
+              }}
+            >
+              {photos[photoIndex] && (
+                <img src={photos[photoIndex]} alt="" loading="lazy" />
+              )}
+              <span>{place.status}</span>
+              <button
+                type="button"
+                className="restaurant-edit"
+                aria-label="Редактировать ресторан"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setEditing(place);
+                }}
+              >
+                ⋯
+              </button>
+              {photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="restaurant-photo-previous"
+                    aria-label="Предыдущее фото"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      changePhoto(-1);
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="restaurant-photo-next"
+                    aria-label="Следующее фото"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      changePhoto(1);
+                    }}
+                  >
+                    ›
+                  </button>
+                  <i>{photos.map((_, photo) => photo === photoIndex ? "●" : "○").join(" ")}</i>
+                </>
+              )}
             </div>
             <div>
+              <div className="restaurant-meta">
+                {place.googleRating !== undefined && (
+                  <span className="google-rating">
+                    <b>Google</b> {place.googleRating.toFixed(1)}
+                    <i>★</i>
+                    {place.googleReviews?.toLocaleString("ru-RU")}
+                  </span>
+                )}
+                {place.price && <span className="restaurant-price">{place.price}</span>}
+              </div>
               <p>
-                {cityFlag(place[1])} {place[1]}
+                {cityFlag(place.city)} {place.city}
               </p>
-              <h3>{place[0]}</h3>
-              <small>◷ {place[5]}</small>
-              <small>⌖ {place[4]}</small>
+              <h3>{place.name}</h3>
+              {place.note && <small>{place.note}</small>}
               <footer>
-                Забронировать стол → <i>♡</i>
+                {place.link ? (
+                  <a href={place.link} target="_blank" rel="noreferrer">
+                    Открыть →
+                  </a>
+                ) : (
+                  "Ресторан"
+                )}
+                <i>♡</i>
               </footer>
             </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </section>
+    {expandedPhoto && (
+      <div
+        className="accommodation-photo-lightbox"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Просмотр фотографии ресторана"
+        onClick={() => setExpandedPhoto(null)}
+      >
+        <img
+          src={expandedPhoto.photos[expandedPhoto.index]}
+          alt="Фотография ресторана"
+          onClick={(event) => event.stopPropagation()}
+        />
+        {expandedPhoto.photos.length > 1 && (
+          <>
+            <button
+              className="lightbox-previous"
+              type="button"
+              aria-label="Предыдущее фото"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedPhoto((current) => current && {
+                  ...current,
+                  index: (current.index - 1 + current.photos.length) % current.photos.length,
+                });
+              }}
+            >
+              ‹
+            </button>
+            <button
+              className="lightbox-next"
+              type="button"
+              aria-label="Следующее фото"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedPhoto((current) => current && {
+                  ...current,
+                  index: (current.index + 1) % current.photos.length,
+                });
+              }}
+            >
+              ›
+            </button>
+          </>
+        )}
+        <button className="lightbox-close" type="button" onClick={() => setExpandedPhoto(null)}>
+          ×
+        </button>
+      </div>
+    )}
+    {editing && (
+      <RestaurantEditor
+        restaurant={editing}
+        onClose={() => setEditing(null)}
+        onSave={saveRestaurant}
+        onDelete={() => deleteRestaurant(editing.id)}
+      />
+    )}
+    </>
   );
 }
 
 function RestaurantForm({ onClose }: { onClose: () => void }) {
   const [status, setStatus] = useState("хочу");
   const [price, setPrice] = useState("€€");
+  const [photos, setPhotos] = useState(["", "", ""]);
+  const selectPhoto = (file: File | undefined, index: number) => {
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      window.alert("Выберите изображение JPG, PNG или WebP.");
+      return;
+    }
+    const preview = URL.createObjectURL(file);
+    setPhotos((current) =>
+      current.map((photo, photoIndex) =>
+        photoIndex === index ? preview : photo,
+      ),
+    );
+  };
   return (
     <div className="restaurant-modal-backdrop" onClick={onClose}>
       <form
@@ -4361,22 +4697,34 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
           </button>
         </header>
         <div className="restaurant-upload">
-          <div>
-            ▧<br />
-            Обложка — перетащите фото
-            <br />
-            <u>or browse files</u>
-          </div>
-          <div>
-            ▧<br />＋ Фото
-            <br />
-            <u>or browse files</u>
-          </div>
-          <div>
-            ▧<br />＋ Фото
-            <br />
-            <u>or browse files</u>
-          </div>
+          {photos.map((photo, index) => (
+            <label
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                selectPhoto(event.dataTransfer.files[0], index);
+              }}
+              key={index}
+            >
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  selectPhoto(event.target.files?.[0], index);
+                  event.target.value = "";
+                }}
+              />
+              {photo ? (
+                <img src={photo} alt={index === 0 ? "Обложка ресторана" : "Фото ресторана"} />
+              ) : (
+                <span>
+                  {index === 0 ? "Обложка — перетащите фото" : "＋ Фото"}
+                  <br />
+                  <u>or browse files</u>
+                </span>
+              )}
+            </label>
+          ))}
         </div>
         <label>
           Название
@@ -4449,11 +4797,134 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+function RestaurantEditor({
+  restaurant,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  restaurant: ImportedRestaurant;
+  onClose: () => void;
+  onSave: (restaurant: ImportedRestaurant) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(restaurant.name);
+  const [city, setCity] = useState(restaurant.city);
+  const [note, setNote] = useState(restaurant.note || "");
+  const [link, setLink] = useState(restaurant.link || "");
+  const [status, setStatus] = useState(restaurant.status || "хочу");
+  const [price, setPrice] = useState(restaurant.price || "€€");
+  const [placeType, setPlaceType] = useState(restaurant.placeType || "ресторан");
+  const [categories, setCategories] = useState(restaurant.categories || []);
+  const [priority, setPriority] = useState(Boolean(restaurant.priority));
+  const [dogFriendly, setDogFriendly] = useState(Boolean(restaurant.dogFriendly));
+  const [photos, setPhotos] = useState(() => [
+    ...(restaurant.photos || []),
+    ...Array(3).fill(""),
+  ].slice(0, 3));
+  const [uploading, setUploading] = useState<number | null>(null);
+  const uploadPhoto = async (file: File | undefined, index: number) => {
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
+      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+      return;
+    }
+    setUploading(index);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/restaurants/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const url = supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl;
+      setPhotos((current) => current.map((photo, photoIndex) => photoIndex === index ? url : photo));
+    } catch {
+      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } finally {
+      setUploading(null);
+    }
+  };
+  const toggleCategory = (category: string) => {
+    setCategories((current) =>
+      current.includes(category)
+        ? current.filter((item) => item !== category)
+        : [...current, category],
+    );
+  };
+  return (
+    <div className="restaurant-modal-backdrop" onClick={onClose}>
+      <form
+        className="restaurant-modal restaurant-editor"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave({
+            ...restaurant,
+            name: name.trim() || restaurant.name,
+            city: city.trim() || restaurant.city,
+            note: note.trim(),
+            link: link.trim(),
+            status,
+            price,
+            placeType,
+            categories,
+            priority,
+            dogFriendly,
+            photos: photos.filter(Boolean),
+          });
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <h2>Редактировать ресторан</h2>
+          <button type="button" onClick={onClose}>×</button>
+        </header>
+        <label>Название<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>Город<input value={city} onChange={(event) => setCity(event.target.value)} /></label>
+        <label>Кухня / что заказать<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
+        <label>Ссылка Google Maps<input type="url" value={link} onChange={(event) => setLink(event.target.value)} /></label>
+        <section className="restaurant-editor-options">
+          <b>Тип места</b>
+          <div>{["ресторан", "кафе", "бар"].map((item) => <button className={placeType === item ? "active" : ""} type="button" onClick={() => setPlaceType(item)} key={item}>{item}</button>)}</div>
+          <b>Категории</b>
+          <div>{["пиццерия", "морепродукты", "желатерия", "бар", "ресторан", "кафе"].map((item) => <button className={categories.includes(item) ? "active" : ""} type="button" onClick={() => toggleCategory(item)} key={item}>{item}</button>)}</div>
+          <b>Уровень цен</b>
+          <div>{["€", "€€", "€€€", "€€€€"].map((item) => <button className={price === item ? "active" : ""} type="button" onClick={() => setPrice(item)} key={item}>{item}</button>)}</div>
+          <b>Статус</b>
+          <div>{["хочу", "бронь", "были"].map((item) => <button className={status === item ? "active" : ""} type="button" onClick={() => setStatus(item)} key={item}>{item}</button>)}<button className={priority ? "active" : ""} type="button" onClick={() => setPriority((current) => !current)}>🔥 приоритет</button><button className={dogFriendly ? "active" : ""} type="button" onClick={() => setDogFriendly((current) => !current)}>🐶 Можно с собакой</button></div>
+        </section>
+        <section className="restaurant-editor-photos">
+          <b>Фотографии</b>
+          <div>
+            {photos.map((photo, index) => (
+              <label key={index}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(event) => { void uploadPhoto(event.target.files?.[0], index); event.target.value = ""; }} />
+                {photo ? <img src={photo} alt="" /> : <span>{uploading === index ? "Загрузка..." : "＋ Фото"}</span>}
+              </label>
+            ))}
+          </div>
+        </section>
+        <footer>
+          <button className="restaurant-delete" type="button" onClick={onDelete}>Удалить ресторан</button>
+          <button type="button" onClick={onClose}>Отмена</button>
+          <button className="accent" disabled={uploading !== null}>Сохранить</button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 function Restaurants({ sights }: { sights: StoredSight[] }) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
   return (
     <div className="restaurants-with-add">
-      <RestaurantPage sights={sights} />
+      <RestaurantPage />
       <button
         className="restaurant-add-button"
         onClick={() => setAddingRestaurant(true)}
@@ -4467,7 +4938,7 @@ function Restaurants({ sights }: { sights: StoredSight[] }) {
   );
   return (
     <div className="restaurants-with-add">
-      <RestaurantPage sights={sights} />
+      <RestaurantPage />
       <button
         className="restaurant-add-button"
         onClick={() => setAddingRestaurant(true)}
@@ -4745,56 +5216,14 @@ function Restaurants({ sights }: { sights: StoredSight[] }) {
 }
 
 function LegacyAccommodation() {
-  const stays = [
-    {
-      name: "Mendelkoul room surroundings",
-      city: "Зальцбург, Австрия",
-      dates: "25–26 сен · 1 ночь",
-      price: "€65",
-      status: "бронь",
-      details: "Апартаменты с 1 спальней. Адрес: Helmberg...",
-    },
-    {
-      name: "Residenze MQuadro",
-      city: "Верона, Италия",
-      dates: "26–27 сен · 1 ночь",
-      price: "€91,24",
-      status: "бронь",
-      details: "Апартаменты с 2 спальнями. Адрес: Via B. G...",
-    },
-    {
-      name: "La casa al @Pianeto",
-      city: "Рим, Италия",
-      dates: "27–30 сен · 3 ночи",
-      price: "€434,98",
-      status: "оплачено",
-      details: "Апартаменты с 1 спальней, до 4 гостей. PIN...",
-    },
-    {
-      name: "Villa delle Rose",
-      city: "Флоренция, Италия",
-      dates: "30 сен – 2 окт · 2 ночи",
-      price: "€210",
-      status: "пожили",
-      details: "Номер с видом на город. Адрес будет добавлен.",
-    },
-    {
-      name: "Casa Sulla Laguna",
-      city: "Венеция, Италия",
-      dates: "2–4 окт · 2 ночи",
-      price: "€286",
-      status: "хочу",
-      details: "Апартаменты у канала, до 3 гостей.",
-    },
-    {
-      name: "Palazzo Milano",
-      city: "Милан, Италия",
-      dates: "4–6 окт · 2 ночи",
-      price: "€318",
-      status: "бронь",
-      details: "Двухместный номер в центре города.",
-    },
-  ];
+  const stays: {
+    name: string;
+    city: string;
+    dates: string;
+    price: string;
+    status: string;
+    details: string;
+  }[] = [];
   const [filter, setFilter] = useState("Все");
   const [statuses, setStatuses] = useState<Record<string, string>>(() =>
     Object.fromEntries(stays.map((stay) => [stay.name, stay.status])),
@@ -4852,8 +5281,8 @@ function LegacyAccommodation() {
                 </p>
                 <h3>{stay.name}</h3>
                 <div className="stay-price">
-                  <span>{stay.dates}</span>
-                  <b>{stay.price}</b>
+                  <span>{formatAccommodationDates(stay.dates)}</span>
+                  <b>{formatAccommodationPrice(stay.price)}</b>
                 </div>
                 <div className="stay-statuses">
                   {statusLabels.map((item) => (
@@ -5043,64 +5472,261 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AccommodationForm({ onClose }: { onClose: () => void }) {
-  const [status, setStatus] = useState("бронь");
+function AccommodationForm({
+  onClose,
+  onSaved,
+  initial,
+}: {
+  onClose: () => void;
+  onSaved?: (accommodation: SavedAccommodation) => void;
+  initial?: SavedAccommodation;
+}) {
+  const dateParts = accommodationDateParts(initial?.dates);
+  const [status, setStatus] = useState(initial?.status || "бронь");
+  const [name, setName] = useState(initial?.name || "La mia casa al @Pigneto");
+  const [city, setCity] = useState(initial?.city || "Рим, Италия");
+  const [photos, setPhotos] = useState(() => [
+    ...(initial?.photos || []),
+    ...Array(3).fill(""),
+  ].slice(0, 3));
+  const [photoTransforms, setPhotoTransforms] = useState(() =>
+    Array.from({ length: 3 }, (_, index) => ({
+      offsetX: initial?.photoTransforms?.[index]?.offsetX ?? 50,
+      offsetY: initial?.photoTransforms?.[index]?.offsetY ?? 50,
+    })),
+  );
+  const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState([false, false, false]);
+  const isUploading = uploadingPhotos.some(Boolean);
+  const uploadPhoto = async (file: File | undefined, index: number) => {
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
+      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+      return;
+    }
+    setUploadingPhotos((current) =>
+      current.map((uploading, photoIndex) =>
+        photoIndex === index ? true : uploading,
+      ),
+    );
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/accommodations/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage
+        .from("trip-photos")
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+          upsert: false,
+        });
+      if (error) throw error;
+      const publicUrl = supabase.storage.from("trip-photos").getPublicUrl(path)
+        .data.publicUrl;
+      setPhotos((current) =>
+        current.map((photo, photoIndex) =>
+          photoIndex === index ? publicUrl : photo,
+        ),
+      );
+    } catch {
+      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } finally {
+      setUploadingPhotos((current) =>
+        current.map((uploading, photoIndex) =>
+          photoIndex === index ? false : uploading,
+        ),
+      );
+    }
+  };
+  const movePhoto = (from: number, direction: -1 | 1) => {
+    const to = from + direction;
+    if (to < 0 || to >= photos.length || !photos[from] || !photos[to]) return;
+    setPhotos((current) => {
+      const next = [...current];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  };
+  const swapPhotos = (from: number, to: number) => {
+    if (from === to || !photos[from] || !photos[to]) return;
+    setPhotos((current) => {
+      const next = [...current];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+    setPhotoTransforms((current) => {
+      const next = [...current];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  };
+  const updatePhotoTransform = (
+    index: number,
+    field: "offsetX" | "offsetY",
+    value: number,
+  ) => {
+    setPhotoTransforms((current) =>
+      current.map((transform, transformIndex) =>
+        transformIndex === index ? { ...transform, [field]: value } : transform,
+      ),
+    );
+  };
   return (
-    <div className="accommodation-modal-backdrop" onClick={onClose}>
+    <div className="accommodation-modal-backdrop">
       <form
         className="accommodation-modal"
         onSubmit={(event) => {
           event.preventDefault();
+          if (isUploading) return;
           const data = new FormData(event.currentTarget);
-          localStorage.setItem(
-            "odyssey-free-cancellation",
-            JSON.stringify({
-              name: data.get("name"),
-              city: data.get("city"),
-              dates: `${data.get("checkIn")} – ${data.get("checkOut")}`,
-              days: 30,
-              deadline: data.get("freeCancellation"),
-              progress: 42,
-            }),
-          );
+          const cancellation: SavedAccommodation = {
+            id: initial?.id || crypto.randomUUID(),
+            name: name || "Новое жильё",
+            city: city || "Город не указан",
+            dates: `${data.get("checkIn")} – ${data.get("checkOut")}`,
+            days: 30,
+            deadline: String(data.get("freeCancellation") || ""),
+            progress: 42,
+            status,
+            price: String(data.get("price") || ""),
+            bookingUrl: String(data.get("bookingUrl") || ""),
+            details: String(data.get("details") || ""),
+            photos: photos.filter(Boolean),
+            photoTransforms: photos.flatMap((photo, index) =>
+              photo ? [photoTransforms[index]] : [],
+            ),
+          };
+          onSaved?.(cancellation);
           onClose();
         }}
         onClick={(event) => event.stopPropagation()}
       >
         <header>
-          <h2>Новое жильё</h2>
-          <button type="button" onClick={onClose}>
+          <h2>{initial ? "Редактировать жильё" : "Новое жильё"}</h2>
+          <button type="button" onClick={onClose} disabled={isUploading}>
             ×
           </button>
         </header>
         <section>
           <b>Фотографии</b>
           <div className="accommodation-upload">
-            <div className="accommodation-cover">
-              ▧
-              <span>
-                Обложка — перетащите фото
-                <br />
-                <u>or browse files</u>
-              </span>
-            </div>
-            <div>
-              ▧
-              <span>
-                ＋ Фото
-                <br />
-                <u>or browse files</u>
-              </span>
-            </div>
-            <div>
-              ▧
-              <span>
-                ＋ Фото
-                <br />
-                <u>or browse files</u>
-              </span>
-            </div>
+            {photos.map((photo, index) => (
+              <label
+                className={`${index === 0 ? "accommodation-cover " : ""}${draggedPhoto === index ? "dragging" : ""}`}
+                draggable={Boolean(photo)}
+                onDragStart={(event) => {
+                  if (!photo) return;
+                  setDraggedPhoto(index);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => setDraggedPhoto(null)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = draggedPhoto === null ? "copy" : "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggedPhoto !== null) swapPhotos(draggedPhoto, index);
+                  else void uploadPhoto(event.dataTransfer.files[0], index);
+                  setDraggedPhoto(null);
+                }}
+                key={index}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => {
+                    void uploadPhoto(event.target.files?.[0], index);
+                    event.target.value = "";
+                  }}
+                />
+                {photo ? (
+                  <span
+                    className="accommodation-preview-frame"
+                    style={{
+                      backgroundImage: `url(${photo})`,
+                      backgroundPosition: `${photoTransforms[index].offsetX}% ${photoTransforms[index].offsetY}%`,
+                    }}
+                  />
+                ) : (
+                  <>
+                    ▧
+                    <span>
+                      {uploadingPhotos[index]
+                        ? "Загружаем..."
+                        : index === 0
+                          ? "Обложка — перетащите фото"
+                          : "＋ Фото"}
+                      <br />
+                      <u>or browse files</u>
+                    </span>
+                  </>
+                )}
+              </label>
+            ))}
           </div>
+          {photos.some(Boolean) && (
+            <div className="accommodation-photo-order">
+              {photos.map(
+                (photo, index) =>
+                  photo && (
+                    <div key={photo}>
+                      <img src={photo} alt={`Фото ${index + 1}`} />
+                      <span>{index === 0 ? "Обложка" : `Фото ${index + 1}`}</span>
+                      <button
+                        type="button"
+                        onClick={() => movePhoto(index, -1)}
+                        disabled={index === 0 || !photos[index - 1]}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => movePhoto(index, 1)}
+                        disabled={index === photos.length - 1 || !photos[index + 1]}
+                      >
+                        →
+                      </button>
+                      <label>
+                        По горизонтали
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={photoTransforms[index].offsetX}
+                          onChange={(event) =>
+                            updatePhotoTransform(
+                              index,
+                              "offsetX",
+                              Number(event.target.value),
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        По вертикали
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={photoTransforms[index].offsetY}
+                          onChange={(event) =>
+                            updatePhotoTransform(
+                              index,
+                              "offsetY",
+                              Number(event.target.value),
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  ),
+              )}
+            </div>
+          )}
         </section>
         <section>
           <b>Статус</b>
@@ -5119,28 +5745,40 @@ function AccommodationForm({ onClose }: { onClose: () => void }) {
         </section>
         <label>
           Название
-          <input name="name" defaultValue="La mia casa al @Pigneto" />
+          <input
+            name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
         </label>
         <div className="accommodation-form-grid">
           <label>
             Город
-            <select name="city" defaultValue="Рим, Италия">
-              <option>Рим, Италия</option>
-              <option>Флоренция, Италия</option>
-              <option>Венеция, Италия</option>
-            </select>
+            <input
+              name="city"
+              list="accommodation-cities"
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              placeholder="Начните вводить город"
+              autoComplete="off"
+            />
+            <datalist id="accommodation-cities">
+              {accommodationCities.map((item) => (
+                <option value={item} key={item} />
+              ))}
+            </datalist>
           </label>
           <label>
             Цена
-            <input defaultValue="€434,98" />
+            <input name="price" defaultValue={initial?.price || "€434,98"} />
           </label>
           <label>
             Заезд
-            <input name="checkIn" type="date" defaultValue="2026-09-27" />
+            <input name="checkIn" type="date" defaultValue={dateParts.checkIn} />
           </label>
           <label>
             Выезд
-            <input name="checkOut" type="date" defaultValue="2026-09-30" />
+            <input name="checkOut" type="date" defaultValue={dateParts.checkOut} />
           </label>
         </div>
         <label>
@@ -5148,22 +5786,27 @@ function AccommodationForm({ onClose }: { onClose: () => void }) {
           <input
             name="freeCancellation"
             type="date"
-            defaultValue="2026-08-25"
+            defaultValue={initial?.deadline || "2026-08-25"}
           />
         </label>
         <label>
           Ссылка на Booking
-          <input defaultValue="https://booking.com/..." />
+          <input name="bookingUrl" defaultValue={initial?.bookingUrl || "https://booking.com/..."} />
         </label>
         <label>
           Адрес / заметка
-          <textarea defaultValue="Апартаменты с 1 спальней, до 4 гостей." />
+          <textarea
+            name="details"
+            defaultValue={initial?.details || "Апартаменты с 1 спальней, до 4 гостей."}
+          />
         </label>
         <footer>
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={onClose} disabled={isUploading}>
             Отмена
           </button>
-          <button className="accent">Сохранить жильё</button>
+          <button className="accent" disabled={isUploading}>
+            {isUploading ? "Загружаем фото..." : "Сохранить жильё"}
+          </button>
         </footer>
       </form>
     </div>
@@ -5171,61 +5814,63 @@ function AccommodationForm({ onClose }: { onClose: () => void }) {
 }
 
 function AccommodationList() {
-  const stays = [
-    {
-      name: "Mendelkoul room surroundings",
-      city: "Зальцбург, Австрия",
-      dates: "25–26 сен · 1 ночь",
-      price: "€65",
-      status: "бронь",
-      details: "Апартаменты с 1 спальней. Адрес: Helmberg...",
-    },
-    {
-      name: "Residenze MQuadro",
-      city: "Верона, Италия",
-      dates: "26–27 сен · 1 ночь",
-      price: "€91,24",
-      status: "бронь",
-      details: "Апартаменты с 2 спальнями. Адрес: Via B. G...",
-    },
-    {
-      name: "La casa al @Pianeto",
-      city: "Рим, Италия",
-      dates: "27–30 сен · 3 ночи",
-      price: "€434,98",
-      status: "оплачено",
-      details: "Апартаменты с 1 спальней, до 4 гостей. PIN...",
-    },
-    {
-      name: "Villa delle Rose",
-      city: "Флоренция, Италия",
-      dates: "30 сен – 2 окт · 2 ночи",
-      price: "€210",
-      status: "пожили",
-      details: "Номер с видом на город. Адрес будет добавлен.",
-    },
-    {
-      name: "Casa Sulla Laguna",
-      city: "Венеция, Италия",
-      dates: "2–4 окт · 2 ночи",
-      price: "€286",
-      status: "хочу",
-      details: "Апартаменты у канала, до 3 гостей.",
-    },
-    {
-      name: "Palazzo Milano",
-      city: "Милан, Италия",
-      dates: "4–6 окт · 2 ночи",
-      price: "€318",
-      status: "бронь",
-      details: "Двухместный номер в центре города.",
-    },
-  ];
+  const staticStays: {
+    name: string;
+    city: string;
+    dates: string;
+    price: string;
+    status: string;
+    details: string;
+    photos?: string[];
+    photoTransforms?: { offsetX?: number; offsetY?: number }[];
+    bookingUrl?: string;
+  }[] = [];
+  const [savedStays, setSavedStays] = useState<SavedAccommodation[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: accommodations, error } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "odyssey-accommodations")
+        .maybeSingle();
+      if (error) {
+        console.error("Could not load accommodations.", error);
+        return;
+      }
+      if (!cancelled && Array.isArray(accommodations?.value)) {
+        setSavedStays(accommodations.value as SavedAccommodation[]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const stays = [...staticStays, ...savedStays];
   const [filter, setFilter] = useState("Все");
+  const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
+  const [expandedPhoto, setExpandedPhoto] = useState<{
+    photos: string[];
+    index: number;
+  } | null>(null);
   const [statuses, setStatuses] = useState<Record<string, string>>(() =>
     Object.fromEntries(stays.map((stay) => [stay.name, stay.status])),
   );
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<SavedAccommodation | null>(null);
+  const saveStay = (stay: SavedAccommodation) => {
+    setSavedStays((current) => {
+      const index = current.findIndex((item) => item.id === stay.id);
+      const next = index === -1
+        ? [...current, stay]
+        : current.map((item) => (item.id === stay.id ? stay : item));
+      void saveUserData("odyssey-accommodations", next);
+      return next;
+    });
+    setStatuses((current) => ({ ...current, [stay.name]: stay.status }));
+  };
   const visible = stays.filter(
     (stay) => filter === "Все" || statuses[stay.name] === filter,
   );
@@ -5259,18 +5904,81 @@ function AccommodationList() {
           ))}
         </div>
         <div className="accommodation-grid">
-          {visible.map((stay, index) => (
-            <article
-              className={`accommodation-card c${index % 6}`}
-              key={stay.name}
-            >
-              <div className="accommodation-photo">
+          {visible.map((stay, index) => {
+            const photos = stay.photos || [];
+            const photoIndex = (activePhotos[stay.name] || 0) % Math.max(photos.length, 1);
+            const photoTransform = stay.photoTransforms?.[photoIndex] || {
+              offsetX: 50,
+              offsetY: 50,
+            };
+            const changePhoto = (offset: number) => {
+              if (photos.length < 2) return;
+              setActivePhotos((current) => ({
+                ...current,
+                [stay.name]: (photoIndex + offset + photos.length) % photos.length,
+              }));
+            };
+            return (
+              <article
+                className={`accommodation-card c${index % 6}`}
+                key={stay.name}
+              >
+              <div
+                className="accommodation-photo"
+                onClick={() => {
+                  if (photos[photoIndex])
+                    setExpandedPhoto({ photos, index: photoIndex });
+                }}
+                style={
+                  photos[photoIndex]
+                    ? {
+                        backgroundImage: `url(${photos[photoIndex]})`,
+                        backgroundPosition: `${photoTransform.offsetX ?? 50}% ${photoTransform.offsetY ?? 50}%`,
+                      }
+                    : undefined
+                }
+              >
                 <span className={`stay-badge ${statuses[stay.name]}`}>
                   {statuses[stay.name]}
                 </span>
-                <button aria-label="Предыдущее фото">‹</button>
-                <button aria-label="Следующее фото">›</button>
-                <i>● ● ●</i>
+                <button
+                  type="button"
+                  className="accommodation-edit"
+                  aria-label="Редактировать жильё"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setEditing(stay as SavedAccommodation);
+                  }}
+                >
+                  ⋯
+                </button>
+                <button
+                  type="button"
+                  className="accommodation-photo-previous"
+                  aria-label="Предыдущее фото"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    changePhoto(-1);
+                  }}
+                  disabled={photos.length < 2}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="accommodation-photo-next"
+                  aria-label="Следующее фото"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    changePhoto(1);
+                  }}
+                  disabled={photos.length < 2}
+                >
+                  ›
+                </button>
+                {photos.length > 1 && (
+                  <i>{photos.map((_, photo) => photo === photoIndex ? "●" : "○").join(" ")}</i>
+                )}
               </div>
               <div className="accommodation-body">
                 <p>
@@ -5278,8 +5986,8 @@ function AccommodationList() {
                 </p>
                 <h3>{stay.name}</h3>
                 <div className="stay-price">
-                  <span>{stay.dates}</span>
-                  <b>{stay.price}</b>
+                  <span>{formatAccommodationDates(stay.dates)}</span>
+                  <b>{formatAccommodationPrice(stay.price)}</b>
                 </div>
                 <div className="stay-statuses">
                   {statusLabels.map((item) => (
@@ -5299,20 +6007,118 @@ function AccommodationList() {
                 <small>{stay.details}</small>
                 <footer>
                   <a
-                    href="https://www.booking.com/"
+                    href={externalUrl(stay.bookingUrl || "")}
                     target="_blank"
                     rel="noreferrer"
                   >
                     Ссылка на Букинг →
                   </a>
-                  <button>удалить</button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSavedStays((current) => {
+                        const next = current.filter(
+                          (item) => item.id !== (stay as SavedAccommodation).id,
+                        );
+                        void saveUserData("odyssey-accommodations", next);
+                        return next;
+                      })
+                    }
+                  >
+                    удалить
+                  </button>
                 </footer>
               </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
+        {!visible.length && (
+          <p className="accommodation-empty">Жильё пока не добавлено.</p>
+        )}
       </section>
-      {adding && <AccommodationForm onClose={() => setAdding(false)} />}
+      {adding && (
+        <AccommodationForm
+          onClose={() => setAdding(false)}
+          onSaved={(stay) => {
+            saveStay(stay);
+          }}
+        />
+      )}
+      {editing && (
+        <AccommodationForm
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(stay) => {
+            saveStay(stay);
+            setEditing(null);
+          }}
+        />
+      )}
+      {expandedPhoto && (
+        <div
+          className="accommodation-photo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр фотографии жилья"
+          onClick={() => setExpandedPhoto(null)}
+        >
+          <img
+            src={expandedPhoto.photos[expandedPhoto.index]}
+            alt="Фотография жилья"
+            onClick={(event) => event.stopPropagation()}
+          />
+          {expandedPhoto.photos.length > 1 && (
+            <>
+              <button
+                className="lightbox-previous"
+                type="button"
+                aria-label="Предыдущее фото"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpandedPhoto((current) =>
+                    current
+                      ? {
+                          ...current,
+                          index:
+                            (current.index - 1 + current.photos.length) %
+                            current.photos.length,
+                        }
+                      : null,
+                  );
+                }}
+              >
+                ‹
+              </button>
+              <button
+                className="lightbox-next"
+                type="button"
+                aria-label="Следующее фото"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpandedPhoto((current) =>
+                    current
+                      ? {
+                          ...current,
+                          index: (current.index + 1) % current.photos.length,
+                        }
+                      : null,
+                  );
+                }}
+              >
+                ›
+              </button>
+            </>
+          )}
+          <button
+            className="lightbox-close"
+            type="button"
+            onClick={() => setExpandedPhoto(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -5324,55 +6130,56 @@ function CancellationPage({
   onShowList: () => void;
   onAdd: () => void;
 }) {
-  const cancellations = [
-    {
-      name: "Комната на природе",
-      city: "Зальцбург, Австрия",
-      dates: "25–26 сен · 1 ночь",
-      days: 34,
-      deadline: "до 25 августа 2026 г.",
-      progress: 38,
-    },
-    {
-      name: "Дом «Каса Мия»",
-      city: "Кьоджа, Италия",
-      dates: "1–3 окт · 2 ночи",
-      days: 56,
-      deadline: "до 16 сентября 2026 г.",
-      progress: 62,
-    },
-    {
-      name: "Городские апартаменты Милан",
-      city: "Милан, Италия",
-      dates: "3–6 окт · 3 ночи",
-      days: 58,
-      deadline: "до 18 сентября 2026 г.",
-      progress: 64,
-    },
-  ];
-  const savedCancellation = (() => {
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem("odyssey-free-cancellation") || "null",
-      );
-      return saved
-        ? {
-            ...saved,
-            name: String(saved.name || "Новое жильё"),
-            city: String(saved.city || "Город не указан"),
-            dates: String(saved.dates || "Даты не указаны"),
-            days: Number(saved.days) || 30,
-            deadline: `до ${String(saved.deadline || "даты не указаны")}`,
-            progress: Number(saved.progress) || 42,
-          }
-        : null;
-    } catch {
-      return null;
-    }
-  })();
-  const cancellationList = savedCancellation
-    ? [...cancellations, savedCancellation]
-    : cancellations;
+  const [accommodations, setAccommodations] = useState<SavedAccommodation[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: saved, error } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "odyssey-accommodations")
+        .maybeSingle();
+      if (error) {
+        console.error("Could not load accommodations.", error);
+        return;
+      }
+      if (!cancelled && Array.isArray(saved?.value)) {
+        setAccommodations(saved.value as SavedAccommodation[]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cancellationList = accommodations
+    .map((stay) => {
+      const deadline = new Date(`${stay.deadline}T00:00:00`);
+      const days = Number.isNaN(deadline.getTime())
+        ? 0
+        : Math.max(0, Math.ceil((deadline.getTime() - today.getTime()) / 86400000));
+      return {
+        ...stay,
+        days,
+        deadline: Number.isNaN(deadline.getTime())
+          ? "Дата не указана"
+          : `до ${new Intl.DateTimeFormat("ru-RU", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }).format(deadline)}`,
+        progress: Math.max(5, Math.min(100, (days / 90) * 100)),
+      };
+    })
+    .sort((first, second) => first.days - second.days);
+  const freeCount = cancellationList.filter((stay) => stay.days > 7).length;
+  const soonCount = cancellationList.filter(
+    (stay) => stay.days > 0 && stay.days <= 7,
+  ).length;
+  const paidCount = cancellationList.filter((stay) => stay.days === 0).length;
   return (
     <section className="accommodation-page cancellation-page">
       <header className="accommodation-heading">
@@ -5393,15 +6200,15 @@ function CancellationPage({
       </div>
       <div className="cancellation-summary">
         <article>
-          <b>{8 + (savedCancellation ? 1 : 0)}</b>
+          <b>{freeCount}</b>
           <span className="free">● Бесплатно ещё</span>
         </article>
         <article>
-          <b>0</b>
+          <b>{soonCount}</b>
           <span className="soon">● Скоро платно</span>
         </article>
         <article>
-          <b>0</b>
+          <b>{paidCount}</b>
           <span className="paid">● Уже платно</span>
         </article>
       </div>
@@ -5547,11 +6354,11 @@ function SectionHead({ title }: { title: string }) {
 function LegacyBudget() {
   const [adding, setAdding] = useState(false);
   const cats = [
-    ["Жильё", 64, "67 100 ₽"],
-    ["Транспорт", 41, "43 300 ₽"],
-    ["Еда и рестораны", 36, "38 000 ₽"],
-    ["Активности и билеты", 20, "21 500 ₽"],
-    ["Прочее", 8, "6 800 ₽"],
+    ["Жильё", 0, "0 ₽"],
+    ["Транспорт", 0, "0 ₽"],
+    ["Еда и рестораны", 0, "0 ₽"],
+    ["Активности и билеты", 0, "0 ₽"],
+    ["Прочее", 0, "0 ₽"],
   ] as const;
   return (
     <>
@@ -5565,17 +6372,17 @@ function LegacyBudget() {
         <div className="budget-cards">
           <article>
             <span>Общий бюджет</span>
-            <b>240 000 ₽</b>
+            <b>0 ₽</b>
           </article>
           <article className="accent-card">
             <span>Запланировано</span>
-            <b>176 700 ₽</b>
-            <small>73% бюджета</small>
+            <b>0 ₽</b>
+            <small>Нет трат</small>
           </article>
           <article>
             <span>Осталось</span>
-            <b>63 300 ₽</b>
-            <small>≈ 21 100 ₽ / чел.</small>
+            <b>0 ₽</b>
+            <small>Добавьте лимит бюджета</small>
           </article>
         </div>
         <div className="budget-grid">
@@ -5595,26 +6402,7 @@ function LegacyBudget() {
           </article>
           <article className="panel">
             <h2>Разделить расходы</h2>
-            <p>Поровну между 3 участниками</p>
-            {[
-              ["АС", "Анна", "оплатила 98 500 ₽", "+ 39 600 ₽"],
-              ["МК", "Максим", "оплатил 52 300 ₽", "− 6 600 ₽"],
-              ["ДВ", "Дарья", "оплатила 25 900 ₽", "− 33 000 ₽"],
-            ].map((item) => (
-              <div className="split" key={item[1]}>
-                <Avatar>{item[0]}</Avatar>
-                <span>
-                  <b>{item[1]}</b>
-                  <small>{item[2]}</small>
-                </span>
-                <b
-                  className={item[3].startsWith("+") ? "positive" : "negative"}
-                >
-                  {item[3]}
-                </b>
-              </div>
-            ))}
-            <button className="send-reminders">Отправить напоминания</button>
+            <p>Добавьте траты, чтобы рассчитать баланс участников.</p>
           </article>
         </div>
       </div>
@@ -5658,7 +6446,8 @@ function LegacyBudget() {
               </label>
               <label>
                 Оплатил
-                <select>
+                <select defaultValue="Общее">
+                  <option>Общее</option>
                   <option>Анна</option>
                   <option>Максим</option>
                   <option>Дарья</option>
@@ -5682,45 +6471,63 @@ function LegacyBudget() {
   );
 }
 
-function ExpenseForm({ onClose }: { onClose: () => void }) {
-  const [category, setCategory] = useState("Еда");
+function ExpenseForm({
+  onClose,
+  onSave,
+  initial,
+}: {
+  onClose: () => void;
+  onSave: (expense: BudgetExpense) => void;
+  initial?: BudgetExpense;
+}) {
+  const [category, setCategory] = useState(initial?.category || "Еда и рестораны");
+  const [scope, setScope] = useState<BudgetScope>(initial?.scope || "общий");
   return (
     <div className="expense-modal-backdrop" onClick={onClose}>
       <form
         className="expense-modal"
         onSubmit={(event) => {
           event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const amount = Number(String(form.get("amount") || "").replace(",", "."));
+          const name = String(form.get("name") || "").trim();
+          if (!name || !Number.isFinite(amount) || amount <= 0) return;
+          onSave({
+            id: initial?.id || crypto.randomUUID(),
+            name,
+            amount,
+            category,
+            scope,
+            paidBy: String(form.get("paidBy") || initial?.paidBy || "Общее").trim() || "Общее",
+            date: String(form.get("date") || "") || undefined,
+          });
           onClose();
         }}
         onClick={(event) => event.stopPropagation()}
       >
         <header>
-          <h2>Новая трата</h2>
+          <h2>{initial ? "Редактировать трату" : "Новая трата"}</h2>
           <button type="button" onClick={onClose}>
             ×
           </button>
         </header>
         <label>
-          Название
-          <input autoFocus placeholder="Напр. Ужин в Трастевере" />
+          Название<input name="name" autoFocus defaultValue={initial?.name} placeholder="Напр. жильё в Равенсбурге" />
         </label>
         <div className="expense-form-grid">
           <label>
-            Сумма, ₽<input defaultValue="4 200" inputMode="numeric" />
+            Сумма, €<input name="amount" inputMode="decimal" defaultValue={initial?.amount} placeholder="0" />
           </label>
           <label>
             Кто платил
-            <select defaultValue="Анна">
-              <option>Анна</option>
-              <option>Максим</option>
-              <option>Дарья</option>
-            </select>
+            <input name="paidBy" defaultValue={initial?.paidBy || "Общее"} placeholder="Например, Анна" />
           </label>
+          <label>Дата<input name="date" type="date" defaultValue={initial?.date} /></label>
         </div>
         <section>
           <b>Категория</b>
           <div>
-            {["Еда", "Транспорт", "Жильё", "Активности", "Прочее"].map(
+            {["Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее"].map(
               (item) => (
                 <button
                   type="button"
@@ -5734,12 +6541,71 @@ function ExpenseForm({ onClose }: { onClose: () => void }) {
             )}
           </div>
         </section>
+        <section>
+          <b>Тип бюджета</b>
+          <div>
+            {(["общий", "семья", "личный"] as BudgetScope[]).map((item) => (
+              <button
+                type="button"
+                className={scope === item ? "active" : ""}
+                onClick={() => setScope(item)}
+                key={item}
+              >
+                {item === "общий" ? "Общий" : item === "семья" ? "Семья" : "Личный"}
+              </button>
+            ))}
+          </div>
+        </section>
         <footer>
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="accent">Добавить</button>
+          <button className="accent">{initial ? "Сохранить" : "Добавить"}</button>
         </footer>
+      </form>
+    </div>
+  );
+}
+
+function BudgetSplitForm({
+  initial,
+  total,
+  onClose,
+  onSave,
+}: {
+  initial: BudgetSplit;
+  total: number;
+  onClose: () => void;
+  onSave: (split: BudgetSplit) => void;
+}) {
+  const [groups, setGroups] = useState(initial.groups);
+  const peopleTotal = Math.max(1, groups.reduce((sum, group) => sum + group.people, 0));
+  return (
+    <div className="expense-modal-backdrop" onClick={onClose}>
+      <form
+        className="expense-modal budget-split-modal"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave({ groups: groups.map((group) => ({ ...group, people: Math.max(1, group.people) })) });
+          onClose();
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header><h2>Разделить бюджет</h2><button type="button" onClick={onClose}>×</button></header>
+        <div className="budget-groups">
+          {groups.map((group, index) => (
+            <div className="expense-form-grid" key={group.id}>
+              <label>{index + 1}-я группа<select value={group.name} onChange={(event) => setGroups((current) => current.map((item) => item.id === group.id ? { ...item, name: event.target.value } : item))}><option>Моя семья</option><option>Друг</option><option>Друзья</option><option>Родители</option><option>Другая группа</option></select></label>
+              <label>Количество людей<input type="number" min="1" value={group.people} onChange={(event) => setGroups((current) => current.map((item) => item.id === group.id ? { ...item, people: Number(event.target.value) } : item))} /></label>
+              {groups.length > 1 && <button type="button" className="budget-remove-group" aria-label="Удалить группу" onClick={() => setGroups((current) => current.filter((item) => item.id !== group.id))}>×</button>}
+            </div>
+          ))}
+          <button type="button" className="budget-add-group" onClick={() => setGroups((current) => [...current, { id: crypto.randomUUID(), name: "Другая группа", people: 1 }])}>＋ Добавить группу</button>
+        </div>
+        <section className="budget-split-preview">
+          {groups.map((group) => <span key={group.id}>{group.name} · {group.people} чел.<b>{(total * group.people / peopleTotal).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} €</b></span>)}
+        </section>
+        <footer><button type="button" onClick={onClose}>Отмена</button><button className="accent">Сохранить</button></footer>
       </form>
     </div>
   );
@@ -5747,20 +6613,137 @@ function ExpenseForm({ onClose }: { onClose: () => void }) {
 
 function Budget() {
   const [adding, setAdding] = useState(false);
-  return (
-    <div
-      onClickCapture={(event) => {
-        if (
-          event.target instanceof HTMLButtonElement &&
-          event.target.closest(".budget-actions")
-        ) {
-          event.stopPropagation();
-          setAdding(true);
+  const [editing, setEditing] = useState<BudgetExpense | null>(null);
+  const [splitting, setSplitting] = useState(false);
+  const [expenses, setExpenses] = useState<BudgetExpense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [split, setSplit] = useState<BudgetSplit>({
+    groups: [
+      { id: "family", name: "Моя семья", people: 2 },
+      { id: "friend", name: "Друг", people: 1 },
+    ],
+  });
+  const categories = ["Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее"];
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: saved, error } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "odyssey-budget")
+        .maybeSingle();
+      if (error) console.error("Could not load budget.", error);
+      else if (!cancelled && Array.isArray(saved?.value)) {
+        setExpenses(saved.value as BudgetExpense[]);
+      }
+      const { data: savedSplit, error: splitError } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "odyssey-budget-split")
+        .maybeSingle();
+      if (splitError) console.error("Could not load budget split.", splitError);
+      else if (!cancelled && savedSplit?.value && typeof savedSplit.value === "object") {
+        const value = savedSplit.value as Partial<BudgetSplit>;
+        if (Array.isArray(value.groups)) {
+          setSplit({
+            groups: value.groups.filter(
+              (group): group is { id: string; name: string; people: number } =>
+                typeof group === "object" && group !== null &&
+                typeof (group as { id?: unknown }).id === "string" &&
+                typeof (group as { name?: unknown }).name === "string" &&
+                typeof (group as { people?: unknown }).people === "number",
+            ),
+          });
+        } else if (typeof (value as { friendPeople?: unknown }).friendPeople === "number") {
+          setSplit({
+            groups: [
+              { id: "family", name: (value as { familyName?: string }).familyName || "Моя семья", people: (value as { familyPeople?: number }).familyPeople || 1 },
+              { id: "friend", name: (value as { friendName?: string }).friendName || "Друг", people: (value as { friendPeople?: number }).friendPeople || 1 },
+            ],
+          });
+        } else if (typeof (value as { friendShare?: unknown }).friendShare === "number") {
+          const friendShare = (value as { friendShare: number }).friendShare;
+          setSplit({
+            groups: [
+              { id: "family", name: (value as { familyName?: string }).familyName || "Моя семья", people: Math.max(1, Math.round((100 - friendShare) / friendShare)) },
+              { id: "friend", name: (value as { friendName?: string }).friendName || "Друг", people: 1 },
+            ],
+          });
         }
-      }}
-    >
-      <LegacyBudget />
-      {adding && <ExpenseForm onClose={() => setAdding(false)} />}
+      }
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const saveExpense = (expense: BudgetExpense) => {
+    setExpenses((current) => {
+      const next = current.some((item) => item.id === expense.id)
+        ? current.map((item) => item.id === expense.id ? expense : item)
+        : [...current, expense];
+      void saveUserData("odyssey-budget", next);
+      return next;
+    });
+  };
+  const scopeTotal = (scope: BudgetScope) =>
+    expenses.filter((expense) => expense.scope === scope).reduce((sum, expense) => sum + expense.amount, 0);
+  const formatAmount = (amount: number) =>
+    `${amount.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} €`;
+  const sharedTotal = scopeTotal("общий");
+  const splitPeopleTotal = Math.max(1, split.groups.reduce((sum, group) => sum + group.people, 0));
+  const saveSplit = (next: BudgetSplit) => {
+    setSplit(next);
+    void saveUserData("odyssey-budget-split", next);
+  };
+  return (
+    <div className="budget">
+      <div className="budget-actions">
+        <h2>Бюджет поездки</h2>
+        <div>
+          <button className="secondary" onClick={() => setSplitting(true)}>Разделить бюджет</button>
+          <button className="accent" onClick={() => setAdding(true)}>＋ Добавить трату</button>
+        </div>
+      </div>
+      <div className="budget-cards">
+        <article className="accent-card">
+          <span>Общий бюджет</span>
+          <b>{formatAmount(sharedTotal)}</b>
+          <small>{expenses.filter((expense) => expense.scope === "общий").length} общих трат</small>
+        </article>
+        {split.groups.map((group) => <article key={group.id}><span>{group.name}</span><b>{formatAmount(sharedTotal * group.people / splitPeopleTotal)}</b><small>Доля из общих трат</small></article>)}
+      </div>
+      <div className="budget-grid">
+        <article className="panel">
+          <header className="budget-panel-heading">
+            <h2>По категориям</h2>
+            <button
+              type="button"
+              className="budget-panel-edit"
+              aria-label="Редактировать трату"
+              disabled={!expenses.length}
+              onClick={() => setEditing(expenses[0])}
+            >
+              ✎
+            </button>
+          </header>
+          {categories.map((category) => {
+            const total = expenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0);
+            const all = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            return <div className="budget-row" key={category}><p><b>{category}</b><span>{formatAmount(total)}</span></p><div><i style={{ width: `${all ? (total / all) * 100 : 0}%` }} /></div></div>;
+          })}
+        </article>
+        <article className="panel">
+          <h2>Траты</h2>
+          {loading ? <p>Загружаем бюджет...</p> : expenses.length ? expenses.map((expense) => <div className="split" key={expense.id}><span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span><b>{formatAmount(expense.amount)}</b></div>) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
+        </article>
+      </div>
+      {adding && <ExpenseForm onClose={() => setAdding(false)} onSave={saveExpense} />}
+      {editing && <ExpenseForm initial={editing} onClose={() => setEditing(null)} onSave={saveExpense} />}
+      {splitting && <BudgetSplitForm initial={split} total={sharedTotal} onClose={() => setSplitting(false)} onSave={saveSplit} />}
     </div>
   );
 }
@@ -5863,16 +6846,14 @@ function Photos() {
   );
 }
 
-function Members({ trip }: { trip: TripSummary }) {
-  type Member = {
-    id: string;
-    initials: string;
-    name: string;
-    email: string;
-    role: "Владелец" | "Редактор" | "Читатель";
-    tone: "sand" | "green" | "blue";
-  };
-  const defaultPeople: Member[] = [
+function Members({
+  trip,
+  onUpdateTrip,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+}) {
+  const defaultPeople: TripMember[] = [
     {
       id: "anna",
       initials: "АС",
@@ -5898,27 +6879,25 @@ function Members({ trip }: { trip: TripSummary }) {
       tone: "blue",
     },
   ];
-  const membersStorageKey = `odyssey-trip-${trip.id}-members`;
-  const [people, setPeople] = useState<Member[]>(() => {
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem(membersStorageKey) || "[]",
-      ) as Member[];
-      return saved.length ? saved : defaultPeople;
-    } catch {
-      return defaultPeople;
-    }
-  });
-  useEffect(() => {
-    localStorage.setItem(membersStorageKey, JSON.stringify(people));
-  }, [membersStorageKey, people]);
+  const [people, setPeople] = useState<TripMember[]>(
+    trip.members?.length ? trip.members : defaultPeople,
+  );
+  const updatePeople = (update: (current: TripMember[]) => TripMember[]) => {
+    setPeople((current) => {
+      const next = update(current);
+      onUpdateTrip({ ...trip, members: next });
+      return next;
+    });
+  };
   const [inviteName, setInviteName] = useState("");
   const [email, setEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<Member["role"]>("Редактор");
+  const [inviteRole, setInviteRole] = useState<TripMember["role"]>("Редактор");
   const [inviteMessage, setInviteMessage] = useState("");
   const [sendingInvite, setSendingInvite] = useState(false);
-  const [publicLinkEnabled, setPublicLinkEnabled] = useState(true);
-  const [published, setPublished] = useState(false);
+  const [publicLinkEnabled, setPublicLinkEnabled] = useState(
+    trip.publicLinkEnabled ?? true,
+  );
+  const [published, setPublished] = useState(trip.published ?? false);
   const [copyLabel, setCopyLabel] = useState("Копировать");
   const publicUrl = "odyssey.travel/p/italy-8d-a1b2";
   const inviteMember = async (event: FormEvent<HTMLFormElement>) => {
@@ -5936,7 +6915,7 @@ function Members({ trip }: { trip: TripSummary }) {
     const redirectTo =
       "https://crazynata.github.io/travel-planner/?invite=trip";
     const addMember = () => {
-      setPeople((current) => [
+      updatePeople((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
@@ -6006,12 +6985,12 @@ function Members({ trip }: { trip: TripSummary }) {
                   aria-label={`Роль ${person.name}`}
                   value={person.role}
                   onChange={(event) =>
-                    setPeople((current) =>
+                    updatePeople((current) =>
                       current.map((item) =>
                         item.id === person.id
                           ? {
                               ...item,
-                              role: event.target.value as Member["role"],
+                              role: event.target.value as TripMember["role"],
                             }
                           : item,
                       ),
@@ -6025,7 +7004,7 @@ function Members({ trip }: { trip: TripSummary }) {
                   type="button"
                   className="member-remove"
                   onClick={() => {
-                    setPeople((current) =>
+                    updatePeople((current) =>
                       current.filter((item) => item.id !== person.id),
                     );
                     setInviteMessage(`${person.name} удалён из поездки.`);
@@ -6055,7 +7034,7 @@ function Members({ trip }: { trip: TripSummary }) {
           <select
             value={inviteRole}
             onChange={(event) =>
-              setInviteRole(event.target.value as Member["role"])
+              setInviteRole(event.target.value as TripMember["role"])
             }
             aria-label="Роль нового участника"
           >
@@ -6081,7 +7060,12 @@ function Members({ trip }: { trip: TripSummary }) {
             role="switch"
             aria-checked={publicLinkEnabled}
             aria-label="Включить публичную ссылку"
-            onClick={() => setPublicLinkEnabled((enabled) => !enabled)}
+            onClick={() =>
+              setPublicLinkEnabled((enabled) => {
+                onUpdateTrip({ ...trip, publicLinkEnabled: !enabled });
+                return !enabled;
+              })
+            }
           >
             <i />
           </button>
@@ -6105,7 +7089,15 @@ function Members({ trip }: { trip: TripSummary }) {
             <b>Опубликовать в каталоге</b>
             <small>Другие смогут найти и скопировать ваш маршрут</small>
           </span>
-          <button type="button" onClick={() => setPublished((value) => !value)}>
+          <button
+            type="button"
+            onClick={() =>
+              setPublished((value) => {
+                onUpdateTrip({ ...trip, published: !value });
+                return !value;
+              })
+            }
+          >
             {published ? "Опубликовано" : "Опубликовать"}
           </button>
         </div>
@@ -7014,13 +8006,6 @@ function TripOverview({
       cancelled = true;
     };
   }, [trip.id, trip.coverPhotos]);
-  useEffect(() => {
-    const clearedKey = `odyssey-cover-cleared-v3-${trip.id}`;
-    if (!trip.isDraft || localStorage.getItem(clearedKey)) return;
-    localStorage.setItem(clearedKey, "true");
-    if (trip.coverImage || trip.coverPhotos?.length)
-      onUpdateTrip({ ...trip, coverImage: undefined, coverPhotos: [] });
-  }, [trip, onUpdateTrip]);
   const reorderCoverPhotos = (_from: number, _to: number) => undefined;
   if (trip.isDraft && !activeCover)
     return (
@@ -7324,7 +8309,7 @@ function WalkingMap({
       mapboxgl.accessToken = token;
       map = new mapboxgl.Map({
         container: container.current,
-        style: "mapbox://styles/mapbox/streets-v12",
+        style: mapStyle(),
         center: coordinates[0] || fallbackLocation!,
         zoom: coordinates.length ? 13 : 11,
         attributionControl: false,
@@ -7461,15 +8446,12 @@ function Sights({
   const [adding, setAdding] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(() =>
-    Number(localStorage.getItem("odyssey-selected-sight-day") || 0),
-  );
+  const [selectedDay, setSelectedDay] = useState(0);
   useEffect(() => {
     if (selectedDay >= days.length) {
       setSelectedDay(0);
       return;
     }
-    localStorage.setItem("odyssey-selected-sight-day", String(selectedDay));
     const dayId = days[selectedDay]?.id;
     if (dayId)
       window.dispatchEvent(
@@ -7882,15 +8864,15 @@ function Workspace({
   go,
   trip,
   onUpdateTrip,
+  tab,
+  onTabChange,
 }: {
   go: (view: View) => void;
   trip: TripSummary;
   onUpdateTrip: (trip: TripSummary) => void;
+  tab: Tab;
+  onTabChange: (tab: Tab) => void;
 }) {
-  const [tab, setTab] = useState<Tab>(
-    () =>
-      (localStorage.getItem("odyssey-trip-tab") as Tab | null) || "overview",
-  );
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
@@ -7993,10 +8975,7 @@ function Workspace({
                           ]
                         : savedSightDays;
   useEffect(() => {
-    const index = Math.min(
-      Number(localStorage.getItem("odyssey-selected-sight-day") || 0),
-      sightDays.length - 1,
-    );
+    const index = 0;
     setSelectedSightDayId(sightDays[index]?.id || sightDays[0].id);
   }, [sightDays]);
   useEffect(() => {
@@ -8233,10 +9212,7 @@ function Workspace({
           {labels.map(([value, label]) => (
             <button
               className={tab === value ? "active" : ""}
-              onClick={() => {
-                setTab(value);
-                localStorage.setItem("odyssey-trip-tab", value);
-              }}
+              onClick={() => onTabChange(value)}
               key={value}
             >
               {label}
@@ -8370,7 +9346,9 @@ function Workspace({
         {tab === "bookings" && <Bookings />}
         {tab === "budget" && <Budget />}
         {tab === "photos" && <Photos />}
-        {tab === "members" && <Members trip={trip} />}
+        {tab === "members" && (
+          <Members trip={trip} onUpdateTrip={onUpdateTrip} />
+        )}
       </main>
       {overviewEditorOpen && (
         <OverviewEditor
@@ -8533,6 +9511,7 @@ function Auth({
     }
 
     if (isRegister) {
+      setAuthSessionPersistence(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -8547,13 +9526,13 @@ function Auth({
         setMode("login");
         return;
       }
-      localStorage.setItem("odyssey-remember-me", "true");
       onAuthorized(name);
       setMessage("Аккаунт создан. Открываем ваши путешествия...");
       window.setTimeout(() => go("trips"), 500);
       return;
     }
 
+    setAuthSessionPersistence(rememberMe);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -8564,7 +9543,6 @@ function Auth({
       );
       return;
     }
-    localStorage.setItem("odyssey-remember-me", String(rememberMe));
     onAuthorized(
       data.user.user_metadata.full_name || data.user.email || "Путешественник",
     );
@@ -8697,33 +9675,53 @@ function Auth({
 }
 
 export function App() {
-  const [view, setView] = useState<View>("auth");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tripMatch = matchPath("/trips/:tripId/:tab?", location.pathname);
+  const routeTripId = tripMatch?.params.tripId;
+  const routeTab = ([
+    "overview",
+    "route",
+    "sights",
+    "restaurants",
+    "accommodation",
+    "bookings",
+    "budget",
+    "photos",
+    "members",
+  ] as Tab[]).includes(tripMatch?.params.tab as Tab)
+    ? (tripMatch?.params.tab as Tab)
+    : "overview";
+  const view: View = tripMatch
+    ? "trip"
+    : location.pathname === "/create"
+      ? "create"
+      : location.pathname === "/catalog"
+        ? "catalog"
+        : location.pathname === "/public"
+          ? "public"
+          : location.pathname === "/trips"
+            ? "trips"
+            : "auth";
   const [menu, setMenu] = useState(false);
   const [storedPayload, setStoredPayload] = useState<StoredTripPayload | null>(
     null,
   );
-  const [drafts, setDrafts] = useState<TripSummary[]>(() => {
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem("odyssey-drafts") || "[]",
-      ) as TripSummary[];
-      // Earlier versions used isDraft for both status and interface mode.
-      return saved.map((trip) => ({
-        ...trip,
-        dates: normalizeTripDates(trip.dates),
-        isDraft: true,
-      }));
-    } catch {
-      return [];
-    }
-  });
-  const [activeTrip, setActiveTrip] = useState<TripSummary>(() => {
-    const savedTripId = localStorage.getItem("odyssey-active-trip");
-    return (
-      [...trips, ...drafts].find((trip) => trip.id === savedTripId) || trips[0]
-    );
-  });
+  const [drafts, setDrafts] = useState<TripSummary[]>([]);
+  const [activeTrip, setActiveTrip] = useState<TripSummary>(trips[0]);
   const [profileName, setProfileName] = useState("Путешественник");
+  const go = (next: View, tripId = activeTrip.id) => {
+    const paths: Record<Exclude<View, "trip">, string> = {
+      auth: "/auth",
+      trips: "/trips",
+      create: "/create",
+      catalog: "/catalog",
+      public: "/public",
+    };
+    navigate(next === "trip" ? `/trips/${tripId}/overview` : paths[next]);
+    setMenu(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   useEffect(() => {
     const setAuthenticatedUser = (
       user: { email?: string; user_metadata: { full_name?: string } },
@@ -8735,25 +9733,9 @@ export function App() {
       if (!shouldNavigate) return;
       const isTripInvitation =
         new URLSearchParams(window.location.search).get("invite") === "trip";
-      const savedView = localStorage.getItem(
-        "odyssey-current-view",
-      ) as View | null;
-      const savedTripId = localStorage.getItem("odyssey-active-trip");
-      const savedTrip = [...trips, ...drafts].find(
-        (trip) => trip.id === savedTripId,
-      );
-      if (savedTrip) setActiveTrip(savedTrip);
-      setView((current) =>
-        current === "auth"
-          ? isTripInvitation
-            ? "trip"
-            : savedView === "trip" && !savedTrip
-              ? "trips"
-              : savedView && savedView !== "auth"
-                ? savedView
-                : "trips"
-          : current,
-      );
+      if (location.pathname === "/auth" || location.pathname === "/") {
+        go(isTripInvitation ? "trip" : "trips");
+      }
       if (isTripInvitation)
         window.history.replaceState(
           {},
@@ -8775,61 +9757,65 @@ export function App() {
       const trip = payload && savedTrip(payload);
       if (!payload || !trip) return;
       setStoredPayload(payload);
-      setDrafts((items) => [
-        ...items.filter((item) => item.id !== trip.id),
-        trip,
+      setDrafts((items) =>
+        items.some((item) => item.id === trip.id) ? items : [...items, trip],
+      );
+    };
+    const loadUserData = async (userId: string) => {
+      const { data, error } = await supabase
+        .from("trips")
+        .select("id,payload")
+        .eq("owner_id", userId);
+      if (error) {
+        console.error("Could not load trips.", error);
+        return;
+      }
+      const remoteDrafts = ((data || []) as TripRow[])
+        .map(tripFromRow)
+        .filter((trip): trip is TripSummary => trip !== null);
+      setDrafts((current) => [
+        ...remoteDrafts,
+        ...current.filter(
+          (trip) =>
+            trip.id === "supabase-main" &&
+            !remoteDrafts.some((remote) => remote.id === trip.id),
+        ),
       ]);
+      setActiveTrip((current) =>
+        remoteDrafts.find((trip) => trip.id === current.id) ||
+        remoteDrafts[0] ||
+        current,
+      );
     };
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
-      if (localStorage.getItem("odyssey-remember-me") === "false") {
-        await supabase.auth.signOut();
-        return;
-      }
-      setAuthenticatedUser(data.session.user, true);
+      setAuthenticatedUser(data.session.user);
+      void loadUserData(data.session.user.id);
       void loadSavedTrip();
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (session?.user) {
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
-          if (event === "SIGNED_IN") void loadSavedTrip();
-        } else if (event === "SIGNED_OUT") {
-          localStorage.removeItem("odyssey-current-view");
-          setView("auth");
-        }
+          if (event === "SIGNED_IN") {
+            void loadUserData(session.user.id);
+            void loadSavedTrip();
+          }
+        } else if (event === "SIGNED_OUT") go("auth");
       },
     );
     return () => listener.subscription.unsubscribe();
   }, []);
   useEffect(() => {
-    try {
-      localStorage.setItem("odyssey-drafts", JSON.stringify(drafts));
-    } catch {
-      // Keep the open trip usable even if browser storage is full.
-    }
-  }, [drafts]);
-  useEffect(() => {
-    localStorage.setItem("odyssey-active-trip", activeTrip.id);
-  }, [activeTrip.id]);
-  useEffect(() => {
-    localStorage.setItem(
-      `odyssey-trip-${activeTrip.id}-status`,
-      activeTrip.status,
-    );
-  }, [activeTrip.id, activeTrip.status]);
-  const go = (next: View) => {
-    localStorage.setItem("odyssey-current-view", next);
-    setView(next);
-    setMenu(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+    const trip = [...drafts, ...trips].find((item) => item.id === routeTripId);
+    if (trip) setActiveTrip(trip);
+  }, [drafts, routeTripId]);
   const updateTrip = (trip: TripSummary) => {
-    localStorage.setItem(`odyssey-trip-${trip.id}-status`, trip.status);
     setActiveTrip(trip);
     setDrafts((items) =>
       items.map((item) => (item.id === trip.id ? trip : item)),
     );
+    saveTripToSupabase(trip);
     if (trip.id !== "supabase-main" || !storedPayload?.data) return;
     const currentDays = storedPayload.data.days || [];
     const updatedDays: StoredDay[] = (trip.days || []).map((day, index) => {
@@ -8873,6 +9859,10 @@ export function App() {
           overviewMapPoints: trip.overviewMapPoints,
           sightDays: trip.sightDays,
           sightDaysVersion: trip.sightDaysVersion,
+          sightNotes: trip.sightNotes,
+          members: trip.members,
+          publicLinkEnabled: trip.publicLinkEnabled,
+          published: trip.published,
         },
       },
     };
@@ -8927,7 +9917,7 @@ export function App() {
             onUpdateTrip={updateTrip}
             onOpenTrip={(trip) => {
               setActiveTrip(trip);
-              go("trip");
+              go("trip", trip.id);
             }}
           />
         )}
@@ -8937,12 +9927,19 @@ export function App() {
             onCreate={(trip) => {
               setDrafts((items) => [...items, trip]);
               setActiveTrip(trip);
-              go("trip");
+              saveTripToSupabase(trip);
+              go("trip", trip.id);
             }}
           />
         )}
         {view === "trip" && (
-          <Workspace go={go} trip={activeTrip} onUpdateTrip={updateTrip} />
+          <Workspace
+            go={go}
+            trip={activeTrip}
+            onUpdateTrip={updateTrip}
+            tab={routeTab}
+            onTabChange={(tab) => navigate(`/trips/${activeTrip.id}/${tab}`)}
+          />
         )}
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
