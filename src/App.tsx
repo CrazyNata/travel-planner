@@ -75,6 +75,8 @@ type TripSummary = {
   sightNotes?: Record<string, string>;
   restaurants?: ImportedRestaurant[];
   accommodations?: SavedAccommodation[];
+  budgetExpenses?: BudgetExpense[];
+  budgetSplit?: BudgetSplit;
   members?: TripMember[];
   publicLinkEnabled?: boolean;
   published?: boolean;
@@ -6560,83 +6562,29 @@ function BudgetSplitForm({
   );
 }
 
-function Budget() {
+function Budget({
+  trip,
+  onUpdateTrip,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+}) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<BudgetExpense | null>(null);
   const [splitting, setSplitting] = useState(false);
-  const [expenses, setExpenses] = useState<BudgetExpense[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [split, setSplit] = useState<BudgetSplit>({
+  const expenses = trip.budgetExpenses || [];
+  const split = trip.budgetSplit || {
     groups: [
       { id: "family", name: "Моя семья", people: 2 },
       { id: "friend", name: "Друг", people: 1 },
     ],
-  });
+  };
   const categories = ["Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее"];
-  useEffect(() => {
-    let cancelled = false;
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return;
-      const { data: saved, error } = await supabase
-        .from("user_data")
-        .select("value")
-        .eq("user_id", data.session.user.id)
-        .eq("key", "odyssey-budget")
-        .maybeSingle();
-      if (error) console.error("Could not load budget.", error);
-      else if (!cancelled && Array.isArray(saved?.value)) {
-        setExpenses(saved.value as BudgetExpense[]);
-      }
-      const { data: savedSplit, error: splitError } = await supabase
-        .from("user_data")
-        .select("value")
-        .eq("user_id", data.session.user.id)
-        .eq("key", "odyssey-budget-split")
-        .maybeSingle();
-      if (splitError) console.error("Could not load budget split.", splitError);
-      else if (!cancelled && savedSplit?.value && typeof savedSplit.value === "object") {
-        const value = savedSplit.value as Partial<BudgetSplit>;
-        if (Array.isArray(value.groups)) {
-          setSplit({
-            groups: value.groups.filter(
-              (group): group is { id: string; name: string; people: number } =>
-                typeof group === "object" && group !== null &&
-                typeof (group as { id?: unknown }).id === "string" &&
-                typeof (group as { name?: unknown }).name === "string" &&
-                typeof (group as { people?: unknown }).people === "number",
-            ),
-          });
-        } else if (typeof (value as { friendPeople?: unknown }).friendPeople === "number") {
-          setSplit({
-            groups: [
-              { id: "family", name: (value as { familyName?: string }).familyName || "Моя семья", people: (value as { familyPeople?: number }).familyPeople || 1 },
-              { id: "friend", name: (value as { friendName?: string }).friendName || "Друг", people: (value as { friendPeople?: number }).friendPeople || 1 },
-            ],
-          });
-        } else if (typeof (value as { friendShare?: unknown }).friendShare === "number") {
-          const friendShare = (value as { friendShare: number }).friendShare;
-          setSplit({
-            groups: [
-              { id: "family", name: (value as { familyName?: string }).familyName || "Моя семья", people: Math.max(1, Math.round((100 - friendShare) / friendShare)) },
-              { id: "friend", name: (value as { friendName?: string }).friendName || "Друг", people: 1 },
-            ],
-          });
-        }
-      }
-      if (!cancelled) setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const saveExpense = (expense: BudgetExpense) => {
-    setExpenses((current) => {
-      const next = current.some((item) => item.id === expense.id)
-        ? current.map((item) => item.id === expense.id ? expense : item)
-        : [...current, expense];
-      void saveUserData("odyssey-budget", next);
-      return next;
-    });
+    const next = expenses.some((item) => item.id === expense.id)
+      ? expenses.map((item) => item.id === expense.id ? expense : item)
+      : [...expenses, expense];
+    onUpdateTrip({ ...trip, budgetExpenses: next });
   };
   const scopeTotal = (scope: BudgetScope) =>
     expenses.filter((expense) => expense.scope === scope).reduce((sum, expense) => sum + expense.amount, 0);
@@ -6645,8 +6593,7 @@ function Budget() {
   const sharedTotal = scopeTotal("общий");
   const splitPeopleTotal = Math.max(1, split.groups.reduce((sum, group) => sum + group.people, 0));
   const saveSplit = (next: BudgetSplit) => {
-    setSplit(next);
-    void saveUserData("odyssey-budget-split", next);
+    onUpdateTrip({ ...trip, budgetSplit: next });
   };
   return (
     <div className="budget">
@@ -6687,7 +6634,7 @@ function Budget() {
         </article>
         <article className="panel">
           <h2>Траты</h2>
-          {loading ? <p>Загружаем бюджет...</p> : expenses.length ? expenses.map((expense) => <div className="split" key={expense.id}><span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span><b>{formatAmount(expense.amount)}</b></div>) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
+          {expenses.length ? expenses.map((expense) => <div className="split" key={expense.id}><span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span><b>{formatAmount(expense.amount)}</b></div>) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
         </article>
       </div>
       {adding && <ExpenseForm onClose={() => setAdding(false)} onSave={saveExpense} />}
@@ -9294,7 +9241,9 @@ function Workspace({
           <Accommodation trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
         {tab === "bookings" && <Bookings />}
-        {tab === "budget" && <Budget />}
+        {tab === "budget" && (
+          <Budget trip={trip} onUpdateTrip={onUpdateTrip} />
+        )}
         {tab === "photos" && <Photos />}
         {tab === "members" && (
           <Members trip={trip} onUpdateTrip={onUpdateTrip} />
