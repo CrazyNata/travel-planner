@@ -8161,10 +8161,12 @@ function WalkingMap({
   sights,
   city,
   activeSightId,
+  travelMode = "walking",
 }: {
   sights: StoredSight[];
   city?: string;
   activeSightId?: string;
+  travelMode?: "walking" | "driving";
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -8173,38 +8175,55 @@ function WalkingMap({
     distance: number;
     duration: number;
   } | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    [number, number][] | null
+  >(null);
+  const coordinates = sights
+    .map((sight) => sight.lnglat)
+    .filter((coordinate): coordinate is [number, number] =>
+      Boolean(coordinate),
+    );
   const routeKey = sights
     .map((sight) => `${sight.id}:${sight.lnglat?.join(",") || ""}`)
     .join(";");
+
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const coordinates = sights
-      .map((sight) => sight.lnglat)
-      .filter((coordinate): coordinate is [number, number] =>
-        Boolean(coordinate),
-      );
-    const fallbackLocation = city ? mapLocation(city) : undefined;
-    if (
-      !container.current ||
-      !token ||
-      (!coordinates.length && !fallbackLocation)
+    if (!token || coordinates.length < 2) return;
+    let cancelled = false;
+    const path = coordinates.map((coordinate) => coordinate.join(",")).join(";");
+    void fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${path}?geometries=geojson&overview=full&access_token=${token}`,
     )
+      .then((response) => response.json())
+      .then((data: {
+        routes?: {
+          distance: number;
+          duration: number;
+          geometry?: { coordinates: [number, number][] };
+        }[];
+      }) => {
+        const route = data.routes?.[0];
+        if (cancelled) return;
+        setStats(route || null);
+        setRouteCoordinates(route?.geometry?.coordinates || null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStats(null);
+          setRouteCoordinates(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeKey, travelMode]);
+
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    const fallbackLocation = city ? mapLocation(city) : undefined;
+    if (!container.current || !token || (!coordinates.length && !fallbackLocation))
       return;
-    if (coordinates.length > 1) {
-      const path = coordinates
-        .map((coordinate) => coordinate.join(","))
-        .join(";");
-      void fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/walking/${path}?overview=false&access_token=${token}`,
-      )
-        .then((response) => response.json())
-        .then((data: { routes?: { distance: number; duration: number }[] }) =>
-          setStats(data.routes?.[0] || null),
-        )
-        .catch(() => setStats(null));
-    } else {
-      setStats(null);
-    }
     let map: Map | undefined;
     let disposed = false;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
@@ -8240,7 +8259,10 @@ function WalkingMap({
             data: {
               type: "Feature",
               properties: {},
-              geometry: { type: "LineString", coordinates },
+              geometry: {
+                type: "LineString",
+                coordinates: routeCoordinates || coordinates,
+              },
             },
           });
           map!.addLayer({
@@ -8268,7 +8290,7 @@ function WalkingMap({
       mapRef.current = null;
       markerElements.current.clear();
     };
-  }, [routeKey, city]);
+  }, [routeKey, city, routeCoordinates]);
   useEffect(() => {
     if (!activeSightId) return;
     const marker = markerElements.current.get(activeSightId);
@@ -8309,7 +8331,7 @@ function WalkingMap({
     <div className="walking-map-wrap">
       <div className="walking-map" ref={container} />
       <footer>
-        <span>Пеший маршрут</span>
+        <span>{travelMode === "driving" ? "Маршрут на машине" : "Пеший маршрут"}</span>
         <b>
           {stats
             ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин`
@@ -8512,7 +8534,15 @@ function Sights({
             <span>{routeSights.length} мест</span>
           </header>
           <div className="walking-layout">
-            <WalkingMap sights={routeSights} city={city} />
+            <WalkingMap
+              sights={routeSights}
+              city={city}
+              travelMode={
+                routeSights.some((sight) => sight.id.startsWith("stelvio_"))
+                  ? "driving"
+                  : "walking"
+              }
+            />
             <div className="walking-points">
               <h3>Список мест</h3>
               <ol className="walking-list">
