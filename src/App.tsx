@@ -8814,7 +8814,7 @@ function Workspace({
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
   const firstDraftDay = draftDays[0];
-  const useDemoSightContent = false;
+  const useDemoSightContent = trip.title === "Рождественская Италия";
   const savedSightDays =
     trip.sightDaysVersion === 1 && trip.sightDays?.length
       ? trip.sightDays
