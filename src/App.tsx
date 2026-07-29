@@ -77,6 +77,7 @@ type TripSummary = {
   accommodations?: SavedAccommodation[];
   budgetExpenses?: BudgetExpense[];
   budgetSplit?: BudgetSplit;
+  budgetCurrency?: BudgetCurrency;
   members?: TripMember[];
   publicLinkEnabled?: boolean;
   published?: boolean;
@@ -122,6 +123,7 @@ type ImportedRestaurant = {
   dogFriendly?: boolean;
 };
 type BudgetScope = "общий" | "семья" | "личный";
+type BudgetCurrency = "EUR" | "RUB" | "CZK";
 type BudgetExpense = {
   id: string;
   name: string;
@@ -134,6 +136,21 @@ type BudgetExpense = {
 type BudgetSplit = {
   groups: { id: string; name: string; people: number }[];
 };
+const budgetCurrencies: Record<
+  BudgetCurrency,
+  { label: string; rate: number }
+> = {
+  EUR: { label: "€", rate: 1 },
+  RUB: { label: "₽", rate: 100 },
+  CZK: { label: "Kč", rate: 25 },
+};
+
+function formatBudgetAmount(amount: number, currency: BudgetCurrency) {
+  const { label, rate } = budgetCurrencies[currency];
+  return `${(amount * rate).toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  })} ${label}`;
+}
 type StoredDay = {
   id?: string;
   city?: string;
@@ -152,6 +169,7 @@ type StoredSight = {
   done?: boolean;
   group?: string;
   photo?: string;
+  photoPosition?: number;
   lnglat?: [number, number];
   walkDay?: number;
   walkOrder?: number;
@@ -159,7 +177,10 @@ type StoredSight = {
   description?: string;
   duration?: string;
 };
-type DayPlaceDraft = Pick<StoredSight, "name" | "subcategory" | "description" | "photo">;
+type DayPlaceDraft = Pick<
+  StoredSight,
+  "name" | "subcategory" | "description" | "photo" | "photoPosition"
+>;
 type StoredTripPayload = {
   data?: {
     days?: StoredDay[];
@@ -230,7 +251,9 @@ function cityFlag(city: string) {
     [
       "Верона",
       "Рим",
+      "Пиза",
       "Фильине",
+      "Сан-Марино",
       "Кьоджа",
       "Милан",
       "Вальдидентро",
@@ -422,8 +445,14 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
 
 function tripFromRow(row: TripRow): TripSummary | null {
   if (!row.payload || typeof row.payload.title !== "string") return null;
+  const days = row.payload.days?.map((day) =>
+    day.roadLeg && !Array.isArray(day.roadLeg.completed)
+      ? { ...day, roadLeg: { ...day.roadLeg, completed: [] } }
+      : day,
+  );
   return {
     ...row.payload,
+    days,
     id: row.id,
     dates: normalizeTripDates(row.payload.dates),
     isDraft: true,
@@ -573,7 +602,9 @@ const mapLocations: Record<string, [number, number]> = {
   Равенсбург: [9.611, 47.781],
   Верона: [10.9916, 45.4384],
   Рим: [12.4964, 41.9028],
+  Пиза: [10.4017, 43.7228],
   "Фильине-Вальдарно": [11.469, 43.62],
+  "Сан-Марино": [12.4578, 43.9424],
   Кьоджа: [12.278, 45.219],
   Милан: [9.19, 45.4642],
   Вальдидентро: [10.3, 46.49],
@@ -714,7 +745,13 @@ function SightCardImage({ sight }: { sight: StoredSight }) {
     return () => controller.abort();
   }, [cacheKey, sight.city, sight.name, sight.photo]);
   if (!image) return null;
-  return <img src={image} alt={`${sight.name}, ${sight.city}`} />;
+  return (
+    <img
+      src={image}
+      alt={`${sight.name}, ${sight.city}`}
+      style={{ objectPosition: `center ${sight.photoPosition ?? 50}%` }}
+    />
+  );
 }
 
 function mapLocation(city: string) {
@@ -3403,7 +3440,7 @@ function Trips({
   const [filter, setFilter] = useState("all");
   const [cardMenuTripId, setCardMenuTripId] = useState<string | null>(null);
   const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
-  const allTrips = [...trips, ...drafts];
+  const allTrips = drafts;
   const filters = [
     ["all", `Все · ${allTrips.length}`],
     ["upcoming", "Предстоящие"],
@@ -4379,6 +4416,7 @@ function RestaurantPage({
 }) {
   const [city, setCity] = useState("Все города");
   const [status, setStatus] = useState("Все статусы");
+  const [query, setQuery] = useState("");
   const [openFilter, setOpenFilter] = useState<"city" | "status" | null>(null);
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
@@ -4398,7 +4436,8 @@ function RestaurantPage({
   const visible = places.filter(
     (place) =>
       (city === "Все города" || place.city === city) &&
-      (status === "Все статусы" || place.status === status),
+      (status === "Все статусы" || place.status === status) &&
+      `${place.name} ${place.city}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
   const choose = (kind: "city" | "status", value: string) => {
     if (kind === "city") setCity(value);
@@ -4483,8 +4522,16 @@ function RestaurantPage({
             </div>
           )}
         </div>
-      </div>
-      <div className="restaurant-grid">
+        </div>
+        <label className="restaurant-search">
+          <span>⌕</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Поиск по ресторану или городу"
+          />
+        </label>
+        <div className="restaurant-grid">
         {visible.map((place, index) => {
           const photos = place.photos?.filter(Boolean) || [];
           const photoIndex = (activePhotos[place.id] || 0) % Math.max(photos.length, 1);
@@ -4646,6 +4693,7 @@ function RestaurantPage({
 
 function RestaurantForm({ onClose }: { onClose: () => void }) {
   const [status, setStatus] = useState("хочу");
+  const [priority, setPriority] = useState(false);
   const [price, setPrice] = useState("€€");
   const [photos, setPhotos] = useState(["", "", ""]);
   const selectPhoto = (file: File | undefined, index: number) => {
@@ -4765,6 +4813,13 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
                 {item}
               </button>
             ))}
+            <button
+              type="button"
+              className={priority ? "active" : ""}
+              onClick={() => setPriority((current) => !current)}
+            >
+              🔥 Приоритет
+            </button>
           </div>
         </section>
         <footer>
@@ -6426,10 +6481,12 @@ function ExpenseForm({
   onClose,
   onSave,
   initial,
+  currency,
 }: {
   onClose: () => void;
   onSave: (expense: BudgetExpense) => void;
   initial?: BudgetExpense;
+  currency: BudgetCurrency;
 }) {
   const [category, setCategory] = useState(initial?.category || "Еда и рестораны");
   const [scope, setScope] = useState<BudgetScope>(initial?.scope || "общий");
@@ -6446,7 +6503,7 @@ function ExpenseForm({
           onSave({
             id: initial?.id || crypto.randomUUID(),
             name,
-            amount,
+            amount: amount / budgetCurrencies[currency].rate,
             category,
             scope,
             paidBy: String(form.get("paidBy") || initial?.paidBy || "Общее").trim() || "Общее",
@@ -6467,7 +6524,17 @@ function ExpenseForm({
         </label>
         <div className="expense-form-grid">
           <label>
-            Сумма, €<input name="amount" inputMode="decimal" defaultValue={initial?.amount} placeholder="0" />
+            Сумма, {budgetCurrencies[currency].label}
+            <input
+              name="amount"
+              inputMode="decimal"
+              defaultValue={
+                initial
+                  ? initial.amount * budgetCurrencies[currency].rate
+                  : undefined
+              }
+              placeholder="0"
+            />
           </label>
           <label>
             Кто платил
@@ -6521,11 +6588,13 @@ function ExpenseForm({
 function BudgetSplitForm({
   initial,
   total,
+  currency,
   onClose,
   onSave,
 }: {
   initial: BudgetSplit;
   total: number;
+  currency: BudgetCurrency;
   onClose: () => void;
   onSave: (split: BudgetSplit) => void;
 }) {
@@ -6554,7 +6623,7 @@ function BudgetSplitForm({
           <button type="button" className="budget-add-group" onClick={() => setGroups((current) => [...current, { id: crypto.randomUUID(), name: "Другая группа", people: 1 }])}>＋ Добавить группу</button>
         </div>
         <section className="budget-split-preview">
-          {groups.map((group) => <span key={group.id}>{group.name} · {group.people} чел.<b>{(total * group.people / peopleTotal).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} €</b></span>)}
+          {groups.map((group) => <span key={group.id}>{group.name} · {group.people} чел.<b>{formatBudgetAmount(total * group.people / peopleTotal, currency)}</b></span>)}
         </section>
         <footer><button type="button" onClick={onClose}>Отмена</button><button className="accent">Сохранить</button></footer>
       </form>
@@ -6573,6 +6642,7 @@ function Budget({
   const [editing, setEditing] = useState<BudgetExpense | null>(null);
   const [splitting, setSplitting] = useState(false);
   const expenses = trip.budgetExpenses || [];
+  const currency = trip.budgetCurrency || "EUR";
   const split = trip.budgetSplit || {
     groups: [
       { id: "family", name: "Моя семья", people: 2 },
@@ -6588,8 +6658,7 @@ function Budget({
   };
   const scopeTotal = (scope: BudgetScope) =>
     expenses.filter((expense) => expense.scope === scope).reduce((sum, expense) => sum + expense.amount, 0);
-  const formatAmount = (amount: number) =>
-    `${amount.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} €`;
+  const formatAmount = (amount: number) => formatBudgetAmount(amount, currency);
   const sharedTotal = scopeTotal("общий");
   const splitPeopleTotal = Math.max(1, split.groups.reduce((sum, group) => sum + group.people, 0));
   const saveSplit = (next: BudgetSplit) => {
@@ -6600,6 +6669,18 @@ function Budget({
       <div className="budget-actions">
         <h2>Бюджет поездки</h2>
         <div>
+          <div className="budget-currency" role="group" aria-label="Валюта">
+            {(Object.keys(budgetCurrencies) as BudgetCurrency[]).map((item) => (
+              <button
+                type="button"
+                className={currency === item ? "active" : ""}
+                onClick={() => onUpdateTrip({ ...trip, budgetCurrency: item })}
+                key={item}
+              >
+                {budgetCurrencies[item].label}
+              </button>
+            ))}
+          </div>
           <button className="secondary" onClick={() => setSplitting(true)}>Разделить бюджет</button>
           <button className="accent" onClick={() => setAdding(true)}>＋ Добавить трату</button>
         </div>
@@ -6637,9 +6718,9 @@ function Budget({
           {expenses.length ? expenses.map((expense) => <div className="split" key={expense.id}><span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span><b>{formatAmount(expense.amount)}</b></div>) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
         </article>
       </div>
-      {adding && <ExpenseForm onClose={() => setAdding(false)} onSave={saveExpense} />}
-      {editing && <ExpenseForm initial={editing} onClose={() => setEditing(null)} onSave={saveExpense} />}
-      {splitting && <BudgetSplitForm initial={split} total={sharedTotal} onClose={() => setSplitting(false)} onSave={saveSplit} />}
+      {adding && <ExpenseForm currency={currency} onClose={() => setAdding(false)} onSave={saveExpense} />}
+      {editing && <ExpenseForm currency={currency} initial={editing} onClose={() => setEditing(null)} onSave={saveExpense} />}
+      {splitting && <BudgetSplitForm currency={currency} initial={split} total={sharedTotal} onClose={() => setSplitting(false)} onSave={saveSplit} />}
     </div>
   );
 }
@@ -7807,6 +7888,64 @@ function TripOverview({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [activePhoto, setActivePhoto] = useState(0);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
+  const [routeTotals, setRouteTotals] = useState<{
+    distance: number;
+    duration: number;
+  } | null>(null);
+  const routeDays = (trip.days || []).filter((day) => day.roadLeg);
+  const routeKey = routeDays
+    .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}`)
+    .join("|");
+  useEffect(() => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    const legs = routeDays
+      .map((day) => [mapLocation(day.roadLeg!.from), mapLocation(day.roadLeg!.to)])
+      .filter((leg): leg is [[number, number], [number, number]] =>
+        Boolean(leg[0] && leg[1]),
+      );
+    if (!token || !legs.length) {
+      setRouteTotals(null);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      legs.map(async ([from, to]) => {
+        const response = await fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/driving/${from.join(",")};${to.join(",")}?overview=false&access_token=${token}`,
+        );
+        const data = (await response.json()) as {
+          routes?: { distance: number; duration: number }[];
+        };
+        return data.routes?.[0];
+      }),
+    )
+      .then((routes) => {
+        const validRoutes = routes.filter(
+          (route): route is { distance: number; duration: number } => Boolean(route),
+        );
+        if (cancelled || validRoutes.length !== legs.length) return;
+        setRouteTotals(
+          validRoutes.reduce(
+            (total, route) => ({
+              distance: total.distance + route.distance,
+              duration: total.duration + route.duration,
+            }),
+            { distance: 0, duration: 0 },
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRouteTotals(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeKey]);
+  const routeSummary = `${routeDays.length} дней${
+    routeTotals
+      ? ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`
+      : ""
+  }`;
   const overviewCities =
     trip.overviewMapPoints?.length
       ? trip.overviewMapPoints
@@ -7968,7 +8107,7 @@ function TripOverview({
             <TripMap routeDays={trip.days} />
             <footer>
               <span>Общий маршрут</span>
-              <b>{overviewCities.length} городов</b>
+              <b>{routeSummary}</b>
             </footer>
           </aside>
         </div>
@@ -8092,7 +8231,7 @@ function TripOverview({
             <TripMap routeDays={trip.days} />
             <footer>
               <span>Общий маршрут</span>
-              <b>{overviewCities.length} городов</b>
+              <b>{routeSummary}</b>
             </footer>
           </aside>
         </div>
@@ -8371,6 +8510,7 @@ function Sights({
   const [adding, setAdding] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
+  const [routeCopied, setRouteCopied] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   useEffect(() => {
     if (selectedDay >= days.length) {
@@ -8399,6 +8539,26 @@ function Sights({
   const routeSights = sights
     .filter((sight) => (sight.walkDay || 1) === selectedDay + 1)
     .sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
+  const copyRoute = async () => {
+    if (routeSights.length < 2) return;
+    const points = routeSights.map((sight) =>
+      sight.lnglat
+        ? `${sight.lnglat[1]},${sight.lnglat[0]}`
+        : `${sight.name}, ${sight.city}`,
+    );
+    const travelMode = routeSights.some((sight) => sight.id.startsWith("stelvio_"))
+      ? "driving"
+      : "walking";
+    const url = new URL("https://www.google.com/maps/dir/");
+    url.searchParams.set("api", "1");
+    url.searchParams.set("origin", points[0]);
+    url.searchParams.set("destination", points.at(-1) || "");
+    if (points.length > 2) url.searchParams.set("waypoints", points.slice(1, -1).join("|"));
+    url.searchParams.set("travelmode", travelMode);
+    await navigator.clipboard.writeText(url.toString()).catch(() => undefined);
+    setRouteCopied(true);
+    window.setTimeout(() => setRouteCopied(false), 1800);
+  };
   const [categoryFilter, setCategoryFilter] = useState("Все");
   const [statusFilter, setStatusFilter] = useState("Все");
   const categories = ["Все", ...Array.from(new Set(routeSights.map((sight) => sight.subcategory || sight.group || "Достопримечательность")))];
@@ -8531,7 +8691,16 @@ function Sights({
               <b>Карта прогулки</b>
               <p>Точки дня и их порядок будут показаны на карте.</p>
             </div>
-            <span>{routeSights.length} мест</span>
+            <div className="walking-actions">
+              <span>{routeSights.length} мест</span>
+              <button
+                type="button"
+                onClick={() => void copyRoute()}
+                disabled={routeSights.length < 2}
+              >
+                {routeCopied ? "Скопировано" : "Копировать маршрут"}
+              </button>
+            </div>
           </header>
           <div className="walking-layout">
             <WalkingMap
@@ -8663,29 +8832,78 @@ function DayEditor({
   const [placeCategory, setPlaceCategory] = useState("Достопримечательность");
   const [placeDescription, setPlaceDescription] = useState("");
   const [placePhoto, setPlacePhoto] = useState<string>();
-  const [photo, setPhoto] = useState<string>();
+  const [placePhotoFile, setPlacePhotoFile] = useState<File | null>(null);
+  const [placePhotoPosition, setPlacePhotoPosition] = useState(50);
+  const [draggingPlacePhoto, setDraggingPlacePhoto] = useState(false);
+  const placePhotoDrag = useRef<{ y: number; position: number } | null>(null);
   const [featuredPhoto, setFeaturedPhoto] = useState<string>();
+  const [uploadingFeaturedPhoto, setUploadingFeaturedPhoto] = useState(false);
   const [photoPosition, setPhotoPosition] = useState(50);
-  const addPlace = () => {
+  const addPlace = async () => {
     const value = place.trim();
     if (!value) return;
-    setPlaces((current) => [...current, { name: value, subcategory: placeCategory, description: placeDescription.trim() || undefined, photo: placePhoto }]);
+    const uploadedPhoto = placePhotoFile
+      ? await uploadFeaturedPhoto(placePhotoFile)
+      : placePhoto;
+    if (placePhotoFile && !uploadedPhoto) return;
+    setPlaces((current) => [...current, { name: value, subcategory: placeCategory, description: placeDescription.trim() || undefined, photo: uploadedPhoto || undefined, photoPosition: placePhotoPosition }]);
     setPlace("");
     setPlaceDescription("");
     setPlacePhoto(undefined);
+    setPlacePhotoFile(null);
+    setPlacePhotoPosition(50);
+  };
+  const uploadFeaturedPhoto = async (file: File) => {
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
+      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+      return;
+    }
+    setUploadingFeaturedPhoto(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/sight-days/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      return supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl;
+    } catch {
+      window.alert("Не удалось загрузить фото. Попробуйте ещё раз.");
+      return null;
+    } finally {
+      setUploadingFeaturedPhoto(false);
+    }
   };
   return (
     <div className="day-editor-backdrop" onClick={onClose}>
       <form
         className="day-editor"
         onClick={(event) => event.stopPropagation()}
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           const city = String(data.get("city") || "").trim();
-          const featured = { name: String(data.get("featured") || "").trim(), description: String(data.get("featuredDescription") || "").trim() || undefined, photo: featuredPhoto };
           if (!city) return;
-          onSave(city, featured, places, photo, photoPosition);
+          const selectedPhoto = data.get("featuredPhoto");
+          const featuredPhotoFile =
+            selectedPhoto instanceof File && selectedPhoto.size > 0
+              ? selectedPhoto
+              : null;
+          // The place-photo preview is also the day cover when no separate
+          // feature photo was picked above.
+          const dayPhotoFile = featuredPhotoFile || placePhotoFile;
+          const uploadedPhoto = dayPhotoFile
+            ? await uploadFeaturedPhoto(dayPhotoFile)
+            : featuredPhoto;
+          if (dayPhotoFile && !uploadedPhoto) return;
+          const featured = { name: String(data.get("featured") || "").trim(), description: String(data.get("featuredDescription") || "").trim() || undefined, photo: uploadedPhoto || undefined };
+          onSave(city, featured, places, uploadedPhoto || undefined, photoPosition);
         }}
       >
         <header>
@@ -8710,7 +8928,7 @@ function DayEditor({
           Главная достопримечательность
           <input name="featured" placeholder="Напр. Две башни" />
         </label>
-        <div className="featured-place-details"><textarea name="featuredDescription" placeholder="Описание объекта: что важно увидеть, время посещения, заметки..." /><label className="featured-photo-upload">Фото объекта<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setFeaturedPhoto(String(reader.result)); reader.readAsDataURL(file); }} />{featuredPhoto && <img src={featuredPhoto} alt="Фото объекта" />}</label></div>
+        <div className="featured-place-details"><textarea name="featuredDescription" placeholder="Описание объекта: что важно увидеть, время посещения, заметки..." /><label className="featured-photo-upload">{uploadingFeaturedPhoto ? "Загружаем фото..." : "Фото объекта"}<input name="featuredPhoto" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingFeaturedPhoto} onChange={(event) => { const file = event.target.files?.[0]; setFeaturedPhoto(file ? URL.createObjectURL(file) : undefined); }} />{featuredPhoto && <img src={featuredPhoto} alt="Фото объекта" />}</label></div>
         <section>
           <div>
             <b>Список мест</b>
@@ -8723,19 +8941,23 @@ function DayEditor({
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  addPlace();
+                  void addPlace();
                 }
               }}
               placeholder="Добавить место..."
             />
-            <button type="button" onClick={addPlace}>
+            <button type="button" onClick={() => void addPlace()}>
               +
             </button>
           </div>
           <div className="day-place-details">
             <select value={placeCategory} onChange={(event) => setPlaceCategory(event.target.value)}><option>Достопримечательность</option><option>Музей</option><option>Ресторан</option><option>Прогулка</option><option>Покупки</option></select>
             <input value={placeDescription} onChange={(event) => setPlaceDescription(event.target.value)} placeholder="Короткое описание" />
-            <input type="file" accept="image/*" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setPlacePhoto(String(reader.result)); reader.readAsDataURL(file); }} />
+            <label className="day-place-photo-upload">
+              <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0] || null; setPlacePhotoFile(file); setPlacePhoto(file ? URL.createObjectURL(file) : undefined); }} />
+              {placePhoto ? <img className={draggingPlacePhoto ? "dragging" : ""} src={placePhoto} alt="Фото места" style={{ objectPosition: `center ${placePhotoPosition}%` }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); placePhotoDrag.current = { y: event.clientY, position: placePhotoPosition }; setDraggingPlacePhoto(true); }} onPointerMove={(event) => { const start = placePhotoDrag.current; if (!start) return; const height = event.currentTarget.getBoundingClientRect().height; const next = start.position - ((event.clientY - start.y) / height) * 100; setPlacePhotoPosition(Math.max(0, Math.min(100, next))); }} onPointerUp={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} onPointerCancel={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} /> : <span>＋ Добавить фото</span>}
+              {placePhoto && <small>Перетащите фото, чтобы выбрать кадр</small>}
+            </label>
           </div>
           {places.length > 0 && (
             <ol>
@@ -8761,7 +8983,7 @@ function DayEditor({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="accent">Сохранить день</button>
+          <button className="accent" disabled={uploadingFeaturedPhoto}>Сохранить день</button>
         </footer>
       </form>
     </div>
@@ -9039,7 +9261,7 @@ function Workspace({
     ? [
         ...defaultChristmasSights.map((sight) => ({
           ...sight,
-          done: trip.sights?.find((saved) => saved.id === sight.id)?.done,
+          ...trip.sights?.find((saved) => saved.id === sight.id),
         })),
         ...(trip.sights || []).filter(
           (sight) =>
@@ -9225,6 +9447,15 @@ function Workspace({
               }
               onCreateDay={(dayIndex, city, featured, places, photo, photoPosition) => {
                 const dayNumber = dayIndex + 1;
+                const currentDaySights = tripSights.filter(
+                  (sight) => (sight.walkDay || 1) === dayNumber,
+                );
+                const currentFeatured =
+                  currentDaySights.find(
+                    (sight) =>
+                      sight.id === "munich-christkindlmarkt" ||
+                      sight.id === "verona-signori",
+                  ) || currentDaySights[0];
                 const newSights = [{ ...featured, subcategory: "Главная достопримечательность" }, ...places]
                   .filter((place) => place.name)
                   .map((place, index) => ({
@@ -9234,13 +9465,23 @@ function Workspace({
                     walkDay: dayNumber,
                     walkOrder: index,
                   }));
+                const updatedSights =
+                  photo && currentFeatured
+                    ? [
+                        ...(trip.sights || []).filter(
+                          (sight) => sight.id !== currentFeatured.id,
+                        ),
+                        { ...currentFeatured, photo },
+                        ...newSights,
+                      ]
+                    : [...trip.sights || [], ...newSights];
                 onUpdateTrip({
                   ...trip,
                   sightDaysVersion: 1,
                   sightDays: sightDays.map((day, index) =>
                     index === dayIndex ? { ...day, title: city, ...(photo ? { photo, photoPosition } : {}) } : day,
                   ),
-                  sights: [...tripSights, ...newSights],
+                  sights: updatedSights,
                 });
               }}
               onRenameDay={(id, title) =>
@@ -9461,6 +9702,13 @@ function Auth({
         setMessage(error.message);
         return;
       }
+      // Supabase returns an obfuscated user instead of an error for an existing
+      // address when e-mail confirmation is enabled.
+      if (!data.session && data.user?.identities?.length === 0) {
+        setMessage("Этот e-mail уже зарегистрирован. Войдите в аккаунт.");
+        setMode("login");
+        return;
+      }
       if (!data.session) {
         setMessage("Аккаунт создан. Подтвердите e-mail, затем войдите.");
         setMode("login");
@@ -9534,18 +9782,23 @@ function Auth({
           <div className="auth-divider">
             <span>или через e-mail</span>
           </div>
-          <form onSubmit={handleSubmit}>
+          <form autoComplete={isRegister ? "off" : "on"} onSubmit={handleSubmit}>
             <label className={isRegister ? "" : "hidden"}>
               Имя
               <input
                 name="name"
                 placeholder="Введите имя"
-                autoComplete="name"
+                autoComplete={isRegister ? "off" : "name"}
               />
             </label>
             <label>
               E-mail
-              <input name="email" type="email" placeholder="you@example.com" />
+              <input
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete={isRegister ? "off" : "email"}
+              />
             </label>
             <label>
               Пароль
@@ -9555,6 +9808,7 @@ function Auth({
                 placeholder={
                   isRegister ? "Минимум 8 символов" : "Введите пароль"
                 }
+                autoComplete={isRegister ? "new-password" : "current-password"}
               />
             </label>
             {isRegister && (
@@ -9650,6 +9904,8 @@ export function App() {
   const [drafts, setDrafts] = useState<TripSummary[]>([]);
   const [activeTrip, setActiveTrip] = useState<TripSummary>(trips[0]);
   const [profileName, setProfileName] = useState("Путешественник");
+  const [authReady, setAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const go = (next: View, tripId = activeTrip.id) => {
     const paths: Record<Exclude<View, "trip">, string> = {
       auth: "/auth",
@@ -9721,20 +9977,34 @@ export function App() {
       );
     };
     void supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) return;
-      setAuthenticatedUser(data.session.user);
+      setAuthReady(true);
+      if (!data.session?.user) {
+        setIsAuthenticated(false);
+        if (location.pathname !== "/auth") {
+          const next = `${location.pathname}${location.search}`;
+          navigate(`/auth?next=${encodeURIComponent(next)}`, { replace: true });
+        }
+        return;
+      }
+      setIsAuthenticated(true);
+      setAuthenticatedUser(data.session.user, true);
       void loadUserData(data.session.user.id);
       void loadSavedTrip();
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (session?.user) {
+          setAuthReady(true);
+          setIsAuthenticated(true);
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
           if (event === "SIGNED_IN") {
             void loadUserData(session.user.id);
             void loadSavedTrip();
           }
-        } else if (event === "SIGNED_OUT") go("auth");
+        } else if (event === "SIGNED_OUT") {
+          setIsAuthenticated(false);
+          navigate("/auth", { replace: true });
+        }
       },
     );
     return () => listener.subscription.unsubscribe();
@@ -9828,7 +10098,19 @@ export function App() {
         if (error) console.error("Could not save the sight.", error);
       });
   };
-  if (view === "auth") return <Auth go={go} onAuthorized={setProfileName} />;
+  if (!authReady || (!isAuthenticated && view !== "auth") || (isAuthenticated && view === "auth")) {
+    return null;
+  }
+  if (view === "auth")
+    return (
+      <Auth
+        go={go}
+        onAuthorized={(name) => {
+          setProfileName(name);
+          setIsAuthenticated(true);
+        }}
+      />
+    );
   return (
     <div className="app">
       <Sidebar
