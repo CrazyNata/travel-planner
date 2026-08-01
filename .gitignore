@@ -6,3 +6,7 @@ dist/
 vite.config.js
 vite.config.d.ts
 browser-backups/
+backups/
+.tooling/
+mobile/supabase.properties
+mobile/local.properties
