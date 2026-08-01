@@ -173,7 +173,7 @@ interface TripRepository {
     suspend fun deleteTripItem(id: String, section: String, itemId: String)
     suspend fun addSightDetails(id: String, name: String, city: String, category: String, description: String, walkDay: Int): String
     suspend fun updateSightDetailsRich(id: String, sightId: String, name: String, city: String, category: String, description: String, walkDay: Int)
-    suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String)
+    suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
     suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String)
     suspend fun updateAccommodationDetailsRich(tripId: String, accommodationId: String, input: AccommodationInput)
@@ -948,12 +948,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", id) } }
     }
 
-    override suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String) {
+    override suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String {
         require(input.name.isNotBlank()) { "Укажите название ресторана" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == tripId }
             ?: error("Путешествие не найдено")
+        val restaurantId = UUID.randomUUID().toString()
         val item = buildJsonObject {
-            put("id", UUID.randomUUID().toString())
+            put("id", restaurantId)
             put("name", input.name.trim())
             put("city", input.city.trim())
             put("status", input.status)
@@ -965,6 +966,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "restaurants", item))) {
             filter { eq("id", tripId) }
         }
+        return restaurantId
     }
 
     override suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput) {

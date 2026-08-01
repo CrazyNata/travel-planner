@@ -14,6 +14,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -2060,9 +2062,13 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var adding by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
+    var cuisine by remember { mutableStateOf("") }
+    var dateTime by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("хочу") }
-    var price by remember { mutableStateOf("") }
-    var link by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf(false) }
+    var price by remember { mutableStateOf("€€") }
+    var newRestaurantPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
@@ -2120,6 +2126,9 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             }.onSuccess { onRestaurantAdded() }
             uploadingRestaurantId = null
         }
+    }
+    val newRestaurantPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        newRestaurantPhotoUri = uri
     }
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -2215,70 +2224,41 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             }
         }
         item {
-            if (adding) {
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(localized("Новый ресторан", "New restaurant", "Nuevo restaurante", "Neues Restaurant"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField("Название", "Название места", name) { name = it }
-                    AuthField("Город", "Город", city) { city = it }
-                    AuthField("Цена", "€€ / €€€", price) { price = it }
-                    AuthField("Ссылка", "https://…", link) { link = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("хочу", "бронь", "были").forEach { option ->
-                            val selected = option == status
-                            Text(option, color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { status = option }.padding(horizontal = 10.dp, vertical = 7.dp))
-                        }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .height(47.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(OdysseyTint)
+                    .drawBehind {
+                        val stroke = 1.5.dp.toPx()
+                        drawRoundRect(
+                            color = Color(0xFFCFC7F2),
+                            topLeft = Offset(stroke / 2f, stroke / 2f),
+                            size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                            cornerRadius = CornerRadius(14.dp.toPx() - stroke / 2f),
+                            style = Stroke(
+                                width = stroke,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
+                            ),
+                        )
                     }
-                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { adding = false; message = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                        Button(onClick = {
-                            scope.launch {
-                                saving = true
-                                runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addRestaurantDetails(com.odyssey.travelplanner.data.RestaurantInput(name = name, city = city, status = status, price = price, link = link), tripId) }
-                                    .onSuccess { adding = false; name = ""; city = ""; price = ""; link = ""; onRestaurantAdded() }
-                                    .onFailure { message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden") }
-                                saving = false
-                            }
-                        }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .height(47.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(OdysseyTint)
-                        .drawBehind {
-                            val stroke = 1.5.dp.toPx()
-                            drawRoundRect(
-                                color = Color(0xFFCFC7F2),
-                                topLeft = Offset(stroke / 2f, stroke / 2f),
-                                size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
-                                cornerRadius = CornerRadius(14.dp.toPx() - stroke / 2f),
-                                style = Stroke(
-                                    width = stroke,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
-                                ),
-                            )
-                        }
-                        .clickable { adding = true },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    OdysseyPlusIcon(18.dp)
-                    Text(
-                        localized("Добавить ресторан", "Add restaurant", "Añadir restaurante", "Restaurant hinzufügen"),
-                        color = OdysseyPurple,
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 14.5.sp,
-                        lineHeight = 19.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
+                    .clickable { adding = true; message = null },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                OdysseyPlusIcon(18.dp)
+                Text(
+                    localized("Добавить ресторан", "Add restaurant", "Añadir restaurante", "Restaurant hinzufügen"),
+                    color = OdysseyPurple,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 14.5.sp,
+                    lineHeight = 19.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.padding(start = 8.dp),
+                )
             }
         }
         item {
@@ -2360,6 +2340,621 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 },
             )
         }
+    }
+    if (adding) {
+        ModalBottomSheet(
+            onDismissRequest = { adding = false; message = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantAddSheet(
+                name = name,
+                city = city,
+                cuisine = cuisine,
+                dateTime = dateTime,
+                price = price,
+                address = address,
+                status = status,
+                priority = priority,
+                photoUri = newRestaurantPhotoUri,
+                saving = saving,
+                message = message,
+                onNameChange = { name = it },
+                onCityChange = { city = it },
+                onCuisineChange = { cuisine = it },
+                onDateTimeChange = { dateTime = it },
+                onPriceChange = { price = it },
+                onAddressChange = { address = it },
+                onStatusChange = { status = it },
+                onPriorityChange = { priority = !priority },
+                onPickPhoto = { newRestaurantPhotoPicker.launch("image/*") },
+                onClose = { adding = false; message = null },
+                onSave = {
+                    scope.launch {
+                        saving = true
+                        runCatching {
+                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                            val restaurantId = repository.addRestaurantDetails(
+                                com.odyssey.travelplanner.data.RestaurantInput(
+                                    name = name,
+                                    city = city,
+                                    status = status,
+                                    note = cuisine,
+                                    price = price,
+                                    link = address,
+                                ),
+                                tripId,
+                            )
+                            newRestaurantPhotoUri?.let { uri ->
+                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: error("Не удалось прочитать изображение")
+                                repository.addRestaurantPhoto(tripId, restaurantId, bytes)
+                            }
+                        }.onSuccess {
+                            adding = false
+                            message = null
+                            name = ""
+                            city = ""
+                            cuisine = ""
+                            dateTime = ""
+                            price = "€€"
+                            address = ""
+                            status = "хочу"
+                            priority = false
+                            newRestaurantPhotoUri = null
+                            onRestaurantAdded()
+                        }.onFailure {
+                            message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
+                        }
+                        saving = false
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RestaurantAddSheet(
+    name: String,
+    city: String,
+    cuisine: String,
+    dateTime: String,
+    price: String,
+    address: String,
+    status: String,
+    priority: Boolean,
+    photoUri: Uri?,
+    saving: Boolean,
+    message: String?,
+    onNameChange: (String) -> Unit,
+    onCityChange: (String) -> Unit,
+    onCuisineChange: (String) -> Unit,
+    onDateTimeChange: (String) -> Unit,
+    onPriceChange: (String) -> Unit,
+    onAddressChange: (String) -> Unit,
+    onStatusChange: (String) -> Unit,
+    onPriorityChange: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onClose: () -> Unit,
+    onSave: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+        val inputTextStyle = androidx.compose.ui.text.TextStyle(
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = s(15f),
+            lineHeight = s(20f),
+            platformStyle = OdysseyNoFontPadding,
+        )
+        val labelStyle = androidx.compose.ui.text.TextStyle(
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            platformStyle = OdysseyNoFontPadding,
+        )
+        val scrollState = rememberScrollState()
+        val photoScrollState = rememberScrollState()
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(704f))
+                .verticalScroll(scrollState),
+        ) {
+            Box(Modifier.fillMaxWidth().height(d(876f))) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(156.5f), y = d(12f))
+                        .size(d(40f), d(4f))
+                        .clip(RoundedCornerShape(d(2f)))
+                        .background(Color(0xFFE2E2E8)),
+                )
+
+                Text(
+                    text = localized("Новый ресторан", "New restaurant", "Nuevo restaurante", "Neues Restaurant"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(24f),
+                    lineHeight = s(33f),
+                    letterSpacing = (-0.24f * scale).sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(260f)).height(d(34f)),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset(x = d(303f), y = d(30f))
+                        .size(d(34f))
+                        .clip(CircleShape)
+                        .background(OdysseySurface2)
+                        .clickable(onClick = onClose),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(d(16f)))
+                }
+
+                Text(
+                    text = localized("Фотографии", "Photos", "Fotos", "Fotos"),
+                    style = labelStyle,
+                    modifier = Modifier.offset(x = d(16f), y = d(82f)).width(d(321f)).height(d(18f)),
+                )
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(108f))
+                        .width(d(321f))
+                        .height(d(172f))
+                        .horizontalScroll(photoScrollState),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(d(10f)),
+                        modifier = Modifier.width(d(674f)).height(d(168f)),
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .width(d(240f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(16f)))
+                                .background(OdysseySurface2)
+                                .drawBehind {
+                                    val stroke = d(1f).toPx()
+                                    drawRoundRect(
+                                        color = Color(0xFFCFC7F2),
+                                        topLeft = Offset(stroke / 2f, stroke / 2f),
+                                        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                                        cornerRadius = CornerRadius(d(16f).toPx() - stroke / 2f),
+                                        style = Stroke(
+                                            width = stroke,
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(d(6f).toPx(), d(4f).toPx())),
+                                        ),
+                                    )
+                                }
+                                .clickable(onClick = onPickPhoto),
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Outlined.Image, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(d(26f)))
+                                Text(
+                                    text = localized("Обложка — перетащите фото\nили выберите файл", "Cover — drag a photo\nor choose a file", "Portada — arrastre una foto\no elija un archivo", "Cover — Foto ziehen\noder Datei auswählen"),
+                                    color = OdysseySubtext,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W800,
+                                    fontSize = s(11.5f),
+                                    lineHeight = s(17f),
+                                    textAlign = TextAlign.Center,
+                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    modifier = Modifier.padding(top = d(6f)),
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(d(128f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(14f)))
+                                .background(Color(0xFFE9E7F4)),
+                        ) {
+                            if (photoUri != null) {
+                                AsyncImage(
+                                    model = photoUri,
+                                    contentDescription = localized("Обложка ресторана", "Restaurant cover", "Portada del restaurante", "Restaurant-Titelbild"),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Text(
+                                text = localized("Обложка", "Cover", "Portada", "Cover"),
+                                color = Color.White,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = s(10f),
+                                lineHeight = s(14f),
+                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(start = d(8f), top = d(8f))
+                                    .background(Color(0x8C141419), RoundedCornerShape(d(20f)))
+                                    .padding(horizontal = d(7f), vertical = d(3f)),
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(d(128f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(14f)))
+                                .background(Color(0xFFE9E7F4)),
+                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .width(d(128f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(14f)))
+                                .background(OdysseySurface2)
+                                .drawBehind {
+                                    val stroke = d(1f).toPx()
+                                    drawRoundRect(
+                                        color = Color(0xFFCFC7F2),
+                                        topLeft = Offset(stroke / 2f, stroke / 2f),
+                                        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                                        cornerRadius = CornerRadius(d(14f).toPx() - stroke / 2f),
+                                        style = Stroke(
+                                            width = stroke,
+                                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(d(6f).toPx(), d(4f).toPx())),
+                                        ),
+                                    )
+                                }
+                                .clickable(onClick = onPickPhoto),
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                OdysseyPlusIcon(d(18f))
+                                Text(
+                                    text = localized("Добавить", "Add", "Añadir", "Hinzufügen"),
+                                    color = OdysseyPurple,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W800,
+                                    fontSize = s(11.5f),
+                                    lineHeight = s(15f),
+                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    modifier = Modifier.padding(top = d(5f)),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                RestaurantAddField(
+                    label = localized("Название", "Name", "Nombre", "Name"),
+                    value = name,
+                    placeholder = localized("Название места", "Restaurant name", "Nombre del lugar", "Name des Lokals"),
+                    scale = scale,
+                    modifier = Modifier.offset(x = d(16f), y = d(296f)).width(d(321f)),
+                    onValueChange = onNameChange,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(d(12f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(389f)).width(d(321f)),
+                ) {
+                    RestaurantAddField(
+                        label = localized("Город", "City", "Ciudad", "Stadt"),
+                        value = city,
+                        placeholder = localized("Выберите город", "Choose a city", "Elija una ciudad", "Stadt auswählen"),
+                        scale = scale,
+                        trailingChevron = true,
+                        modifier = Modifier.width(d(154.5f)),
+                        onValueChange = onCityChange,
+                    )
+                    RestaurantAddField(
+                        label = localized("Кухня", "Cuisine", "Cocina", "Küche"),
+                        value = cuisine,
+                        placeholder = localized("Например, итальянская", "For example, Italian", "Por ejemplo, italiana", "Zum Beispiel italienisch"),
+                        scale = scale,
+                        modifier = Modifier.width(d(154.5f)),
+                        onValueChange = onCuisineChange,
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(d(12f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(482f)).width(d(321f)),
+                ) {
+                    RestaurantAddField(
+                        label = localized("Дата и время", "Date and time", "Fecha y hora", "Datum und Uhrzeit"),
+                        value = dateTime,
+                        placeholder = localized("Выберите дату", "Choose date", "Elija una fecha", "Datum auswählen"),
+                        scale = scale,
+                        trailingChevron = true,
+                        modifier = Modifier.width(d(154.5f)),
+                        onValueChange = onDateTimeChange,
+                    )
+                    RestaurantAddPriceField(
+                        selected = price,
+                        scale = scale,
+                        modifier = Modifier.width(d(154.5f)),
+                        onSelect = onPriceChange,
+                    )
+                }
+                RestaurantAddField(
+                    label = localized("Адрес", "Address", "Dirección", "Adresse"),
+                    value = address,
+                    placeholder = localized("Адрес ресторана", "Restaurant address", "Dirección del restaurante", "Adresse des Lokals"),
+                    scale = scale,
+                    modifier = Modifier.offset(x = d(16f), y = d(577f)).width(d(321f)),
+                    onValueChange = onAddressChange,
+                )
+
+                Text(
+                    text = localized("Статус", "Status", "Estado", "Status"),
+                    style = labelStyle,
+                    modifier = Modifier.offset(x = d(16f), y = d(670f)).width(d(321f)).height(d(18f)),
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(d(9f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(696f)).height(d(38f)),
+                ) {
+                    RestaurantAddStatusChip("хочу", "want", status == "хочу", 61.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip("бронь", "reserve", status == "бронь", 71.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip("были", "visited", status == "были", 65.1f, scale, onStatusChange)
+                }
+                RestaurantAddStatusChip(
+                    label = "🔥 Приоритет",
+                    value = "priority",
+                    selected = priority,
+                    width = 124.1f,
+                    scale = scale,
+                    onClick = { onPriorityChange() },
+                    modifier = Modifier.offset(x = d(16f), y = d(743f)),
+                )
+
+                if (message != null) {
+                    Text(
+                        text = message,
+                        color = Color(0xFFE0524B),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = s(11f),
+                        lineHeight = s(15f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        modifier = Modifier.offset(x = d(16f), y = d(784f)).width(d(336f)),
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(805f))
+                        .width(d(135.3f))
+                        .height(d(53f))
+                        .clip(RoundedCornerShape(d(15f)))
+                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .background(Color.White)
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(162.3f), y = d(805f))
+                        .width(d(174.7f))
+                        .height(d(53f))
+                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                        .clip(RoundedCornerShape(d(15f)))
+                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                        .clickable(enabled = !saving, onClick = onSave),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"),
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantAddField(
+    label: String,
+    value: String,
+    placeholder: String,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    trailingChevron: Boolean = false,
+    onValueChange: (String) -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    fun s(value: Float) = (value * scale).sp
+    val textStyle = androidx.compose.ui.text.TextStyle(
+        color = contentTextColor(),
+        fontFamily = Manrope,
+        fontWeight = FontWeight.W600,
+        fontSize = s(15f),
+        lineHeight = s(20f),
+        platformStyle = OdysseyNoFontPadding,
+    )
+    Column(modifier = modifier.height(d(77f))) {
+        Text(
+            text = label,
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(d(18f)),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(d(8f)))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(51f))
+                .clip(RoundedCornerShape(d(14f)))
+                .background(Color.White)
+                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f))),
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = textStyle,
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(OdysseyPurple),
+                modifier = Modifier.fillMaxSize(),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = d(15f), end = if (trailingChevron) d(34f) else d(15f)),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isBlank()) {
+                            Text(
+                                text = placeholder,
+                                color = Color(0xFFA0A0AA),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = s(15f),
+                                lineHeight = s(20f),
+                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+            if (trailingChevron) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                    OdysseyChevronDown(d(16f), OdysseySubtext)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantAddPriceField(
+    selected: String,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    fun s(value: Float) = (value * scale).sp
+    Column(modifier = modifier.height(d(79f))) {
+        Text(
+            text = localized("Средний чек", "Average price", "Precio medio", "Durchschnittspreis"),
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(d(18f)),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(d(8f)))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(d(5f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(51f))
+                .clip(RoundedCornerShape(d(14f)))
+                .background(OdysseyTrack)
+                .padding(d(5f)),
+        ) {
+            listOf("€€", "€€€", "€€€€").forEach { option ->
+                val active = option == selected
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(d(43f))
+                        .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
+                        .clip(RoundedCornerShape(d(11f)))
+                        .background(if (active) Color.White else Color.Transparent)
+                        .clickable { onSelect(option) },
+                ) {
+                    Text(
+                        text = option,
+                        color = if (active) contentTextColor() else Color(0xFFA0A0AA),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(14f),
+                        lineHeight = s(19f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantAddStatusChip(
+    label: String,
+    value: String,
+    selected: Boolean,
+    width: Float,
+    scale: Float,
+    onClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    fun d(value: Float) = (value * scale).dp
+    fun s(value: Float) = (value * scale).sp
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .width(d(width))
+            .height(d(38f))
+            .clip(RoundedCornerShape(d(12f)))
+            .background(if (selected) OdysseyPurple else Color.White)
+            .border(d(1f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
+            .clickable { onClick(value) },
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.White else OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13.5f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
