@@ -1369,7 +1369,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                 .padding(WindowInsets.statusBars.asPaddingValues()),
         ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val pixelPerfectTab = tab == "restaurants" || tab == "accommodation"
+            val pixelPerfectTab = tab == "restaurants" || tab == "accommodation" || tab == "budget"
             val pageScale = if (pixelPerfectTab) (maxWidth.value / 368f) else 1f
             val pageWidth = if (pixelPerfectTab) 368.dp else maxWidth
             val pageHeight = if (pixelPerfectTab) maxHeight / pageScale else maxHeight
@@ -4163,7 +4163,874 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun BudgetContent(tripId: String, overview: TripOverview, onExpenseAdded: () -> Unit) {
+    val language = LocalLanguage.current
+    val scope = rememberCoroutineScope()
+    val expenses = overview.budgetExpenses
+    val total = expenses.sumOf { it.amount }
+    val categoryStyles = listOf(
+        BudgetCategoryStyle("Жильё", "Жильё", Color(0xFF6C5CE7), setOf("жильё", "жилье", "проживание")),
+        BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), setOf("транспорт")),
+        BudgetCategoryStyle("Еда и рестораны", "Питание", Color(0xFF22B07D), setOf("еда и рестораны", "питание", "еда")),
+        BudgetCategoryStyle("Активности и билеты", "Развлечения", Color(0xFF4AA3F0), setOf("активности и билеты", "развлечения", "активности")),
+        BudgetCategoryStyle("Прочее", "Прочее", Color(0xFFEE6C8A), setOf("прочее")),
+    )
+    val currencyOptions = listOf(
+        BudgetCurrencyStyle("RUB", "₽"),
+        BudgetCurrencyStyle("EUR", "€"),
+        BudgetCurrencyStyle("CZK", "Kč"),
+    )
+    val currencyCode = budgetCurrencyCode(overview.budgetCurrency)
+    val currencySymbol = currencyOptions.firstOrNull { it.code == currencyCode }?.symbol ?: "₽"
+    val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
+    val dayCount = budgetTripDayCount(overview.dates)
+    val budgetScrollState = rememberScrollState()
+    LaunchedEffect(Unit) { budgetScrollState.scrollTo(0) }
+
+    var adding by remember { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<com.odyssey.travelplanner.data.BudgetExpense?>(null) }
+    var editMode by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var amountInput by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Еда и рестораны") }
+    var scopeName by remember { mutableStateOf("общий") }
+    var paidBy by remember { mutableStateOf("Общее") }
+    var date by remember { mutableStateOf("") }
+    var datePickerOpen by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var savingCurrency by remember { mutableStateOf(false) }
+    var deletingExpenseId by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    fun closeExpenseSheet() {
+        adding = false
+        editingExpense = null
+        datePickerOpen = false
+        message = null
+    }
+
+    fun openNewExpense() {
+        name = ""
+        amountInput = ""
+        category = "Еда и рестораны"
+        scopeName = "общий"
+        paidBy = "Общее"
+        date = ""
+        message = null
+        editingExpense = null
+        adding = true
+    }
+
+    fun openEditExpense(expense: com.odyssey.travelplanner.data.BudgetExpense) {
+        name = expense.name
+        amountInput = expense.amount.toString()
+        category = categoryStyles.firstOrNull { it.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT)) }?.key ?: "Прочее"
+        scopeName = budgetScopeValue(expense.scope)
+        paidBy = expense.paidBy.ifBlank { "Общее" }
+        date = ""
+        message = null
+        adding = false
+        editingExpense = expense
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(budgetScrollState)
+            .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp),
+    ) {
+        BudgetSummaryCard(total = total, currencySymbol = currencySymbol)
+        Spacer(Modifier.height(14.dp))
+        BudgetCurrencySelector(
+            selectedCode = currencyCode,
+            options = currencyOptions,
+            saving = savingCurrency,
+            onSelect = { selected ->
+                if (selected != currencyCode && !savingCurrency) {
+                    scope.launch {
+                        savingCurrency = true
+                        runCatching {
+                            SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
+                                tripId,
+                                "budgetCurrency",
+                                JsonPrimitive(selected),
+                            )
+                        }.onSuccess { onExpenseAdded() }
+                            .onFailure { message = it.message ?: localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden") }
+                        savingCurrency = false
+                    }
+                }
+            },
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(71.dp)) {
+            BudgetMetricCard(
+                label = localized("НА ЧЕЛОВЕКА", "PER PERSON", "POR PERSONA", "PRO PERSON"),
+                value = formatBudgetAmount(if (peopleCount == 0) 0.0 else total / peopleCount, currencySymbol),
+                modifier = Modifier.weight(1f),
+            )
+            BudgetMetricCard(
+                label = localized("В ДЕНЬ", "PER DAY", "POR DÍA", "PRO TAG"),
+                value = formatBudgetAmount(if (dayCount == 0) 0.0 else total / dayCount, currencySymbol),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(22.dp))
+        Text(
+            text = localized("По категориям", "By category", "Por categorías", "Nach Kategorien"),
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(22.dp),
+        )
+        Spacer(Modifier.height(14.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            categoryStyles.forEach { categoryStyle ->
+                val categoryTotal = expenses.filter { expense ->
+                    categoryStyle.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT))
+                }.sumOf { it.amount }
+                BudgetCategoryRow(
+                    style = categoryStyle,
+                    amount = categoryTotal,
+                    total = total,
+                    currencySymbol = currencySymbol,
+                )
+            }
+        }
+        Spacer(Modifier.height(22.dp))
+        BudgetExpensesCard(
+            expenses = expenses,
+            currencySymbol = currencySymbol,
+            editMode = editMode,
+            deletingExpenseId = deletingExpenseId,
+            onToggleEditMode = { editMode = !editMode },
+            onAdd = ::openNewExpense,
+            onEdit = ::openEditExpense,
+            onDelete = { expense ->
+                scope.launch {
+                    deletingExpenseId = expense.id
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "budgetExpenses", expense.id)
+                    }.onSuccess { onExpenseAdded() }
+                        .onFailure { message = it.message ?: localized(language, "Не удалось удалить трату", "Could not delete expense", "No se pudo eliminar el gasto", "Ausgabe konnte nicht gelöscht werden") }
+                    deletingExpenseId = null
+                }
+            },
+        )
+    }
+
+    if (adding || editingExpense != null) {
+        ModalBottomSheet(
+            onDismissRequest = ::closeExpenseSheet,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+            dragHandle = null,
+        ) {
+            BudgetExpenseSheet(
+                title = if (editingExpense == null) localized("Новая трата", "New expense", "Nuevo gasto", "Neue Ausgabe") else localized("Редактировать трату", "Edit expense", "Editar gasto", "Ausgabe bearbeiten"),
+                amount = amountInput,
+                payer = paidBy,
+                date = date,
+                category = category,
+                scopeName = scopeName,
+                editing = editingExpense != null,
+                saving = saving,
+                message = message,
+                onAmountChange = { amountInput = it },
+                onPayerChange = { paidBy = it },
+                onDateClick = { datePickerOpen = true },
+                onCategoryChange = { category = it },
+                onScopeChange = { scopeName = it },
+                onClose = ::closeExpenseSheet,
+                onSave = {
+                    scope.launch {
+                        saving = true
+                        message = null
+                        val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val expenseName = name.trim().ifBlank { category }
+                        val input = com.odyssey.travelplanner.data.ExpenseInput(
+                            name = expenseName,
+                            amount = value,
+                            category = category,
+                            scope = scopeName,
+                            paidBy = paidBy,
+                        )
+                        runCatching {
+                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                            editingExpense?.let { expense ->
+                                repository.updateBudgetExpenseDetails(tripId, expense.id, input)
+                            } ?: repository.addBudgetExpenseDetails(tripId, input)
+                        }.onSuccess {
+                            closeExpenseSheet()
+                            onExpenseAdded()
+                        }.onFailure {
+                            message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden")
+                        }
+                        saving = false
+                    }
+                },
+            )
+        }
+    }
+    if (datePickerOpen) {
+        AccommodationCalendarDialog(
+            initialValue = date,
+            onDismiss = { datePickerOpen = false },
+            onConfirm = {
+                date = it
+                datePickerOpen = false
+            },
+        )
+    }
+}
+
+private data class BudgetCategoryStyle(
+    val key: String,
+    val label: String,
+    val color: Color,
+    val aliases: Set<String>,
+)
+
+private data class BudgetCurrencyStyle(val code: String, val symbol: String)
+
+private fun budgetCurrencyCode(value: String): String = when (value.trim().uppercase(java.util.Locale.ROOT)) {
+    "RUB", "₽" -> "RUB"
+    "EUR", "€" -> "EUR"
+    "CZK", "KČ", "Kč" -> "CZK"
+    else -> "RUB"
+}
+
+private fun budgetScopeValue(value: String): String = when (value.trim().lowercase(java.util.Locale.ROOT)) {
+    "семья", "family" -> "семья"
+    "личный", "личное", "personal" -> "личный"
+    else -> "общий"
+}
+
+private fun budgetTripDayCount(value: String): Int {
+    val match = Regex("""(\d+)\s*(?:дн\w*|day\w*|día\w*|tag\w*)""", RegexOption.IGNORE_CASE).find(value)
+    return match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+}
+
+private fun formatBudgetAmount(value: Double, currencySymbol: String): String {
+    val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {
+        groupingSeparator = '\u00A0'
+        decimalSeparator = ','
+    }
+    val pattern = if (value % 1.0 == 0.0) "#,##0" else "#,##0.##"
+    return java.text.DecimalFormat(pattern, symbols).format(value) + " " + currencySymbol
+}
+
+@Composable
+private fun BudgetSummaryCard(total: Double, currencySymbol: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(103.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(OdysseyPurple)
+            .padding(start = 22.dp, top = 22.dp),
+    ) {
+        Text(
+            text = localized("ОБЩАЯ СУММА", "TOTAL", "TOTAL", "GESAMTSUMME"),
+            color = Color.White,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            letterSpacing = 1.1.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(15.dp),
+        )
+        Text(
+            text = formatBudgetAmount(total, currencySymbol),
+            color = Color.White,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 38.sp,
+            lineHeight = 38.sp,
+            letterSpacing = (-0.76).sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.padding(top = 6.dp),
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun BudgetCurrencySelector(
+    selectedCode: String,
+    options: List<BudgetCurrencyStyle>,
+    saving: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(OdysseyTrack)
+            .padding(5.dp),
+    ) {
+        options.forEach { option ->
+            val selected = option.code == selectedCode
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (selected) Color.White else Color.Transparent)
+                    .clickable(enabled = !saving && !selected) { onSelect(option.code) },
+            ) {
+                Text(
+                    text = if (saving && selected) "…" else option.symbol,
+                    color = if (selected) OdysseyText else Color(0xFFA0A0AA),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(1.dp, OdysseyBorder, RoundedCornerShape(16.dp))
+            .padding(start = 12.dp, top = 13.dp, end = 12.dp),
+    ) {
+        Text(
+            text = label,
+            color = OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            letterSpacing = 0.6.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(14.dp),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Text(
+            text = value,
+            color = OdysseyText,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 17.sp,
+            lineHeight = 23.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.padding(top = 6.dp),
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total: Double, currencySymbol: String) {
+    val fraction = if (total <= 0.0) 0f else (amount / total).toFloat().coerceIn(0f, 1f)
+    val percent = if (total <= 0.0) 0 else (amount / total * 100.0).toInt()
+    Column(modifier = Modifier.fillMaxWidth().height(35.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(19.dp)) {
+            Box(modifier = Modifier.size(11.dp).clip(RoundedCornerShape(4.dp)).background(style.color))
+            Text(
+                text = style.label,
+                color = OdysseyText,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.padding(start = 9.dp),
+                maxLines = 1,
+                softWrap = false,
+            )
+            Text(
+                text = " $percent%",
+                color = Color(0xFFB6B6BE),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.padding(start = 5.dp),
+                maxLines = 1,
+                softWrap = false,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = formatBudgetAmount(amount, currencySymbol),
+                color = OdysseyText,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(5.dp)).background(OdysseyTrack)) {
+            Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(5.dp)).background(style.color))
+        }
+    }
+}
+
+@Composable
+private fun BudgetExpensesCard(
+    expenses: List<com.odyssey.travelplanner.data.BudgetExpense>,
+    currencySymbol: String,
+    editMode: Boolean,
+    deletingExpenseId: String?,
+    onToggleEditMode: () -> Unit,
+    onAdd: () -> Unit,
+    onEdit: (com.odyssey.travelplanner.data.BudgetExpense) -> Unit,
+    onDelete: (com.odyssey.travelplanner.data.BudgetExpense) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .border(1.dp, OdysseyBorder, RoundedCornerShape(20.dp))
+            .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(62.dp)
+                .drawBehind {
+                    drawLine(Color(0xFFF2F2F5), Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
+                },
+        ) {
+            Text(
+                text = localized("Расходы", "Expenses", "Gastos", "Ausgaben"),
+                color = OdysseyText,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            )
+            Spacer(Modifier.weight(1f))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(OdysseyTint)
+                    .clickable(onClick = onToggleEditMode),
+            ) {
+                OdysseyEditIcon(16.dp, OdysseyPurple)
+            }
+        }
+        expenses.forEachIndexed { index, expense ->
+            BudgetExpenseRow(
+                expense = expense,
+                currencySymbol = currencySymbol,
+                editMode = editMode,
+                deleting = deletingExpenseId == expense.id,
+                showDivider = index < expenses.lastIndex,
+                onEdit = { onEdit(expense) },
+                onDelete = { onDelete(expense) },
+            )
+        }
+        Spacer(Modifier.height(5.dp))
+        BudgetDashedButton(onClick = onAdd)
+    }
+}
+
+@Composable
+private fun BudgetExpenseRow(
+    expense: com.odyssey.travelplanner.data.BudgetExpense,
+    currencySymbol: String,
+    editMode: Boolean,
+    deleting: Boolean,
+    showDivider: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val categoryStyle = when (expense.category.trim().lowercase(java.util.Locale.ROOT)) {
+        "проживание" -> BudgetCategoryStyle("Жильё", "Проживание", Color(0xFF6C5CE7), emptySet())
+        "жильё", "жилье" -> BudgetCategoryStyle("Жильё", "Проживание", Color(0xFF6C5CE7), emptySet())
+        "транспорт" -> BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), emptySet())
+        "еда и рестораны", "еда", "питание" -> BudgetCategoryStyle("Еда и рестораны", "Питание", Color(0xFF22B07D), emptySet())
+        "активности и билеты", "активности", "развлечения" -> BudgetCategoryStyle("Активности и билеты", "Развлечения", Color(0xFF4AA3F0), emptySet())
+        else -> BudgetCategoryStyle("Прочее", "Прочее", Color(0xFFEE6C8A), emptySet())
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(74.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(categoryStyle.color))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = expense.name,
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 14.5.sp,
+                    lineHeight = 19.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = categoryStyle.label,
+                    color = categoryStyle.color,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier
+                        .padding(top = 5.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(categoryStyle.color.copy(alpha = 0.10f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+            if (editMode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BudgetExpenseActionButton(
+                        background = OdysseyTint,
+                        onClick = onEdit,
+                        enabled = !deleting,
+                    ) { OdysseyEditIcon(14.dp, OdysseyPurple) }
+                    BudgetExpenseActionButton(
+                        background = Color(0xFFFFE9E8),
+                        onClick = onDelete,
+                        enabled = !deleting,
+                    ) { Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(16.dp)) }
+                }
+            } else {
+                Text(
+                    text = formatBudgetAmount(expense.amount, currencySymbol),
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+        if (showDivider) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFFF6F6F8)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BudgetExpenseActionButton(background: Color, enabled: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun BudgetDashedButton(onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(47.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF6F4FE))
+            .drawBehind {
+                val stroke = 1.6.dp.toPx()
+                drawRoundRect(
+                    color = Color(0xFFCFC7F2),
+                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                    size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = CornerRadius(14.dp.toPx() - stroke / 2f),
+                    style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))),
+                )
+            }
+            .clickable(onClick = onClick),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OdysseyPlusIcon(17.dp, OdysseyPurple)
+            Text(
+                text = localized("Добавить трату", "Add expense", "Añadir gasto", "Ausgabe hinzufügen"),
+                color = OdysseyPurple,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.padding(start = 7.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BudgetChoiceChip(
+    label: String,
+    selected: Boolean,
+    width: Float,
+    scale: Float,
+    onClick: () -> Unit,
+) {
+    val d = { value: Float -> (value * scale).dp }
+    val s = { value: Float -> (value * scale).sp }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .width(d(width))
+            .height(d(40f))
+            .clip(RoundedCornerShape(d(20f)))
+            .background(if (selected) OdysseyPurple else Color.White)
+            .border(d(1f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(20f)))
+            .clickable(onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.White else OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13.5f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun BudgetExpenseSheet(
+    title: String,
+    amount: String,
+    payer: String,
+    date: String,
+    category: String,
+    scopeName: String,
+    editing: Boolean,
+    saving: Boolean,
+    message: String?,
+    onAmountChange: (String) -> Unit,
+    onPayerChange: (String) -> Unit,
+    onDateClick: () -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onScopeChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onSave: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+        val labelStyle = androidx.compose.ui.text.TextStyle(
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            platformStyle = OdysseyNoFontPadding,
+        )
+        Box(modifier = Modifier.fillMaxWidth().height(d(605f))) {
+            Box(
+                modifier = Modifier
+                    .offset(x = d(164f), y = d(12f))
+                    .size(d(40f), d(4f))
+                    .clip(RoundedCornerShape(d(2f)))
+                    .background(Color(0xFFE2E2E8)),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(336f)).height(d(34f)),
+            ) {
+                Text(
+                    text = title,
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(24f),
+                    lineHeight = s(33f),
+                    letterSpacing = s(-0.24f),
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(d(34f)).clip(CircleShape).background(OdysseySurface2).clickable(onClick = onClose),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(d(16f)))
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(12f)),
+                modifier = Modifier.offset(x = d(16f), y = d(86f)).width(d(336f)).height(d(77f)),
+            ) {
+                AccommodationEditTextField(
+                    label = localized("Сумма, ₽", "Amount, ₽", "Importe, ₽", "Betrag, ₽"),
+                    value = amount,
+                    placeholder = "0",
+                    valueWeight = FontWeight.W800,
+                    valueColor = OdysseyText,
+                    scale = scale,
+                    modifier = Modifier.width(d(162f)),
+                    onValueChange = onAmountChange,
+                )
+                AccommodationEditTextField(
+                    label = localized("Кто платил", "Paid by", "Quién pagó", "Bezahlt von"),
+                    value = payer,
+                    placeholder = localized("Общее", "Shared", "Común", "Gemeinsam"),
+                    valueWeight = FontWeight.W600,
+                    valueColor = OdysseyText,
+                    scale = scale,
+                    modifier = Modifier.width(d(162f)),
+                    onValueChange = onPayerChange,
+                )
+            }
+            AccommodationEditDateField(
+                label = localized("Дата", "Date", "Fecha", "Datum"),
+                value = date,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(179f)).width(d(336f)),
+                onClick = onDateClick,
+            )
+            Text(
+                text = localized("Категория", "Category", "Categoría", "Kategorie"),
+                style = labelStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(272f)).width(d(336f)).height(d(18f)),
+            )
+            Column(modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(336f))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(d(9f))) {
+                    BudgetChoiceChip("Жильё", category == "Жильё", 79.2f, scale) { onCategoryChange("Жильё") }
+                    BudgetChoiceChip("Транспорт", category == "Транспорт", 106.8f, scale) { onCategoryChange("Транспорт") }
+                }
+                Spacer(Modifier.height(d(9f)))
+                Row(horizontalArrangement = Arrangement.spacedBy(d(9f))) {
+                    BudgetChoiceChip("Еда и рестораны", category == "Еда и рестораны", 147.6f, scale) { onCategoryChange("Еда и рестораны") }
+                    BudgetChoiceChip("Активности и билеты", category == "Активности и билеты", 178.7f, scale) { onCategoryChange("Активности и билеты") }
+                }
+                Spacer(Modifier.height(d(9f)))
+                BudgetChoiceChip("Прочее", category == "Прочее", 85.1f, scale) { onCategoryChange("Прочее") }
+            }
+            Text(
+                text = localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"),
+                style = labelStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(452f)).width(d(336f)).height(d(18f)),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(9f)),
+                modifier = Modifier.offset(x = d(16f), y = d(478f)).height(d(40f)),
+            ) {
+                BudgetChoiceChip("Общий", scopeName == "общий", 79.8f, scale) { onScopeChange("общий") }
+                BudgetChoiceChip("Семья", scopeName == "семья", 77.9f, scale) { onScopeChange("семья") }
+                BudgetChoiceChip("Личный", scopeName == "личный", 87.4f, scale) { onScopeChange("личный") }
+            }
+            message?.let {
+                Text(
+                    text = it,
+                    color = Color(0xFFE0524B),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = s(11f),
+                    lineHeight = s(15f),
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.offset(x = d(16f), y = d(512f)).width(d(336f)),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(11f)),
+                modifier = Modifier.offset(x = d(16f), y = d(534f)).width(d(336f)).height(d(53f)),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(d(141.578f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(d(15f)))
+                        .background(Color.White)
+                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .clickable(onClick = onClose),
+                ) {
+                    Text(
+                        text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"),
+                        color = OdysseyText,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(d(183.422f))
+                        .fillMaxHeight()
+                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                        .clip(RoundedCornerShape(d(15f)))
+                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                        .clickable(enabled = !saving, onClick = onSave),
+                ) {
+                    Text(
+                        text = if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else if (editing) localized("Сохранить", "Save", "Guardar", "Speichern") else localized("Добавить", "Add", "Añadir", "Hinzufügen"),
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpenseAdded: () -> Unit) {
     val surface = cardSurfaceColor()
     val language = LocalLanguage.current
     var adding by remember { mutableStateOf(false) }
