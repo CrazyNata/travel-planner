@@ -2263,7 +2263,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         }
         item {
             RestaurantMapCard(
-                restaurantCount = visibleRestaurants.size,
+                restaurants = visibleRestaurants,
                 modifier = Modifier.padding(top = 11.dp),
             )
         }
@@ -3797,32 +3797,84 @@ private fun RestaurantCard(
 }
 
 @Composable
-private fun RestaurantMapCard(restaurantCount: Int, modifier: Modifier = Modifier) {
+private fun RestaurantMapCard(
+    restaurants: List<com.odyssey.travelplanner.data.Restaurant>,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val restaurantPoints = remember(restaurants) {
+        restaurants
+            .mapNotNull { mapCoordinate(it.city) }
+            .distinctBy { "${it.longitude()},${it.latitude()}" }
+    }
+    var mapStyleReady by remember { mutableStateOf(false) }
+    val mapView = remember(context) {
+        MapView(context).also {
+            it.scalebar.enabled = false
+            it.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
+                mapStyleReady = true
+            }
+        }
+    }
+    val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
+
+    DisposableEffect(mapView) {
+        mapView.onStart()
+        onDispose {
+            mapView.onStop()
+            mapView.onDestroy()
+        }
+    }
+
+    LaunchedEffect(mapStyleReady, restaurantPoints) {
+        if (!mapStyleReady) return@LaunchedEffect
+        annotationManager.deleteAll()
+        restaurantPoints.forEach { point ->
+            annotationManager.create(
+                CircleAnnotationOptions()
+                    .withPoint(point)
+                    .withCircleRadius(8.0)
+                    .withCircleColor("#6C5CE7")
+                    .withCircleStrokeColor("#FFFFFF")
+                    .withCircleStrokeWidth(2.5),
+            )
+        }
+        val camera = when {
+            restaurantPoints.size > 1 -> mapView.mapboxMap.cameraForCoordinates(
+                restaurantPoints,
+                EdgeInsets(32.0, 32.0, 32.0, 32.0),
+                null,
+                null,
+            )
+            restaurantPoints.size == 1 -> CameraOptions.Builder()
+                .center(restaurantPoints.first())
+                .zoom(11.0)
+                .build()
+            else -> CameraOptions.Builder()
+                .center(Point.fromLngLat(12.4964, 41.9028))
+                .zoom(5.0)
+                .build()
+        }
+        mapView.mapboxMap.setCamera(camera)
+    }
+
     val placesLabel = localized(
-        "$restaurantCount мест поблизости",
-        "$restaurantCount places nearby",
-        "$restaurantCount lugares cercanos",
-        "$restaurantCount Orte in der Nähe",
+        "${restaurants.size} мест поблизости",
+        "${restaurants.size} places nearby",
+        "${restaurants.size} lugares cercanos",
+        "${restaurants.size} Orte in der Nähe",
     )
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(150.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFFE7ECF1), Color(0xFFDDE6EC)))),
+            .background(Color(0xFFE7ECF1)),
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val sx = size.width / 320f
-            val sy = size.height / 150f
-            val white = Color.White.copy(alpha = 0.6f)
-            drawLine(white, Offset(0f, 50f * sy), Offset(size.width, 50f * sy), strokeWidth = 2.dp.toPx())
-            drawLine(white, Offset(0f, 100f * sy), Offset(size.width, 100f * sy), strokeWidth = 2.dp.toPx())
-            drawLine(white, Offset(100f * sx, 0f), Offset(100f * sx, size.height), strokeWidth = 2.dp.toPx())
-            drawLine(white, Offset(220f * sx, 0f), Offset(220f * sx, size.height), strokeWidth = 2.dp.toPx())
-            listOf(70f to 55f, 250f to 60f, 200f to 105f, 110f to 115f).forEach { (x, y) ->
-                drawCircle(OdysseyPurple, radius = 5f * sx, center = Offset(x * sx, y * sy))
-            }
-        }
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize(),
+        )
         Box(modifier = Modifier.size(16.dp).align(Alignment.Center).clip(CircleShape).background(OdysseyText), contentAlignment = Alignment.Center) {
             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color.White))
         }
