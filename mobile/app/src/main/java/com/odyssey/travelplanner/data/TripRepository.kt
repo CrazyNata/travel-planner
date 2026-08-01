@@ -72,6 +72,10 @@ data class Accommodation(
     val details: String,
     val photos: List<String>,
     val bookingUrl: String,
+    // Optional fields already used by the existing trip payload. They are read-only
+    // here so the Supabase schema and persisted shape remain unchanged.
+    val deadline: String = "",
+    val rating: Double? = null,
 )
 data class BudgetExpense(val id: String, val name: String, val amount: Double, val category: String, val scope: String, val paidBy: String)
 data class BudgetGroup(val name: String, val people: Int)
@@ -175,7 +179,7 @@ interface TripRepository {
     suspend fun updateSightDetailsRich(id: String, sightId: String, name: String, city: String, category: String, description: String, walkDay: Int)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
-    suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String)
+    suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String
     suspend fun updateAccommodationDetailsRich(tripId: String, accommodationId: String, input: AccommodationInput)
     suspend fun addBudgetExpenseDetails(tripId: String, input: ExpenseInput)
     suspend fun updateBudgetExpenseDetails(tripId: String, expenseId: String, input: ExpenseInput)
@@ -245,6 +249,9 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 details = accommodationText("details"),
                 photos = accommodation["photos"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
                 bookingUrl = accommodationText("bookingUrl"),
+                deadline = accommodationText("deadline"),
+                rating = accommodation["rating"]?.jsonPrimitive?.doubleOrNull
+                    ?: accommodation["hotelRating"]?.jsonPrimitive?.doubleOrNull,
             )
         }
         val expenses = row.payload["budgetExpenses"]?.jsonArray.orEmpty().mapNotNull { item ->
@@ -986,12 +993,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", tripId) } }
     }
 
-    override suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String) {
+    override suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String {
         require(input.name.isNotBlank()) { "Укажите название жилья" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == tripId }
             ?: error("Путешествие не найдено")
+        val accommodationId = UUID.randomUUID().toString()
         val item = buildJsonObject {
-            put("id", UUID.randomUUID().toString())
+            put("id", accommodationId)
             put("name", input.name.trim())
             put("city", input.city.trim())
             put("dates", input.dates.trim())
@@ -1004,6 +1012,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "accommodations", item))) {
             filter { eq("id", tripId) }
         }
+        return accommodationId
     }
 
     override suspend fun updateAccommodationDetailsRich(tripId: String, accommodationId: String, input: AccommodationInput) {

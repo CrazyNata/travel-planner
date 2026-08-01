@@ -1369,14 +1369,15 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                 .padding(WindowInsets.statusBars.asPaddingValues()),
         ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val pageScale = if (tab == "restaurants") (maxWidth.value / 368f) else 1f
-            val pageWidth = if (tab == "restaurants") 368.dp else maxWidth
-            val pageHeight = if (tab == "restaurants") maxHeight / pageScale else maxHeight
+            val pixelPerfectTab = tab == "restaurants" || tab == "accommodation"
+            val pageScale = if (pixelPerfectTab) (maxWidth.value / 368f) else 1f
+            val pageWidth = if (pixelPerfectTab) 368.dp else maxWidth
+            val pageHeight = if (pixelPerfectTab) maxHeight / pageScale else maxHeight
             Column(
                 modifier = Modifier
                     .width(pageWidth)
                     .height(pageHeight)
-                    .offset(y = if (tab == "restaurants") (-2).dp else 0.dp)
+                    .offset(y = if (pixelPerfectTab) (-2).dp else 0.dp)
                     .graphicsLayer {
                         scaleX = pageScale
                         scaleY = pageScale
@@ -4399,6 +4400,7 @@ private fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpen
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccommodationContent(tripId: String, overview: TripOverview, onStatusUpdated: () -> Unit) {
     val context = LocalContext.current
@@ -4408,10 +4410,15 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var dates by remember { mutableStateOf("") }
+    var checkIn by remember { mutableStateOf("") }
+    var checkOut by remember { mutableStateOf("") }
+    var deadline by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("хочу") }
     var bookingUrl by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
+    var newAccommodationPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var editingAccommodation by remember { mutableStateOf<com.odyssey.travelplanner.data.Accommodation?>(null) }
@@ -4432,66 +4439,22 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
             uploadingAccommodationId = null
         }
     }
+    val newAccommodationPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        newAccommodationPhotoUri = uri
+    }
     LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 18.dp,
+            top = 18.dp,
+            end = 18.dp,
+            bottom = 30.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item {
-            Text(localized("Жильё", "Lodging", "Alojamiento", "Unterkunft"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
-            Text("${overview.accommodations.size} ${if (overview.accommodations.size == 1) "вариант" else "вариантов"}", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        item {
-            if (adding) {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(localized("Новое жильё", "New lodging", "Nuevo alojamiento", "Neue Unterkunft"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField("Название", "Название жилья", name) { name = it }
-                    AuthField("Город", "Город", city) { city = it }
-                    AuthField("Даты", "Например, 12–15 сен", dates) { dates = it }
-                    AuthField("Стоимость", "Например, €120", price) { price = it }
-                    AuthField("Booking", "https://…", bookingUrl) { bookingUrl = it }
-                    AuthField("Адрес или заметка", "Дополнительные детали", details) { details = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("хочу", "бронь", "оплачено").forEach { option ->
-                            val selected = option == status
-                            Text(option, color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { status = option }.padding(horizontal = 10.dp, vertical = 7.dp))
-                        }
-                    }
-                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { adding = false; message = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                        Button(onClick = {
-                            scope.launch {
-                                saving = true
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addAccommodationDetails(
-                                        com.odyssey.travelplanner.data.AccommodationInput(name = name, city = city, dates = dates, price = price, status = status, details = details, bookingUrl = bookingUrl),
-                                        tripId,
-                                    )
-                                }
-                                    .onSuccess { adding = false; name = ""; city = ""; dates = ""; price = ""; bookingUrl = ""; details = ""; onStatusUpdated() }
-                                    .onFailure { message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden") }
-                                saving = false
-                            }
-                        }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                    }
-                }
-            } else {
-                Text(localized("＋ Добавить жильё", "＋ Add lodging", "＋ Añadir alojamiento", "＋ Unterkunft hinzufügen"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(OdysseyPurple).clickable { adding = true }.padding(horizontal = 15.dp, vertical = 11.dp))
-            }
-        }
         if (overview.accommodations.isEmpty()) {
             item { Text(localized("Жильё пока не добавлено", "No lodging added yet", "Aún no se ha añadido alojamiento", "Noch keine Unterkunft hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
-            if (editingAccommodation != null) item {
-                EditAccommodationPanel(editingAccommodation!!, tripId, onClose = { editingAccommodation = null }, onDeleted = {
-                    editingAccommodation = null
-                    onStatusUpdated()
-                }, onSaved = {
-                    editingAccommodation = null
-                    onStatusUpdated()
-                })
-            }
             items(overview.accommodations, key = { it.id }) { accommodation ->
                 AccommodationCard(
                     accommodation,
@@ -4517,6 +4480,140 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                 }
             }
         }
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.4f))
+                    .border(androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFD3D3DB)), RoundedCornerShape(18.dp))
+                    .clickable { adding = true; message = null },
+            ) {
+                OdysseyPlusIcon(18.dp, OdysseyPurple)
+                Text(localized("Добавить жильё", "Add lodging", "Añadir alojamiento", "Unterkunft hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+    if (editingAccommodation != null) {
+        ModalBottomSheet(
+            onDismissRequest = { editingAccommodation = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+            dragHandle = null,
+        ) {
+            AccommodationEditSheet(
+                accommodation = editingAccommodation!!,
+                tripId = tripId,
+                onClose = { editingAccommodation = null },
+                onSaved = {
+                    editingAccommodation = null
+                    onStatusUpdated()
+                },
+            )
+        }
+    }
+    if (adding) {
+        ModalBottomSheet(
+            onDismissRequest = { adding = false; message = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+            dragHandle = null,
+        ) {
+            AccommodationAddSheet(
+                name = name,
+                city = city,
+                checkIn = checkIn,
+                checkOut = checkOut,
+                deadline = deadline,
+                price = price,
+                bookingUrl = bookingUrl,
+                details = details,
+                status = status,
+                photoUri = newAccommodationPhotoUri,
+                saving = saving,
+                message = message,
+                onNameChange = { name = it },
+                onCityChange = { city = it },
+                onCheckInClick = { datePickerTarget = "checkIn" },
+                onCheckOutClick = { datePickerTarget = "checkOut" },
+                onDeadlineClick = { datePickerTarget = "deadline" },
+                onPriceChange = { price = it },
+                onBookingUrlChange = { bookingUrl = it },
+                onDetailsChange = { details = it },
+                onStatusChange = { status = it },
+                onPickPhoto = { newAccommodationPhotoPicker.launch("image/*") },
+                onClose = { adding = false; message = null },
+                onSave = {
+                    scope.launch {
+                        saving = true
+                        runCatching {
+                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                            val accommodationId = repository.addAccommodationDetails(
+                                com.odyssey.travelplanner.data.AccommodationInput(
+                                    name = name,
+                                    city = city,
+                                    dates = accommodationDateRange(checkIn, checkOut, dates),
+                                    price = price,
+                                    status = status,
+                                    details = details,
+                                    bookingUrl = bookingUrl,
+                                ),
+                                tripId,
+                            )
+                            newAccommodationPhotoUri?.let { uri ->
+                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: error("Не удалось прочитать изображение")
+                                repository.addAccommodationPhoto(tripId, accommodationId, bytes)
+                            }
+                        }
+                            .onSuccess {
+                                adding = false
+                                message = null
+                                name = ""
+                                city = ""
+                                dates = ""
+                                checkIn = ""
+                                checkOut = ""
+                                deadline = ""
+                                price = ""
+                                bookingUrl = ""
+                                details = ""
+                                newAccommodationPhotoUri = null
+                                onStatusUpdated()
+                            }
+                            .onFailure { message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden") }
+                        saving = false
+                    }
+                },
+            )
+        }
+    }
+    datePickerTarget?.let { target ->
+        AccommodationCalendarDialog(
+            initialValue = when (target) {
+                "checkIn" -> checkIn
+                "checkOut" -> checkOut
+                else -> deadline
+            },
+            onDismiss = { datePickerTarget = null },
+            onConfirm = { selected ->
+                when (target) {
+                    "checkIn" -> checkIn = selected
+                    "checkOut" -> checkOut = selected
+                    else -> deadline = selected
+                }
+                datePickerTarget = null
+            },
+        )
     }
 }
 
@@ -4524,118 +4621,825 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
 private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, saving: Boolean, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit, onMovePhoto: (Int, Int) -> Unit, onStatusChange: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
     val surface = cardSurfaceColor()
-    var photoIndex by remember(accommodation.id) { mutableStateOf(0) }
+    val city = accommodation.city.trim()
+    val cityPrefix = cityFlag(city).takeUnless { it == "📍" }.orEmpty()
+    val cityLabel = listOf(cityPrefix, city).filter(String::isNotBlank).joinToString(" ")
+    val dates = formatAccommodationDates(accommodation.dates)
+    val price = formatAccommodationPrice(accommodation.price)
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(surface)
+            .shadow(8.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0x12141428), spotColor = Color(0x12141428)),
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(172.dp).background(Color(0xFFD9D6E1))) {
-            accommodation.photos.getOrNull(photoIndex.coerceIn(0, (accommodation.photos.size - 1).coerceAtLeast(0)))?.let { imageUrl ->
+        Box(modifier = Modifier.fillMaxWidth().height(210.dp).background(Color(0xFFCCCCCC))) {
+            accommodation.photos.firstOrNull()?.let { imageUrl ->
                 AsyncImage(model = imageUrl, contentDescription = accommodation.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
-            if (accommodation.photos.size > 1) {
-                Text("‹", color = Color.White, fontSize = 28.sp, modifier = Modifier.align(Alignment.CenterStart).padding(10.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).clickable { photoIndex = (photoIndex - 1 + accommodation.photos.size) % accommodation.photos.size }.padding(horizontal = 9.dp))
-                Text("›", color = Color.White, fontSize = 28.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(10.dp).background(Color(0x99000000), RoundedCornerShape(18.dp)).clickable { photoIndex = (photoIndex + 1) % accommodation.photos.size }.padding(horizontal = 9.dp))
-            }
-            Text(
-                text = if (saving) "Сохраняем…" else accommodation.status.ifBlank { "жильё" },
-                color = Color.White,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
-                    .background(Color(0xD926B67A), RoundedCornerShape(12.dp))
-                    .clickable(enabled = !saving) {
-                        onStatusChange(
-                            when (accommodation.status) {
-                                "бронь" -> "оплачено"
-                                "оплачено" -> "хочу"
-                                else -> "бронь"
-                            },
-                        )
-                    }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            )
         }
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(accommodation.city, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
-            Text(accommodation.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp)
-            Text("Изменить", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.clickable { onEdit() })
-            Text(if (uploading) "Загружаем фото…" else "＋ Добавить фото", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.clickable(enabled = !uploading) { onAddPhoto() })
-            if (accommodation.photos.size > 1) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("← Переместить фото", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.clickable(enabled = !saving && photoIndex > 0) { onMovePhoto(photoIndex, -1) })
-                    Text("Вправо →", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.clickable(enabled = !saving && photoIndex < accommodation.photos.lastIndex) { onMovePhoto(photoIndex, 1) })
+        Column(modifier = Modifier.padding(start = 15.dp, top = 13.dp, end = 15.dp, bottom = 15.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(accommodation.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, lineHeight = 22.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (price.isNotBlank()) {
+                    Text(price, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, lineHeight = 21.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, modifier = Modifier.padding(start = 8.dp))
                 }
             }
-            Text(accommodation.dates, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp)
-            if (accommodation.price.isNotBlank()) Text(accommodation.price, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
-            if (accommodation.details.isNotBlank()) Text(accommodation.details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, maxLines = 3)
-            if (accommodation.bookingUrl.isNotBlank()) {
-                Text("Открыть бронирование ↗", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp).clickable { uriHandler.openUri(accommodation.bookingUrl) })
+            Text(cityLabel, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 7.dp).height(17.dp)) {
+                OdysseyCalendarIcon(14.dp, OdysseyPurple)
+                Text(dates, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 11.5.dp).height(17.dp)) {
+                Text("★★★★", color = Color(0xFFF5A623), fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                accommodation.rating?.let { rating ->
+                    Text("· ${rating.toString().removeSuffix(".0")} / 10", color = Color(0xFFB6B6BE), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                }
+            }
+            if (accommodation.deadline.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp).height(17.dp)) {
+                    Text("✓", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.width(14.dp))
+                    Text("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline)}", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
+                Box(modifier = (if (accommodation.bookingUrl.isNotBlank()) Modifier.width(150.234.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        OdysseyEditIcon(15.dp, OdysseyPurple)
+                        Text("Редактировать", color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                    }
+                }
+                if (accommodation.bookingUrl.isNotBlank()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { uriHandler.openUri(accommodation.bookingUrl) }, contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            OdysseyExternalLinkIcon(15.dp, OdysseyPurple)
+                            Text("На Booking", color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun EditAccommodationPanel(accommodation: com.odyssey.travelplanner.data.Accommodation, tripId: String, onClose: () -> Unit, onDeleted: () -> Unit, onSaved: () -> Unit) {
+private fun AccommodationAddSheet(
+    name: String,
+    city: String,
+    checkIn: String,
+    checkOut: String,
+    deadline: String,
+    price: String,
+    bookingUrl: String,
+    details: String,
+    status: String,
+    photoUri: Uri?,
+    saving: Boolean,
+    message: String?,
+    onNameChange: (String) -> Unit,
+    onCityChange: (String) -> Unit,
+    onCheckInClick: () -> Unit,
+    onCheckOutClick: () -> Unit,
+    onDeadlineClick: () -> Unit,
+    onPriceChange: (String) -> Unit,
+    onBookingUrlChange: (String) -> Unit,
+    onDetailsChange: (String) -> Unit,
+    onStatusChange: (String) -> Unit,
+    onPickPhoto: () -> Unit,
+    onClose: () -> Unit,
+    onSave: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+        val scrollState = rememberScrollState()
+        val labelStyle = androidx.compose.ui.text.TextStyle(color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(13f), lineHeight = s(18f), platformStyle = OdysseyNoFontPadding)
+        val photoScrollState = rememberScrollState()
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(720f))
+                .verticalScroll(scrollState),
+        ) {
+            Box(Modifier.fillMaxWidth().height(d(1102f))) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(164f), y = d(12f))
+                        .size(d(40f), d(4f))
+                        .clip(RoundedCornerShape(d(2f)))
+                        .background(Color(0xFFE2E2E8)),
+                )
+                Text(
+                    text = localized("Новое жильё", "New lodging", "Nuevo alojamiento", "Neue Unterkunft"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(24f),
+                    lineHeight = s(33f),
+                    style = androidx.compose.ui.text.TextStyle(
+                        letterSpacing = s(-0.24f),
+                        platformStyle = OdysseyNoFontPadding,
+                    ),
+                    modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(260f)).height(d(34f)),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset(x = d(303f), y = d(30f))
+                        .size(d(34f))
+                        .clip(CircleShape)
+                        .background(OdysseySurface2)
+                        .clickable(onClick = onClose),
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                        tint = OdysseySubtext,
+                        modifier = Modifier.size(d(16f)),
+                    )
+                }
+
+                Text(text = localized("Фотографии", "Photos", "Fotos", "Fotos"), style = labelStyle, modifier = Modifier.offset(x = d(16f), y = d(82f)).width(d(321f)).height(d(18f)))
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(108f))
+                        .width(d(321f))
+                        .height(d(172f))
+                        .horizontalScroll(photoScrollState),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(d(10f)), modifier = Modifier.width(d(674f)).height(d(168f))) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .width(d(240f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(16f)))
+                                .background(OdysseySurface2)
+                                .drawBehind {
+                                    val stroke = d(1f).toPx()
+                                    drawRoundRect(color = Color(0xFFCFC7F2), topLeft = Offset(stroke / 2f, stroke / 2f), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke), cornerRadius = CornerRadius(d(16f).toPx() - stroke / 2f), style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(d(6f).toPx(), d(4f).toPx()))))
+                                }
+                                .clickable(onClick = onPickPhoto),
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Outlined.Image, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(d(26f)))
+                                Text(text = localized("Обложка — перетащите фото\nили выберите файл", "Cover — drag a photo\nor choose a file", "Portada — arrastre una foto\no elija un archivo", "Cover — Foto ziehen\noder Datei auswählen"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(11.5f), lineHeight = s(17f), textAlign = TextAlign.Center, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(top = d(6f)))
+                            }
+                        }
+                        Box(modifier = Modifier.width(d(128f)).height(d(168f)).clip(RoundedCornerShape(d(14f))).background(Color(0xFFE9E7F4))) {
+                            if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Обложка жилья", "Accommodation cover", "Portada del alojamiento", "Unterkunft-Titelbild"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            Text(text = localized("Обложка", "Cover", "Portada", "Cover"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(10f), lineHeight = s(14f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.align(Alignment.TopStart).padding(start = d(8f), top = d(8f)).background(Color(0x8C141419), RoundedCornerShape(d(20f))).padding(horizontal = d(7f), vertical = d(3f)))
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .width(d(128f))
+                                .height(d(168f))
+                                .clip(RoundedCornerShape(d(14f)))
+                                .background(OdysseySurface2)
+                                .drawBehind {
+                                    val stroke = d(1f).toPx()
+                                    drawRoundRect(color = Color(0xFFCFC7F2), topLeft = Offset(stroke / 2f, stroke / 2f), size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke), cornerRadius = CornerRadius(d(14f).toPx() - stroke / 2f), style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(d(6f).toPx(), d(4f).toPx()))))
+                                }
+                                .clickable(onClick = onPickPhoto),
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                OdysseyPlusIcon(d(18f))
+                                Text(text = localized("Добавить", "Add", "Añadir", "Hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(11.5f), lineHeight = s(15f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(top = d(5f)))
+                            }
+                        }
+                    }
+                }
+
+                Text(text = localized("Статус", "Status", "Estado", "Status"), style = labelStyle, modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(321f)).height(d(18f)))
+                @Composable
+                fun AddStatusChip(label: String, value: String, width: Float, modifier: Modifier = Modifier) {
+                    Box(contentAlignment = Alignment.Center, modifier = modifier.width(d(width)).height(d(41f)).clip(RoundedCornerShape(d(12f))).background(if (status == value) OdysseyPurple else Color.White).border(d(1f), if (status == value) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f))).clickable { onStatusChange(value) }) {
+                        Text(text = label, color = if (status == value) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(12f), lineHeight = s(16f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(d(9f)), modifier = Modifier.offset(x = d(16f), y = d(324f)).height(d(41f))) {
+                    AddStatusChip("хочу", "хочу", 70.6f)
+                    AddStatusChip("бронь", "бронь", 81f)
+                    AddStatusChip("оплачено", "оплачено", 106.6f)
+                }
+                AddStatusChip("пожили", "пожили", 92.2f, Modifier.offset(x = d(16f), y = d(374f)))
+
+                AccommodationEditTextField(label = localized("Название", "Name", "Nombre", "Name"), value = name, placeholder = localized("Название жилья", "Accommodation name", "Nombre del alojamiento", "Name der Unterkunft"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(431f)).width(d(321f)), onValueChange = onNameChange)
+                Row(horizontalArrangement = Arrangement.spacedBy(d(12f)), modifier = Modifier.offset(x = d(16f), y = d(524f)).width(d(321f))) {
+                    AccommodationEditTextField(label = localized("Город", "City", "Ciudad", "Stadt"), value = city, placeholder = localized("Город", "City", "Ciudad", "Stadt"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.width(d(154.5f)), onValueChange = onCityChange)
+                    AccommodationEditTextField(label = localized("Цена", "Price", "Precio", "Preis"), value = price, placeholder = "€120", valueWeight = FontWeight.W700, valueColor = contentTextColor(), scale = scale, modifier = Modifier.width(d(154.5f)), onValueChange = onPriceChange)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(d(12f)), modifier = Modifier.offset(x = d(16f), y = d(617f)).width(d(321f))) {
+                    AccommodationEditDateField(label = localized("Заезд", "Check-in", "Entrada", "Anreise"), value = checkIn, scale = scale, modifier = Modifier.width(d(154.5f)), onClick = onCheckInClick)
+                    AccommodationEditDateField(label = localized("Выезд", "Check-out", "Salida", "Abreise"), value = checkOut, scale = scale, modifier = Modifier.width(d(154.5f)), onClick = onCheckOutClick)
+                }
+                AccommodationEditDateField(label = localized("Бесплатная отмена до", "Free cancellation until", "Cancelación gratuita hasta", "Kostenlose Stornierung bis"), value = deadline, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(710f)).width(d(321f)), onClick = onDeadlineClick)
+                AccommodationEditTextField(label = localized("Ссылка на Booking", "Booking link", "Enlace de Booking", "Booking-Link"), value = bookingUrl, placeholder = "https://booking.com/...", valueWeight = FontWeight.W600, valueColor = OdysseyPurple, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(321f)), onValueChange = onBookingUrlChange)
+                AccommodationEditTextField(label = localized("Адрес / заметка", "Address / note", "Dirección / nota", "Adresse / Notiz"), value = details, placeholder = localized("Дополнительные детали", "Additional details", "Detalles adicionales", "Zusätzliche Details"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(896f)).width(d(321f)), onValueChange = onDetailsChange)
+
+                message?.let {
+                    Text(text = it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = s(11f), lineHeight = s(15f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.offset(x = d(16f), y = d(984f)).width(d(336f)))
+                }
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.offset(x = d(16f), y = d(1031f)).width(d(135.3f)).height(d(53f)).clip(RoundedCornerShape(d(15f))).background(Color.White).border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f))).clickable(onClick = onClose)) {
+                    Text(text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(15f), lineHeight = s(20f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                }
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.offset(x = d(162.3f), y = d(1031f)).width(d(174.7f)).height(d(53f)).shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7)).clip(RoundedCornerShape(d(15f))).background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0)))).clickable(enabled = !saving, onClick = onSave)) {
+                    Text(text = if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(15f), lineHeight = s(20f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccommodationEditSheet(
+    accommodation: com.odyssey.travelplanner.data.Accommodation,
+    tripId: String,
+    onClose: () -> Unit,
+    onSaved: () -> Unit,
+) {
     val language = LocalLanguage.current
+    val initialDates = remember(accommodation.id) { accommodationDateParts(accommodation.dates) }
     var name by remember(accommodation.id) { mutableStateOf(accommodation.name) }
-    var city by remember(accommodation.id) { mutableStateOf(accommodation.city) }
-    var dates by remember(accommodation.id) { mutableStateOf(accommodation.dates) }
-    var price by remember(accommodation.id) { mutableStateOf(accommodation.price) }
+    var checkIn by remember(accommodation.id) { mutableStateOf(initialDates.first) }
+    var checkOut by remember(accommodation.id) { mutableStateOf(initialDates.second) }
+    var price by remember(accommodation.id) { mutableStateOf(formatAccommodationPrice(accommodation.price)) }
     var bookingUrl by remember(accommodation.id) { mutableStateOf(accommodation.bookingUrl) }
-    var details by remember(accommodation.id) { mutableStateOf(accommodation.details) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var datePickerTarget by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(localized("Редактировать жильё", "Edit lodging", "Editar alojamiento", "Unterkunft bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-        AuthField("Название", "Название", name) { name = it }
-        AuthField("Город", "Город", city) { city = it }
-        AuthField("Даты", "Даты", dates) { dates = it }
-        AuthField("Стоимость", "Стоимость", price) { price = it }
-        AuthField("Booking", "https://…", bookingUrl) { bookingUrl = it }
-        AuthField("Адрес или заметка", "Дополнительные детали", details) { details = it }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFE9E8)).clickable {
-                scope.launch {
-                    saving = true
-                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "accommodations", accommodation.id) }
-                        .onSuccess { onDeleted() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось удалить жильё", "Could not delete lodging", "No se pudo eliminar el alojamiento", "Unterkunft konnte nicht gelöscht werden") }
-                    saving = false
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(537f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(x = d(164f), y = d(12f))
+                    .size(d(40f), d(4f))
+                    .clip(RoundedCornerShape(d(2f)))
+                    .background(Color(0xFFE2E2E8)),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(32f))
+                    .width(d(336f))
+                    .height(d(34f)),
+            ) {
+                Text(
+                    text = localized("Редактировать жильё", "Edit lodging", "Editar alojamiento", "Unterkunft bearbeiten"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(24f),
+                    lineHeight = s(33f),
+                    style = androidx.compose.ui.text.TextStyle(
+                        letterSpacing = s(-0.24f),
+                        platformStyle = OdysseyNoFontPadding,
+                    ),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(d(34f))
+                        .clip(CircleShape)
+                        .background(OdysseySurface2)
+                        .clickable(onClick = onClose),
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                        tint = OdysseySubtext,
+                        modifier = Modifier.size(d(16f)),
+                    )
                 }
-            }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(19.dp))
             }
-            Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-            Button(onClick = {
-                scope.launch {
-                    saving = true
-                    runCatching {
-                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationDetailsRich(
-                            tripId,
-                            accommodation.id,
-                            com.odyssey.travelplanner.data.AccommodationInput(
-                                name = name,
-                                city = city,
-                                dates = dates,
-                                price = price,
-                                status = accommodation.status,
-                                details = details,
-                                bookingUrl = bookingUrl,
-                            ),
+
+            AccommodationEditTextField(
+                label = localized("Название жилья", "Accommodation name", "Nombre del alojamiento", "Name der Unterkunft"),
+                value = name,
+                placeholder = localized("Название жилья", "Accommodation name", "Nombre del alojamiento", "Name der Unterkunft"),
+                valueWeight = FontWeight.W700,
+                valueColor = contentTextColor(),
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(86f)).width(d(336f)),
+                onValueChange = { name = it },
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(12f)),
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(179f))
+                    .width(d(336f))
+                    .height(d(77f)),
+            ) {
+                AccommodationEditDateField(
+                    label = localized("Заезд", "Check-in", "Entrada", "Anreise"),
+                    value = checkIn,
+                    scale = scale,
+                    modifier = Modifier.weight(1f),
+                    onClick = { datePickerTarget = "checkIn" },
+                )
+                AccommodationEditDateField(
+                    label = localized("Выезд", "Check-out", "Salida", "Abreise"),
+                    value = checkOut,
+                    scale = scale,
+                    modifier = Modifier.weight(1f),
+                    onClick = { datePickerTarget = "checkOut" },
+                )
+            }
+            AccommodationEditTextField(
+                label = localized("Сумма", "Amount", "Importe", "Betrag"),
+                value = price,
+                placeholder = "€0",
+                valueWeight = FontWeight.W700,
+                valueColor = contentTextColor(),
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(272f)).width(d(336f)),
+                onValueChange = { price = it },
+            )
+            AccommodationEditTextField(
+                label = localized("Ссылка на Booking", "Booking link", "Enlace de Booking", "Booking-Link"),
+                value = bookingUrl,
+                placeholder = "https://booking.com/...",
+                valueWeight = FontWeight.W600,
+                valueColor = OdysseyPurple,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(365f)).width(d(336f)),
+                onValueChange = { bookingUrl = it },
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(11f)),
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(466f))
+                    .width(d(336f))
+                    .height(d(53f)),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(d(141.578f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(d(15f)))
+                        .background(Color.White)
+                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .clickable(onClick = onClose),
+                ) {
+                    Text(
+                        text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(d(183.422f))
+                        .fillMaxHeight()
+                        .shadow(
+                            d(8f),
+                            RoundedCornerShape(d(15f)),
+                            clip = false,
+                            ambientColor = Color(0x4D6C5CE7),
+                            spotColor = Color(0x4D6C5CE7),
+                        )
+                        .clip(RoundedCornerShape(d(15f)))
+                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                        .clickable(enabled = !saving) {
+                            scope.launch {
+                                saving = true
+                                message = null
+                                runCatching {
+                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationDetailsRich(
+                                        tripId = tripId,
+                                        accommodationId = accommodation.id,
+                                        input = com.odyssey.travelplanner.data.AccommodationInput(
+                                            name = name,
+                                            city = accommodation.city,
+                                            dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
+                                            price = price,
+                                            status = accommodation.status,
+                                            details = accommodation.details,
+                                            bookingUrl = bookingUrl,
+                                        ),
+                                    )
+                                }.onSuccess {
+                                    onSaved()
+                                }.onFailure {
+                                    message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                                }
+                                saving = false
+                            }
+                        },
+                ) {
+                    Text(
+                        text = if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"),
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(15f),
+                        lineHeight = s(20f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+            message?.let {
+                Text(
+                    text = it,
+                    color = Color(0xFFE0524B),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = s(11f),
+                    lineHeight = s(15f),
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.offset(x = d(16f), y = d(440f)).width(d(336f)),
+                )
+            }
+        }
+    }
+    datePickerTarget?.let { target ->
+        AccommodationCalendarDialog(
+            initialValue = if (target == "checkIn") checkIn else checkOut,
+            onDismiss = { datePickerTarget = null },
+            onConfirm = { selected ->
+                if (target == "checkIn") checkIn = selected else checkOut = selected
+                datePickerTarget = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun AccommodationEditTextField(
+    label: String,
+    value: String,
+    placeholder: String,
+    valueWeight: FontWeight,
+    valueColor: Color,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    fun s(value: Float) = (value * scale).sp
+    Column(modifier = modifier.height(d(77f))) {
+        Text(
+            text = label,
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(d(18f)),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(d(8f)))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(51f))
+                .clip(RoundedCornerShape(d(14f)))
+                .background(Color.White)
+                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f))),
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = valueColor,
+                    fontFamily = Manrope,
+                    fontWeight = valueWeight,
+                    fontSize = s(15f),
+                    lineHeight = s(20f),
+                    platformStyle = OdysseyNoFontPadding,
+                ),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(OdysseyPurple),
+                modifier = Modifier.fillMaxSize(),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = d(15f)),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isBlank()) {
+                            Text(
+                                text = placeholder,
+                                color = Color(0xFFA0A0AA),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = s(15f),
+                                lineHeight = s(20f),
+                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccommodationEditDateField(
+    label: String,
+    value: String,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    fun s(value: Float) = (value * scale).sp
+    Column(modifier = modifier.height(d(77f))) {
+        Text(
+            text = label,
+            color = OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13f),
+            lineHeight = s(18f),
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            modifier = Modifier.height(d(18f)),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.height(d(8f)))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(d(51f))
+                .clip(RoundedCornerShape(d(14f)))
+                .background(Color.White)
+                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f)))
+                .clickable(onClick = onClick),
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = {},
+                enabled = false,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = s(15f),
+                    lineHeight = s(20f),
+                    platformStyle = OdysseyNoFontPadding,
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = d(32f)),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = d(12f)),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        innerTextField()
+                    }
+                },
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = d(12f)),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                OdysseyCalendarIcon(d(14f), OdysseyText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccommodationCalendarDialog(
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val language = LocalLanguage.current
+    val initialCalendar = remember(initialValue) { accommodationDateCalendar(initialValue) }
+    var displayedYear by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
+    var displayedMonth by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
+    var selectedYear by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
+    var selectedMonth by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
+    var selectedDay by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.DAY_OF_MONTH)) }
+    val monthNames = when (language) {
+        "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+        "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+        "DE" -> listOf("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
+        else -> listOf("январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь")
+    }
+    val weekDays = when (language) {
+        "EN" -> listOf("M", "T", "W", "T", "F", "S", "S")
+        "ES" -> listOf("L", "M", "X", "J", "V", "S", "D")
+        "DE" -> listOf("M", "D", "M", "D", "F", "S", "S")
+        else -> listOf("П", "В", "С", "Ч", "П", "С", "В")
+    }
+    val daysInMonth = Calendar.getInstance().apply {
+        clear()
+        set(displayedYear, displayedMonth + 1, 0)
+    }.get(Calendar.DAY_OF_MONTH)
+    val firstDay = Calendar.getInstance().apply {
+        clear()
+        set(displayedYear, displayedMonth, 1)
+    }.get(Calendar.DAY_OF_WEEK)
+    val leadingEmpty = (firstDay - Calendar.MONDAY + 7) % 7
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x730F0F19)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(336.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color.White)
+                    .padding(16.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                ) {
+                    Text(
+                        text = localized("Выберите дату", "Choose date", "Elige una fecha", "Datum auswählen"),
+                        color = OdysseyText,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(OdysseySurface2)
+                            .clickable(onClick = onDismiss),
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(16.dp))
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(32.dp).clip(CircleShape).clickable {
+                            if (displayedMonth == 0) {
+                                displayedMonth = 11
+                                displayedYear -= 1
+                            } else {
+                                displayedMonth -= 1
+                            }
+                        },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущий месяц", "Previous month", "Mes anterior", "Vorheriger Monat"), tint = OdysseyPurple, modifier = Modifier.size(20.dp))
+                    }
+                    Text(
+                        text = "${monthNames[displayedMonth]} $displayedYear",
+                        color = OdysseyText,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(32.dp).clip(CircleShape).clickable {
+                            if (displayedMonth == 11) {
+                                displayedMonth = 0
+                                displayedYear += 1
+                            } else {
+                                displayedMonth += 1
+                            }
+                        },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Следующий месяц", "Next month", "Mes siguiente", "Nächster Monat"), tint = OdysseyPurple, modifier = Modifier.size(20.dp).graphicsLayer { rotationY = 180f })
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth().height(24.dp)) {
+                    weekDays.forEach { day ->
+                        Text(
+                            text = day,
+                            color = OdysseySubtext,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            textAlign = TextAlign.Center,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                        .onSuccess { onSaved() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden") }
-                    saving = false
                 }
-            }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp), modifier = Modifier.fillMaxWidth()) {
+                    (0 until 6).forEach { week ->
+                        Row(modifier = Modifier.fillMaxWidth().height(42.dp)) {
+                            (0 until 7).forEach { weekday ->
+                                val dayIndex = week * 7 + weekday - leadingEmpty + 1
+                                val validDay = dayIndex in 1..daysInMonth
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    if (validDay) {
+                                        val selected = dayIndex == selectedDay && displayedYear == selectedYear && displayedMonth == selectedMonth
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(CircleShape)
+                                                .background(if (selected) OdysseyPurple else Color.Transparent)
+                                                .clickable {
+                                                    selectedYear = displayedYear
+                                                    selectedMonth = displayedMonth
+                                                    selectedDay = dayIndex
+                                                },
+                                        ) {
+                                            Text(
+                                                text = dayIndex.toString(),
+                                                color = if (selected) Color.White else OdysseyText,
+                                                fontFamily = Manrope,
+                                                fontWeight = if (selected) FontWeight.W800 else FontWeight.W600,
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp,
+                                                textAlign = TextAlign.Center,
+                                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(11.dp), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(Color.White)
+                            .border(1.dp, OdysseyBorder, RoundedCornerShape(15.dp))
+                            .clickable(onClick = onDismiss),
+                    ) {
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                            .clickable { onConfirm(accommodationDateIso(selectedYear, selectedMonth, selectedDay)) },
+                    ) {
+                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                }
+            }
         }
     }
 }
@@ -4910,11 +5714,85 @@ private fun routeDurationDays(dates: String): Int? {
     return (day(matches[1]) - day(matches[0]) + 1).toInt().takeIf { it > 0 }
 }
 
-private fun cityFlag(city: String): String = when (city.trim().lowercase()) {
-    "прага", "prague" -> "🇨🇿"
-    "мюнхен", "munich", "равенсбург", "ravensburg" -> "🇩🇪"
-    "верона", "verona", "милан", "milan", "венеция", "venice", "рим", "rome", "фильине-вальдарно", "figline valdarno", "кьоджа", "chioggia" -> "🇮🇹"
-    else -> "📍"
+private fun cityFlag(city: String): String {
+    val normalized = city.trim().lowercase()
+    return when {
+        normalized.contains("праг") || normalized.contains("prague") -> "🇨🇿"
+        normalized.contains("мюнхен") || normalized.contains("munich") || normalized.contains("равенсбург") || normalized.contains("ravensburg") -> "🇩🇪"
+        listOf("верон", "verona", "милан", "milan", "венеци", "venice", "рим", "rome", "фильине-вальдарно", "figline valdarno", "кьоджа", "chioggia").any(normalized::contains) -> "🇮🇹"
+        else -> "📍"
+    }
+}
+
+private fun formatAccommodationDates(value: String): String {
+    val raw = value.trim()
+    if (raw.isBlank()) return "Даты не указаны"
+    val parts = raw.split(Regex("\\s+[–-]\\s+"))
+    if (parts.size != 2) return raw
+    fun parseIso(source: String): Calendar? {
+        val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").matchEntire(source.trim()) ?: return null
+        return Calendar.getInstance().apply {
+            clear()
+            set(match.groupValues[1].toInt(), match.groupValues[2].toInt() - 1, match.groupValues[3].toInt())
+        }
+    }
+    val start = parseIso(parts[0]) ?: return raw
+    val end = parseIso(parts[1]) ?: return raw
+    val months = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    val startDay = start.get(Calendar.DAY_OF_MONTH)
+    val endDay = end.get(Calendar.DAY_OF_MONTH)
+    val startMonth = months[start.get(Calendar.MONTH)]
+    val endMonth = months[end.get(Calendar.MONTH)]
+    val range = if (start.get(Calendar.MONTH) == end.get(Calendar.MONTH)) {
+        "$startDay–$endDay $endMonth"
+    } else {
+        "$startDay $startMonth – $endDay $endMonth"
+    }
+    return range
+}
+
+private fun formatAccommodationDeadline(value: String): String {
+    val raw = value.trim()
+    val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").matchEntire(raw) ?: return raw
+    val months = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    return "${match.groupValues[3].toInt()} ${months[match.groupValues[2].toInt() - 1]}"
+}
+
+private fun formatAccommodationPrice(value: String): String {
+    val raw = value.trim()
+    if (raw.isBlank()) return ""
+    return if (raw.firstOrNull() in listOf('€', '$', '£', '₽') || raw.lastOrNull() in listOf('€', '$', '£', '₽')) raw else "€$raw"
+}
+
+private fun accommodationDateCalendar(value: String): Calendar {
+    val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(value)
+    return Calendar.getInstance().apply {
+        if (match != null) {
+            clear()
+            set(match.groupValues[1].toInt(), match.groupValues[2].toInt() - 1, match.groupValues[3].toInt())
+        }
+    }
+}
+
+private fun accommodationDateIso(year: Int, month: Int, day: Int): String =
+    "${year.toString().padStart(4, '0')}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
+
+private fun accommodationDateParts(value: String): Pair<String, String> {
+    val matches = Regex("\\d{4}-\\d{2}-\\d{2}").findAll(value).map { it.value }.toList()
+    if (matches.size >= 2) return matches[0] to matches[1]
+    val parts = value.trim().split(Regex("\\s+[–-]\\s+"))
+    return (matches.firstOrNull() ?: parts.getOrNull(0).orEmpty()) to parts.getOrNull(1).orEmpty()
+}
+
+private fun accommodationDateRange(start: String, end: String, original: String): String {
+    val checkIn = start.trim()
+    val checkOut = end.trim()
+    return when {
+        checkIn.isNotBlank() && checkOut.isNotBlank() -> "$checkIn – $checkOut"
+        checkIn.isNotBlank() -> checkIn
+        checkOut.isNotBlank() -> checkOut
+        else -> original.trim()
+    }
 }
 
 @Composable
