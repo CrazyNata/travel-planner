@@ -2053,6 +2053,7 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaurantAdded: () -> Unit) {
     val context = LocalContext.current
     val language = LocalLanguage.current
@@ -2071,16 +2072,40 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var cityMenuOpen by remember { mutableStateOf(false) }
     var filterMenuOpen by remember { mutableStateOf(false) }
     var priceFilter by remember { mutableStateOf("") }
-    var ratingOnly by remember { mutableStateOf(false) }
+    var ratingFilter by remember { mutableStateOf("") }
+    var appliedTypeFilter by remember { mutableStateOf("Ресторан") }
+    var appliedFeatureFilters by remember { mutableStateOf(setOf<String>()) }
+    var draftTypeFilter by remember { mutableStateOf("Ресторан") }
+    var draftFeatureFilters by remember { mutableStateOf(setOf("Приоритет", "С собакой")) }
+    var draftPriceFilter by remember { mutableStateOf("€€") }
+    var draftRatingFilter by remember { mutableStateOf("4.5+") }
     val scope = rememberCoroutineScope()
     val cityOptions = listOf("Все города") + overview.restaurants.map { it.city }.filter(String::isNotBlank).distinct()
     val visibleRestaurants = overview.restaurants.filter { restaurant ->
+        val note = restaurant.note.lowercase()
+        val typeMatches = when (appliedTypeFilter) {
+            "Бар" -> note.contains("бар") || note.contains("bar")
+            "Кафе" -> note.contains("кафе") || note.contains("cafe")
+            else -> true
+        }
+        val featureMatches = appliedFeatureFilters.all { feature ->
+            when (feature) {
+                "Приоритет" -> note.contains("приоритет") || note.contains("priority")
+                "С собакой" -> note.contains("с собакой") || note.contains("dog")
+                "Есть бронь" -> restaurant.status == "бронь" || note.contains("бронь") || note.contains("reserv")
+                "Веган" -> note.contains("веган") || note.contains("vegan")
+                else -> true
+            }
+        }
+        val ratingMatches = ratingFilter.isBlank() || (restaurant.rating ?: 0.0) >= (ratingFilter.removeSuffix("+").toDoubleOrNull() ?: 0.0)
         (selectedCity == "Все города" || restaurant.city == selectedCity) &&
+            typeMatches &&
+            featureMatches &&
             (priceFilter.isBlank() || restaurant.price == priceFilter) &&
-            (!ratingOnly || restaurant.rating != null)
+            ratingMatches
     }
-    val activeFilterCount = listOf(priceFilter.isNotBlank(), ratingOnly).count { it }
-    val filterCount = if (priceFilter.isBlank() && !ratingOnly) 2 else activeFilterCount
+    val activeFilterCount = listOf(priceFilter.isNotBlank(), ratingFilter.isNotBlank()).count { it }
+    val filterCount = if (activeFilterCount == 0) 2 else activeFilterCount
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val restaurantId = uploadingRestaurantId ?: return@rememberLauncherForActivityResult
         if (uri == null) {
@@ -2145,7 +2170,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                         .clip(RoundedCornerShape(13.dp))
                         .background(cardSurfaceColor())
                         .border(1.dp, OdysseyBorder, RoundedCornerShape(13.dp))
-                        .clickable { filterMenuOpen = !filterMenuOpen }
+                        .clickable {
+                            cityMenuOpen = false
+                            filterMenuOpen = true
+                        }
                         .padding(horizontal = 13.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -2183,20 +2211,6 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     cityOptions.forEach { option ->
                         Text(option, color = if (option == selectedCity) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (option == selectedCity) OdysseyTint else Color.Transparent).clickable { selectedCity = option; cityMenuOpen = false }.padding(horizontal = 12.dp, vertical = 11.dp))
                     }
-                }
-            }
-        }
-        if (filterMenuOpen) {
-            item {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cardSurfaceColor()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text(localized("Фильтры ресторанов", "Restaurant filters", "Filtros de restaurantes", "Restaurantfilter"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("" to "Любая цена", "€€" to "€€", "€€€" to "€€€", "€€€€" to "€€€€").forEach { (value, label) ->
-                            val selected = priceFilter == value
-                            Text(label, color = if (selected) Color.White else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (selected) OdysseyPurple else secondarySurfaceColor()).clickable { priceFilter = value }.padding(horizontal = 9.dp, vertical = 7.dp))
-                        }
-                    }
-                    Text(if (ratingOnly) "✓ Только с рейтингом" else "Только с рейтингом", color = if (ratingOnly) OdysseyPurple else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.clickable { ratingOnly = !ratingOnly })
                 }
             }
         }
@@ -2307,6 +2321,450 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                         savingRestaurantId = null
                     }
                 }
+            }
+        }
+    }
+    if (filterMenuOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { filterMenuOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantFilterSheet(
+                type = draftTypeFilter,
+                features = draftFeatureFilters,
+                price = draftPriceFilter,
+                rating = draftRatingFilter,
+                onTypeChange = { draftTypeFilter = it },
+                onFeatureToggle = { feature ->
+                    draftFeatureFilters = if (feature in draftFeatureFilters) draftFeatureFilters - feature else draftFeatureFilters + feature
+                },
+                onPriceChange = { draftPriceFilter = it },
+                onRatingChange = { draftRatingFilter = it },
+                onReset = {
+                    draftTypeFilter = "Ресторан"
+                    draftFeatureFilters = emptySet()
+                    draftPriceFilter = ""
+                    draftRatingFilter = ""
+                },
+                onApply = {
+                    appliedTypeFilter = draftTypeFilter
+                    appliedFeatureFilters = draftFeatureFilters
+                    priceFilter = draftPriceFilter
+                    ratingFilter = draftRatingFilter
+                    filterMenuOpen = false
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RestaurantFilterSheet(
+    type: String,
+    features: Set<String>,
+    price: String,
+    rating: String,
+    onTypeChange: (String) -> Unit,
+    onFeatureToggle: (String) -> Unit,
+    onPriceChange: (String) -> Unit,
+    onRatingChange: (String) -> Unit,
+    onReset: () -> Unit,
+    onApply: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+        val sectionStyle = androidx.compose.ui.text.TextStyle(
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(11f),
+            lineHeight = s(15f),
+            color = Color(0xFFB6B6BE),
+            platformStyle = OdysseyNoFontPadding,
+        )
+        val bodyStyle = androidx.compose.ui.text.TextStyle(
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = s(13.5f),
+            lineHeight = s(18f),
+            platformStyle = OdysseyNoFontPadding,
+        )
+        val controlShape = RoundedCornerShape(d(12f))
+
+        Box(Modifier.fillMaxWidth().height(d(604f))) {
+            Box(
+                modifier = Modifier
+                    .offset(x = d(164f), y = d(12f))
+                    .size(d(40f), d(4f))
+                    .clip(RoundedCornerShape(d(2f)))
+                    .background(Color(0xFFE6E6EC)),
+            )
+            Text(
+                text = localized("Фильтры", "Filters", "Filtros", "Filter"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = s(22f),
+                lineHeight = s(30f),
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(190f)).height(d(30f)),
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(x = d(271f), y = d(34.5f))
+                    .width(d(81f))
+                    .height(d(21f))
+                    .clickable(onClick = onReset),
+            ) {
+                Text(
+                    text = localized("Сбросить", "Reset", "Restablecer", "Zurücksetzen"),
+                    color = OdysseyPurple,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(14f),
+                    lineHeight = s(21f),
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+            }
+
+            Text(
+                text = localized("ТИП ЗАВЕДЕНИЯ", "VENUE TYPE", "TIPO DE LOCAL", "ART DES LOKALS"),
+                style = sectionStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(78f)).width(d(336f)).height(d(15f)),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(10f)),
+                modifier = Modifier.offset(x = d(16f), y = d(103f)).width(d(336f)).height(d(75f)),
+            ) {
+                listOf(
+                    "Ресторан" to "restaurant",
+                    "Бар" to "bar",
+                    "Кафе" to "cafe",
+                ).forEach { (label, kind) ->
+                    RestaurantFilterTypeButton(
+                        label = localized(label, when (label) { "Бар" -> "Bar"; "Кафе" -> "Cafe"; else -> "Restaurant" }, when (label) { "Бар" -> "Bar"; "Кафе" -> "Café"; else -> "Restaurante" }, when (label) { "Бар" -> "Bar"; "Кафе" -> "Café"; else -> "Restaurant" }),
+                        kind = kind,
+                        selected = type == label,
+                        scale = scale,
+                        onClick = { onTypeChange(label) },
+                    )
+                }
+            }
+
+            Text(
+                text = localized("ОСОБЕННОСТИ", "FEATURES", "CARACTERÍSTICAS", "MERKMALE"),
+                style = sectionStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(198f)).width(d(336f)).height(d(15f)),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(9f)),
+                modifier = Modifier.offset(x = d(16f), y = d(223f)).height(d(38f)),
+            ) {
+                RestaurantFilterFeatureChip("Приоритет", "priority", "Приоритет" in features, 122.5f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip("С собакой", "dog", "С собакой" in features, 117.1f, scale, onFeatureToggle)
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(9f)),
+                modifier = Modifier.offset(x = d(16f), y = d(270f)).height(d(38f)),
+            ) {
+                RestaurantFilterFeatureChip("Есть бронь", "reservation", "Есть бронь" in features, 123.1f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip("Веган", "vegan", "Веган" in features, 87.64f, scale, onFeatureToggle)
+            }
+
+            Text(
+                text = localized("СРЕДНИЙ ЧЕК", "AVERAGE PRICE", "PRECIO MEDIO", "DURCHSCHNITTSPREIS"),
+                style = sectionStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(330f)).width(d(336f)).height(d(15f)),
+            )
+            RestaurantFilterSegmentedRow(
+                options = listOf("€", "€€", "€€€"),
+                selected = price,
+                onSelect = onPriceChange,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(355f)),
+            )
+
+            Text(
+                text = localized("РЕЙТИНГ ОТ", "RATING FROM", "VALORACIÓN DESDE", "BEWERTUNG AB"),
+                style = sectionStyle,
+                modifier = Modifier.offset(x = d(16f), y = d(430f)).width(d(336f)).height(d(15f)),
+            )
+            RestaurantFilterSegmentedRow(
+                options = listOf("4.0+", "4.5+", "4.8+"),
+                selected = rating,
+                onSelect = onRatingChange,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(455f)),
+            )
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(532f))
+                    .width(d(336f))
+                    .height(d(54f))
+                    .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                    .clip(RoundedCornerShape(d(15f)))
+                    .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                    .clickable(onClick = onApply),
+            ) {
+                Text(
+                    text = localized("Показать результаты", "Show results", "Mostrar resultados", "Ergebnisse anzeigen"),
+                    color = Color.White,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = s(16f),
+                    lineHeight = s(22f),
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantFilterTypeButton(
+    label: String,
+    kind: String,
+    selected: Boolean,
+    scale: Float,
+    onClick: () -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(d(7f)),
+        modifier = Modifier
+            .width(d(105.33f))
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(d(15f)))
+            .background(if (selected) Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))) else Brush.linearGradient(listOf(Color.White, Color.White)))
+            .border(d(1.6f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(15f)))
+            .clickable(onClick = onClick)
+            .padding(top = d(14f), bottom = d(14f)),
+    ) {
+        RestaurantFilterTypeIcon(kind, d(20f), if (selected) Color.White else OdysseyPurple)
+        Text(
+            text = label,
+            color = if (selected) Color.White else contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = d(13.5f).value.sp,
+            lineHeight = d(18f).value.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun RestaurantFilterFeatureChip(
+    label: String,
+    kind: String,
+    selected: Boolean,
+    width: Float,
+    scale: Float,
+    onToggle: (String) -> Unit,
+) {
+    fun d(value: Float) = (value * scale).dp
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(d(5f)),
+        modifier = Modifier
+            .width(d(width))
+            .height(d(38f))
+            .clip(RoundedCornerShape(d(12f)))
+            .background(if (selected) OdysseyPurple else Color.White)
+            .border(d(1.6f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
+            .clickable { onToggle(label) }
+            .padding(horizontal = d(13f)),
+    ) {
+        RestaurantFilterFeatureIcon(kind, d(14f), if (selected) Color.White else OdysseyPurple)
+        Text(
+            text = label,
+            color = if (selected) Color.White else OdysseyLabel,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = d(13.5f).value.sp,
+            lineHeight = d(18f).value.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+@Composable
+private fun RestaurantFilterSegmentedRow(
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    scale: Float,
+    modifier: Modifier = Modifier,
+) {
+    fun d(value: Float) = (value * scale).dp
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(d(5f)),
+        modifier = modifier
+            .width(d(336f))
+            .height(d(53f))
+            .clip(RoundedCornerShape(d(14f)))
+            .background(Color(0xFFEEEEF2))
+            .padding(d(5f)),
+    ) {
+        options.forEach { option ->
+            val active = option == selected
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(d(43f))
+                    .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
+                    .clip(RoundedCornerShape(d(11f)))
+                    .background(if (active) Color.White else Color.Transparent)
+                    .clickable { onSelect(option) },
+            ) {
+                Text(
+                    text = option,
+                    color = if (active) contentTextColor() else Color(0xFFA0A0AA),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = d(14f).value.sp,
+                    lineHeight = d(19f).value.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantFilterTypeIcon(kind: String, iconSize: Dp, color: Color) {
+    Canvas(Modifier.size(iconSize)) {
+        val sx = size.width / 24f
+        val sy = size.height / 24f
+        val stroke = 2.dp.toPx()
+        fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
+        when (kind) {
+            "restaurant" -> {
+                drawLine(color, p(3f, 2f), p(3f, 9f), strokeWidth = stroke, cap = StrokeCap.Round)
+                drawLine(color, p(5f, 2f), p(5f, 22f), strokeWidth = stroke, cap = StrokeCap.Round)
+                drawLine(color, p(7f, 2f), p(7f, 9f), strokeWidth = stroke, cap = StrokeCap.Round)
+                val fork = Path().apply {
+                    moveTo(3f * sx, 9f * sy)
+                    cubicTo(3f * sx, 10.1f * sy, 3.9f * sx, 11f * sy, 5f * sx, 11f * sy)
+                    cubicTo(6.1f * sx, 11f * sy, 7f * sx, 10.1f * sy, 7f * sx, 9f * sy)
+                }
+                drawPath(fork, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+                val spoon = Path().apply {
+                    moveTo(17f * sx, 2f * sy)
+                    lineTo(17f * sx, 12f * sy)
+                    cubicTo(19f * sx, 12f * sy, 21f * sx, 10.5f * sy, 21f * sx, 7f * sy)
+                    cubicTo(21f * sx, 3.5f * sy, 19f * sx, 2f * sy, 17f * sx, 2f * sy)
+                    close()
+                }
+                drawPath(spoon, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+                drawLine(color, p(17f, 12f), p(17f, 22f), strokeWidth = stroke, cap = StrokeCap.Round)
+            }
+            "bar" -> {
+                drawLine(color, p(8f, 22f), p(16f, 22f), strokeWidth = stroke, cap = StrokeCap.Round)
+                drawLine(color, p(12f, 11f), p(12f, 22f), strokeWidth = stroke, cap = StrokeCap.Round)
+                val glass = Path().apply { moveTo(3f * sx, 5f * sy); lineTo(21f * sx, 5f * sy); lineTo(12f * sx, 11f * sy); close() }
+                drawPath(glass, color, style = Stroke(width = stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+            else -> {
+                val cup = Path().apply {
+                    moveTo(2f * sx, 8f * sy)
+                    lineTo(18f * sx, 8f * sy)
+                    lineTo(18f * sx, 17f * sy)
+                    cubicTo(18f * sx, 19.2f * sy, 16.2f * sx, 21f * sy, 14f * sx, 21f * sy)
+                    lineTo(6f * sx, 21f * sy)
+                    cubicTo(3.8f * sx, 21f * sy, 2f * sx, 19.2f * sy, 2f * sx, 17f * sy)
+                    close()
+                }
+                drawPath(cup, color, style = Stroke(width = stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                val handle = Path().apply { moveTo(18f * sx, 8f * sy); lineTo(19f * sx, 8f * sy); cubicTo(24f * sx, 8f * sy, 24f * sx, 16f * sy, 19f * sx, 16f * sy); lineTo(18f * sx, 16f * sy) }
+                drawPath(handle, color, style = Stroke(width = stroke, cap = StrokeCap.Round))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantFilterFeatureIcon(kind: String, iconSize: Dp, color: Color) {
+    Canvas(Modifier.size(iconSize)) {
+        val sx = size.width / 24f
+        val sy = size.height / 24f
+        fun p(x: Float, y: Float) = Offset(x * sx, y * sy)
+        when (kind) {
+            "priority" -> {
+                val star = Path().apply {
+                    moveTo(12f * sx, 2f * sy)
+                    lineTo(15f * sx, 8.5f * sy)
+                    lineTo(22f * sx, 9.1f * sy)
+                    lineTo(16.7f * sx, 13.7f * sy)
+                    lineTo(18.3f * sx, 20.5f * sy)
+                    lineTo(12f * sx, 17.3f * sy)
+                    lineTo(5.1f * sx, 20.5f * sy)
+                    lineTo(6.7f * sx, 13.7f * sy)
+                    lineTo(1.4f * sx, 9.1f * sy)
+                    lineTo(8.4f * sx, 8.5f * sy)
+                    close()
+                }
+                drawPath(star, color)
+            }
+            "dog" -> {
+                drawCircle(color, radius = 2f * sx, center = p(5f, 9f))
+                drawCircle(color, radius = 2f * sx, center = p(19f, 9f))
+                drawCircle(color, radius = 2f * sx, center = p(9f, 5f))
+                drawCircle(color, radius = 2f * sx, center = p(15f, 5f))
+                val dog = Path().apply {
+                    moveTo(12f * sx, 11f * sy)
+                    cubicTo(9f * sx, 11f * sy, 7f * sx, 13.5f * sy, 7f * sx, 16f * sy)
+                    cubicTo(7f * sx, 18f * sy, 8.5f * sx, 19f * sy, 10f * sx, 19f * sy)
+                    cubicTo(11f * sx, 19f * sy, 11.5f * sx, 18.5f * sy, 12f * sx, 18.5f * sy)
+                    cubicTo(12.5f * sx, 18.5f * sy, 13f * sx, 19f * sy, 14f * sx, 19f * sy)
+                    cubicTo(15.5f * sx, 19f * sy, 17f * sx, 18f * sy, 17f * sx, 16f * sy)
+                    cubicTo(17f * sx, 13.5f * sy, 15f * sx, 11f * sy, 12f * sx, 11f * sy)
+                    close()
+                }
+                drawPath(dog, color)
+            }
+            "reservation" -> {
+                val calendar = Path().apply {
+                    moveTo(5f * sx, 4f * sy)
+                    lineTo(19f * sx, 4f * sy)
+                    cubicTo(20.1f * sx, 4f * sy, 21f * sx, 4.9f * sy, 21f * sx, 6f * sy)
+                    lineTo(21f * sx, 20f * sy)
+                    cubicTo(21f * sx, 21.1f * sy, 20.1f * sx, 22f * sy, 19f * sx, 22f * sy)
+                    lineTo(5f * sx, 22f * sy)
+                    cubicTo(3.9f * sx, 22f * sy, 3f * sx, 21.1f * sy, 3f * sx, 20f * sy)
+                    lineTo(3f * sx, 6f * sy)
+                    cubicTo(3f * sx, 4.9f * sy, 3.9f * sx, 4f * sy, 5f * sx, 4f * sy)
+                }
+                drawPath(calendar, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                drawLine(color, p(8f, 2f), p(8f, 6f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                drawLine(color, p(16f, 2f), p(16f, 6f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                drawLine(color, p(3f, 10f), p(21f, 10f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            }
+            else -> {
+                val leaf = Path().apply {
+                    moveTo(11f * sx, 20f * sy)
+                    cubicTo(7f * sx, 20f * sy, 4f * sx, 17f * sy, 4f * sx, 13f * sy)
+                    cubicTo(4f * sx, 7f * sy, 10f * sx, 3f * sy, 20f * sx, 3f * sy)
+                    cubicTo(19f * sx, 11f * sy, 15f * sx, 18f * sy, 11f * sx, 20f * sy)
+                    close()
+                }
+                drawPath(leaf, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawLine(color, p(11f, 20f), p(17f, 12f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
             }
         }
     }
