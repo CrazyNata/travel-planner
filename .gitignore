@@ -10,3 +10,17 @@ backups/
 .tooling/
 mobile/supabase.properties
 mobile/local.properties
+
+# Android/Gradle generated files
+.gradle/
+**/.gradle/
+build/
+**/build/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
