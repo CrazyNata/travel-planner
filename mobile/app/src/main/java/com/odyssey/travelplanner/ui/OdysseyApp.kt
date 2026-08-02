@@ -4439,7 +4439,7 @@ private fun BudgetContent(
 
     fun openEditExpense(expense: com.odyssey.travelplanner.data.BudgetExpense) {
         name = expense.name
-        amountInput = expense.amount.toString()
+        amountInput = formatBudgetInput(expense.amount, currencySymbol)
         category = categoryStyles.firstOrNull { it.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT)) }?.key ?: "Прочее"
         scopeName = budgetScopeValue(expense.scope)
         paidBy = expense.paidBy.ifBlank { "Общее" }
@@ -4464,7 +4464,12 @@ private fun BudgetContent(
             onSelect = { selected ->
                 if (selected != selectedCurrencyCode && !savingCurrency) {
                     val previousCurrencyCode = selectedCurrencyCode
+                    val previousAmountInput = amountInput
                     selectedCurrencyCode = selected
+                    previousAmountInput.replace(',', '.').toDoubleOrNull()?.let { enteredAmount ->
+                        val baseAmount = enteredAmount / budgetCurrencyRate(previousCurrencyCode)
+                        amountInput = formatBudgetInput(baseAmount, selected)
+                    }
                     scope.launch {
                         savingCurrency = true
                         runCatching {
@@ -4476,6 +4481,7 @@ private fun BudgetContent(
                         }.onSuccess { onCurrencyChanged(selected) }
                             .onFailure {
                                 selectedCurrencyCode = previousCurrencyCode
+                                amountInput = previousAmountInput
                                 message = it.message ?: localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden")
                             }
                         savingCurrency = false
@@ -4555,6 +4561,7 @@ private fun BudgetContent(
         ) {
             BudgetExpenseSheet(
                 title = if (editingExpense == null) localized("Новая трата", "New expense", "Nuevo gasto", "Neue Ausgabe") else localized("Редактировать трату", "Edit expense", "Editar gasto", "Ausgabe bearbeiten"),
+                currencySymbol = currencySymbol,
                 amount = amountInput,
                 payer = paidBy,
                 date = date,
@@ -4574,10 +4581,11 @@ private fun BudgetContent(
                         saving = true
                         message = null
                         val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val baseValue = value / budgetCurrencyRate(currencySymbol)
                         val expenseName = name.trim().ifBlank { category }
                         val input = com.odyssey.travelplanner.data.ExpenseInput(
                             name = expenseName,
-                            amount = value,
+                            amount = baseValue,
                             category = category,
                             scope = scopeName,
                             paidBy = paidBy,
@@ -4638,13 +4646,24 @@ private fun budgetTripDayCount(value: String): Int {
     return match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
 }
 
+private fun budgetCurrencyRate(value: String): Double = when (budgetCurrencyCode(value)) {
+    "EUR" -> 1.0 / 100.0
+    "CZK" -> 1.0 / 4.0
+    else -> 1.0
+}
+
+private fun formatBudgetInput(value: Double, currencySymbol: String): String =
+    kotlin.math.round(value * budgetCurrencyRate(currencySymbol)).toLong().toString()
+
 private fun formatBudgetAmount(value: Double, currencySymbol: String): String {
     val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {
         groupingSeparator = '\u00A0'
         decimalSeparator = ','
     }
-    val pattern = if (value % 1.0 == 0.0) "#,##0" else "#,##0.##"
-    return java.text.DecimalFormat(pattern, symbols).format(value) + " " + currencySymbol
+    val displayValue = kotlin.math.round(value * budgetCurrencyRate(currencySymbol))
+    val pattern = if (displayValue % 1.0 == 0.0) "#,##0" else "#,##0.##"
+    val formattedValue = java.text.DecimalFormat(pattern, symbols).format(displayValue)
+    return if (budgetCurrencyCode(currencySymbol) == "RUB") "$formattedValue $currencySymbol" else "$currencySymbol $formattedValue"
 }
 
 @Composable
@@ -5063,6 +5082,7 @@ private fun BudgetChoiceChip(
 @Composable
 private fun BudgetExpenseSheet(
     title: String,
+    currencySymbol: String,
     amount: String,
     payer: String,
     date: String,
@@ -5128,7 +5148,7 @@ private fun BudgetExpenseSheet(
                 modifier = Modifier.offset(x = d(16f), y = d(86f)).width(d(336f)).height(d(77f)),
             ) {
                 AccommodationEditTextField(
-                    label = localized("Сумма, ₽", "Amount, ₽", "Importe, ₽", "Betrag, ₽"),
+                    label = localized("Сумма, $currencySymbol", "Amount, $currencySymbol", "Importe, $currencySymbol", "Betrag, $currencySymbol"),
                     value = amount,
                     placeholder = "0",
                     valueWeight = FontWeight.W800,
