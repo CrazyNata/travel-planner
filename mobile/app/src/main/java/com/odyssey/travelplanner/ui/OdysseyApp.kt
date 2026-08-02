@@ -157,6 +157,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.Calendar
+import java.time.LocalDate
+import java.util.Locale
 
 private val OdysseyPurple = Color(0xFF6C5CE7)
 private val OdysseyBackground = Color(0xFFF4F4F7)
@@ -187,6 +189,79 @@ private fun localized(language: String, ru: String, en: String, es: String, de: 
     "ES" -> es
     "DE" -> de
     else -> ru
+}
+
+private data class PhotoDateRange(val start: LocalDate, val end: LocalDate)
+
+private val PhotoMonthNames = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+
+private fun photoCityKey(city: String): String = city.substringBefore(',').trim().lowercase(Locale.ROOT)
+
+private fun samePhotoCity(left: String, right: String): Boolean = photoCityKey(left) == photoCityKey(right)
+
+private fun parsePhotoDateRange(value: String): PhotoDateRange? {
+    val dates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value).mapNotNull { match ->
+        runCatching { LocalDate.parse(match.value) }.getOrNull()
+    }.toList()
+    val start = dates.firstOrNull() ?: return null
+    return PhotoDateRange(start, dates.getOrElse(1) { start })
+}
+
+private fun parsePhotoTripStart(value: String): LocalDate? {
+    val iso = Regex("""\d{4}-\d{2}-\d{2}""").find(value)?.value
+    if (iso != null) return runCatching { LocalDate.parse(iso) }.getOrNull()
+    val match = Regex("""(\d{1,2})\s+([A-Za-zА-Яа-яЁё]+)\s+(\d{4})""").find(value) ?: return null
+    val month = when (match.groupValues[2].lowercase(Locale.ROOT).take(4)) {
+        "янва" -> 1
+        "февр" -> 2
+        "март" -> 3
+        "апре" -> 4
+        "мая", "май" -> 5
+        "июн" -> 6
+        "июл" -> 7
+        "авгу" -> 8
+        "сент" -> 9
+        "октя" -> 10
+        "нояб" -> 11
+        "дека" -> 12
+        else -> return null
+    }
+    return runCatching { LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt()) }.getOrNull()
+}
+
+private fun photoGroupDay(city: String, overview: TripOverview, fallback: Int): Int {
+    val route = overview.routeLegs.withIndex().firstOrNull { (_, leg) ->
+        samePhotoCity(leg.from, city) || samePhotoCity(leg.to, city)
+    }
+    val routeDay = route?.value?.dayId?.filter { it in '0'..'9' }?.toIntOrNull()
+        ?.takeIf { it in 1..99 }
+        ?: route?.index?.plus(1)
+    val sightDay = overview.sights.filter { samePhotoCity(it.city, city) && it.walkDay > 0 }
+        .minOfOrNull { it.walkDay }
+    return routeDay ?: sightDay ?: fallback
+}
+
+private fun photoGroupDateRange(city: String, overview: TripOverview, fallbackDay: Int): PhotoDateRange? {
+    val stayRanges = overview.accommodations
+        .filter { samePhotoCity(it.city, city) }
+        .mapNotNull { parsePhotoDateRange(it.dates) }
+    if (stayRanges.isNotEmpty()) {
+        return PhotoDateRange(stayRanges.minOf { it.start }, stayRanges.maxOf { it.end })
+    }
+    val tripStart = parsePhotoTripStart(overview.dates) ?: return null
+    val day = photoGroupDay(city, overview, fallbackDay).coerceAtLeast(1)
+    val date = tripStart.plusDays((day - 1).toLong())
+    return PhotoDateRange(date, date)
+}
+
+private fun formatPhotoDateRange(range: PhotoDateRange): String {
+    val startMonth = PhotoMonthNames[range.start.monthValue - 1]
+    val endMonth = PhotoMonthNames[range.end.monthValue - 1]
+    return when {
+        range.start == range.end -> "${range.start.dayOfMonth} $startMonth"
+        range.start.year == range.end.year && range.start.monthValue == range.end.monthValue -> "${range.start.dayOfMonth}–${range.end.dayOfMonth} $startMonth"
+        else -> "${range.start.dayOfMonth} $startMonth – ${range.end.dayOfMonth} $endMonth"
+    }
 }
 
 @Composable
@@ -3977,6 +4052,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
 
 @Composable
 private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: () -> Unit) {
+    val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var uploading by remember { mutableStateOf(false) }
@@ -4003,42 +4079,97 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
         }
         overview.sights.filter { it.photo.isNotBlank() }.forEach { sight -> add(sight.photo to sight.city) }
         overview.restaurants.forEach { restaurant -> restaurant.photos.forEach { add(it to restaurant.city) } }
-    }.distinctBy { it.first }
+    }.filter { it.first.isNotBlank() }.distinctBy { it.first }
+    val groupedPhotos = photos.groupBy { (_, city) -> city.ifBlank { localized(language, "Поездка", "Trip", "Viaje", "Reise") } }.toList()
+
+    fun groupMeta(city: String, count: Int): String {
+        val date = photoGroupDateRange(city, overview, groupedPhotos.indexOfFirst { it.first == city } + 1)
+            ?.let(::formatPhotoDateRange)
+        return listOfNotNull(date, "$count ${localized(language, "фото", "photos", "fotos", "Fotos")}").joinToString(" · ")
+    }
+
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         item {
-            Text(localized("Фото", "Photos", "Fotos", "Fotos"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
-            Text("${photos.size} сохранённых фото", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        item {
-            Text(
-                text = if (uploading) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("↑ Загрузить фото", "↑ Upload photo", "↑ Subir foto", "↑ Foto hochladen"),
-                color = Color.White,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(OdysseyPurple).clickable(enabled = !uploading) { picker.launch("image/*") }.padding(horizontal = 15.dp, vertical = 11.dp),
-            )
-        }
-        if (message != null) item { Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
-        if (photos.isEmpty()) {
-            item { Text(localized("Фотографии пока не добавлены", "No photos added yet", "Aún no se han añadido fotos", "Noch keine Fotos hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
-        } else {
-            items(photos.chunked(2), key = { it.joinToString { photo -> photo.first } }) { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { (imageUrl, city) ->
-                        Box(modifier = Modifier.weight(1f).height(155.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFD9D6E1))) {
-                            AsyncImage(model = imageUrl, contentDescription = city, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                            if (city.isNotBlank()) Text(city, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
-                        }
-                    }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text(localized("Фото", "Photos", "Fotos", "Fotos"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                        .shadow(5.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x426C5CE7), spotColor = Color(0x426C5CE7))
+                        .clickable(enabled = !uploading) { picker.launch("image/*") }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        if (uploading) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("↑  Загрузить", "↑  Upload", "↑  Subir", "↑  Hochladen"),
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.5.sp,
+                    )
                 }
             }
         }
+        if (message != null) item { Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
+        if (groupedPhotos.isEmpty()) {
+            item { Text(localized("Фотографии пока не добавлены", "No photos added yet", "Aún no se han añadido fotos", "Noch keine Fotos hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
+        } else {
+            itemsIndexed(groupedPhotos, key = { _, group -> group.first }) { index, (city, cityPhotos) ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).background(Brush.linearGradient(listOf(Color(0xFFF5A623), Color(0xFFF77F4B))), CircleShape)) {
+                            Text(photoGroupDay(city, overview, index + 1).toString(), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                        }
+                        Text(city, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+                        Spacer(Modifier.weight(1f))
+                        Text(groupMeta(city, cityPhotos.size), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.5.sp)
+                    }
+
+                    if (index == 0 && cityPhotos.size >= 3) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            PhotoTile(cityPhotos[0].first, Modifier.weight(1.7f).height(216.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                                PhotoTile(cityPhotos[1].first, Modifier.fillMaxWidth().height(104.dp))
+                                PhotoTile(cityPhotos[2].first, Modifier.fillMaxWidth().height(104.dp))
+                            }
+                        }
+                        cityPhotos.drop(3).chunked(3).forEach { row ->
+                            PhotoTileRow(row)
+                        }
+                    } else {
+                        cityPhotos.chunked(3).forEach { row ->
+                            PhotoTileRow(row)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoTileRow(photos: List<Pair<String, String>>) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        photos.forEach { (imageUrl, _) ->
+            PhotoTile(imageUrl, Modifier.weight(1f).height(112.dp))
+        }
+        repeat(3 - photos.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+@Composable
+private fun PhotoTile(imageUrl: String, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFFD9D6E1))) {
+        AsyncImage(model = imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -4047,6 +4178,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
     val language = LocalLanguage.current
     var savingMemberId by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var role by remember { mutableStateOf("Редактор") }
@@ -4055,48 +4187,27 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
     val scope = rememberCoroutineScope()
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         item {
-            Text(localized("Участники", "Members", "Participantes", "Teilnehmer"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
-            Text("${overview.members.size} ${if (overview.members.size == 1) "участник" else "участника"}", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        item {
-            if (adding) {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(localized("Пригласить участника", "Invite member", "Invitar participante", "Mitglied einladen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField("Имя", "Имя участника", name) { name = it }
-                    AuthField("E-mail", "name@example.com", email) { email = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("Редактор", "Читатель").forEach { option ->
-                            val selected = option == role
-                            Text(option, color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { role = option }.padding(horizontal = 10.dp, vertical = 7.dp))
-                        }
-                    }
-                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { adding = false; message = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                        Button(onClick = {
-                            scope.launch {
-                                saving = true
-                                runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addMember(tripId, name, email, role) }
-                                    .onSuccess { adding = false; name = ""; email = ""; onRoleUpdated() }
-                                    .onFailure { message = it.message ?: localized(language, "Не удалось добавить участника", "Could not add member", "No se pudo añadir al participante", "Mitglied konnte nicht hinzugefügt werden") }
-                                saving = false
-                            }
-                        }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Добавить", "Add", "Añadir", "Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                Text(localized("Участники", "Members", "Participantes", "Teilnehmer"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+                Spacer(Modifier.weight(1f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(OdysseyTint).clickable { editing = !editing }.padding(horizontal = 13.dp, vertical = 8.dp),
+                ) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(16.dp))
+                    Text(if (editing) localized("Готово", "Done", "Listo", "Fertig") else localized("Изменить", "Edit", "Editar", "Bearbeiten"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 5.dp))
                 }
-            } else {
-                Text(localized("＋ Пригласить участника", "＋ Invite member", "＋ Invitar participante", "＋ Mitglied einladen"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(OdysseyPurple).clickable { adding = true }.padding(horizontal = 15.dp, vertical = 11.dp))
             }
         }
         if (overview.members.isEmpty()) {
             item { Text(localized("Участники пока не добавлены", "No members added yet", "Aún no se han añadido participantes", "Noch keine Mitglieder hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
             items(overview.members, key = { it.id }) { member ->
-                MemberCard(member, savingMemberId == member.id, onDelete = {
+                MemberCard(member, savingMemberId == member.id, editing, onDelete = {
                     scope.launch {
                         savingMemberId = member.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "members", member.id) }
@@ -4113,50 +4224,164 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                 }
             }
         }
+        item {
+            if (adding) {
+                Column(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(horizontal = 15.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    InviteMemberField(localized("Имя участника", "Member name", "Nombre", "Name"), name) { name = it }
+                    InviteMemberField("e-mail ${localized("нового участника", "of new member", "del nuevo participante", "des neuen Mitglieds")}", email) { email = it }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEFEFF4)).padding(3.dp),
+                    ) {
+                        listOf("Редактор" to "Редактор", "Просмотр" to "Читатель").forEach { (label, value) ->
+                            val selected = value == role
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).background(if (selected) Color.White else Color.Transparent).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(10.dp)).clickable { role = value }) {
+                                Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).clip(RoundedCornerShape(13.dp)).background(Color.White).border(1.dp, OdysseyBorder, RoundedCornerShape(13.dp)).clickable { adding = false; message = null }) {
+                            Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+                        }
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).shadow(6.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7)).clip(RoundedCornerShape(13.dp)).background(OdysseyPurple).clickable(enabled = !saving) {
+                            scope.launch {
+                                saving = true
+                                runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addMember(tripId, name, email, role) }
+                                    .onSuccess { adding = false; name = ""; email = ""; onRoleUpdated() }
+                                    .onFailure { message = it.message ?: localized(language, "Не удалось добавить участника", "Could not add member", "No se pudo añadir al participante", "Mitglied konnte nicht hinzugefügt werden") }
+                                saving = false
+                            }
+                        }) {
+                            Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Пригласить", "Invite", "Invitar", "Einladen"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.4f))
+                    .clickable { adding = true }
+                    .drawBehind {
+                        drawRoundRect(
+                            color = Color(0xFFD3D3DB),
+                            cornerRadius = CornerRadius(18.dp.toPx()),
+                            style = Stroke(width = 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))),
+                        )
+                    },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("＋", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 18.sp)
+                    Text(localized("Пригласить участника", "Invite member", "Invitar participante", "Mitglied einladen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(start = 5.dp))
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving: Boolean, onDelete: () -> Unit, onRoleChange: (String) -> Unit) {
+private fun InviteMemberField(placeholder: String, value: String, onValueChange: (String) -> Unit) {
+    val shape = RoundedCornerShape(13.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(47.dp)
+            .clip(shape)
+            .background(Color.White)
+            .border(1.dp, OdysseyBorder, shape),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 14.5.sp,
+                platformStyle = OdysseyNoFontPadding,
+            ),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(OdysseyPurple),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+            decorationBox = { innerTextField ->
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                    if (value.isBlank()) {
+                        Text(
+                            placeholder,
+                            color = OdysseySubtext,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 14.5.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving: Boolean, editing: Boolean, onDelete: () -> Unit, onRoleChange: (String) -> Unit) {
     val surface = cardSurfaceColor()
     val avatarColor = when (member.tone) {
-        "sand" -> Color(0xFFD6A86B)
-        "blue" -> Color(0xFF6D9EEB)
+        "sand", "orange" -> Color(0xFFF29A32)
+        "teal", "green" -> Color(0xFF35AEB9)
         else -> OdysseyPurple
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface).padding(15.dp),
+    val isOwner = member.role == "Владелец"
+    val roleLabel = if (member.role == "Читатель") "Просмотр" else member.role
+    val roleBackground = when (roleLabel) {
+        "Владелец" -> Color(0xFFEDEAFF)
+        "Редактор" -> Color(0xFFEEFAF3)
+        else -> Color(0xFFF3F3F6)
+    }
+    val roleColor = when (roleLabel) {
+        "Владелец" -> OdysseyPurple
+        "Редактор" -> Color(0xFF22B07D)
+        else -> OdysseySubtext
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(surface).padding(horizontal = 15.dp, vertical = 13.dp),
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(46.dp).background(avatarColor, RoundedCornerShape(23.dp))) {
-            Text(member.initials, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(avatarColor)) {
+                Text(member.initials.take(1), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp)
+            }
+            Column(modifier = Modifier.weight(1f).padding(start = 13.dp)) {
+                Text(member.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (member.email.isNotBlank()) Text(member.email, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (!editing || isOwner) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(roleBackground).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                    Text(if (saving) "…" else roleLabel, color = roleColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
+                }
+            }
         }
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(member.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
-            if (member.email.isNotBlank()) Text(member.email, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-        }
-        if (member.role.isNotBlank()) {
-            Text(
-                if (saving) "Сохраняем…" else member.role,
-                color = OdysseyPurple,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 11.sp,
-                modifier = Modifier
-                    .background(Color(0xFFEDEAFF), RoundedCornerShape(10.dp))
-                    .clickable(enabled = !saving && member.role != "Владелец") {
-                        onRoleChange(if (member.role == "Редактор") "Читатель" else "Редактор")
+        if (editing && !isOwner) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                listOf("Редактор" to "Редактор", "Просмотр" to "Читатель").forEach { (label, value) ->
+                    val selected = member.role == value
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color.White else Color(0xFFEFEFF4)).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(11.dp)).clickable(enabled = !saving) { onRoleChange(value) }) {
+                        Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
                     }
-                    .padding(horizontal = 9.dp, vertical = 5.dp),
-            )
-        }
-        if (member.role != "Владелец") {
-            Icon(
-                Icons.Outlined.Delete,
-                contentDescription = localized("Удалить участника", "Remove member", "Eliminar participante", "Mitglied entfernen"),
-                tint = Color(0xFFFF6B65),
-                modifier = Modifier.padding(start = 10.dp).size(19.dp).clickable(enabled = !saving) { onDelete() },
-            )
+                }
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFEBEB)).clickable(enabled = !saving) { onDelete() }) {
+                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить участника", "Remove member", "Eliminar participante", "Mitglied entfernen"), tint = Color(0xFFE35D61), modifier = Modifier.size(18.dp))
+                }
+            }
         }
     }
 }
