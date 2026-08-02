@@ -1536,7 +1536,12 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                 "sights" -> SightsContent(tripId, overview!!) { refresh++ }
                 "restaurants" -> RestaurantsContent(tripId, overview!!) { refresh++ }
                 "accommodation" -> AccommodationContent(tripId, overview!!) { refresh++ }
-                "budget" -> BudgetContent(tripId, overview!!) { refresh++ }
+                "budget" -> BudgetContent(
+                    tripId = tripId,
+                    overview = overview!!,
+                    onExpenseAdded = { refresh++ },
+                    onCurrencyChanged = { selectedCurrency -> overview = overview?.copy(budgetCurrency = selectedCurrency) },
+                )
                 "members" -> MembersContent(tripId, overview!!) { refresh++ }
                 else -> PhotosContent(tripId, overview!!) { refresh++ }
             }
@@ -4368,7 +4373,12 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun BudgetContent(tripId: String, overview: TripOverview, onExpenseAdded: () -> Unit) {
+private fun BudgetContent(
+    tripId: String,
+    overview: TripOverview,
+    onExpenseAdded: () -> Unit,
+    onCurrencyChanged: (String) -> Unit,
+) {
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
     val expenses = overview.budgetExpenses
@@ -4385,8 +4395,9 @@ private fun BudgetContent(tripId: String, overview: TripOverview, onExpenseAdded
         BudgetCurrencyStyle("EUR", "€"),
         BudgetCurrencyStyle("CZK", "Kč"),
     )
-    val currencyCode = budgetCurrencyCode(overview.budgetCurrency)
-    val currencySymbol = currencyOptions.firstOrNull { it.code == currencyCode }?.symbol ?: "₽"
+    val storedCurrencyCode = budgetCurrencyCode(overview.budgetCurrency)
+    var selectedCurrencyCode by remember(tripId, storedCurrencyCode) { mutableStateOf(storedCurrencyCode) }
+    val currencySymbol = currencyOptions.firstOrNull { it.code == selectedCurrencyCode }?.symbol ?: "₽"
     val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
     val dayCount = budgetTripDayCount(overview.dates)
     val budgetScrollState = rememberScrollState()
@@ -4447,11 +4458,13 @@ private fun BudgetContent(tripId: String, overview: TripOverview, onExpenseAdded
         BudgetSummaryCard(total = total, currencySymbol = currencySymbol)
         Spacer(Modifier.height(14.dp))
         BudgetCurrencySelector(
-            selectedCode = currencyCode,
+            selectedCode = selectedCurrencyCode,
             options = currencyOptions,
             saving = savingCurrency,
             onSelect = { selected ->
-                if (selected != currencyCode && !savingCurrency) {
+                if (selected != selectedCurrencyCode && !savingCurrency) {
+                    val previousCurrencyCode = selectedCurrencyCode
+                    selectedCurrencyCode = selected
                     scope.launch {
                         savingCurrency = true
                         runCatching {
@@ -4460,8 +4473,11 @@ private fun BudgetContent(tripId: String, overview: TripOverview, onExpenseAdded
                                 "budgetCurrency",
                                 JsonPrimitive(selected),
                             )
-                        }.onSuccess { onExpenseAdded() }
-                            .onFailure { message = it.message ?: localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden") }
+                        }.onSuccess { onCurrencyChanged(selected) }
+                            .onFailure {
+                                selectedCurrencyCode = previousCurrencyCode
+                                message = it.message ?: localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden")
+                            }
                         savingCurrency = false
                     }
                 }
@@ -4695,7 +4711,7 @@ private fun BudgetCurrencySelector(
                     .clickable(enabled = !saving && !selected) { onSelect(option.code) },
             ) {
                 Text(
-                    text = if (saving && selected) "…" else option.symbol,
+                    text = option.symbol,
                     color = if (selected) OdysseyText else Color(0xFFA0A0AA),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
