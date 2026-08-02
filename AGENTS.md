@@ -18,3 +18,8 @@
 - Never treat an element that is absent from a cropped or incorrectly scrolled screenshot as absent from the design. Validate the complete target screen at the same scroll position first; hidden DOM text is not visual evidence.
 - For each screen, capture the prototype and the Android device in the same state and compare the screenshots before making changes. After any change, capture both again and ask the user to verify that screen before proceeding to another screen.
 - When the user asks a question or requests an explanation, answer it without changing code unless the user explicitly asks for implementation.
+
+# Git Workflow
+
+- Use `main` as the working branch for this project.
+- Do not create feature, agent, or other additional branches for routine work. Make requested changes directly on `main`, then commit and push them there when the user asks.
