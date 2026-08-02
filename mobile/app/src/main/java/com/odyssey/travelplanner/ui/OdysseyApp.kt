@@ -1653,7 +1653,6 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
         val stops = sightRoutePoints.map { "${it.latitude()},${it.longitude()}" }
         "https://www.google.com/maps/dir/?api=1&origin=${stops.first()}&destination=${stops.last()}&waypoints=${stops.drop(1).dropLast(1).joinToString("|")}" 
     } else "https://www.google.com/maps/search/?api=1&query=${Uri.encode(routeCity)}"
-    var savingSightId by remember { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("достопримечательности") }
@@ -1856,14 +1855,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 })
             }
             items(visibleSights, key = { it.id }) { sight ->
-                SightCard(sight, savingSightId == sight.id, uploadingSightId == sight.id, onEdit = { editingSight = sight }, onAddPhoto = { uploadingSightId = sight.id; photoPicker.launch("image/*") }) { done ->
-                    scope.launch {
-                        savingSightId = sight.id
-                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDone(tripId, sight.id, done) }
-                            .onSuccess { onSightUpdated() }
-                        savingSightId = null
-                    }
-                }
+                SightCard(sight, uploadingSightId == sight.id, onEdit = { editingSight = sight }, onAddPhoto = { uploadingSightId = sight.id; photoPicker.launch("image/*") })
             }
         }
     }
@@ -2017,7 +2009,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
 }
 
 @Composable
-private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, saving: Boolean, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit, onDoneChange: (Boolean) -> Unit) {
+private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -2038,7 +2030,7 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, saving: Boole
         Column(modifier = Modifier.weight(1f).clickable { onEdit() }, verticalArrangement = Arrangement.Center) {
             Text(
                 sight.name,
-                color = if (sight.done) secondaryTextColor() else contentTextColor(),
+                color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 15.sp,
@@ -2083,16 +2075,6 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, saving: Boole
                     )
                 }
             }
-        }
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .border(1.4.dp, Color(0xFFEEEEEE), RoundedCornerShape(11.dp))
-                .clickable(enabled = !saving) { onDoneChange(!sight.done) },
-        ) {
-            OdysseyPlusIcon()
         }
     }
 }
