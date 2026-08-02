@@ -1875,8 +1875,6 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
 private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
-    var dayCity by remember { mutableStateOf(city) }
-    var fromCity by remember { mutableStateOf(city) }
     var dayNumber by remember { mutableStateOf(day.toString()) }
     var placeName by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -1886,7 +1884,6 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
             Column(modifier = Modifier.weight(1f)) { Text(localized("СОЗДАТЬ ДЕНЬ", "CREATE DAY", "CREAR DÍA", "TAG ERSTELLEN"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp); Text(localized("Места и маршрут дня", "Places and day route", "Lugares y ruta del día", "Orte und Tagesroute"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp) }
             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = null, tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { RouteEditorField(localized("Откуда", "From", "Desde", "Von"), fromCity, { fromCity = it }, Modifier.weight(1f)); RouteEditorField(localized("Куда", "To", "A", "Nach"), dayCity, { dayCity = it }, Modifier.weight(1f)) }
         RouteEditorField(localized("День", "Day", "Día", "Tag"), dayNumber, { dayNumber = it }, Modifier.fillMaxWidth())
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${sights.size}", "SIGHTS · ${sights.size}", "LUGARES · ${sights.size}", "ORTE · ${sights.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { OutlinedTextField(value = placeName, onValueChange = { placeName = it }, placeholder = { Text(localized("Напр. Хофбройхаус", "E.g. Hofbräuhaus", "P. ej. Hofbräuhaus", "Z. B. Hofbräuhaus"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(50.dp)); Button(onClick = { placeName = "" }, modifier = Modifier.height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp)) { Text(localized("＋ Добавить", "＋ Add", "＋ Añadir", "＋ Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp) } }
@@ -1900,14 +1897,14 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
                 saving = true
                 runCatching {
                     val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                    repository.addRouteLeg(tripId, fromCity, dayCity)
-                    if (placeName.isNotBlank()) repository.addSightDetails(tripId, placeName, dayCity, "достопримечательности", "", dayNumber.toIntOrNull() ?: day)
+                    repository.addRouteLeg(tripId, city, city)
+                    if (placeName.isNotBlank()) repository.addSightDetails(tripId, placeName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day)
                 }.onSuccess { onSaved(); onClose() }.onFailure {
                     message = it.message ?: localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden")
                 }
                 saving = false
             }
-        }, enabled = !saving && fromCity.isNotBlank() && dayCity.isNotBlank(), modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(14.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить день", "Save day", "Guardar día", "Tag speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+        }, enabled = !saving && city.isNotBlank(), modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(14.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить день", "Save day", "Guardar día", "Tag speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
     }
 }
 
