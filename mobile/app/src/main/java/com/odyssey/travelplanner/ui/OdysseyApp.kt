@@ -188,11 +188,52 @@ private val LocalLanguage = staticCompositionLocalOf { "RU" }
 @Composable
 private fun localized(ru: String, en: String, es: String, de: String): String = localized(LocalLanguage.current, ru, en, es, de)
 
-private fun localized(language: String, ru: String, en: String, es: String, de: String): String = when (language) {
+private fun normalizeLanguage(value: String): String = when (value.trim().uppercase(Locale.ROOT).substringBefore('-')) {
+    "EN", "ENGLISH" -> "EN"
+    "ES", "SPANISH" -> "ES"
+    "DE", "GERMAN" -> "DE"
+    else -> "RU"
+}
+
+private fun localized(language: String, ru: String, en: String, es: String, de: String): String = when (normalizeLanguage(language)) {
     "EN" -> en
     "ES" -> es
     "DE" -> de
     else -> ru
+}
+
+@Composable
+private fun localizedBudgetCategory(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "жильё", "жилье", "проживание" -> localized("Жильё", "Lodging", "Alojamiento", "Unterkunft")
+    "транспорт" -> localized("Транспорт", "Transport", "Transporte", "Transport")
+    "еда и рестораны", "питание", "еда" -> localized("Еда и рестораны", "Food & restaurants", "Comida y restaurantes", "Essen & Restaurants")
+    "активности и билеты", "развлечения", "активности" -> localized("Активности и билеты", "Activities & tickets", "Actividades y entradas", "Aktivitäten & Tickets")
+    "прочее" -> localized("Прочее", "Other", "Otros", "Sonstiges")
+    else -> value
+}
+
+@Composable
+private fun localizedBudgetScope(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "общий", "общее" -> localized("общий", "shared", "compartido", "gemeinsam")
+    "семья" -> localized("семья", "family", "familia", "Familie")
+    "личный" -> localized("личный", "personal", "personal", "privat")
+    else -> value
+}
+
+@Composable
+private fun localizedCityFilter(value: String): String = if (value.trim().equals("Все города", ignoreCase = true)) {
+    localized("Все города", "All cities", "Todas las ciudades", "Alle Städte")
+} else {
+    value
+}
+
+@Composable
+private fun localizedTripStatus(value: String): String = when {
+    value.contains("чернов", ignoreCase = true) -> localized("Черновик", "Draft", "Borrador", "Entwurf")
+    value.contains("предст", ignoreCase = true) -> localized("Предстоящее", "Upcoming", "Próximo", "Bevorstehend")
+    value.contains("заверш", ignoreCase = true) -> localized("Завершено", "Completed", "Completado", "Abgeschlossen")
+    value.contains("прошед", ignoreCase = true) -> localized("Прошедшее", "Past", "Pasado", "Vergangen")
+    else -> value
 }
 
 private data class PhotoDateRange(val start: LocalDate, val end: LocalDate)
@@ -258,9 +299,15 @@ private fun photoGroupDateRange(city: String, overview: TripOverview, fallbackDa
     return PhotoDateRange(date, date)
 }
 
-private fun formatPhotoDateRange(range: PhotoDateRange): String {
-    val startMonth = PhotoMonthNames[range.start.monthValue - 1]
-    val endMonth = PhotoMonthNames[range.end.monthValue - 1]
+private fun formatPhotoDateRange(range: PhotoDateRange, language: String): String {
+    val monthNames = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+        "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+        else -> PhotoMonthNames
+    }
+    val startMonth = monthNames[range.start.monthValue - 1]
+    val endMonth = monthNames[range.end.monthValue - 1]
     return when {
         range.start == range.end -> "${range.start.dayOfMonth} $startMonth"
         range.start.year == range.end.year && range.start.monthValue == range.end.monthValue -> "${range.start.dayOfMonth}–${range.end.dayOfMonth} $startMonth"
@@ -495,7 +542,7 @@ fun OdysseyApp() {
         if (SupabaseProvider.restorePersistentSession()) {
             runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
                 darkTheme = profile.darkTheme
-                language = profile.language
+                language = normalizeLanguage(profile.language)
             }
             navController.navigate("trips") { popUpTo("foundation") { inclusive = true } }
         }
@@ -520,7 +567,7 @@ fun OdysseyApp() {
                         onThemeToggle = { darkTheme = !darkTheme },
                         onThemeSet = { darkTheme = it },
                         language = language,
-                        onLanguageChange = { language = it },
+                        onLanguageChange = { language = normalizeLanguage(it) },
                     )
                 }
                 composable("catalog") { RouteCatalogScreen(onBack = { navController.popBackStack() }, onUseTemplate = { navController.navigate("create-trip/$it") }) }
@@ -567,7 +614,7 @@ private fun AuthScreen(onAuthenticated: () -> Unit) {
     var message by remember { mutableStateOf<String?>(null) }
     var rememberSession by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    fun messageText(ru: String, en: String, es: String, de: String) = when (language) { "EN" -> en; "ES" -> es; "DE" -> de; else -> ru }
+    fun messageText(ru: String, en: String, es: String, de: String) = localized(language, ru, en, es, de)
 
     fun submit() {
         if (email.isBlank() || password.isBlank() || (isRegistration && name.isBlank())) {
@@ -692,7 +739,7 @@ private fun AuthScreen(onAuthenticated: () -> Unit) {
             AuthField(localized("Имя", "Name", "Nombre", "Name"), localized("Как вас зовут", "What is your name", "Cómo se llama", "Wie heißen Sie"), name) { name = it }
             Spacer(Modifier.height(14.dp))
         }
-        AuthField("E-mail", "you@example.com", email) { email = it }
+        AuthField(localized("E-mail", "E-mail", "Correo electrónico", "E-Mail"), "you@example.com", email) { email = it }
         Spacer(Modifier.height(14.dp))
         AuthField(localized("Пароль", "Password", "Contraseña", "Passwort"), "••••••••", password, password = true) { password = it }
         if (isRegistration) {
@@ -934,7 +981,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
-            onLanguageChange(profile.language)
+            onLanguageChange(normalizeLanguage(profile.language))
             onThemeSet(profile.darkTheme)
         }
     }
@@ -1253,9 +1300,9 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor()).padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(localized("Редактировать путешествие", "Edit trip", "Editar viaje", "Reise bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp)
-        AuthField("Название", "Название", title) { title = it }
-        AuthField("Города", "Города", cities) { cities = it }
-        AuthField("Даты", "Например, 12–15 сентября", dates) { dates = it }
+        AuthField(localized("Название", "Title", "Nombre", "Name"), localized("Название", "Title", "Nombre", "Name"), title) { title = it }
+        AuthField(localized("Города", "Cities", "Ciudades", "Städte"), localized("Города", "Cities", "Ciudades", "Städte"), cities) { cities = it }
+        AuthField(localized("Даты", "Dates", "Fechas", "Daten"), localized("Например, 12–15 сентября", "For example, Sep 12–15", "Por ejemplo, 12–15 de septiembre", "Zum Beispiel 12.–15. September"), dates) { dates = it }
         Text(localized("Статус путешествия", "Trip status", "Estado del viaje", "Reisestatus"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
             listOf(
@@ -1294,10 +1341,10 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
     val templateData = when (template) {
-        "italy" -> "Рождественская Европа" to "Прага, Мюнхен, Верона, Милан, Венеция, Рим"
-        "czech" -> "Классическая Италия" to "Рим, Флоренция, Пиза, Венеция, Милан"
-        "alps" -> "Альпы с семьёй" to "Мюнхен, Инсбрук, Зальцбург, Вена"
-        "baltic" -> "Балтийский маршрут" to "Таллин, Рига, Вильнюс"
+        "italy" -> localized("Рождественская Европа", "Christmas Europe", "Europa navideña", "Weihnachtliches Europa") to localized("Прага, Мюнхен, Верона, Милан, Венеция, Рим", "Prague, Munich, Verona, Milan, Venice, Rome", "Praga, Múnich, Verona, Milán, Venecia, Roma", "Prag, München, Verona, Mailand, Venedig, Rom")
+        "czech" -> localized("Классическая Италия", "Classic Italy", "Italia clásica", "Klassisches Italien") to localized("Рим, Флоренция, Пиза, Венеция, Милан", "Rome, Florence, Pisa, Venice, Milan", "Roma, Florencia, Pisa, Venecia, Milán", "Rom, Florenz, Pisa, Venedig, Mailand")
+        "alps" -> localized("Альпы с семьёй", "The Alps with family", "Los Alpes en familia", "Die Alpen mit der Familie") to localized("Мюнхен, Инсбрук, Зальцбург, Вена", "Munich, Innsbruck, Salzburg, Vienna", "Múnich, Innsbruck, Salzburgo, Viena", "München, Innsbruck, Salzburg, Wien")
+        "baltic" -> localized("Балтийский маршрут", "Baltic route", "Ruta báltica", "Baltische Route") to localized("Таллин, Рига, Вильнюс", "Tallinn, Riga, Vilnius", "Tallin, Riga, Vilna", "Tallinn, Riga, Vilnius")
         else -> "" to ""
     }
     var title by remember(template) { mutableStateOf(templateData.first) }
@@ -1363,10 +1410,10 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
 private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Unit) {
     val darkTheme = LocalDarkTheme.current
     val templates = listOf(
-        listOf("italy", "Рождественская Европа", "12 дней · 6 городов", "Прага → Мюнхен → Верона → Милан → Венеция → Рим", "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85"),
-        listOf("czech", "Классическая Италия", "10 дней · 5 городов", "Рим → Флоренция → Пиза → Венеция → Милан", "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=85"),
-        listOf("alps", "Альпы с семьёй", "7 дней · 4 города", "Мюнхен → Инсбрук → Зальцбург → Вена", "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85"),
-        listOf("baltic", "Балтийский маршрут", "6 дней · 3 города", "Таллин → Рига → Вильнюс", "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85"),
+        listOf("italy", localized("Рождественская Европа", "Christmas Europe", "Europa navideña", "Weihnachtliches Europa"), localized("12 дней · 6 городов", "12 days · 6 cities", "12 días · 6 ciudades", "12 Tage · 6 Städte"), localized("Прага → Мюнхен → Верона → Милан → Венеция → Рим", "Prague → Munich → Verona → Milan → Venice → Rome", "Praga → Múnich → Verona → Milán → Venecia → Roma", "Prag → München → Verona → Mailand → Venedig → Rom"), "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85"),
+        listOf("czech", localized("Классическая Италия", "Classic Italy", "Italia clásica", "Klassisches Italien"), localized("10 дней · 5 городов", "10 days · 5 cities", "10 días · 5 ciudades", "10 Tage · 5 Städte"), localized("Рим → Флоренция → Пиза → Венеция → Милан", "Rome → Florence → Pisa → Venice → Milan", "Roma → Florencia → Pisa → Venecia → Milán", "Rom → Florenz → Pisa → Venedig → Mailand"), "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=85"),
+        listOf("alps", localized("Альпы с семьёй", "The Alps with family", "Los Alpes en familia", "Die Alpen mit der Familie"), localized("7 дней · 4 города", "7 days · 4 cities", "7 días · 4 ciudades", "7 Tage · 4 Städte"), localized("Мюнхен → Инсбрук → Зальцбург → Вена", "Munich → Innsbruck → Salzburg → Vienna", "Múnich → Innsbruck → Salzburgo → Viena", "München → Innsbruck → Salzburg → Wien"), "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85"),
+        listOf("baltic", localized("Балтийский маршрут", "Baltic route", "Ruta báltica", "Baltische Route"), localized("6 дней · 3 города", "6 days · 3 cities", "6 días · 3 ciudades", "6 Tage · 3 Städte"), localized("Таллин → Рига → Вильнюс", "Tallinn → Riga → Vilnius", "Tallin → Riga → Vilna", "Tallinn → Riga → Vilnius"), "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=85"),
     )
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(if (darkTheme) Color(0xFF141416) else OdysseyBackground).padding(WindowInsets.statusBars.asPaddingValues()),
@@ -2163,11 +2210,11 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(localized("Редактировать место", "Edit sight", "Editar lugar", "Ort bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-        AuthField("Название", "Название", name) { name = it }
-        AuthField("Город", "Город", city) { city = it }
-        AuthField("Категория", "Категория", category) { category = it }
-        AuthField("Описание", "Что важно увидеть", description) { description = it }
-        AuthField("День маршрута", "Например, 1", walkDay) { walkDay = it.filter(Char::isDigit) }
+        AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
+        AuthField(localized("Город", "City", "Ciudad", "Stadt"), localized("Город", "City", "Ciudad", "Stadt"), city) { city = it }
+        AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
+        AuthField(localized("Описание", "Description", "Descripción", "Beschreibung"), localized("Что важно увидеть", "What is important to see", "Qué es importante ver", "Was sehenswert ist"), description) { description = it }
+        AuthField(localized("День маршрута", "Route day", "Día de ruta", "Reisetag"), localized("Например, 1", "For example, 1", "Por ejemplo, 1", "Zum Beispiel 1"), walkDay) { walkDay = it.filter(Char::isDigit) }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
@@ -2213,7 +2260,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var appliedTypeFilter by remember { mutableStateOf("Ресторан") }
     var appliedFeatureFilters by remember { mutableStateOf(setOf<String>()) }
     var draftTypeFilter by remember { mutableStateOf("Ресторан") }
-    var draftFeatureFilters by remember { mutableStateOf(setOf("Приоритет", "С собакой")) }
+    var draftFeatureFilters by remember { mutableStateOf(setOf("priority", "dog")) }
     var draftPriceFilter by remember { mutableStateOf("€€") }
     var draftRatingFilter by remember { mutableStateOf("4.5+") }
     val scope = rememberCoroutineScope()
@@ -2234,10 +2281,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         }
         val featureMatches = appliedFeatureFilters.all { feature ->
             when (feature) {
-                "Приоритет" -> note.contains("приоритет") || note.contains("priority")
-                "С собакой" -> note.contains("с собакой") || note.contains("dog")
-                "Есть бронь" -> restaurant.status == "бронь" || note.contains("бронь") || note.contains("reserv")
-                "Веган" -> note.contains("веган") || note.contains("vegan")
+                "priority" -> note.contains("приоритет") || note.contains("priority")
+                "dog" -> note.contains("с собакой") || note.contains("dog")
+                "reservation" -> restaurant.status == "бронь" || note.contains("бронь") || note.contains("reserv")
+                "vegan" -> note.contains("веган") || note.contains("vegan")
                 else -> true
             }
         }
@@ -2297,7 +2344,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 ) {
                     OdysseyLocationIcon(15.dp, Color.White)
                     Text(
-                        selectedCity,
+                        localizedCityFilter(selectedCity),
                         color = Color.White,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
@@ -2356,7 +2403,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             item {
                 Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cardSurfaceColor()).padding(7.dp)) {
                     cityOptions.forEach { option ->
-                        Text(option, color = if (option == selectedCity) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (option == selectedCity) OdysseyTint else Color.Transparent).clickable { selectedCity = option; cityMenuOpen = false }.padding(horizontal = 12.dp, vertical = 11.dp))
+                        Text(localizedCityFilter(option), color = if (option == selectedCity) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (option == selectedCity) OdysseyTint else Color.Transparent).clickable { selectedCity = option; cityMenuOpen = false }.padding(horizontal = 12.dp, vertical = 11.dp))
                     }
                 }
             }
@@ -2882,12 +2929,12 @@ private fun RestaurantAddSheet(
                     horizontalArrangement = Arrangement.spacedBy(d(9f)),
                     modifier = Modifier.offset(x = d(16f), y = d(696f)).height(d(38f)),
                 ) {
-                    RestaurantAddStatusChip("хочу", "want", status == "хочу", 61.4f, scale, onStatusChange)
-                    RestaurantAddStatusChip("бронь", "reserve", status == "бронь", 71.4f, scale, onStatusChange)
-                    RestaurantAddStatusChip("были", "visited", status == "были", 65.1f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("хочу", "want", "quiero", "möchte"), "want", status == "хочу", 61.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "reserve", status == "бронь", 71.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("были", "visited", "visitado", "besucht"), "visited", status == "были", 65.1f, scale, onStatusChange)
                 }
                 RestaurantAddStatusChip(
-                    label = "🔥 Приоритет",
+                    label = localized("🔥 Приоритет", "🔥 Priority", "🔥 Prioridad", "🔥 Priorität"),
                     value = "priority",
                     selected = priority,
                     width = 124.1f,
@@ -3559,15 +3606,15 @@ private fun RestaurantFilterSheet(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
                 modifier = Modifier.offset(x = d(16f), y = d(223f)).height(d(38f)),
             ) {
-                RestaurantFilterFeatureChip("Приоритет", "priority", "Приоритет" in features, 122.5f, scale, onFeatureToggle)
-                RestaurantFilterFeatureChip("С собакой", "dog", "С собакой" in features, 117.1f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Приоритет", "Priority", "Prioridad", "Priorität"), "priority", "priority" in features, 122.5f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("С собакой", "Dog-friendly", "Con perro", "Hundefreundlich"), "dog", "dog" in features, 117.1f, scale, onFeatureToggle)
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
                 modifier = Modifier.offset(x = d(16f), y = d(270f)).height(d(38f)),
             ) {
-                RestaurantFilterFeatureChip("Есть бронь", "reservation", "Есть бронь" in features, 123.1f, scale, onFeatureToggle)
-                RestaurantFilterFeatureChip("Веган", "vegan", "Веган" in features, 87.64f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Есть бронь", "Has reservation", "Tiene reserva", "Reservierung vorhanden"), "reservation", "reservation" in features, 123.1f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Веган", "Vegan", "Vegano", "Vegan"), "vegan", "vegan" in features, 87.64f, scale, onFeatureToggle)
             }
 
             Text(
@@ -3675,7 +3722,7 @@ private fun RestaurantFilterFeatureChip(
             .clip(RoundedCornerShape(d(12f)))
             .background(if (selected) OdysseyPurple else Color.White)
             .border(d(1.6f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
-            .clickable { onToggle(label) }
+            .clickable { onToggle(kind) }
             .padding(horizontal = d(13f)),
     ) {
         RestaurantFilterFeatureIcon(kind, d(14f), if (selected) Color.White else OdysseyPurple)
@@ -4163,11 +4210,11 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(localized("Редактировать ресторан", "Edit restaurant", "Editar restaurante", "Restaurant bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-        AuthField("Название", "Название", name) { name = it }
-        AuthField("Город", "Город", city) { city = it }
-        AuthField("Заметка", "Кухня или комментарий", note) { note = it }
-        AuthField("Цена", "€€ / €€€", price) { price = it }
-        AuthField("Ссылка", "https://…", link) { link = it }
+        AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
+        AuthField(localized("Город", "City", "Ciudad", "Stadt"), localized("Город", "City", "Ciudad", "Stadt"), city) { city = it }
+        AuthField(localized("Заметка", "Note", "Nota", "Notiz"), localized("Кухня или комментарий", "Cuisine or note", "Cocina o comentario", "Küche oder Notiz"), note) { note = it }
+        AuthField(localized("Цена", "Price", "Precio", "Preis"), "€€ / €€€", price) { price = it }
+        AuthField(localized("Ссылка", "Link", "Enlace", "Link"), "https://…", link) { link = it }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFE9E8)).clickable {
@@ -4225,7 +4272,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
                     ?: error("Не удалось прочитать изображение")
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addCoverPhoto(tripId, bytes)
             }.onSuccess { onPhotoAdded() }.onFailure {
-                message = it.message ?: "Не удалось загрузить фото"
+                message = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden")
             }
             uploading = false
         }
@@ -4242,7 +4289,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
 
     fun groupMeta(city: String, count: Int): String {
         val date = photoGroupDateRange(city, overview, groupedPhotos.indexOfFirst { it.first == city } + 1)
-            ?.let(::formatPhotoDateRange)
+            ?.let { formatPhotoDateRange(it, language) }
         return listOfNotNull(date, "$count ${localized(language, "фото", "photos", "fotos", "Fotos")}").joinToString(" · ")
     }
 
@@ -4391,7 +4438,10 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEFEFF4)).padding(3.dp),
                     ) {
-                        listOf("Редактор" to "Редактор", "Просмотр" to "Читатель").forEach { (label, value) ->
+                        listOf(
+                            localized("Редактор", "Editor", "Editor", "Editor") to "Редактор",
+                            localized("Просмотр", "Viewer", "Lector", "Leser") to "Читатель",
+                        ).forEach { (label, value) ->
                             val selected = value == role
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).background(if (selected) Color.White else Color.Transparent).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(10.dp)).clickable { role = value }) {
                                 Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
@@ -4493,6 +4543,7 @@ private fun InviteMemberField(placeholder: String, value: String, onValueChange:
 
 @Composable
 private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving: Boolean, editing: Boolean, onDelete: () -> Unit, onRoleChange: (String) -> Unit) {
+    val language = LocalLanguage.current
     val surface = cardSurfaceColor()
     val avatarColor = when (member.tone) {
         "sand", "orange" -> Color(0xFFF29A32)
@@ -4500,13 +4551,18 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
         else -> OdysseyPurple
     }
     val isOwner = member.role == "Владелец"
-    val roleLabel = if (member.role == "Читатель") "Просмотр" else member.role
-    val roleBackground = when (roleLabel) {
+    val roleLabel = when (member.role) {
+        "Владелец" -> localized(language, "Владелец", "Owner", "Propietario", "Besitzer")
+        "Редактор" -> localized(language, "Редактор", "Editor", "Editor", "Editor")
+        "Читатель" -> localized(language, "Просмотр", "Viewer", "Lector", "Leser")
+        else -> member.role
+    }
+    val roleBackground = when (member.role) {
         "Владелец" -> Color(0xFFEDEAFF)
         "Редактор" -> Color(0xFFEEFAF3)
         else -> Color(0xFFF3F3F6)
     }
-    val roleColor = when (roleLabel) {
+    val roleColor = when (member.role) {
         "Владелец" -> OdysseyPurple
         "Редактор" -> Color(0xFF22B07D)
         else -> OdysseySubtext
@@ -4530,7 +4586,10 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
         }
         if (editing && !isOwner) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                listOf("Редактор" to "Редактор", "Просмотр" to "Читатель").forEach { (label, value) ->
+                listOf(
+                    localized("Редактор", "Editor", "Editor", "Editor") to "Редактор",
+                    localized("Просмотр", "Viewer", "Lector", "Leser") to "Читатель",
+                ).forEach { (label, value) ->
                     val selected = member.role == value
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color.White else Color(0xFFEFEFF4)).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(11.dp)).clickable(enabled = !saving) { onRoleChange(value) }) {
                         Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
@@ -4962,7 +5021,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(19.dp)) {
             Box(modifier = Modifier.size(11.dp).clip(RoundedCornerShape(4.dp)).background(style.color))
             Text(
-                text = style.label,
+                text = localizedBudgetCategory(style.label),
                 color = OdysseyText,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
@@ -5112,7 +5171,7 @@ private fun BudgetExpenseRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = categoryStyle.label,
+                    text = localizedBudgetCategory(categoryStyle.label),
                     color = categoryStyle.color,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -5355,16 +5414,16 @@ private fun BudgetExpenseSheet(
             )
             Column(modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(336f))) {
                 Row(horizontalArrangement = Arrangement.spacedBy(d(9f))) {
-                    BudgetChoiceChip("Жильё", category == "Жильё", 79.2f, scale) { onCategoryChange("Жильё") }
-                    BudgetChoiceChip("Транспорт", category == "Транспорт", 106.8f, scale) { onCategoryChange("Транспорт") }
+                    BudgetChoiceChip(localized("Жильё", "Lodging", "Alojamiento", "Unterkunft"), category == "Жильё", 79.2f, scale) { onCategoryChange("Жильё") }
+                    BudgetChoiceChip(localized("Транспорт", "Transport", "Transporte", "Transport"), category == "Транспорт", 106.8f, scale) { onCategoryChange("Транспорт") }
                 }
                 Spacer(Modifier.height(d(9f)))
                 Row(horizontalArrangement = Arrangement.spacedBy(d(9f))) {
-                    BudgetChoiceChip("Еда и рестораны", category == "Еда и рестораны", 147.6f, scale) { onCategoryChange("Еда и рестораны") }
-                    BudgetChoiceChip("Активности и билеты", category == "Активности и билеты", 178.7f, scale) { onCategoryChange("Активности и билеты") }
+                    BudgetChoiceChip(localized("Еда и рестораны", "Food & restaurants", "Comida y restaurantes", "Essen & Restaurants"), category == "Еда и рестораны", 147.6f, scale) { onCategoryChange("Еда и рестораны") }
+                    BudgetChoiceChip(localized("Активности и билеты", "Activities & tickets", "Actividades y entradas", "Aktivitäten & Tickets"), category == "Активности и билеты", 178.7f, scale) { onCategoryChange("Активности и билеты") }
                 }
                 Spacer(Modifier.height(d(9f)))
-                BudgetChoiceChip("Прочее", category == "Прочее", 85.1f, scale) { onCategoryChange("Прочее") }
+                BudgetChoiceChip(localized("Прочее", "Other", "Otros", "Sonstiges"), category == "Прочее", 85.1f, scale) { onCategoryChange("Прочее") }
             }
             Text(
                 text = localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"),
@@ -5375,9 +5434,9 @@ private fun BudgetExpenseSheet(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
                 modifier = Modifier.offset(x = d(16f), y = d(478f)).height(d(40f)),
             ) {
-                BudgetChoiceChip("Общий", scopeName == "общий", 79.8f, scale) { onScopeChange("общий") }
-                BudgetChoiceChip("Семья", scopeName == "семья", 77.9f, scale) { onScopeChange("семья") }
-                BudgetChoiceChip("Личный", scopeName == "личный", 87.4f, scale) { onScopeChange("личный") }
+                BudgetChoiceChip(localized("Общий", "Shared", "Común", "Gemeinsam"), scopeName == "общий", 79.8f, scale) { onScopeChange("общий") }
+                BudgetChoiceChip(localized("Семья", "Family", "Familia", "Familie"), scopeName == "семья", 77.9f, scale) { onScopeChange("семья") }
+                BudgetChoiceChip(localized("Личный", "Personal", "Personal", "Privat"), scopeName == "личный", 87.4f, scale) { onScopeChange("личный") }
             }
             message?.let {
                 Text(
@@ -5475,7 +5534,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
     ) {
         item {
             Text(localized("Бюджет поездки", "Trip budget", "Presupuesto del viaje", "Reisebudget"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
-            Text("${expenses.size} трат · $currency", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(localized("${expenses.size} трат · $currency", "${expenses.size} expenses · $currency", "${expenses.size} gastos · $currency", "${expenses.size} Ausgaben · $currency"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -5505,20 +5564,20 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
         item {
             if (adding) {
                 Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Новая трата", color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField("Название", "Например, билеты", name) { name = it }
-                    AuthField("Сумма в $currency", "0", amountInput) { amountInput = it }
-                    AuthField("Кто оплатил", "Имя", paidBy) { paidBy = it }
+                    Text(localized("Новая трата", "New expense", "Nuevo gasto", "Neue Ausgabe"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+                    AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Например, билеты", "For example, tickets", "Por ejemplo, billetes", "Zum Beispiel Tickets"), name) { name = it }
+                    AuthField(localized("Сумма в $currency", "Amount in $currency", "Importe en $currency", "Betrag in $currency"), "0", amountInput) { amountInput = it }
+                    AuthField(localized("Кто оплатил", "Paid by", "Pagado por", "Bezahlt von"), localized("Имя", "Name", "Nombre", "Name"), paidBy) { paidBy = it }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         categories.forEach { option ->
                             val selected = category == option
-                            Text(option, color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { category = option }.padding(horizontal = 10.dp, vertical = 7.dp))
+                            Text(localizedBudgetCategory(option), color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { category = option }.padding(horizontal = 10.dp, vertical = 7.dp))
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         listOf("общий", "семья", "личный").forEach { option ->
                             val selected = scopeName == option
-                            Text(option, color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else secondarySurfaceColor(), RoundedCornerShape(12.dp)).clickable { scopeName = option }.padding(horizontal = 10.dp, vertical = 7.dp))
+                            Text(localizedBudgetScope(option), color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else secondarySurfaceColor(), RoundedCornerShape(12.dp)).clickable { scopeName = option }.padding(horizontal = 10.dp, vertical = 7.dp))
                         }
                     }
                     if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
@@ -5547,7 +5606,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
         }
         item {
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(OdysseyPurple).padding(18.dp)) {
-                Text("Общий бюджет", color = Color(0xDFFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp)
+                Text(localized("Общий бюджет", "Total budget", "Presupuesto total", "Gesamtbudget"), color = Color(0xDFFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp)
                 Text(amount(total), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 5.dp))
             }
         }
@@ -5557,7 +5616,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
                     Column(modifier = Modifier.width(158.dp).clip(RoundedCornerShape(16.dp)).background(surface).padding(14.dp)) {
                         Text(group.name, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                         Text(amount(total * group.people / peopleTotal), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(top = 5.dp))
-                        Text("Доля из общих трат", color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                        Text(localized("Доля из общих трат", "Share of total expenses", "Parte de los gastos totales", "Anteil an den Gesamtausgaben"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
                     }
                 }
             }
@@ -5565,9 +5624,9 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
         item {
             if (addingGroup) {
                 Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Новая группа", color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField("Название", "Например, Друзья", groupName) { groupName = it }
-                    AuthField("Участников", "1", groupPeople) { groupPeople = it }
+                    Text(localized("Новая группа", "New group", "Nuevo grupo", "Neue Gruppe"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+                    AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Например, Друзья", "For example, Friends", "Por ejemplo, Amigos", "Zum Beispiel Freunde"), groupName) { groupName = it }
+                    AuthField(localized("Участников", "Members", "Participantes", "Mitglieder"), "1", groupPeople) { groupPeople = it }
                     if (groupMessage != null) Text(groupMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(onClick = { addingGroup = false; groupMessage = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
@@ -5583,15 +5642,15 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
                     }
                 }
             } else {
-                Text("＋ Разделить бюджет", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(surface).clickable { addingGroup = true }.padding(horizontal = 15.dp, vertical = 11.dp))
+                Text(localized("＋ Разделить бюджет", "＋ Split budget", "＋ Dividir presupuesto", "＋ Budget teilen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(surface).clickable { addingGroup = true }.padding(horizontal = 15.dp, vertical = 11.dp))
             }
         }
-        item { Text("По категориям", color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
+        item { Text(localized("По категориям", "By category", "Por categoría", "Nach Kategorie"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
         items(categories) { category ->
             val categoryTotal = expenses.filter { it.category == category }.sumOf { it.amount }
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(surface).padding(14.dp)) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(category, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp)
+                    Text(localizedBudgetCategory(category), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp)
                     Text(amount(categoryTotal), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(8.dp))
@@ -5600,7 +5659,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
                 }
             }
         }
-        item { Text("Траты", color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
+        item { Text(localized("Траты", "Expenses", "Gastos", "Ausgaben"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
         if (editingExpense != null) item {
             EditExpensePanel(editingExpense!!, tripId, onClose = { editingExpense = null }, onDeleted = {
                 editingExpense = null
@@ -5614,7 +5673,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(surface).clickable { editingExpense = expense }.padding(14.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(expense.name, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-                    Text(listOf(expense.scope, expense.paidBy).filter(String::isNotBlank).joinToString(" · "), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                    Text(listOf(localizedBudgetScope(expense.scope), expense.paidBy).filter(String::isNotBlank).joinToString(" · "), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
                 }
                 Text(amount(expense.amount), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
             }
@@ -5635,11 +5694,11 @@ private fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpen
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(localized("Редактировать трату", "Edit expense", "Editar gasto", "Ausgabe bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-        AuthField("Название", "Название", name) { name = it }
-        AuthField("Сумма", "0", amount) { amount = it }
-        AuthField("Категория", "Категория", category) { category = it }
-        AuthField("Кто оплатил", "Имя", paidBy) { paidBy = it }
-        AuthField("Тип бюджета", "общий / семья / личный", scopeName) { scopeName = it }
+        AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
+        AuthField(localized("Сумма", "Amount", "Importe", "Betrag"), "0", amount) { amount = it }
+        AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
+        AuthField(localized("Кто оплатил", "Paid by", "Pagado por", "Bezahlt von"), localized("Имя", "Name", "Nombre", "Name"), paidBy) { paidBy = it }
+        AuthField(localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"), localized("общий / семья / личный", "shared / family / personal", "compartido / familiar / personal", "gemeinsam / Familie / privat"), scopeName) { scopeName = it }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFE9E8)).clickable {
@@ -5900,11 +5959,12 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
 @Composable
 private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, saving: Boolean, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit, onMovePhoto: (Int, Int) -> Unit, onStatusChange: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val language = LocalLanguage.current
     val surface = cardSurfaceColor()
     val city = accommodation.city.trim()
     val cityPrefix = cityFlag(city).takeUnless { it == "📍" }.orEmpty()
     val cityLabel = listOf(cityPrefix, city).filter(String::isNotBlank).joinToString(" ")
-    val dates = formatAccommodationDates(accommodation.dates)
+    val dates = formatAccommodationDates(accommodation.dates, language)
     val price = formatAccommodationPrice(accommodation.price)
     Column(
         modifier = Modifier
@@ -5939,21 +5999,21 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
             if (accommodation.deadline.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp).height(17.dp)) {
                     Text("✓", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.width(14.dp))
-                    Text("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline)}", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(localized("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline, language)}", "Free cancellation until ${formatAccommodationDeadline(accommodation.deadline, language)}", "Cancelación gratuita hasta ${formatAccommodationDeadline(accommodation.deadline, language)}", "Kostenlose Stornierung bis ${formatAccommodationDeadline(accommodation.deadline, language)}"), color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
                 Box(modifier = (if (accommodation.bookingUrl.isNotBlank()) Modifier.width(150.234.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         OdysseyEditIcon(15.dp, OdysseyPurple)
-                        Text("Редактировать", color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                        Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
                     }
                 }
                 if (accommodation.bookingUrl.isNotBlank()) {
                     Box(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { uriHandler.openUri(accommodation.bookingUrl) }, contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             OdysseyExternalLinkIcon(15.dp, OdysseyPurple)
-                            Text("На Booking", color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                            Text(localized("На Booking", "Booking", "En Booking", "Booking"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
                         }
                     }
                 }
@@ -6103,11 +6163,11 @@ private fun AccommodationAddSheet(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(d(9f)), modifier = Modifier.offset(x = d(16f), y = d(324f)).height(d(41f))) {
-                    AddStatusChip("хочу", "хочу", 70.6f)
-                    AddStatusChip("бронь", "бронь", 81f)
-                    AddStatusChip("оплачено", "оплачено", 106.6f)
+                    AddStatusChip(localized("хочу", "want", "quiero", "möchte"), "хочу", 70.6f)
+                    AddStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "бронь", 81f)
+                    AddStatusChip(localized("оплачено", "paid", "pagado", "bezahlt"), "оплачено", 106.6f)
                 }
-                AddStatusChip("пожили", "пожили", 92.2f, Modifier.offset(x = d(16f), y = d(374f)))
+                AddStatusChip(localized("пожили", "stayed", "alojado", "übernachtet"), "пожили", 92.2f, Modifier.offset(x = d(16f), y = d(374f)))
 
                 AccommodationEditTextField(label = localized("Название", "Name", "Nombre", "Name"), value = name, placeholder = localized("Название жилья", "Accommodation name", "Nombre del alojamiento", "Name der Unterkunft"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(431f)).width(d(321f)), onValueChange = onNameChange)
                 Row(horizontalArrangement = Arrangement.spacedBy(d(12f)), modifier = Modifier.offset(x = d(16f), y = d(524f)).width(d(321f))) {
@@ -7020,7 +7080,7 @@ private fun cityFlag(city: String): String {
     }
 }
 
-private fun formatAccommodationDates(value: String): String {
+private fun formatAccommodationDates(value: String, language: String): String {
     val raw = value.trim()
     if (raw.isBlank()) return "Даты не указаны"
     val parts = raw.split(Regex("\\s+[–-]\\s+"))
@@ -7034,7 +7094,12 @@ private fun formatAccommodationDates(value: String): String {
     }
     val start = parseIso(parts[0]) ?: return raw
     val end = parseIso(parts[1]) ?: return raw
-    val months = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    val months = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+        "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+        else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    }
     val startDay = start.get(Calendar.DAY_OF_MONTH)
     val endDay = end.get(Calendar.DAY_OF_MONTH)
     val startMonth = months[start.get(Calendar.MONTH)]
@@ -7047,10 +7112,15 @@ private fun formatAccommodationDates(value: String): String {
     return range
 }
 
-private fun formatAccommodationDeadline(value: String): String {
+private fun formatAccommodationDeadline(value: String, language: String): String {
     val raw = value.trim()
     val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").matchEntire(raw) ?: return raw
-    val months = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    val months = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+        "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+        else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    }
     return "${match.groupValues[3].toInt()} ${months[match.groupValues[2].toInt() - 1]}"
 }
 
@@ -7466,7 +7536,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
             ) {
                 Spacer(Modifier.size(7.dp).background(statusColor, RoundedCornerShape(4.dp)))
                 Text(
-                    text = trip.status,
+                    text = localizedTripStatus(trip.status),
                     color = Color(0xFF33333A),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -7508,7 +7578,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
             Text(
                 text = buildAnnotatedString {
                     pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.W800))
-                    append("Маршрут заполнен на ${trip.progress}%")
+                    append(localized("Маршрут заполнен на ${trip.progress}%", "Route ${trip.progress}% complete", "Ruta completada al ${trip.progress}%", "Route zu ${trip.progress}% abgeschlossen"))
                     pop()
                     if (trip.cities.isNotBlank()) append(" · ${trip.cities}")
                 },
@@ -7592,7 +7662,7 @@ private fun NewTripCard(onClick: () -> Unit) {
                 .padding(horizontal = 15.dp, vertical = 6.dp),
         )
         Text(
-            text = "Новое путешествие",
+            text = localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"),
             color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
@@ -7600,7 +7670,7 @@ private fun NewTripCard(onClick: () -> Unit) {
             modifier = Modifier.padding(top = 10.dp),
         )
         Text(
-            text = "С нуля или из шаблона",
+            text = localized("С нуля или из шаблона", "From scratch or from a template", "Desde cero o desde una plantilla", "Von Grund auf oder aus einer Vorlage"),
             color = OdysseySubtext,
             fontFamily = Manrope,
             fontWeight = FontWeight.W500,
