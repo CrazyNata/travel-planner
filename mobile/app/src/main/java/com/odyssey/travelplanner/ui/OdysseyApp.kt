@@ -91,6 +91,7 @@ import androidx.compose.material.icons.filled.Close
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.MapInitOptions
 import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
 import com.mapbox.maps.plugin.annotation.generated.PolylineAnnotationOptions
@@ -3945,6 +3946,7 @@ private fun RestaurantMapCard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val restaurantPoints = remember(restaurants) {
         restaurants
             .mapNotNull { mapCoordinate(it.city) }
@@ -3952,18 +3954,35 @@ private fun RestaurantMapCard(
     }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context) {
-        MapView(context).also {
+        MapView(
+            context,
+            MapInitOptions(
+                context = context,
+                textureView = true,
+                styleUri = null,
+            ),
+        ).also {
             it.scalebar.enabled = false
-            it.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
-                mapStyleReady = true
-            }
         }
     }
     val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
 
-    DisposableEffect(mapView) {
-        mapView.onStart()
+    DisposableEffect(lifecycleOwner, mapView) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    mapView.onStart()
+                    mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
+                        mapStyleReady = true
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onStop()
             mapView.onDestroy()
         }
