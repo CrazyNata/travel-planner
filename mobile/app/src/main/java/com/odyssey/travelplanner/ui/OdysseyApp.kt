@@ -1635,24 +1635,28 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     val context = LocalContext.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val language = LocalLanguage.current
-    val sights = overview.sights.sortedWith(compareBy<com.odyssey.travelplanner.data.Sight> { it.walkDay }.thenBy { it.walkOrder })
+    val sights = overview.sights.sortedWith(compareBy<com.odyssey.travelplanner.data.Sight> { sightRouteDay(it.walkDay) }.thenBy { it.walkOrder })
     val initialRouteCity = sights.firstOrNull()?.city?.ifBlank { null }
         ?: overview.routeLegs.firstOrNull()?.to.orEmpty()
-    var routeCity by remember { mutableStateOf(initialRouteCity) }
-    var routeDay by remember { mutableStateOf(sights.firstOrNull()?.walkDay?.takeIf { it > 0 } ?: 1) }
+    var routeDay by remember(tripId) { mutableStateOf(sights.firstOrNull()?.walkDay?.let(::sightRouteDay) ?: 1) }
     var dayMenuOpen by remember { mutableStateOf(false) }
     var creatingDay by remember { mutableStateOf(false) }
     val dayCities = remember(sights, overview.routeLegs, initialRouteCity) {
-        val totalDays = maxOf(sights.maxOfOrNull { it.walkDay } ?: 1, overview.routeLegs.size)
+        val totalDays = maxOf(
+            sights.maxOfOrNull { sightRouteDay(it.walkDay) } ?: 1,
+            overview.routeDayCount,
+            overview.routeLegs.maxOfOrNull { routeLegDayNumber(it, overview.routeLegs) } ?: overview.routeLegs.size,
+        )
         (1..totalDays).map { day ->
-            sights.firstOrNull { it.walkDay == day }?.city?.takeIf(String::isNotBlank)
-                ?: overview.routeLegs.getOrNull(day - 1)?.to
+            sights.firstOrNull { sightRouteDay(it.walkDay) == day }?.city?.takeIf(String::isNotBlank)
+                ?: overview.routeLegs.firstOrNull { routeLegDayNumber(it, overview.routeLegs) == day }?.to
                 ?: initialRouteCity
         }
     }
-    val visibleSights = sights.filter { it.walkDay == routeDay }
-    val selectedLeg = overview.routeLegs.getOrNull(routeDay - 1)
-    val mapCities = selectedLeg?.let { listOf(it.from, it.to) } ?: listOf(routeCity)
+    val selectedDayCity = dayCities.getOrNull(routeDay - 1).orEmpty().ifBlank { initialRouteCity }
+    val visibleSights = sights.filter { sightRouteDay(it.walkDay) == routeDay }
+    val selectedLeg = overview.routeLegs.firstOrNull { routeLegDayNumber(it, overview.routeLegs) == routeDay }
+    val mapCities = selectedLeg?.let { listOf(it.from, it.to) } ?: listOf(selectedDayCity)
     val sightRoutePoints = visibleSights.mapNotNull { sight -> sight.longitude?.let { longitude -> sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) } } }
     val sightMapPoints = visibleSights.mapNotNull { sight ->
         sight.longitude?.let { longitude -> sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) } }
@@ -1661,7 +1665,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     val routeShareUrl = if (sightRoutePoints.size > 1) {
         val stops = sightRoutePoints.map { "${it.latitude()},${it.longitude()}" }
         "https://www.google.com/maps/dir/?api=1&origin=${stops.first()}&destination=${stops.last()}&waypoints=${stops.drop(1).dropLast(1).joinToString("|")}" 
-    } else "https://www.google.com/maps/search/?api=1&query=${Uri.encode(routeCity)}"
+    } else "https://www.google.com/maps/search/?api=1&query=${Uri.encode(selectedDayCity)}"
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("достопримечательности") }
@@ -1694,7 +1698,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     ) {
         item {
             Text(
-                "${routeCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
+                "${selectedDayCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
                 color = OdysseyPurple,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -1752,7 +1756,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
                         Text(
-                            routeCity,
+                            selectedDayCity,
                             color = contentTextColor(),
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W800,
@@ -1778,7 +1782,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(vertical = 7.dp)) {
                     dayCities.forEachIndexed { index, dayCity ->
                         val selected = index + 1 == routeDay
-                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFFF0EDFF) else Color.Transparent).clickable { routeDay = index + 1; routeCity = dayCity; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFFF0EDFF) else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} ${index + 1}", color = if (selected) OdysseyPurple else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.width(64.dp))
                             Text(dayCity, color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                             Spacer(Modifier.weight(1f))
@@ -1806,7 +1810,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                         Row(modifier = Modifier.fillMaxWidth().height(62.dp).padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "${routeCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
+                                    "${selectedDayCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
                                     color = OdysseyPurple,
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W800,
@@ -1816,7 +1820,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                                 )
                                 Text(
-                                    "$routeCity · ${visibleSights.size} ${localized("места", "places", "lugares", "Orte")}",
+                                    "$selectedDayCity · ${visibleSights.size} ${localized("места", "places", "lugares", "Orte")}",
                                     color = secondaryTextColor(),
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W700,
@@ -1870,15 +1874,22 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     }
     if (editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
-            EditDaySheet(tripId, routeDay, routeCity, visibleSights, onClose = { editingDay = false }, onSaved = onSightUpdated)
+            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSights, onClose = { editingDay = false }, onSaved = onSightUpdated)
         }
     }
     if (creatingDay) {
         ModalBottomSheet(onDismissRequest = { creatingDay = false }, containerColor = cardSurfaceColor()) {
-            CreateDaySheet(tripId = tripId, city = routeCity, day = routeDay + 1, sights = visibleSights, onClose = { creatingDay = false }, onSaved = onSightUpdated)
+            CreateDaySheet(tripId = tripId, city = selectedDayCity, day = routeDay + 1, sights = visibleSights, onClose = { creatingDay = false }, onSaved = onSightUpdated)
         }
     }
 }
+
+private fun sightRouteDay(walkDay: Int): Int = walkDay.coerceAtLeast(1)
+
+private fun routeLegDayNumber(
+    leg: com.odyssey.travelplanner.data.RouteLeg,
+    legs: List<com.odyssey.travelplanner.data.RouteLeg>,
+): Int = leg.dayNumber.takeIf { it > 0 } ?: (legs.indexOf(leg) + 1)
 
 @Composable
 private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
@@ -6749,8 +6760,9 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 Text(localized("Переезды пока не добавлены", "No route legs added yet", "Aún no se han añadido trayectos", "Noch keine Etappen hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
             }
         } else {
-            items(overview.routeLegs) { leg ->
-                RouteLegCard(leg, overview.routeLegs.indexOf(leg), overview.dates, onEdit = {
+            itemsIndexed(overview.routeLegs) { index, leg ->
+                val dayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1) ?: index
+                RouteLegCard(leg, dayIndex, overview.dates, onEdit = {
                     editingLeg = leg
                     from = leg.from
                     to = leg.to

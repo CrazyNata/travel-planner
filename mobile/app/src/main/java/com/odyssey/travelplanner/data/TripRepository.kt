@@ -61,6 +61,7 @@ data class RouteLeg(
     val notes: String,
     val mapsUrl: String,
     val completed: List<String>,
+    val dayNumber: Int = 0,
 )
 data class Accommodation(
     val id: String,
@@ -110,6 +111,7 @@ data class TripOverview(
     val sights: List<Sight>,
     val restaurants: List<Restaurant>,
     val cities: List<String> = emptyList(),
+    val routeDayCount: Int = 0,
 )
 
 enum class TripSection {
@@ -231,11 +233,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
         val mapPoints = row.payload["overviewMapPoints"]?.jsonArray.orEmpty()
             .mapNotNull { it.jsonPrimitive.contentOrNull }
-        val legs = row.payload["days"]?.jsonArray.orEmpty().mapNotNull { day ->
+        val days = row.payload["days"]?.jsonArray.orEmpty()
+        val legs = days.mapIndexedNotNull { dayIndex, day ->
             val dayData = day.jsonObject
-            val roadLeg = dayData["roadLeg"]?.jsonObject ?: return@mapNotNull null
-            val from = roadLeg["from"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-            val to = roadLeg["to"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val roadLeg = dayData["roadLeg"]?.jsonObject ?: return@mapIndexedNotNull null
+            val from = roadLeg["from"]?.jsonPrimitive?.contentOrNull ?: return@mapIndexedNotNull null
+            val to = roadLeg["to"]?.jsonPrimitive?.contentOrNull ?: return@mapIndexedNotNull null
+            val dayNumber = dayData["dayNumber"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 } ?: (dayIndex + 1)
             fun roadText(key: String) = roadLeg[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             RouteLeg(
                 dayId = dayData["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -247,8 +251,12 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 notes = roadText("notes"),
                 mapsUrl = roadText("mapsUrl"),
                 completed = roadLeg["completed"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
+                dayNumber = dayNumber,
             )
         }
+        val routeDayCount = days.mapIndexed { dayIndex, day ->
+            day.jsonObject["dayNumber"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 } ?: (dayIndex + 1)
+        }.maxOrNull() ?: 0
         val accommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
             val accommodation = item.jsonObject
             val name = accommodation["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
@@ -355,6 +363,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             sights = sights,
             restaurants = restaurants,
             cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
+            routeDayCount = routeDayCount,
         )
     }
 
