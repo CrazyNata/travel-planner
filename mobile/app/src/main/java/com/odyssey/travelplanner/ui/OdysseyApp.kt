@@ -1884,21 +1884,73 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
 private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
     var dayNumber by remember { mutableStateOf(day.toString()) }
     var placeName by remember { mutableStateOf("") }
+    var placeNames by remember { mutableStateOf(emptyList<String>()) }
+    var previewSights by remember(sights) { mutableStateOf(sights.take(3)) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) { Text(localized("СОЗДАТЬ ДЕНЬ", "CREATE DAY", "CREAR DÍA", "TAG ERSTELLEN"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp); Text(localized("Места и маршрут дня", "Places and day route", "Lugares y ruta del día", "Orte und Tagesroute"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp) }
             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = null, tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
         }
         RouteEditorField(localized("День", "Day", "Día", "Tag"), dayNumber, { dayNumber = it }, Modifier.fillMaxWidth())
-        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${sights.size}", "SIGHTS · ${sights.size}", "LUGARES · ${sights.size}", "ORTE · ${sights.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { OutlinedTextField(value = placeName, onValueChange = { placeName = it }, placeholder = { Text(localized("Напр. Хофбройхаус", "E.g. Hofbräuhaus", "P. ej. Hofbräuhaus", "Z. B. Hofbräuhaus"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(50.dp)); Button(onClick = { placeName = "" }, modifier = Modifier.height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp)) { Text(localized("＋ Добавить", "＋ Add", "＋ Añadir", "＋ Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp) } }
+        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${sights.size + placeNames.size}", "SIGHTS · ${sights.size + placeNames.size}", "LUGARES · ${sights.size + placeNames.size}", "ORTE · ${sights.size + placeNames.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(
+                value = placeName,
+                onValueChange = { placeName = it },
+                placeholder = { Text(localized("Напр. Хофбройхаус", "E.g. Hofbräuhaus", "P. ej. Hofbräuhaus", "Z. B. Hofbräuhaus"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = 20.sp, color = contentTextColor(), platformStyle = OdysseyNoFontPadding),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).height(54.dp),
+            )
+            Button(onClick = { if (placeName.isNotBlank()) { placeNames = placeNames + placeName.trim(); placeName = "" } }, modifier = Modifier.height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp)) { Text(localized("＋ Добавить", "＋ Add", "＋ Añadir", "＋ Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp) }
+        }
         Text(localized("МАРШРУТ ДНЯ · порядок задаёт путь", "DAY ROUTE · order defines route", "RUTA DEL DÍA · el orden define la ruta", "TAGESROUTE · Reihenfolge bestimmt den Weg"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
-        sights.take(3).forEachIndexed { index, sight ->
-            Row(modifier = Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(13.dp)).background(secondarySurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text((index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp)); Text(sight.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis); Text("⌃  ⌄", color = OdysseyPurple, fontSize = 17.sp); Text("×", color = Color(0xFFFF6B65), fontSize = 22.sp, modifier = Modifier.padding(start = 12.dp)) }
+        previewSights.forEachIndexed { index, sight ->
+            Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(secondarySurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text((index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
+                Text(sight.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RouteOrderButton(Icons.Outlined.KeyboardArrowUp, index > 0, localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben")) {
+                        val reordered = previewSights.toMutableList()
+                        val moved = reordered.removeAt(index)
+                        reordered.add(index - 1, moved)
+                        previewSights = reordered
+                    }
+                    RouteOrderButton(Icons.Outlined.KeyboardArrowDown, index < previewSights.lastIndex, localized("Переместить вниз", "Move down", "Mover abajo", "Nach unten")) {
+                        val reordered = previewSights.toMutableList()
+                        val moved = reordered.removeAt(index)
+                        reordered.add(index + 1, moved)
+                        previewSights = reordered
+                    }
+                }
+            }
+        }
+        placeNames.forEachIndexed { index, pendingName ->
+            Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1EEFF)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text((sights.take(3).size + index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
+                Text(pendingName, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RouteOrderButton(Icons.Outlined.KeyboardArrowUp, index > 0, localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben")) {
+                        val reordered = placeNames.toMutableList()
+                        val moved = reordered.removeAt(index)
+                        reordered.add(index - 1, moved)
+                        placeNames = reordered
+                    }
+                    RouteOrderButton(Icons.Outlined.KeyboardArrowDown, index < placeNames.lastIndex, localized("Переместить вниз", "Move down", "Mover abajo", "Nach unten")) {
+                        val reordered = placeNames.toMutableList()
+                        val moved = reordered.removeAt(index)
+                        reordered.add(index + 1, moved)
+                        placeNames = reordered
+                    }
+                    Text("×", color = Color(0xFFFF6B65), fontSize = 22.sp, modifier = Modifier.padding(start = 4.dp).clickable { placeNames = placeNames.filterIndexed { itemIndex, _ -> itemIndex != index } })
+                }
+            }
         }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(onClick = {
@@ -1907,7 +1959,10 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
                 runCatching {
                     val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                     repository.addRouteLeg(tripId, city, city)
-                    if (placeName.isNotBlank()) repository.addSightDetails(tripId, placeName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day)
+                    val namesToAdd = placeNames + placeName.trim().takeIf { it.isNotBlank() }.orEmpty()
+                    namesToAdd.forEach { sightName ->
+                        repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day)
+                    }
                 }.onSuccess { onSaved(); onClose() }.onFailure {
                     message = it.message ?: localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden")
                 }
@@ -6833,6 +6888,21 @@ private fun RouteLegEditorSheet(
 }
 
 @Composable
+private fun RouteOrderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, contentDescription: String, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (enabled) Color(0xFFF1EEFF) else Color(0xFFF7F6FA))
+            .border(1.dp, if (enabled) Color(0xFFD9D1FF) else Color(0xFFE6E3EC), RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = if (enabled) OdysseyPurple else Color(0xFFC2BFCA), modifier = Modifier.size(19.dp))
+    }
+}
+
+@Composable
 private fun RouteEditorField(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier, placeholder: String = "") {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(label, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
@@ -6841,7 +6911,7 @@ private fun RouteEditorField(label: String, value: String, onValueChange: (Strin
             onValueChange = onValueChange,
             placeholder = { if (placeholder.isNotBlank()) Text(placeholder, color = OdysseySubtext, fontFamily = Manrope, fontSize = 14.sp) },
             singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, color = contentTextColor()),
+            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = 20.sp, color = contentTextColor(), platformStyle = OdysseyNoFontPadding),
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OdysseyBorder, unfocusedBorderColor = OdysseyBorder, focusedContainerColor = cardSurfaceColor(), unfocusedContainerColor = cardSurfaceColor()),
             modifier = Modifier.fillMaxWidth().height(50.dp),
