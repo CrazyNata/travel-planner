@@ -7105,9 +7105,12 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
     var tripDatesWeather by remember { mutableStateOf(false) }
     val photos = overview.coverPhotos
     val activePhoto = photos.getOrNull(photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)))
-    val cities = overview.overviewMapPoints.ifEmpty {
-        overview.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
-    }
+    val routeCities = overview.routeLegs
+        .flatMap { listOf(it.from, it.to) }
+        .filter(String::isNotBlank)
+        .ifEmpty { overview.overviewMapPoints }
+    val weatherCities = (overview.overviewMapPoints.ifEmpty { routeCities })
+        .distinctBy { cityFilterKey(it) }
 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
@@ -7173,7 +7176,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                 }
             }
         }
-        item { OverviewMapCard(overview.routeLegs, cities) }
+        item { OverviewMapCard(overview.routeLegs, routeCities) }
         item {
             Text(
                 text = localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"),
@@ -7217,7 +7220,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                cities.forEach { city -> WeatherPlaceholder(city, photos.firstOrNull { it.city.equals(city, true) }, weather[city], tripDatesWeather) }
+                weatherCities.forEach { city -> WeatherPlaceholder(city, photos.firstOrNull { it.city.equals(city, true) }, weather[city], tripDatesWeather) }
             }
         }
     }
@@ -7235,6 +7238,7 @@ private fun OverviewMapCard(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val cityCount = cities.distinctBy { cityFilterKey(it) }.size
     val coordinates = routePoints.ifEmpty { cities.mapNotNull(::mapCoordinate) }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context) {
@@ -7352,7 +7356,7 @@ private fun OverviewMapCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Text(localized("Общий маршрут", "Full route", "Ruta completa", "Gesamtroute"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp)
-            Text(text = localized("${legs.size} переездов · ${cities.size} городов", "${legs.size} legs · ${cities.size} cities", "${legs.size} trayectos · ${cities.size} ciudades", "${legs.size} Etappen · ${cities.size} Städte"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+            Text(text = localized("${legs.size} переездов · $cityCount городов", "${legs.size} legs · $cityCount cities", "${legs.size} trayectos · $cityCount ciudades", "${legs.size} Etappen · $cityCount Städte"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
         }
     }
 }
@@ -7377,6 +7381,7 @@ private fun mapCoordinate(city: String): Point? = when (city.substringBefore(","
     "chioggia", "кьоджа" -> Point.fromLngLat(12.2786, 45.2181)
     "milan", "милан" -> Point.fromLngLat(9.1900, 45.4642)
     "valdidentro" -> Point.fromLngLat(10.2940, 46.4890)
+    "ravensburg", "равенсбург" -> Point.fromLngLat(9.6110, 47.7810)
     "munich", "мюнхен" -> Point.fromLngLat(11.5820, 48.1351)
     "vienna", "вена" -> Point.fromLngLat(16.3738, 48.2082)
     "innsbruck", "инсбрук" -> Point.fromLngLat(11.4041, 47.2692)
