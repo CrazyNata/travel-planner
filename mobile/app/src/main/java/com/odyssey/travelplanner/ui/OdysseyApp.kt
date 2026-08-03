@@ -236,6 +236,30 @@ private fun localizedTripStatus(value: String): String = when {
     else -> value
 }
 
+private fun localizedTripDateText(value: String, language: String, multilineDuration: Boolean = false): String {
+    if (value.isBlank()) return value
+    val monthNames = when (normalizeLanguage(language)) {
+        "EN" -> mapOf("января" to "Jan", "февраля" to "Feb", "марта" to "Mar", "апреля" to "Apr", "мая" to "May", "июня" to "Jun", "июля" to "Jul", "августа" to "Aug", "сентября" to "Sep", "октября" to "Oct", "ноября" to "Nov", "декабря" to "Dec")
+        "ES" -> mapOf("января" to "ene", "февраля" to "feb", "марта" to "mar", "апреля" to "abr", "мая" to "may", "июня" to "jun", "июля" to "jul", "августа" to "ago", "сентября" to "sep", "октября" to "oct", "ноября" to "nov", "декабря" to "dic")
+        "DE" -> mapOf("января" to "Jan", "февраля" to "Feb", "марта" to "Mär", "апреля" to "Apr", "мая" to "Mai", "июня" to "Jun", "июля" to "Jul", "августа" to "Aug", "сентября" to "Sep", "октября" to "Okt", "ноября" to "Nov", "декабря" to "Dez")
+        else -> mapOf("января" to "янв", "февраля" to "фев", "марта" to "мар", "апреля" to "апр", "мая" to "май", "июня" to "июн", "июля" to "июл", "августа" to "авг", "сентября" to "сен", "октября" to "окт", "ноября" to "ноя", "декабря" to "дек")
+    }
+    var result = value
+    monthNames.forEach { (source, target) -> result = result.replace(source, target, ignoreCase = true) }
+    val durationWord = when (normalizeLanguage(language)) {
+        "EN" -> "days"
+        "ES" -> "días"
+        "DE" -> "Tage"
+        else -> "дней"
+    }
+    result = result.replace(Regex("(\\d+)\\s+дн(?:ей|я|ень)", RegexOption.IGNORE_CASE)) { "${it.groupValues[1]} $durationWord" }
+    return if (multilineDuration) {
+        result.replace(Regex("\\s+·\\s+(\\d+\\s+\\S+)"), " ·\\n$1")
+    } else {
+        result
+    }
+}
+
 private data class PhotoDateRange(val start: LocalDate, val end: LocalDate)
 
 private val PhotoMonthNames = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
@@ -1455,6 +1479,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
 @Composable
 private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
     val darkTheme = LocalDarkTheme.current
+    val language = LocalLanguage.current
     var overview by remember { mutableStateOf<TripOverview?>(null) }
     var weather by remember { mutableStateOf<Map<String, WeatherSnapshot>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
@@ -1611,7 +1636,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 10.dp, top = 7.dp)) {
                             Text(overview?.title.orEmpty(), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(overview?.dates.orEmpty().replace("декабря", "дек").replace("января", "янв").replace(" · 16 дней", " ·\n16 дней"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 14.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 14.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
                             Icon(Icons.Filled.Close, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(20.dp))
@@ -6993,12 +7018,13 @@ private fun RouteEditorField(label: String, value: String, onValueChange: (Strin
 
 @Composable
 private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex: Int, tripDates: String, onEdit: () -> Unit, onChecklistChange: (String, Boolean) -> Unit) {
+    val language = LocalLanguage.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val mapsUrl = leg.mapsUrl.ifBlank {
         "https://www.google.com/maps/dir/?api=1&origin=${Uri.encode(leg.from)}&destination=${Uri.encode(leg.to)}"
     }
     val longDestination = leg.to.length > 14
-    val dateParts = routeDateParts(leg.date, tripDates, dayIndex)
+    val dateParts = routeDateParts(leg.date, tripDates, dayIndex, language)
     Column(
         modifier = Modifier.fillMaxWidth().height(141.dp).clip(RoundedCornerShape(19.dp)).background(cardSurfaceColor()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -7043,8 +7069,13 @@ private fun RouteStop(city: String, flag: String, isLast: Boolean, compact: Bool
     }
 }
 
-private fun routeDateParts(date: String, tripDates: String, dayIndex: Int): Pair<String, String> {
-    val months = mapOf("01" to "ЯНВ", "02" to "ФЕВ", "03" to "МАР", "04" to "АПР", "05" to "МАЙ", "06" to "ИЮН", "07" to "ИЮЛ", "08" to "АВГ", "09" to "СЕН", "10" to "ОКТ", "11" to "НОЯ", "12" to "ДЕК")
+private fun routeDateParts(date: String, tripDates: String, dayIndex: Int, language: String): Pair<String, String> {
+    val months = when (normalizeLanguage(language)) {
+        "EN" -> listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+        "ES" -> listOf("ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC")
+        "DE" -> listOf("JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ")
+        else -> listOf("ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК")
+    }
     val russianMonths = mapOf("января" to 0, "январь" to 0, "февраля" to 1, "февраль" to 1, "марта" to 2, "март" to 2, "апреля" to 3, "апрель" to 3, "мая" to 4, "май" to 4, "июня" to 5, "июнь" to 5, "июля" to 6, "июль" to 6, "августа" to 7, "август" to 7, "сентября" to 8, "сентябрь" to 8, "октября" to 9, "октябрь" to 9, "ноября" to 10, "ноябрь" to 10, "декабря" to 11, "декабрь" to 11)
     fun parse(source: String): Calendar? {
         val iso = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(source)
@@ -7058,7 +7089,7 @@ private fun routeDateParts(date: String, tripDates: String, dayIndex: Int): Pair
     val legDate = parse(date)
     val calendar = legDate ?: parse(tripDates) ?: return "" to ""
     if (legDate == null) calendar.add(Calendar.DAY_OF_YEAR, dayIndex)
-    return calendar.get(Calendar.DAY_OF_MONTH).toString() to (months[(calendar.get(Calendar.MONTH) + 1).toString().padStart(2, '0')] ?: "")
+    return calendar.get(Calendar.DAY_OF_MONTH).toString() to months[calendar.get(Calendar.MONTH)]
 }
 
 private fun routeDurationDays(dates: String): Int? {
@@ -7082,7 +7113,7 @@ private fun cityFlag(city: String): String {
 
 private fun formatAccommodationDates(value: String, language: String): String {
     val raw = value.trim()
-    if (raw.isBlank()) return "Даты не указаны"
+    if (raw.isBlank()) return localized(language, "Даты не указаны", "Dates not specified", "Fechas no indicadas", "Keine Daten angegeben")
     val parts = raw.split(Regex("\\s+[–-]\\s+"))
     if (parts.size != 2) return raw
     fun parseIso(source: String): Calendar? {
@@ -7504,6 +7535,7 @@ private fun WeatherPlaceholder(
 @Composable
 private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: () -> Unit) {
     val darkTheme = LocalDarkTheme.current
+    val language = LocalLanguage.current
     val isDraft = trip.status.contains("чернов", ignoreCase = true)
     val statusColor = if (isDraft) Color(0xFFE0A34B) else Color(0xFF22B07D)
     Column(
@@ -7554,7 +7586,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 17.dp)) {
             Text(trip.title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp)
             Text(
-                text = trip.dates,
+                text = localizedTripDateText(trip.dates, language),
                 color = OdysseySubtext,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
