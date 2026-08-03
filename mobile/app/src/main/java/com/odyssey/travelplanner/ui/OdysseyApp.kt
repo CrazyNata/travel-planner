@@ -1,6 +1,8 @@
 package com.odyssey.travelplanner.ui
 
 import android.app.DatePickerDialog
+import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.credentials.CredentialManager
@@ -195,6 +197,16 @@ private fun normalizeLanguage(value: String): String = when (value.trim().upperc
     else -> "RU"
 }
 
+private fun localizedDatePickerContext(context: Context, language: String): Context {
+    val locale = when (normalizeLanguage(language)) {
+        "EN" -> Locale.ENGLISH
+        "ES" -> Locale.forLanguageTag("es")
+        "DE" -> Locale.GERMAN
+        else -> Locale.forLanguageTag("ru")
+    }
+    return context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(locale) })
+}
+
 private fun localized(language: String, ru: String, en: String, es: String, de: String): String = when (normalizeLanguage(language)) {
     "EN" -> en
     "ES" -> es
@@ -213,6 +225,201 @@ private fun localizedBudgetCategory(value: String): String = when (value.trim().
 }
 
 @Composable
+private fun localizedSightNameByTerms(value: String): String {
+    val replacements = when (normalizeLanguage(LocalLanguage.current)) {
+        "EN" -> listOf(
+            "рождественские ярмарочные домики" to "Christmas market stalls",
+            "рождественская иллюминация" to "Christmas lights",
+            "главная рождественская ёлка" to "Main Christmas tree",
+            "рождественская ёлка" to "Christmas tree",
+            "рождественский вертеп" to "Christmas nativity scene",
+            "панорамные виды" to "Panoramic views",
+            "смотровая площадка" to "Viewpoint",
+            "кафедральный собор" to "Cathedral",
+            "пешеходная улица" to "Pedestrian street",
+            "торговая улица" to "Shopping street",
+            "городские ворота" to "City gates",
+            "новая ратуша" to "New Town Hall",
+            "ратуша" to "Town Hall",
+            "рождественская деревня" to "Christmas village",
+            "резиденция" to "Residence",
+            "дворец" to "Palace",
+            "сад" to "Garden",
+            "башня" to "Tower",
+            "статуя" to "Statue",
+            "театр" to "Theatre",
+            "парк" to "Park",
+            "рождественская" to "Christmas",
+            "рождественский" to "Christmas",
+            "рождественские" to "Christmas",
+            "главная" to "Main",
+            "площадь" to "Square",
+            "площади" to "Square",
+            "набережная" to "Waterfront",
+            "мостики" to "Bridges",
+            "мост" to "Bridge",
+            "собор" to "Cathedral",
+            "церковь" to "Church",
+            "базилика" to "Basilica",
+            "фонтан" to "Fountain",
+            "колонна" to "Column",
+            "храм" to "Temple",
+            "арка" to "Arch",
+            "рынок" to "Market",
+            "порт" to "Port",
+            "пляж" to "Beach",
+            "прогулка" to "Walk",
+            "остров" to "Island",
+            "район" to "District",
+            "улочки" to "Lanes",
+            "рыбацкие домики" to "Fishing cottages",
+            "пришвартованные лодки" to "Moored boats",
+            "на дамбе" to "on the dike",
+            "дамба" to "Dike",
+            "римский форум" to "Roman Forum",
+            "римский" to "Roman",
+            "старый город" to "Old Town",
+            "старого города" to "Old Town",
+            "мюнхена" to "Munich",
+            "вероны" to "Verona",
+            "ватикана" to "the Vatican",
+            "святого петра" to "St. Peter",
+            "святого марка" to "St. Mark",
+            "кьоджи" to "Chioggia",
+            "риальто" to "Rialto",
+            "гранд-канала" to "Grand Canal",
+        )
+        "ES" -> listOf(
+            "рождественские ярмарочные домики" to "Casetas del mercado navideño",
+            "рождественская иллюминация" to "Iluminación navideña",
+            "главная рождественская ёлка" to "Árbol de Navidad principal",
+            "рождественская ёлка" to "Árbol de Navidad",
+            "рождественский вертеп" to "Belén navideño",
+            "панорамные виды" to "Vistas panorámicas",
+            "смотровая площадка" to "Mirador",
+            "кафедральный собор" to "Catedral",
+            "пешеходная улица" to "Calle peatonal",
+            "торговая улица" to "Calle comercial",
+            "городские ворота" to "Puertas de la ciudad",
+            "новая ратуша" to "Ayuntamiento nuevo",
+            "ратуша" to "Ayuntamiento",
+            "рождественская деревня" to "Pueblo navideño",
+            "резиденция" to "Residencia",
+            "дворец" to "Palacio",
+            "сад" to "Jardín",
+            "башня" to "Torre",
+            "статуя" to "Estatua",
+            "театр" to "Teatro",
+            "парк" to "Parque",
+            "рождественская" to "Navideña",
+            "рождественский" to "Navideño",
+            "рождественские" to "Navideños",
+            "главная" to "Principal",
+            "площадь" to "Plaza",
+            "площади" to "Plaza",
+            "набережная" to "Paseo",
+            "мостики" to "Puentes",
+            "мост" to "Puente",
+            "собор" to "Catedral",
+            "церковь" to "Iglesia",
+            "базилика" to "Basílica",
+            "фонтан" to "Fuente",
+            "колонна" to "Columna",
+            "храм" to "Templo",
+            "арка" to "Arco",
+            "рынок" to "Mercado",
+            "порт" to "Puerto",
+            "пляж" to "Playa",
+            "прогулка" to "Paseo",
+            "остров" to "Isla",
+            "район" to "Barrio",
+            "улочки" to "Calles",
+            "рыбацкие домики" to "Casas de pescadores",
+            "пришвартованные лодки" to "Barcos amarrados",
+            "римский форум" to "Foro Romano",
+            "римский" to "Romano",
+            "старый город" to "casco antiguo",
+            "старого города" to "casco antiguo",
+            "мюнхена" to "Múnich",
+            "вероны" to "Verona",
+            "ватикана" to "del Vaticano",
+            "святого петра" to "San Pedro",
+            "святого марка" to "San Marcos",
+            "кьоджи" to "Chioggia",
+            "риальто" to "Rialto",
+            "гранд-канала" to "Gran Canal",
+        )
+        "DE" -> listOf(
+            "рождественские ярмарочные домики" to "Weihnachtsmarktbuden",
+            "рождественская иллюминация" to "Weihnachtsbeleuchtung",
+            "главная рождественская ёлка" to "Hauptweihnachtsbaum",
+            "рождественская ёлка" to "Weihnachtsbaum",
+            "рождественский вертеп" to "Weihnachtskrippe",
+            "панорамные виды" to "Panoramablick",
+            "смотровая площадка" to "Aussichtspunkt",
+            "кафедральный собор" to "Kathedrale",
+            "пешеходная улица" to "Fußgängerstraße",
+            "торговая улица" to "Einkaufsstraße",
+            "городские ворота" to "Stadttor",
+            "новая ратуша" to "Neues Rathaus",
+            "ратуша" to "Rathaus",
+            "рождественская деревня" to "Weihnachtsdorf",
+            "резиденция" to "Residenz",
+            "дворец" to "Palast",
+            "сад" to "Garten",
+            "башня" to "Turm",
+            "статуя" to "Statue",
+            "театр" to "Theater",
+            "парк" to "Park",
+            "рождественская" to "Weihnachts",
+            "рождественский" to "Weihnachts",
+            "рождественские" to "Weihnachts",
+            "главная" to "Haupt",
+            "площадь" to "Platz",
+            "площади" to "Platz",
+            "набережная" to "Uferpromenade",
+            "мостики" to "Brücken",
+            "мост" to "Brücke",
+            "собор" to "Dom",
+            "церковь" to "Kirche",
+            "базилика" to "Basilika",
+            "фонтан" to "Brunnen",
+            "колонна" to "Säule",
+            "храм" to "Tempel",
+            "арка" to "Bogen",
+            "рынок" to "Markt",
+            "порт" to "Hafen",
+            "пляж" to "Strand",
+            "прогулка" to "Spaziergang",
+            "остров" to "Insel",
+            "район" to "Viertel",
+            "улочки" to "Gassen",
+            "рыбацкие домики" to "Fischerhäuser",
+            "пришвартованные лодки" to "vertäute Boote",
+            "римский форум" to "Forum Romanum",
+            "римский" to "Römisch",
+            "старый город" to "Altstadt",
+            "старого города" to "Altstadt",
+            "мюнхена" to "München",
+            "вероны" to "Verona",
+            "ватикана" to "Vatikan",
+            "святого петра" to "St. Peter",
+            "святого марка" to "St. Markus",
+            "кьоджи" to "Chioggia",
+            "риальто" to "Rialto",
+            "гранд-канала" to "Canal Grande",
+        )
+        else -> emptyList()
+    }
+    return replacements.fold(value) { result, (source, target) ->
+        result.replace(
+            Regex("(?i)(?<![\\p{L}])${Regex.escape(source)}(?![\\p{L}])"),
+            target,
+        )
+    }
+}
+
+@Composable
 private fun localizedBudgetScope(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
     "общий", "общее" -> localized("общий", "shared", "compartido", "gemeinsam")
     "семья" -> localized("семья", "family", "familia", "Familie")
@@ -224,7 +431,72 @@ private fun localizedBudgetScope(value: String): String = when (value.trim().low
 private fun localizedCityFilter(value: String): String = if (value.trim().equals("Все города", ignoreCase = true)) {
     localized("Все города", "All cities", "Todas las ciudades", "Alle Städte")
 } else {
-    value
+    localizedCityName(value)
+}
+
+private fun localizedCityName(value: String, language: String): String {
+    val parts = value.trim().split(Regex("\\s*,\\s*"), limit = 2)
+    val city = when (parts.firstOrNull()?.lowercase(Locale.ROOT)) {
+        "прага" -> localized(language, "Прага", "Prague", "Praga", "Prag")
+        "мюнхен" -> localized(language, "Мюнхен", "Munich", "Múnich", "München")
+        "верона" -> localized(language, "Верона", "Verona", "Verona", "Verona")
+        "милан" -> localized(language, "Милан", "Milan", "Milán", "Mailand")
+        "венеция" -> localized(language, "Венеция", "Venice", "Venecia", "Venedig")
+        "рим" -> localized(language, "Рим", "Rome", "Roma", "Rom")
+        "флоренция" -> localized(language, "Флоренция", "Florence", "Florencia", "Florenz")
+        "пиза" -> localized(language, "Пиза", "Pisa", "Pisa", "Pisa")
+        "кьоджа" -> localized(language, "Кьоджа", "Chioggia", "Chioggia", "Chioggia")
+        "фильине-вальдарно" -> localized(language, "Фильине-Вальдарно", "Figline Valdarno", "Figline Valdarno", "Figline Valdarno")
+        "равенсбург" -> localized(language, "Равенсбург", "Ravensburg", "Ravensburg", "Ravensburg")
+        "сан-марино" -> localized(language, "Сан-Марино", "San Marino", "San Marino", "San Marino")
+        "вальдидентро" -> localized(language, "Вальдидентро", "Valdidentro", "Valdidentro", "Valdidentro")
+        "инсбрук" -> localized(language, "Инсбрук", "Innsbruck", "Innsbruck", "Innsbruck")
+        "зальцбург" -> localized(language, "Зальцбург", "Salzburg", "Salzburgo", "Salzburg")
+        "вена" -> localized(language, "Вена", "Vienna", "Viena", "Wien")
+        "таллин" -> localized(language, "Таллин", "Tallinn", "Tallin", "Tallinn")
+        "рига" -> localized(language, "Рига", "Riga", "Riga", "Riga")
+        "вильнюс" -> localized(language, "Вильнюс", "Vilnius", "Vilna", "Vilnius")
+        "кастель-гандольфо" -> localized(language, "Кастель-Гандольфо", "Castel Gandolfo", "Castel Gandolfo", "Castel Gandolfo")
+        "озеро комо" -> localized(language, "Озеро Комо", "Lake Como", "Lago di Como", "Comer See")
+        "стельвио" -> localized(language, "Стельвио", "Stelvio", "Stelvio", "Stilfser Joch")
+        else -> parts.firstOrNull().orEmpty()
+    }
+    if (parts.size == 1) return city
+    val country = when (parts[1].trim().lowercase(Locale.ROOT)) {
+        "италия" -> localized(language, "Италия", "Italy", "Italia", "Italien")
+        "германия" -> localized(language, "Германия", "Germany", "Alemania", "Deutschland")
+        "австрия" -> localized(language, "Австрия", "Austria", "Austria", "Österreich")
+        "чехия" -> localized(language, "Чехия", "Czechia", "Chequia", "Tschechien")
+        "латвия" -> localized(language, "Латвия", "Latvia", "Letonia", "Lettland")
+        "литва" -> localized(language, "Литва", "Lithuania", "Lituania", "Litauen")
+        "эстония" -> localized(language, "Эстония", "Estonia", "Estonia", "Estland")
+        else -> parts[1].trim()
+    }
+    return "$city, $country"
+}
+
+@Composable
+private fun localizedCityName(value: String): String = localizedCityName(value, LocalLanguage.current)
+
+private fun localizedCityList(value: String, language: String): String {
+    val separator = when {
+        value.contains(" → ") -> " → "
+        value.contains(" · ") -> " · "
+        value.contains(",") -> ", "
+        else -> return localizedCityName(value, language)
+    }
+    return value.split(separator).joinToString(separator) { localizedCityName(it, language) }
+}
+
+private fun splitStoredCityList(value: String): List<String> {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return emptyList()
+    return when {
+        trimmed.contains(" · ") -> trimmed.split(" · ")
+        trimmed.contains(" → ") -> trimmed.split(" → ")
+        trimmed.count { it == ',' } >= 2 -> trimmed.split(",")
+        else -> listOf(trimmed)
+    }
 }
 
 @Composable
@@ -239,13 +511,16 @@ private fun localizedTripStatus(value: String): String = when {
 private fun localizedTripDateText(value: String, language: String, multilineDuration: Boolean = false): String {
     if (value.isBlank()) return value
     val monthNames = when (normalizeLanguage(language)) {
-        "EN" -> mapOf("января" to "Jan", "февраля" to "Feb", "марта" to "Mar", "апреля" to "Apr", "мая" to "May", "июня" to "Jun", "июля" to "Jul", "августа" to "Aug", "сентября" to "Sep", "октября" to "Oct", "ноября" to "Nov", "декабря" to "Dec")
-        "ES" -> mapOf("января" to "ene", "февраля" to "feb", "марта" to "mar", "апреля" to "abr", "мая" to "may", "июня" to "jun", "июля" to "jul", "августа" to "ago", "сентября" to "sep", "октября" to "oct", "ноября" to "nov", "декабря" to "dic")
-        "DE" -> mapOf("января" to "Jan", "февраля" to "Feb", "марта" to "Mär", "апреля" to "Apr", "мая" to "Mai", "июня" to "Jun", "июля" to "Jul", "августа" to "Aug", "сентября" to "Sep", "октября" to "Okt", "ноября" to "Nov", "декабря" to "Dez")
-        else -> mapOf("января" to "янв", "февраля" to "фев", "марта" to "мар", "апреля" to "апр", "мая" to "май", "июня" to "июн", "июля" to "июл", "августа" to "авг", "сентября" to "сен", "октября" to "окт", "ноября" to "ноя", "декабря" to "дек")
+        "EN" -> mapOf("января" to "Jan", "январь" to "Jan", "февраля" to "Feb", "февраль" to "Feb", "марта" to "Mar", "март" to "Mar", "апреля" to "Apr", "апрель" to "Apr", "мая" to "May", "май" to "May", "июня" to "Jun", "июнь" to "Jun", "июля" to "Jul", "июль" to "Jul", "августа" to "Aug", "август" to "Aug", "сентября" to "Sep", "сентябрь" to "Sep", "октября" to "Oct", "октябрь" to "Oct", "ноября" to "Nov", "ноябрь" to "Nov", "декабря" to "Dec", "декабрь" to "Dec")
+        "ES" -> mapOf("января" to "ene", "январь" to "ene", "февраля" to "feb", "февраль" to "feb", "марта" to "mar", "март" to "mar", "апреля" to "abr", "апрель" to "abr", "мая" to "may", "май" to "may", "июня" to "jun", "июнь" to "jun", "июля" to "jul", "июль" to "jul", "августа" to "ago", "август" to "ago", "сентября" to "sep", "сентябрь" to "sep", "октября" to "oct", "октябрь" to "oct", "ноября" to "nov", "ноябрь" to "nov", "декабря" to "dic", "декабрь" to "dic")
+        "DE" -> mapOf("января" to "Jan", "январь" to "Jan", "февраля" to "Feb", "февраль" to "Feb", "марта" to "Mär", "март" to "Mär", "апреля" to "Apr", "апрель" to "Apr", "мая" to "Mai", "май" to "Mai", "июня" to "Jun", "июнь" to "Jun", "июля" to "Jul", "июль" to "Jul", "августа" to "Aug", "август" to "Aug", "сентября" to "Sep", "сентябрь" to "Sep", "октября" to "Okt", "октябрь" to "Okt", "ноября" to "Nov", "ноябрь" to "Nov", "декабря" to "Dez", "декабрь" to "Dez")
+        else -> mapOf("января" to "янв", "январь" to "янв", "февраля" to "фев", "февраль" to "фев", "марта" to "мар", "март" to "мар", "апреля" to "апр", "апрель" to "апр", "мая" to "май", "май" to "май", "июня" to "июн", "июнь" to "июн", "июля" to "июл", "июль" to "июл", "августа" to "авг", "август" to "авг", "сентября" to "сен", "сентябрь" to "сен", "октября" to "окт", "октябрь" to "окт", "ноября" to "ноя", "ноябрь" to "ноя", "декабря" to "дек", "декабрь" to "дек")
     }
     var result = value
-    monthNames.forEach { (source, target) -> result = result.replace(source, target, ignoreCase = true) }
+    val monthPattern = Regex("(?i)(января|январь|февраля|февраль|марта|март|апреля|апрель|мая|май|июня|июнь|июля|июль|августа|август|сентября|сентябрь|октября|октябрь|ноября|ноябрь|декабря|декабрь)")
+    result = monthPattern.replace(result) { match ->
+        monthNames[match.value.lowercase(Locale.ROOT)] ?: match.value
+    }
     val durationWord = when (normalizeLanguage(language)) {
         "EN" -> "days"
         "ES" -> "días"
@@ -253,10 +528,263 @@ private fun localizedTripDateText(value: String, language: String, multilineDura
         else -> "дней"
     }
     result = result.replace(Regex("(\\d+)\\s+дн(?:ей|я|ень)", RegexOption.IGNORE_CASE)) { "${it.groupValues[1]} $durationWord" }
+    val dateJoiner = when (normalizeLanguage(language)) {
+        "EN" -> " and "
+        "ES" -> " y "
+        "DE" -> " und "
+        else -> " и "
+    }
+    result = result.replace(" и ", dateJoiner)
     return if (multilineDuration) {
-        result.replace(Regex("\\s+·\\s+(\\d+\\s+\\S+)"), " ·\\n$1")
+        result.replace(Regex("\\s+·\\s+(\\d+\\s+\\S+)"), " ·\n$1")
     } else {
         result
+    }
+}
+
+@Composable
+private fun localizedWeatherCondition(value: String): String {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    return when {
+        normalized.contains("ясно") || normalized.contains("clear") -> localized("Ясно", "Clear", "Despejado", "Klar")
+        normalized.contains("облачно") || normalized.contains("cloud") -> localized("Облачно", "Cloudy", "Nublado", "Bewölkt")
+        normalized.contains("туман") || normalized.contains("fog") -> localized("Туман", "Fog", "Niebla", "Nebel")
+        normalized.contains("морось") || normalized.contains("drizzle") -> localized("Морось", "Drizzle", "Llovizna", "Nieselregen")
+        normalized.contains("дождь") || normalized.contains("rain") -> localized("Дождь", "Rain", "Lluvia", "Regen")
+        normalized.contains("снег") || normalized.contains("snow") -> localized("Снег", "Snow", "Nieve", "Schnee")
+        normalized.contains("гроза") || normalized.contains("thunder") -> localized("Гроза", "Thunderstorm", "Tormenta", "Gewitter")
+        else -> value
+    }
+}
+
+@Composable
+private fun localizedTripTitle(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "рождественская италия" -> localized("Рождественская Италия", "Christmas Italy", "Italia navideña", "Weihnachtliches Italien")
+    "италия с семьёй", "италия с семьей" -> localized("Италия с семьёй", "Italy with family", "Italia en familia", "Italien mit Familie")
+    else -> value
+}
+
+@Composable
+private fun localizedSightCategory(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "достопримечательности", "достопримечательность", "места", "место" -> localized("Достопримечательности", "Sights", "Lugares", "Sehenswürdigkeiten")
+    "главная достопримечательность" -> localized("Главная достопримечательность", "Main sight", "Lugar principal", "Hauptsehenswürdigkeit")
+    "природа" -> localized("Природа", "Nature", "Naturaleza", "Natur")
+    else -> value
+}
+
+@Composable
+private fun localizedSightName(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "арена ди верона" -> localized("Арена ди Верона", "Verona Arena", "Arena de Verona", "Arena von Verona")
+    "пьяцца бра" -> localized("Пьяцца Бра", "Piazza Bra", "Piazza Bra", "Piazza Bra")
+    "дом джульетты" -> localized("Дом Джульетты", "Juliet's House", "Casa de Julieta", "Julias Haus")
+    "пьяцца делле эрбе" -> localized("Пьяцца делле Эрбе", "Piazza delle Erbe", "Piazza delle Erbe", "Piazza delle Erbe")
+    "большой цирк" -> localized("Большой цирк", "Circus Maximus", "Circo Máximo", "Circus Maximus")
+    "термы каракаллы" -> localized("Термы Каракаллы", "Baths of Caracalla", "Termas de Caracalla", "Caracalla-Thermen")
+    "уста истины" -> localized("Уста Истины", "Mouth of Truth", "Boca de la Verdad", "Mund der Wahrheit")
+    "район монти", "district монти" -> localized("Район Монти", "Monti district", "Barrio de Monti", "Viertel Monti")
+    "кастель-гандольфо" -> localized("Кастель-Гандольфо", "Castel Gandolfo", "Castel Gandolfo", "Castel Gandolfo")
+    "озеро альбано" -> localized("Озеро Альбано", "Lake Albano", "Lago Albano", "Lago Albano")
+    "антико спедале серристори" -> localized("Антико Спедале Серристори", "Antico Spedale Serristori", "Antico Spedale Serristori", "Antico Spedale Serristori")
+    "пьяцца марсилио фичино" -> localized("Пьяцца Марсилио Фичино", "Piazza Marsilio Ficino", "Piazza Marsilio Ficino", "Piazza Marsilio Ficino")
+    "палаццо преторио" -> localized("Палаццо Преторио", "Palazzo Pretorio", "Palazzo Pretorio", "Palazzo Pretorio")
+    "коллегиата санта-мария" -> localized("Коллегиата Санта-Мария", "Collegiate Church of Santa Maria", "Colegiata de Santa Maria", "Stiftskirche Santa Maria")
+    "корсо-дель-пополо" -> localized("Корсо-дель-Пополо", "Corso del Popolo", "Corso del Popolo", "Corso del Popolo")
+    "собор санта-мария-ассунта", "кафедральный собор santa maria assunta" -> localized("Собор Санта-Мария-Ассунта", "Santa Maria Assunta Cathedral", "Catedral de Santa Maria Assunta", "Kathedrale Santa Maria Assunta")
+    "канал вена" -> localized("Канал Вена", "Vena Canal", "Canal Vena", "Vena-Kanal")
+    "палаццо гранайо" -> localized("Палаццо Гранайо", "Palazzo Granaio", "Palazzo Granaio", "Palazzo Granaio")
+    "дуомо (миланский собор)", "дуомо (миланский cathedral)" -> localized("Дуомо (Миланский собор)", "Milan Cathedral (Duomo)", "Catedral de Milán (Duomo)", "Mailänder Dom (Duomo)")
+    "галерея виктора эммануила ii" -> localized("Галерея Виктора Эммануила II", "Galleria Vittorio Emanuele II", "Galería Vittorio Emanuele II", "Galleria Vittorio Emanuele II")
+    "театр ла скала", "theatre ла скала" -> localized("Театр Ла Скала", "La Scala Theatre", "Teatro alla Scala", "Teatro alla Scala")
+    "пинакотека брера" -> localized("Пинакотека Брера", "Brera Gallery", "Pinacoteca de Brera", "Pinacoteca di Brera")
+    "монументальное кладбище" -> localized("Монументальное кладбище", "Monumental Cemetery", "Cementerio Monumental", "Monumentalfriedhof")
+    "площадь гае ауленти", "square гае ауленти" -> localized("Площадь Гае Ауленти", "Piazza Gae Aulenti", "Piazza Gae Aulenti", "Piazza Gae Aulenti")
+    "боско вертикале" -> localized("Боско Вертикале", "Bosco Verticale", "Bosco Verticale", "Bosco Verticale")
+    "центральный вокзал милана" -> localized("Центральный вокзал Милана", "Milan Central Station", "Estación Central de Milán", "Mailänder Hauptbahnhof")
+    "комо (город)" -> localized("Комо (город)", "Como (city)", "Como (ciudad)", "Como (Stadt)")
+    "черноббио (вилла д’эсте)" -> localized("Черноббио (Вилла д’Эсте)", "Cernobbio (Villa d’Este)", "Cernobbio (Villa d’Este)", "Cernobbio (Villa d’Este)")
+    "вилла бальбьянелло (ленно)" -> localized("Вилла Бальбьянелло (Ленно)", "Villa del Balbianello (Lenno)", "Villa del Balbianello (Lenno)", "Villa del Balbianello (Lenno)")
+    "вилла карлотта (тремеццо)" -> localized("Вилла Карлотта (Тремеццо)", "Villa Carlotta (Tremezzo)", "Villa Carlotta (Tremezzo)", "Villa Carlotta (Tremezzo)")
+    "арнога" -> localized("Арнога", "Arnoga", "Arnoga", "Arnoga")
+    "долина валь-виола" -> localized("Долина Валь-Виола", "Val Viola Valley", "Valle de Val Viola", "Val Viola-Tal")
+    "башни фраэле" -> localized("Башни Фраэле", "Fraele Towers", "Torres Fraele", "Fraele-Türme")
+    "озеро делле-скале" -> localized("Озеро делле-Скале", "Lake delle Scale", "Lago delle Scale", "Lago delle Scale")
+    "арнога — старт стельвио" -> localized("Арнога — старт Стельвио", "Arnoga — Stelvio start", "Arnoga — inicio del Stelvio", "Arnoga — Stelvio-Start")
+    "бормио — старый город", "бормио — old town" -> localized("Бормио — старый город", "Bormio — Old Town", "Bormio — casco antiguo", "Bormio — Altstadt")
+    "баньи-веки — панорама бормио" -> localized("Баньи-Векки — панорама Бормио", "Bagni Vecchi — Bormio panorama", "Bagni Vecchi — panorama de Bormio", "Bagni Vecchi — Panorama von Bormio")
+    "перевал стельвио" -> localized("Перевал Стельвио", "Stelvio Pass", "Paso del Stelvio", "Stilfser Joch")
+    "мариенплац и новая ратуша", "мариенплац и new town hall" -> localized("Мариенплац и Новая ратуша", "Marienplatz and New Town Hall", "Marienplatz y el Ayuntamiento Nuevo", "Marienplatz und Neues Rathaus")
+    "виктуалиенмаркт" -> localized("Виктуалиенмаркт", "Viktualienmarkt", "Viktualienmarkt", "Viktualienmarkt")
+    "одеонсплац" -> localized("Одеонсплац", "Odeonsplatz", "Odeonsplatz", "Odeonsplatz")
+    "хофгартен" -> localized("Хофгартен", "Hofgarten", "Hofgarten", "Hofgarten")
+    "староместская площадь и часы орлой", "староместская square и часы орлой" -> localized("Староместская площадь и часы Орлой", "Old Town Square and Orloj", "Plaza de la Ciudad Vieja y el Orloj", "Altstädter Ring und Orloj")
+    "клементинум" -> localized("Клементинум", "Klementinum", "Klementinum", "Klementinum")
+    "карлов мост", "карлов bridge" -> localized("Карлов мост", "Charles Bridge", "Puente de Carlos", "Karlsbrücke")
+    "малостранская площадь", "малостранская square" -> localized("Малостранская площадь", "Malá Strana Square", "Plaza de Malá Strana", "Kleinseitner Ring")
+    "арена вероны (arena di verona)" -> localized("Арена Вероны (Arena di Verona)", "Verona Arena (Arena di Verona)", "Arena de Verona (Arena di Verona)", "Arena von Verona (Arena di Verona)")
+    "рождественская звезда rigoletto" -> localized("Рождественская звезда Rigoletto", "Rigoletto Christmas star", "Estrella navideña Rigoletto", "Weihnachtsstern Rigoletto")
+    "набережная реки адидже" -> localized("Набережная реки Адидже", "Adige riverfront", "Paseo del río Adigio", "Uferpromenade am Etsch")
+    "фонтан четырех рек" -> localized("Фонтан Четырёх рек", "Fountain of the Four Rivers", "Fuente de los Cuatro Ríos", "Brunnen der Vier Flüsse")
+    "церковь sant'agnese in agone" -> localized("Церковь Sant'Agnese in Agone", "Sant'Agnese in Agone Church", "Iglesia de Sant'Agnese in Agone", "Kirche Sant'Agnese in Agone")
+    "храм адриана" -> localized("Храм Адриана", "Temple of Hadrian", "Templo de Adriano", "Tempel des Hadrian")
+    "колонна марка аврелия" -> localized("Колонна Марка Аврелия", "Column of Marcus Aurelius", "Columna de Marco Aurelio", "Säule des Marc Aurel")
+    "фонтан треви" -> localized("Фонтан Треви", "Trevi Fountain", "Fontana di Trevi", "Trevi-Brunnen")
+    "испанская лестница" -> localized("Испанская лестница", "Spanish Steps", "Escalinata de España", "Spanische Treppe")
+    "рождественская ёлка на piazza di spagna" -> localized("Рождественская ёлка на Piazza di Spagna", "Christmas tree at Piazza di Spagna", "Árbol de Navidad en Piazza di Spagna", "Weihnachtsbaum an der Piazza di Spagna")
+    "колизей" -> localized("Колизей", "Colosseum", "Coliseo", "Kolosseum")
+    "арка константина" -> localized("Арка Константина", "Arch of Constantine", "Arco de Constantino", "Konstantinsbogen")
+    "римский форум" -> localized("Римский форум", "Roman Forum", "Forum Romanum", "Forum Romanum")
+    "палатинский холм" -> localized("Палатинский холм", "Palatine Hill", "Monte Palatino", "Palatin")
+    "смотровая площадка на форум" -> localized("Смотровая площадка на Форум", "Forum viewpoint", "Mirador del Foro", "Aussichtspunkt auf das Forum")
+    "капитолийская площадь" -> localized("Капитолийская площадь", "Capitoline Square", "Plaza del Campidoglio", "Kapitolsplatz")
+    "площадь святого петра" -> localized("Площадь Святого Петра", "St. Peter's Square", "Plaza de San Pedro", "Petersplatz")
+    "собор святого петра" -> localized("Собор Святого Петра", "St. Peter's Basilica", "Basílica de San Pedro", "Petersdom")
+    "главная рождественская ёлка ватикана" -> localized("Главная рождественская ёлка Ватикана", "Vatican's main Christmas tree", "Árbol de Navidad principal del Vaticano", "Hauptweihnachtsbaum des Vatikans")
+    "рождественский вертеп" -> localized("Рождественский вертеп", "Christmas nativity scene", "Belén navideño", "Weihnachtskrippe")
+    "мост скальци" -> localized("Мост Скальци", "Scalzi Bridge", "Puente de los Descalzos", "Scalzi-Brücke")
+    "прогулка вдоль гранд-канала" -> localized("Прогулка вдоль Гранд-канала", "Grand Canal walk", "Paseo por el Gran Canal", "Spaziergang am Canal Grande")
+    "вапоретто по гранд-каналу" -> localized("Вапоретто по Гранд-каналу", "Vaporetto along the Grand Canal", "Vaporetto por el Gran Canal", "Vaporetto auf dem Canal Grande")
+    "мост риальто" -> localized("Мост Риальто", "Rialto Bridge", "Puente de Rialto", "Rialtobrücke")
+    "рынок риальто" -> localized("Рынок Риальто", "Rialto Market", "Mercado de Rialto", "Rialto-Markt")
+    "улочки района сан-поло" -> localized("Улочки района Сан-Поло", "San Polo's lanes", "Calles del barrio de San Polo", "Gassen im Viertel San Polo")
+    "базилика санта-мария-глориоза-деи-фрари" -> localized("Базилика Санта-Мария-Глориоза-деи-Фрари", "Basilica of Santa Maria Gloriosa dei Frari", "Basílica de Santa Maria Gloriosa dei Frari", "Basilika Santa Maria Gloriosa dei Frari")
+    "мост вздохов" -> localized("Мост Вздохов", "Bridge of Sighs", "Puente de los Suspiros", "Seufzerbrücke")
+    "площадь сан-марко" -> localized("Площадь Сан-Марко", "St. Mark's Square", "Plaza de San Marcos", "Markusplatz")
+    "собор святого марка" -> localized("Собор Святого Марка", "St. Mark's Basilica", "Basílica de San Marcos", "Markusdom")
+    "колонна святого марка" -> localized("Колонна Святого Марка", "Column of St. Mark", "Columna de San Marcos", "Säule des heiligen Markus")
+    "канал vena" -> localized("Канал Vena", "Vena Canal", "Canal Vena", "Vena-Kanal")
+    "кафедральный собор santa maria assunta" -> localized("Кафедральный собор Santa Maria Assunta", "Santa Maria Assunta Cathedral", "Catedral de Santa Maria Assunta", "Kathedrale Santa Maria Assunta")
+    "церковь sant'andrea" -> localized("Церковь Sant'Andrea", "Sant'Andrea Church", "Iglesia de Sant'Andrea", "Kirche Sant'Andrea")
+    "мостики через канал vena" -> localized("Мостики через канал Vena", "Bridges over Vena Canal", "Puentes sobre el canal Vena", "Brücken über den Vena-Kanal")
+    "рыбацкие домики и пришвартованные лодки" -> localized("Рыбацкие домики и пришвартованные лодки", "Fishing cottages and moored boats", "Casas de pescadores y barcos amarrados", "Fischerhäuser und vertäute Boote")
+    "набережная лагуны" -> localized("Набережная лагуны", "Lagoon waterfront", "Paseo de la laguna", "Lagunenpromenade")
+    "порт кьоджи" -> localized("Порт Кьоджи", "Chioggia port", "Puerto de Chioggia", "Hafen von Chioggia")
+    "прогулка по дамбе diga sottomarina" -> localized("Прогулка по дамбе Diga Sottomarina", "Diga Sottomarina dike walk", "Paseo por el dique Diga Sottomarina", "Spaziergang auf dem Damm Diga Sottomarina")
+    "панорамные виды на лагуну" -> localized("Панорамные виды на лагуну", "Panoramic lagoon views", "Vistas panorámicas de la laguna", "Panoramablick auf die Lagune")
+    "главная рождественская ёлка города" -> localized("Главная рождественская ёлка города", "City's main Christmas tree", "Árbol de Navidad principal de la ciudad", "Hauptweihnachtsbaum der Stadt")
+    "рождественские ярмарочные домики" -> localized("Рождественские ярмарочные домики", "Christmas market stalls", "Casetas del mercado navideño", "Weihnachtsmarktbuden")
+    else -> localizedSightNameByTerms(value)
+}
+
+@Composable
+private fun localizedSightDescription(value: String): String {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    val known = when {
+        normalized.contains("античная мраморная маска") -> localized("Античная мраморная маска в портике церкви Санта-Мария-ин-Космедин — по легенде откусит руку лжецу.", "Ancient marble mask at the portico of Santa Maria in Cosmedin; legend says it bites the hand of a liar.", "Máscara de mármol antigua en el pórtico de Santa Maria in Cosmedin; según la leyenda, muerde la mano del mentiroso.", "Antike Marmormaske im Portikus von Santa Maria in Cosmedin; der Legende nach beißt sie die Hand eines Lügners.")
+        normalized.contains("атмосферный старинный район") -> localized("Атмосферный старинный район у Форума: ремесленные лавки, винные бары и вечерняя жизнь.", "Atmospheric historic district by the Forum, with artisan shops, wine bars, and lively evenings.", "Barrio histórico con ambiente junto al Foro, tiendas de artesanía, bares de vino y vida nocturna.", "Stimmungsvolles historisches Viertel am Forum mit Handwerksläden, Weinbars und regem Abendleben.")
+        normalized.contains("однодневная поездка из рима") -> localized("Однодневная поездка из Рима: исторический центр и Апостольский дворец.", "A day trip from Rome: historic center and Apostolic Palace.", "Excursión de un día desde Roma: centro histórico y Palacio Apostólico.", "Tagesausflug von Rom: historisches Zentrum und Apostolischer Palast.")
+        normalized.contains("вулканическое озеро") -> localized("Вулканическое озеро рядом с Кастель-Гандольфо.", "Volcanic lake near Castel Gandolfo.", "Lago volcánico cerca de Castel Gandolfo.", "Vulkanischer See bei Castel Gandolfo.")
+        normalized.contains("средневековый госпиталь") -> localized("Средневековый госпиталь, основанный семьёй Серристори в XIV веке. Сохранил свою церковь и алтарь XV века; сегодня — культурный центр и музей аптечной посуды.", "Medieval hospital founded by the Serristori family in the 14th century. It retains its church and 15th-century altar and is now a cultural center and museum of apothecary ceramics.", "Hospital medieval fundado por la familia Serristori en el siglo XIV. Conserva su iglesia y un altar del siglo XV; hoy es un centro cultural y museo de cerámica farmacéutica.", "Mittelalterliches Hospital, im 14. Jahrhundert von der Familie Serristori gegründet. Mit eigener Kirche und Altar aus dem 15. Jahrhundert ist es heute Kulturzentrum und Museum für Apothekenkeramik.")
+        normalized.contains("сердце старого города") -> localized("Сердце Старого города — одна из самых больших средневековых площадей Тосканы, окружённая портиками. По воскресеньям здесь антикварный рынок. Названа в честь философа Марсилио Фичино, родившегося в Фильине в 1433 году.", "The heart of the Old Town: one of Tuscany's largest medieval squares, lined with arcades. An antiques market is held here on Sundays. It is named after philosopher Marsilio Ficino, born in Figline in 1433.", "El corazón del casco antiguo: una de las plazas medievales más grandes de la Toscana, rodeada de soportales. Los domingos acoge un mercado de antigüedades. Lleva el nombre del filósofo Marsilio Ficino, nacido en Figline en 1433.", "Das Herz der Altstadt: einer der größten mittelalterlichen Plätze der Toskana, von Arkaden gesäumt. Sonntags findet hier ein Antiquitätenmarkt statt. Benannt ist er nach dem Philosophen Marsilio Ficino, der 1433 in Figline geboren wurde.")
+        normalized.contains("историческая резиденция подеста") -> localized("Историческая резиденция подеста в центре города; фасад украшен гербами прежних правителей.", "Historic residence of the podestà in the city center; its façade is decorated with the coats of arms of former rulers.", "Residencia histórica del podestà en el centro; su fachada está decorada con los escudos de antiguos gobernantes.", "Historische Residenz des Podestà im Stadtzentrum; die Fassade ist mit den Wappen früherer Herrscher geschmückt.")
+        normalized.contains("главная церковь города") -> localized("Главная церковь города. Хранит алтарный образ «Мадонна с Младенцем на троне» кисти Мастера из Фильине (после 1317 года).", "The city's main church. It houses the altarpiece Madonna and Child Enthroned by the Master of Figline, painted after 1317.", "La iglesia principal de la ciudad. Conserva el retablo Madonna con el Niño entronizada, obra del Maestro de Figline, posterior a 1317.", "Die Hauptkirche der Stadt. Sie beherbergt das Altarbild Madonna mit Kind auf dem Thron des Meisters von Figline aus der Zeit nach 1317.")
+        normalized.contains("парадная главная улица") -> localized("Парадная главная улица-«салотто» Кьоджи, вытянутая через весь остров: дворцы, кафе и вечернее гулянье горожан.", "Chioggia's grand main boulevard, a salon-like street stretching across the island with palaces, cafés, and evening strolls.", "La gran calle principal de Chioggia, un paseo tipo salón que recorre la isla entre palacios, cafés y paseos al atardecer.", "Chioggias prächtige Hauptstraße, eine salonartige Flaniermeile über die Insel mit Palästen, Cafés und abendlichen Spaziergängen.")
+        normalized.contains("кафедральный собор xvii века") -> localized("Кафедральный собор XVII века, перестроенный Бальдассаре Лонгеной, с отдельно стоящей колокольней XIV века.", "A 17th-century cathedral rebuilt by Baldassare Longhena, with a freestanding 14th-century bell tower.", "Catedral del siglo XVII reconstruida por Baldassare Longhena, con un campanario independiente del siglo XIV.", "Kathedrale aus dem 17. Jahrhundert, von Baldassare Longhena umgebaut, mit freistehendem Glockenturm aus dem 14. Jahrhundert.")
+        normalized.contains("живописный главный канал") -> localized("Живописный главный канал с рыбацкими лодками и старыми мостами — за это Кьоджу зовут «маленькой Венецией».", "Scenic main canal with fishing boats and old bridges — why Chioggia is called Little Venice.", "Canal principal pintoresco con barcos pesqueros y puentes antiguos; por eso Chioggia recibe el nombre de Pequeña Venecia.", "Malerischer Hauptkanal mit Fischerbooten und alten Brücken — deshalb wird Chioggia Klein-Venedig genannt.")
+        normalized.contains("городская житница") -> localized("Городская житница 1322 года на канале Вена; сегодня внизу — рыбный рынок и туристический офис.", "The city's 1322 granary on Vena Canal; today its ground floor houses a fish market and tourist office.", "Granero municipal de 1322 junto al canal Vena; hoy alberga un mercado de pescado y una oficina de turismo.", "Städtischer Getreidespeicher von 1322 am Vena-Kanal; heute befinden sich im Erdgeschoss ein Fischmarkt und ein Touristenbüro.")
+        normalized.contains("готический собор из белого мрамора") -> localized("Готический собор из белого мрамора — символ Милана; можно подняться на крышу к шпилям и «Мадоннине».", "Gothic cathedral of white marble and symbol of Milan; climb to the rooftop spires and the Madonnina.", "Catedral gótica de mármol blanco y símbolo de Milán; se puede subir a la azotea, a las agujas y a la Madonnina.", "Gotischer Dom aus weißem Marmor und Wahrzeichen Mailands; auf dem Dach gelangt man zu den Türmen und der Madonnina.")
+        normalized.contains("роскошная стеклянная галерея") -> localized("Роскошная стеклянная галерея XIX века рядом с собором — «гостиная Милана» с кафе и бутиками.", "A lavish 19th-century glass arcade beside the cathedral, known as Milan's salon, with cafés and boutiques.", "Galería acristalada del siglo XIX junto a la catedral, el salón de Milán, con cafés y boutiques.", "Prunkvolle Glasgalerie aus dem 19. Jahrhundert neben dem Dom, Mailands Salon mit Cafés und Boutiquen.")
+        normalized.contains("легендарный оперный театр") -> localized("Легендарный оперный театр Ла Скала; при нём — музей театра.", "Legendary La Scala opera house with its own theater museum.", "Legendario teatro de ópera La Scala, con su propio museo teatral.", "Das legendäre Opernhaus La Scala mit eigenem Theatermuseum.")
+        normalized.contains("одна из лучших картинных галерей италии") -> localized("Одна из лучших картинных галерей Италии в квартале Брера (Рафаэль, Караваджо, Мантенья).", "One of Italy's finest art galleries in the Brera district, with works by Raphael, Caravaggio, and Mantegna.", "Una de las mejores galerías de arte de Italia en el barrio de Brera, con obras de Rafael, Caravaggio y Mantegna.", "Eine der besten Kunstgalerien Italiens im Viertel Brera mit Werken von Raffael, Caravaggio und Mantegna.")
+        normalized.contains("музей скульптуры под открытым небом") -> localized("Музей скульптуры под открытым небом: фамильные усыпальницы, модерн и надгробия-шедевры.", "Open-air sculpture museum with family tombs, Art Nouveau works, and masterpiece monuments.", "Museo de escultura al aire libre con mausoleos familiares, obras modernistas y monumentos funerarios.", "Skulpturenmuseum unter freiem Himmel mit Familiengrabmälern, Jugendstil und meisterhaften Grabdenkmälern.")
+        normalized.contains("современная площадь порта-нуова") -> localized("Современная площадь Порта-Нуова с небоскрёбами, фонтанами и панорамой делового Милана.", "Modern Piazza Gae Aulenti in Porta Nuova, with skyscrapers, fountains, and views over Milan's business district.", "Moderna Piazza Gae Aulenti en Porta Nuova, con rascacielos, fuentes y vistas del distrito financiero de Milán.", "Moderner Platz Gae Aulenti in Porta Nuova mit Wolkenkratzern, Brunnen und Blick auf Mailands Geschäftsviertel.")
+        normalized.contains("вертикальный лес") -> localized("«Вертикальный лес» — башни-небоскрёбы с деревьями на балконах в квартале Порта-Нуова.", "The Vertical Forest: skyscraper towers covered with trees on their balconies in Porta Nuova.", "El Bosque Vertical: torres de rascacielos con árboles en los balcones de Porta Nuova.", "Der Vertikale Wald: Wolkenkratzer mit Bäumen auf den Balkonen im Viertel Porta Nuova.")
+        normalized.contains("монументальный вокзал") -> localized("Монументальный вокзал Milano Centrale с парадным фасадом, огромными сводчатыми залами и архитектурой в духе ар-деко.", "Monumental Milano Centrale station with a grand façade, vast vaulted halls, and Art Deco architecture.", "Monumental estación Milano Centrale, con una fachada grandiosa, enormes salas abovedadas y arquitectura art déco.", "Der monumentale Bahnhof Milano Centrale mit prächtiger Fassade, riesigen Gewölbehallen und Art-déco-Architektur.")
+        normalized.contains("элегантный город у южного берега") -> localized("Элегантный город у южного берега: романский собор, набережная Пьяцца-Кавур и фуникулёр в Брунате с видом на озеро.", "Elegant city on the southern shore: a Romanesque cathedral, Piazza Cavour waterfront, and the funicular to Brunate overlooking the lake.", "Elegante ciudad en la orilla sur: catedral románica, paseo marítimo de Piazza Cavour y funicular a Brunate con vistas al lago.", "Elegante Stadt am Südufer mit romanischem Dom, Uferpromenade an der Piazza Cavour und Standseilbahn nach Brunate mit Seeblick.")
+        normalized.contains("первый городок к северу") -> localized("Первый городок к северу от Комо; знаменита Вилла д’Эсте и живописная набережная.", "The first town north of Como, known for Villa d’Este and its scenic waterfront.", "El primer pueblo al norte de Como, famoso por Villa d’Este y su pintoresco paseo marítimo.", "Der erste Ort nördlich von Como, bekannt für die Villa d’Este und seine malerische Uferpromenade.")
+        normalized.contains("романтическая вилла на мысу") -> localized("Романтическая вилла на мысу с террасными садами (снималась в «Звёздных войнах» и «Казино Рояль»); от Ленно — пешком или катером.", "Romantic villa on a promontory with terraced gardens, featured in Star Wars and Casino Royale; reachable from Lenno on foot or by boat.", "Villa romántica en un promontorio con jardines en terrazas, escenario de Star Wars y Casino Royale; desde Lenno se llega a pie o en barco.", "Romantische Villa auf einer Landzunge mit Terrassengärten, Drehort von Star Wars und Casino Royale; von Lenno zu Fuß oder per Boot erreichbar.")
+        normalized.contains("вилла-музей со знаменитым ботаническим") -> localized("Вилла-музей со знаменитым ботаническим садом (азалии, рододендроны) и скульптурами.", "Villa museum with a famous botanical garden of azaleas and rhododendrons, plus sculptures.", "Museo-villa con un famoso jardín botánico de azaleas y rododendros, además de esculturas.", "Villa-Museum mit berühmtem botanischem Garten aus Azaleen und Rhododendren sowie Skulpturen.")
+        normalized.contains("старт горной дороги") -> localized("Старт горной дороги в Валь-Виолу. Перед выездом проверьте погоду и статус высокогорных дорог.", "Start of the mountain road into Val Viola. Check the weather and high-mountain road status before departure.", "Inicio de la carretera de montaña hacia Val Viola. Compruebe el tiempo y el estado de las carreteras de alta montaña antes de salir.", "Beginn der Bergstraße ins Val Viola. Prüfen Sie vor der Abfahrt Wetter und Zustand der Hochgebirgsstraßen.")
+        normalized.contains("широкая альпийская долина") -> localized("Широкая альпийская долина с лёгкими прогулками по грунтовой дороге и видами на вершины.", "Wide Alpine valley with easy walks along a dirt road and views of the peaks.", "Amplio valle alpino con paseos sencillos por un camino de tierra y vistas a las cumbres.", "Weites Alpental mit leichten Spaziergängen auf einer Schotterstraße und Blick auf die Gipfel.")
+        normalized.contains("две средневековые башни") -> localized("Две средневековые башни над дорогой к озёрам Канкано; короткая остановка с панорамой долины.", "Two medieval towers above the road to the Cancano lakes; a short stop with a panoramic valley view.", "Dos torres medievales sobre la carretera a los lagos de Cancano; breve parada con vistas panorámicas del valle.", "Zwei mittelalterliche Türme über der Straße zu den Cancano-Seen; kurzer Halt mit Panoramablick ins Tal.")
+        normalized.contains("высокогорное водохранилище") -> localized("Высокогорное водохранилище у Канкано, окружённое светлыми склонами и тропами.", "High-mountain reservoir near Cancano, surrounded by pale slopes and trails.", "Embalse de alta montaña cerca de Cancano, rodeado de laderas claras y senderos.", "Hochgebirgsstausee bei Cancano, umgeben von hellen Hängen und Wanderwegen.")
+        normalized.contains("s.s. 301") -> localized("Старт: S.S. 301, Località Arnoga. В октябре утром обязательно проверьте открытие перевалов Стельвио и Умбраиль: снегопад может закрыть дорогу.", "Start: S.S. 301, Località Arnoga. In October, check early in the morning that the Stelvio and Umbrail passes are open: snowfall can close the road.", "Inicio: S.S. 301, Località Arnoga. En octubre, compruebe por la mañana que los puertos de Stelvio y Umbrail estén abiertos: la nieve puede cerrar la carretera.", "Start: S.S. 301, Località Arnoga. Prüfen Sie im Oktober morgens unbedingt, ob die Pässe Stilfser Joch und Umbrail geöffnet sind: Schneefall kann die Straße sperren.")
+        normalized.contains("короткая остановка на кофе") -> localized("Короткая остановка на кофе и прогулку по старому центру перед подъёмом к перевалу.", "A short coffee stop and walk through the Old Town before climbing to the pass.", "Breve parada para tomar café y pasear por el casco antiguo antes de subir al puerto.", "Kurzer Kaffeestopp und Spaziergang durch die Altstadt vor dem Anstieg zum Pass.")
+        normalized.contains("смотровая точка над бормио") -> localized("Смотровая точка над Бормио у исторических терм; вид на долину Адды.", "Viewpoint above Bormio by the historic baths, overlooking the Adda valley.", "Mirador sobre Bormio junto a las termas históricas, con vistas al valle del Adda.", "Aussichtspunkt über Bormio bei den historischen Thermen mit Blick ins Adda-Tal.")
+        normalized.contains("один из самых высоких перевалов альп") -> localized("Один из самых высоких перевалов Альп (2757 м): серпантины, ледниковые склоны и большая обзорная площадка.", "One of the highest Alpine passes (2,757 m), with hairpin bends, glacial slopes, and a large viewpoint.", "Uno de los puertos alpinos más altos (2757 m), con curvas cerradas, laderas glaciares y un gran mirador.", "Einer der höchsten Alpenpässe (2757 m) mit Serpentinen, Gletscherhängen und großem Aussichtspunkt.")
+        normalized.contains("сердце старого города: готическая") -> localized("Сердце Старого города: готическая ратуша и знаменитые астрономические часы.", "The heart of the Old Town: Gothic town hall and famous astronomical clock.", "El corazón del casco antiguo: ayuntamiento gótico y famoso reloj astronómico.", "Das Herz der Altstadt: gotisches Rathaus und berühmte astronomische Uhr.")
+        normalized.contains("исторический иезуитский комплекс") -> localized("Исторический иезуитский комплекс с барочной библиотекой и башней с видом на центр.", "Historic Jesuit complex with a Baroque library and a tower overlooking the city center.", "Complejo jesuita histórico con biblioteca barroca y torre con vistas al centro.", "Historischer Jesuitenkomplex mit barocker Bibliothek und Turm mit Blick auf das Stadtzentrum.")
+        normalized.contains("каменный мост xiv века") -> localized("Каменный мост XIV века со статуями и панорамой Влтавы.", "14th-century stone bridge with statues and views of the Vltava.", "Puente de piedra del siglo XIV con estatuas y vistas del Moldava.", "Steinbrücke aus dem 14. Jahrhundert mit Statuen und Blick auf die Moldau.")
+        normalized.contains("барочная площадь в малой стране") -> localized("Барочная площадь в Малой Стране у подножия Пражского града.", "Baroque square in Malá Strana below Prague Castle.", "Plaza barroca en Malá Strana, al pie del Castillo de Praga.", "Barocker Platz in der Kleinseite am Fuß der Prager Burg.")
+        else -> null
+    }
+    if (known != null) return known
+    return when (normalized) {
+    "оживлённая площадь у западного входа в исторический центр мюнхена." -> localized("Оживлённая площадь у западного входа в исторический центр Мюнхена.", "Lively square at the western entrance to Munich's historic center.", "Plaza animada en la entrada oeste del centro histórico de Múnich.", "Belebter Platz am westlichen Eingang zur Münchner Altstadt.")
+    "пешеходная улица с рождественскими витринами, гирляндами и праздничными украшениями." -> localized("Пешеходная улица с рождественскими витринами, гирляндами и праздничными украшениями.", "Pedestrian street with Christmas shop windows, garlands, and festive decorations.", "Calle peatonal con escaparates navideños, guirnaldas y adornos festivos.", "Fußgängerzone mit weihnachtlichen Schaufenstern, Girlanden und festlicher Dekoration.")
+    "средневековые городские ворота, открывающие путь в старый город." -> localized("Средневековые городские ворота, открывающие путь в Старый город.", "Medieval city gates leading to the Old Town.", "Puertas medievales que conducen al casco antiguo.", "Mittelalterliches Stadttor zum Eingang in die Altstadt.")
+    "главная площадь мюнхена и сердце праздничного старого города." -> localized("Главная площадь Мюнхена и сердце праздничного Старого города.", "Munich's main square and the heart of the festive Old Town.", "La plaza principal de Múnich y el corazón del casco antiguo festivo.", "Münchens Hauptplatz und das Herz der festlichen Altstadt.")
+    "неоготическая ратуша с башней, часами и знаменитым глокеншпилем." -> localized("Неоготическая ратуша с башней, часами и знаменитым Глокеншпилем.", "Neo-Gothic town hall with a tower, clocks, and the famous Glockenspiel.", "Ayuntamiento neogótico con torre, relojes y el famoso Glockenspiel.", "Neugotisches Rathaus mit Turm, Uhr und dem berühmten Glockenspiel.")
+    "главная рождественская ярмарка города с ремесленными лавками и баварскими угощениями." -> localized("Главная рождественская ярмарка города с ремесленными лавками и баварскими угощениями.", "The city's main Christmas market with craft stalls and Bavarian treats.", "El principal mercado navideño de la ciudad, con puestos de artesanía y especialidades bávaras.", "Der wichtigste Weihnachtsmarkt der Stadt mit Handwerksständen und bayerischen Spezialitäten.")
+    "кафедральный собор и один из главных архитектурных символов мюнхена." -> localized("Кафедральный собор и один из главных архитектурных символов Мюнхена.", "A cathedral and one of Munich's main architectural landmarks.", "Catedral y uno de los principales símbolos arquitectónicos de Múnich.", "Kathedrale und eines der wichtigsten architektonischen Wahrzeichen Münchens.")
+    "праздничная торговая улица, особенно красивая в вечерней подсветке." -> localized("Праздничная торговая улица, особенно красивая в вечерней подсветке.", "Festive shopping street, especially beautiful in the evening lights.", "Calle comercial festiva, especialmente bonita con la iluminación nocturna.", "Festliche Einkaufsstraße, besonders schön in der Abendbeleuchtung.")
+    "уютная рождественская деревня во дворе мюнхенской резиденции." -> localized("Уютная рождественская деревня во дворе Мюнхенской резиденции.", "Cozy Christmas village in the courtyard of the Munich Residence.", "Pueblo navideño acogedor en el patio de la Residencia de Múnich.", "Behagliches Weihnachtsdorf im Innenhof der Münchner Residenz.")
+    "парадная площадь перед баварской государственной оперой и резиденцией." -> localized("Парадная площадь перед Баварской государственной оперой и Резиденцией.", "Grand square in front of the Bavarian State Opera and the Residence.", "Plaza monumental frente a la Ópera Estatal de Baviera y la Residencia.", "Prachtplatz vor der Bayerischen Staatsoper und der Residenz.")
+    "монументальная площадь на границе старого города и дворцового квартала." -> localized("Монументальная площадь на границе Старого города и дворцового квартала.", "Monumental square on the edge of the Old Town and palace district.", "Plaza monumental entre el casco antiguo y el barrio de los palacios.", "Monumentaler Platz am Rand der Altstadt und des Residenzviertels.")
+    "аркада xix века, вдохновлённая флорентийской лоджией ланци." -> localized("Аркада XIX века, вдохновлённая флорентийской Лоджией Ланци.", "19th-century arcade inspired by Florence's Loggia dei Lanzi.", "Galería del siglo XIX inspirada en la Loggia dei Lanzi de Florencia.", "Arkade aus dem 19. Jahrhundert, inspiriert von der florentinischen Loggia dei Lanzi.")
+    "барочная церковь с выразительным жёлтым фасадом и красивой вечерней подсветкой." -> localized("Барочная церковь с выразительным жёлтым фасадом и красивой вечерней подсветкой.", "Baroque church with a striking yellow façade and beautiful evening lighting.", "Iglesia barroca con una llamativa fachada amarilla y una hermosa iluminación nocturna.", "Barocke Kirche mit markanter gelber Fassade und schöner Abendbeleuchtung.")
+    "спокойный придворный сад рядом с резиденцией, завершающий прогулку." -> localized("Спокойный придворный сад рядом с Резиденцией, завершающий прогулку.", "Peaceful court garden next to the Residence, the perfect end to the walk.", "Jardín cortesano tranquilo junto a la Residencia, un cierre perfecto para el paseo.", "Ruhiger Hofgarten neben der Residenz als schöner Abschluss des Spaziergangs.")
+    else -> localizedSightNameByTerms(value)
+}
+}
+
+@Composable
+private fun localizedSightInfo(description: String, category: String): String {
+    return if (description.isBlank()) localizedSightCategory(category) else localizedSightDescription(description)
+}
+
+@Composable
+private fun localizedRestaurantNote(value: String): String {
+    return when (value.trim().lowercase(Locale.ROOT)) {
+        "пицца", "пиццерия" -> localized("Пицца", "Pizza", "Pizza", "Pizza")
+        "рыба", "рыба и морепродукты", "морепродукты" -> localized("Рыба и морепродукты", "Seafood", "Mariscos", "Fisch & Meeresfrüchte")
+        "итальянская", "итальянская кухня" -> localized("Итальянская кухня", "Italian cuisine", "Cocina italiana", "Italienische Küche")
+        "европейская", "европейская кухня" -> localized("Европейская кухня", "European cuisine", "Cocina europea", "Europäische Küche")
+        "бар" -> localized("Бар", "Bar", "Bar", "Bar")
+        "кафе" -> localized("Кафе", "Cafe", "Café", "Café")
+        "ресторан с террасой и видом на озеро альбано. хорош на день вылазки из рима." -> localized("Ресторан с террасой и видом на озеро Альбано. Хорош на день вылазки из Рима.", "Restaurant with a terrace overlooking Lake Albano, ideal for a day trip from Rome.", "Restaurante con terraza y vistas al lago Albano, ideal para una excursión de un día desde Roma.", "Restaurant mit Terrasse und Blick auf den Albaner See, ideal für einen Tagesausflug von Rom.")
+        "простая траттория рядом с домом: миланские, тосканские и калабрийские блюда, большие порции." -> localized("Простая траттория рядом с домом: миланские, тосканские и калабрийские блюда, большие порции.", "Simple neighborhood trattoria serving Milanese, Tuscan, and Calabrian dishes in generous portions.", "Trattoria sencilla del barrio con platos milaneses, toscanos y calabreses en porciones generosas.", "Einfache Trattoria in der Nachbarschaft mit Mailänder, toskanischen und kalabrischen Gerichten und großen Portionen.")
+        "slow food остерия в старом железнодорожном клубе; миланская классика — ризотто, котолетта." -> localized("Slow Food остерия в старом железнодорожном клубе; миланская классика — ризотто, котолетта.", "Slow Food osteria in a former railway club; Milanese classics include risotto and cotoletta.", "Osteria Slow Food en un antiguo club ferroviario; clásicos milaneses como risotto y cotoletta.", "Slow-Food-Osteria in einem ehemaligen Eisenbahnclub mit Mailänder Klassikern wie Risotto und Cotoletta.")
+        "историческая траттория в центре с 1930-х: котолетта, ризотто по-милански, оссобуко." -> localized("Историческая траттория в центре с 1930-х: котолетта, ризотто по-милански, оссобуко.", "Historic trattoria in the center since the 1930s, serving cotoletta, Milanese risotto, and ossobuco.", "Trattoria histórica del centro desde los años 30, con cotoletta, risotto a la milanesa y ossobuco.", "Historische Trattoria im Zentrum seit den 1930er-Jahren mit Cotoletta, Mailänder Risotto und Ossobuco.")
+        "классика миланской кухни у брера: оссобуко с ризотто, котолетта, кассоэла." -> localized("Классика миланской кухни у Брера: оссобуко с ризотто, котолетта, кассоэла.", "Milanese classics near Brera: ossobuco with risotto, cotoletta, and cassoeula.", "Clásicos de la cocina milanesa cerca de Brera: ossobuco con risotto, cotoletta y cassoeula.", "Mailänder Küche nahe Brera: Ossobuco mit Risotto, Cotoletta und Cassoeula.")
+        "историческая семейная траттория (с 1921): образцовая миланская и ломбардская кухня." -> localized("Историческая семейная траттория (с 1921): образцовая миланская и ломбардская кухня.", "Historic family trattoria since 1921, known for classic Milanese and Lombard cuisine.", "Trattoria familiar histórica desde 1921, con cocina milanesa y lombarda ejemplar.", "Historische Familientrattoria seit 1921 mit klassischer Mailänder und lombardischer Küche.")
+        "простая семейная траттория в читта-студи: домашняя паста и миланские блюда." -> localized("Простая семейная траттория в Читта-Студи: домашняя паста и миланские блюда.", "Simple family trattoria in Città Studi with homemade pasta and Milanese dishes.", "Trattoria familiar sencilla en Città Studi con pasta casera y platos milaneses.", "Einfache Familientrattoria in Città Studi mit hausgemachter Pasta und Mailänder Gerichten.")
+        "знаменитая высокая миланская пицца al trancio; удобно взять кусок на прогулке." -> localized("Знаменитая высокая миланская пицца al trancio; удобно взять кусок на прогулке.", "Famous thick Milanese pizza al trancio; easy to grab a slice for a walk.", "Famosa pizza milanesa alta al trancio; ideal para llevar un trozo durante el paseo.", "Berühmte dicke Mailänder Pizza al trancio; ideal für ein Stück unterwegs.")
+        "легендарные горячие панцеротти рядом с дуомо; возможна очередь, лучше взять навынос." -> localized("Легендарные горячие панцеротти рядом с Дуомо; возможна очередь, лучше взять навынос.", "Legendary hot panzerotti near the Duomo; there may be a queue, so takeaway is best.", "Legendarios panzerotti calientes cerca del Duomo; puede haber cola, mejor pedir para llevar.", "Legendäre heiße Panzerotti nahe dem Dom; es kann eine Warteschlange geben, am besten zum Mitnehmen.")
+        "небольшая пиццерия у via torino: пицца, простое меню и быстрый обед в центре." -> localized("Небольшая пиццерия у Via Torino: пицца, простое меню и быстрый обед в центре.", "Small pizzeria near Via Torino with pizza, a simple menu, and a quick lunch in the center.", "Pequeña pizzería cerca de Via Torino con pizza, menú sencillo y almuerzo rápido en el centro.", "Kleine Pizzeria an der Via Torino mit Pizza, einfacher Karte und schnellem Mittagessen im Zentrum.")
+        "китайские паровые пельмени на улице паоло сарпи: очень бюджетный перекус на ходу." -> localized("Китайские паровые пельмени на улице Паоло Сарпи: очень бюджетный перекус на ходу.", "Chinese steamed dumplings on Paolo Sarpi Street, a very affordable snack on the go.", "Dumplings chinos al vapor en la calle Paolo Sarpi, un tentempié muy económico para llevar.", "Chinesische Teigtaschen auf der Paolo-Sarpi-Straße, ein sehr günstiger Snack für unterwegs.")
+        "неаполитанская пицца в нескольких минутах от дуомо; популярное место, в пиковые часы бывает очередь." -> localized("Неаполитанская пицца в нескольких минутах от Дуомо; популярное место, в пиковые часы бывает очередь.", "Neapolitan pizza a few minutes from the Duomo; popular, with queues at peak times.", "Pizza napolitana a pocos minutos del Duomo; lugar popular, con colas en horas punta.", "Neapolitanische Pizza wenige Minuten vom Dom entfernt; beliebter Ort, zu Stoßzeiten mit Warteschlange.")
+        "классическая миланская траттория у навильи: ризотто, котолетта и домашняя атмосфера." -> localized("Классическая миланская траттория у Навильи: ризотто, котолетта и домашняя атмосфера.", "Classic Milanese trattoria by the Navigli: risotto, cotoletta, and a homely atmosphere.", "Trattoria clásica milanesa junto a Navigli: risotto, cotoletta y ambiente casero.", "Klassische Mailänder Trattoria an den Navigli mit Risotto, Cotoletta und familiärer Atmosphäre.")
+        "рыбная кухня в кьодже, рядом с пляжем соттомарина." -> localized(
+            "Рыбная кухня в Кьодже, рядом с пляжем Соттомарина.",
+            "Seafood in Chioggia, near Sottomarina beach.",
+            "Mariscos en Chioggia, cerca de la playa de Sottomarina.",
+            "Fischküche in Chioggia, nahe dem Strand von Sottomarina.",
+        )
+        "местное пиво из деревянных бочек и классика кухни." -> localized(
+            "Местное пиво из деревянных бочек и классика кухни.",
+            "Local beer from wooden barrels and classic Bavarian dishes.",
+            "Cerveza local de barriles de madera y clásicos de la cocina bávara.",
+            "Lokales Bier aus Holzfässern und klassische bayerische Küche.",
+        )
+        "знаменит кнедлями и домашней баварской кухней." -> localized(
+            "Знаменит кнедлями и домашней баварской кухней.",
+            "Known for dumplings and homestyle Bavarian cuisine.",
+            "Famoso por sus knödel y su cocina bávara casera.",
+            "Bekannt für Knödel und hausgemachte bayerische Küche.",
+        )
+        "ресторан в подвале ратуши: удобен после прогулки по центру." -> localized(
+            "Ресторан в подвале ратуши: удобен после прогулки по центру.",
+            "Restaurant in the town hall cellar, convenient after a walk through the center.",
+            "Restaurante en el sótano del ayuntamiento, práctico después de pasear por el centro.",
+            "Restaurant im Rathauskeller, ideal nach einem Spaziergang durch die Innenstadt.",
+        )
+        "классическое заведение у оперы; лучше бронировать." -> localized(
+            "Классическое заведение у оперы; лучше бронировать.",
+            "Classic restaurant by the opera; reservations are recommended.",
+            "Restaurante clásico junto a la ópera; se recomienda reservar.",
+            "Klassisches Lokal an der Oper; Reservierung empfohlen.",
+        )
+        else -> value
     }
 }
 
@@ -1315,9 +1843,12 @@ private fun AccountMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVecto
 @Composable
 private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCard) -> Unit) {
     val language = LocalLanguage.current
-    var title by remember(trip.id) { mutableStateOf(trip.title) }
-    var cities by remember(trip.id) { mutableStateOf(trip.cities) }
-    var dates by remember(trip.id) { mutableStateOf(trip.dates) }
+    val displayedTitle = localizedTripTitle(trip.title)
+    val displayedCities = localizedCityList(trip.cities, language)
+    val displayedDates = localizedTripDateText(trip.dates, language)
+    var title by remember(trip.id, language) { mutableStateOf(displayedTitle) }
+    var cities by remember(trip.id, language) { mutableStateOf(displayedCities) }
+    var dates by remember(trip.id, language) { mutableStateOf(displayedDates) }
     var status by remember(trip.id) { mutableStateOf(trip.status) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -1334,7 +1865,11 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
                 "Черновик" to localized("Черновики", "Drafts", "Borradores", "Entwürfe"),
                 "Прошедшее" to localized("Прошедшие", "Past", "Pasados", "Vergangen"),
             ).forEach { (value, label) ->
-                val selected = status == value
+                val selected = when (value) {
+                    "Предстоящее" -> status.contains("предст", ignoreCase = true) || status.equals("upcoming", ignoreCase = true)
+                    "Черновик" -> status.contains("чернов", ignoreCase = true) || status.equals("draft", ignoreCase = true)
+                    else -> status.contains("прошед", ignoreCase = true) || status.contains("заверш", ignoreCase = true) || status.equals("past", ignoreCase = true) || status.equals("completed", ignoreCase = true)
+                }
                 Button(onClick = { status = value }, colors = ButtonDefaults.buttonColors(containerColor = if (selected) OdysseyPurple else secondarySurfaceColor(), contentColor = if (selected) Color.White else contentTextColor()), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp), modifier = Modifier.weight(1f)) {
                     Text(label, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, maxLines = 1)
                 }
@@ -1346,12 +1881,15 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
             Button(onClick = {
                 scope.launch {
                     saving = true
+                    val savedTitle = title.trim().takeUnless { it == displayedTitle } ?: trip.title.trim()
+                    val savedCities = cities.trim().takeUnless { it == displayedCities } ?: trip.cities.trim()
+                    val savedDates = dates.trim().takeUnless { it == displayedDates } ?: trip.dates.trim()
                     runCatching {
                         val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                        repository.updateTripDetails(trip.id, title, dates, cities)
+                        repository.updateTripDetails(trip.id, savedTitle, savedDates, savedCities)
                         repository.updateTripSection(trip.id, "status", JsonPrimitive(status))
                     }
-                        .onSuccess { onSaved(trip.copy(title = title.trim(), cities = cities.trim(), dates = dates.trim(), status = status)) }
+                        .onSuccess { onSaved(trip.copy(title = savedTitle, cities = savedCities, dates = savedDates, status = status)) }
                         .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
                     saving = false
                 }
@@ -1557,7 +2095,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                 modifier = Modifier.weight(1f).clickable { sectionMenuOpen = !sectionMenuOpen },
             ) {
                 Text(
-                    text = overview?.title.orEmpty(),
+                    text = localizedTripTitle(overview?.title.orEmpty()),
                     color = Color(0xFFA0A0AA),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W700,
@@ -1635,7 +2173,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                             Icon(Icons.Outlined.Explore, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 10.dp, top = 7.dp)) {
-                            Text(overview?.title.orEmpty(), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(localizedTripTitle(overview?.title.orEmpty()), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 14.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
@@ -1770,7 +2308,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     ) {
         item {
             Text(
-                "${selectedDayCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
+                "${localizedCityName(selectedDayCity).uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
                 color = OdysseyPurple,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -1828,7 +2366,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
                         Text(
-                            selectedDayCity,
+                            localizedCityName(selectedDayCity),
                             color = contentTextColor(),
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W800,
@@ -1856,7 +2394,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                         val selected = index + 1 == routeDay
                         Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFFF0EDFF) else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} ${index + 1}", color = if (selected) OdysseyPurple else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.width(64.dp))
-                            Text(dayCity, color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+                            Text(localizedCityName(dayCity), color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                             Spacer(Modifier.weight(1f))
                             if (selected) Text("✓", color = OdysseyPurple, fontSize = 18.sp, fontWeight = FontWeight.W800)
                         }
@@ -1882,7 +2420,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                         Row(modifier = Modifier.fillMaxWidth().height(62.dp).padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "${selectedDayCity.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
+                                    "${localizedCityName(selectedDayCity).uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $routeDay",
                                     color = OdysseyPurple,
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W800,
@@ -1892,7 +2430,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                                 )
                                 Text(
-                                    "$selectedDayCity · ${visibleSights.size} ${localized("места", "places", "lugares", "Orte")}",
+                                    "${localizedCityName(selectedDayCity)} · ${visibleSights.size} ${localized("места", "places", "lugares", "Orte")}",
                                     color = secondaryTextColor(),
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W700,
@@ -1997,7 +2535,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
         previewSights.forEachIndexed { index, sight ->
             Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(secondarySurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text((index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
-                Text(sight.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(localizedSightName(sight.name), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     RouteOrderButton(Icons.Outlined.KeyboardArrowUp, index > 0, localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben")) {
                         val reordered = previewSights.toMutableList()
@@ -2068,7 +2606,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RouteEditorField(localized("День №", "Day no.", "Día nº", "Tag Nr."), day.toString(), {}, Modifier.width(74.dp))
-            RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), city, {}, Modifier.weight(1f))
+            RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), localizedCityName(city), {}, Modifier.weight(1f))
         }
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
         sights.take(3).forEach { sight ->
@@ -2078,7 +2616,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
                 } else {
                     SurfaceEmptyMedia(Icons.Outlined.LocationOn, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 }
-                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(sight.name, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(sight.description.ifBlank { sight.category }, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
+                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
                 Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFE9E8)).clickable {
                     scope.launch {
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "sights", sight.id) }
@@ -2113,7 +2651,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${city.uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $day", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
+                Text("${localizedCityName(city).uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $day", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
                 Text(localized("Добавить\nдостопримечательность", "Add\nsight", "Añadir\nlugar", "Sehenswürdigkeit\nhinzufügen"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, lineHeight = 27.sp)
             }
             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
@@ -2154,6 +2692,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
 
 @Composable
 private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit) {
+    val displayedName = localizedSightName(sight.name)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -2173,7 +2712,7 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Bo
         }
         Column(modifier = Modifier.weight(1f).clickable { onEdit() }, verticalArrangement = Arrangement.Center) {
             Text(
-                sight.name,
+                displayedName,
                 color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -2184,7 +2723,7 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Bo
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                sight.category.ifBlank { sight.description },
+                localizedSightInfo(sight.description, sight.category),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
@@ -2225,10 +2764,14 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Bo
 @Composable
 private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: String, onClose: () -> Unit, onSaved: () -> Unit) {
     val language = LocalLanguage.current
-    var name by remember(sight.id) { mutableStateOf(sight.name) }
-    var city by remember(sight.id) { mutableStateOf(sight.city) }
-    var category by remember(sight.id) { mutableStateOf(sight.category) }
-    var description by remember(sight.id) { mutableStateOf(sight.description) }
+    val displayedName = localizedSightName(sight.name)
+    val displayedCity = localizedCityName(sight.city)
+    val displayedCategory = localizedSightCategory(sight.category)
+    val displayedDescription = localizedSightDescription(sight.description)
+    var name by remember(sight.id, language) { mutableStateOf(displayedName) }
+    var city by remember(sight.id, language) { mutableStateOf(displayedCity) }
+    var category by remember(sight.id, language) { mutableStateOf(displayedCategory) }
+    var description by remember(sight.id, language) { mutableStateOf(displayedDescription) }
     var walkDay by remember(sight.id) { mutableStateOf(sight.walkDay.toString()) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -2246,7 +2789,11 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
             Button(onClick = {
                 scope.launch {
                     saving = true
-                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDetailsRich(tripId, sight.id, name, city, category, description, walkDay.toIntOrNull() ?: sight.walkDay) }
+                    val savedName = name.trim().takeUnless { it == displayedName } ?: sight.name.trim()
+                    val savedCity = city.trim().takeUnless { it == displayedCity } ?: sight.city.trim()
+                    val savedCategory = category.trim().takeUnless { it == displayedCategory } ?: sight.category.trim()
+                    val savedDescription = description.trim().takeUnless { it == displayedDescription } ?: sight.description.trim()
+                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDetailsRich(tripId, sight.id, savedName, savedCity, savedCategory, savedDescription, walkDay.toIntOrNull() ?: sight.walkDay) }
                         .onSuccess { onSaved() }
                         .onFailure { message = it.message ?: localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden") }
                     saving = false
@@ -2295,7 +2842,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         overview.sights.map { it.city } +
             overview.accommodations.map { it.city } +
             overview.restaurants.map { it.city }
-        ).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
+        ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     val cityOptions = listOf("Все города") + tripCityOptions
     val visibleRestaurants = overview.restaurants.filter { restaurant ->
         val note = restaurant.note.lowercase()
@@ -2594,7 +3141,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onDatePickerOpen = {
                     val today = Calendar.getInstance()
                     DatePickerDialog(
-                        context,
+                        localizedDatePickerContext(context, language),
                         { _, year, month, dayOfMonth ->
                             dateTime = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
                         },
@@ -2896,7 +3443,7 @@ private fun RestaurantAddSheet(
                 ) {
                     RestaurantAddField(
                         label = localized("Город", "City", "Ciudad", "Stadt"),
-                        value = city,
+                        value = if (city.isBlank()) "" else localizedCityName(city),
                         placeholder = localized("Выберите город", "Choose a city", "Elija una ciudad", "Stadt auswählen"),
                         scale = scale,
                         trailingChevron = true,
@@ -3037,7 +3584,7 @@ private fun RestaurantAddSheet(
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         cityOptions.forEach { option ->
                             Text(
-                                text = option,
+                                text = localizedCityName(option),
                                 color = if (option == city) OdysseyPurple else contentTextColor(),
                                 fontFamily = Manrope,
                                 fontWeight = FontWeight.W700,
@@ -3945,6 +4492,7 @@ private fun RestaurantCard(
     onStatusChange: (String) -> Unit,
 ) {
     var photoIndex by remember(restaurant.id) { mutableStateOf(0) }
+    val displayedNote = localizedRestaurantNote(restaurant.note)
     val booked = restaurant.status == "бронь"
     val visited = restaurant.status == "были"
     val reviewsLabel = restaurant.reviews.trim().let { raw ->
@@ -3994,7 +4542,8 @@ private fun RestaurantCard(
                     OdysseyExternalLinkIcon(17.dp, OdysseyPurple, modifier = Modifier.padding(top = 2.dp))
                 }
                 Text(
-                    restaurant.city.ifBlank { localized("Город не указан", "City not specified", "Ciudad no indicada", "Stadt nicht angegeben") },
+                    restaurant.city.takeIf(String::isNotBlank)?.let { localizedCityName(it) }
+                        ?: localized("Город не указан", "City not specified", "Ciudad no indicada", "Stadt nicht angegeben"),
                     color = secondaryTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W600,
@@ -4021,9 +4570,9 @@ private fun RestaurantCard(
                             Text(restaurant.price, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                         }
                     }
-                    if (restaurant.note.isNotBlank() && !restaurant.note.contains("http", ignoreCase = true)) {
+                    if (displayedNote.isNotBlank() && !restaurant.note.contains("http", ignoreCase = true)) {
                         Box(modifier = Modifier.height(25.dp).clip(RoundedCornerShape(8.dp)).background(secondarySurfaceColor()).padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
-                            Text(restaurant.note, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                            Text(displayedNote, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                         }
                     }
                 }
@@ -4198,7 +4747,7 @@ private fun RestaurantMapCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "RESTAURANTS",
+                    localized("РЕСТОРАНЫ", "RESTAURANTS", "RESTAURANTES", "RESTAURANTS"),
                     color = OdysseyPurple,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -4359,7 +4908,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).background(Brush.linearGradient(listOf(Color(0xFFF5A623), Color(0xFFF77F4B))), CircleShape)) {
                             Text(photoGroupDay(city, overview, index + 1).toString(), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
                         }
-                        Text(city, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+                    Text(localizedCityName(city), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
                         Spacer(Modifier.weight(1f))
                         Text(groupMeta(city, cityPhotos.size), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.5.sp)
                     }
@@ -4892,6 +5441,23 @@ private fun budgetCurrencyCode(value: String): String = when (value.trim().upper
     else -> "RUB"
 }
 
+@Composable
+private fun localizedBudgetExpenseName(value: String): String {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    return when {
+        normalized == "жильё" || normalized == "жилье" || normalized == "проживание" -> localized("Жильё", "Lodging", "Alojamiento", "Unterkunft")
+        normalized == "аренда машины" -> localized("Аренда машины", "Car rental", "Alquiler de coche", "Mietwagen")
+        normalized == "бензин" -> localized("Бензин", "Fuel", "Combustible", "Kraftstoff")
+        normalized.startsWith("дневные траты") -> localized(
+            "Дневные траты · 28 сентября – 13 октября",
+            "Daily expenses · 28 Sep – 13 Oct",
+            "Gastos diarios · 28 sep – 13 oct",
+            "Tagesausgaben · 28. Sep. – 13. Okt.",
+        )
+        else -> value
+    }
+}
+
 private fun budgetScopeValue(value: String): String = when (value.trim().lowercase(java.util.Locale.ROOT)) {
     "семья", "family" -> "семья"
     "личный", "личное", "personal" -> "личный"
@@ -5185,7 +5751,7 @@ private fun BudgetExpenseRow(
             Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(categoryStyle.color))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = expense.name,
+                    text = localizedBudgetExpenseName(expense.name),
                     color = OdysseyText,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -5988,7 +6554,7 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
     val surface = cardSurfaceColor()
     val city = accommodation.city.trim()
     val cityPrefix = cityFlag(city).takeUnless { it == "📍" }.orEmpty()
-    val cityLabel = listOf(cityPrefix, city).filter(String::isNotBlank).joinToString(" ")
+    val cityLabel = listOf(cityPrefix, localizedCityName(city)).filter(String::isNotBlank).joinToString(" ")
     val dates = formatAccommodationDates(accommodation.dates, language)
     val price = formatAccommodationPrice(accommodation.price)
     Column(
@@ -6946,6 +7512,11 @@ private fun RouteLegEditorSheet(
     onDelete: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val language = LocalLanguage.current
+    val displayedFrom = localizedCityName(from)
+    val displayedTo = localizedCityName(to)
+    var visibleFrom by remember(from, language) { mutableStateOf(displayedFrom) }
+    var visibleTo by remember(to, language) { mutableStateOf(displayedTo) }
     var distance by remember { mutableStateOf("") }
     var travelTime by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -6957,8 +7528,8 @@ private fun RouteLegEditorSheet(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RouteEditorField(localized("Откуда", "From", "Desde", "Von"), from, onFromChange, Modifier.weight(1f))
-            RouteEditorField(localized("Куда", "To", "A", "Nach"), to, onToChange, Modifier.weight(1f))
+            RouteEditorField(localized("Откуда", "From", "Desde", "Von"), visibleFrom, { visibleFrom = it; onFromChange(it) }, Modifier.weight(1f))
+            RouteEditorField(localized("Куда", "To", "A", "Nach"), visibleTo, { visibleTo = it; onToChange(it) }, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RouteEditorField(localized("Число", "Date", "Día", "Tag"), "", {}, Modifier.weight(.8f), placeholder = "—")
@@ -7065,7 +7636,7 @@ private fun RouteStop(city: String, flag: String, isLast: Boolean, compact: Bool
         }) {
             Box(modifier = Modifier.size(if (isLast) 9.dp else 8.dp).clip(CircleShape).background(if (isLast) OdysseyPurple else Color.White).border(1.5.dp, if (isLast) OdysseyPurple else Color(0xFFC6BDF7), CircleShape).align(Alignment.Center))
         }
-        Text("$flag $city", color = if (isLast) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = if (isLast) FontWeight.W800 else FontWeight.W700, fontSize = if (compact) 14.sp else if (isLast) 17.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.padding(start = 4.dp))
+        Text("$flag ${localizedCityName(city)}", color = if (isLast) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = if (isLast) FontWeight.W800 else FontWeight.W700, fontSize = if (compact) 14.sp else if (isLast) 17.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
@@ -7115,7 +7686,7 @@ private fun formatAccommodationDates(value: String, language: String): String {
     val raw = value.trim()
     if (raw.isBlank()) return localized(language, "Даты не указаны", "Dates not specified", "Fechas no indicadas", "Keine Daten angegeben")
     val parts = raw.split(Regex("\\s+[–-]\\s+"))
-    if (parts.size != 2) return raw
+    if (parts.size != 2) return localizeLegacyAccommodationDateText(raw, language)
     fun parseIso(source: String): Calendar? {
         val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").matchEntire(source.trim()) ?: return null
         return Calendar.getInstance().apply {
@@ -7123,8 +7694,8 @@ private fun formatAccommodationDates(value: String, language: String): String {
             set(match.groupValues[1].toInt(), match.groupValues[2].toInt() - 1, match.groupValues[3].toInt())
         }
     }
-    val start = parseIso(parts[0]) ?: return raw
-    val end = parseIso(parts[1]) ?: return raw
+    val start = parseIso(parts[0]) ?: return localizeLegacyAccommodationDateText(raw, language)
+    val end = parseIso(parts[1]) ?: return localizeLegacyAccommodationDateText(raw, language)
     val months = when (normalizeLanguage(language)) {
         "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
         "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
@@ -7141,6 +7712,34 @@ private fun formatAccommodationDates(value: String, language: String): String {
         "$startDay $startMonth – $endDay $endMonth"
     }
     return range
+}
+
+private fun localizeLegacyAccommodationDateText(value: String, language: String): String {
+    val monthNames = when (normalizeLanguage(language)) {
+        "EN" -> mapOf("янв" to "Jan", "фев" to "Feb", "мар" to "Mar", "апр" to "Apr", "май" to "May", "июн" to "Jun", "июл" to "Jul", "авг" to "Aug", "сен" to "Sep", "окт" to "Oct", "ноя" to "Nov", "дек" to "Dec")
+        "ES" -> mapOf("янв" to "ene", "фев" to "feb", "мар" to "mar", "апр" to "abr", "май" to "may", "июн" to "jun", "июл" to "jul", "авг" to "ago", "сен" to "sep", "окт" to "oct", "ноя" to "nov", "дек" to "dic")
+        "DE" -> mapOf("янв" to "Jan", "фев" to "Feb", "мар" to "Mär", "апр" to "Apr", "май" to "Mai", "июн" to "Jun", "июл" to "Jul", "авг" to "Aug", "сен" to "Sep", "окт" to "Okt", "ноя" to "Nov", "дек" to "Dez")
+        else -> mapOf("янв" to "янв", "фев" to "фев", "мар" to "мар", "апр" to "апр", "май" to "май", "июн" to "июн", "июл" to "июл", "авг" to "авг", "сен" to "сен", "окт" to "окт", "ноя" to "ноя", "дек" to "дек")
+    }
+    var result = Regex("(?i)(?<![\\p{L}])(янв|фев|мар|апр|май|июн|июл|авг|сен|окт|ноя|дек)(?![\\p{L}])").replace(value) { match ->
+        monthNames[match.value.lowercase(Locale.ROOT)] ?: match.value
+    }
+    val nightPattern = Regex("(?i)(\\d+)\\s+(ночь|ночи|ночей)")
+    result = nightPattern.replace(result) { match ->
+        val count = match.groupValues[1].toIntOrNull() ?: 0
+        val word = when (normalizeLanguage(language)) {
+            "EN" -> if (count == 1) "night" else "nights"
+            "ES" -> if (count == 1) "noche" else "noches"
+            "DE" -> if (count == 1) "Nacht" else "Nächte"
+            else -> when {
+                count % 10 == 1 && count % 100 != 11 -> "ночь"
+                count % 10 in 2..4 && count % 100 !in 12..14 -> "ночи"
+                else -> "ночей"
+            }
+        }
+        "${match.groupValues[1]} $word"
+    }
+    return result
 }
 
 private fun formatAccommodationDeadline(value: String, language: String): String {
@@ -7235,7 +7834,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                     )
                 }
                 Text(
-                    text = activePhoto?.city.orEmpty(),
+                    text = localizedCityName(activePhoto?.city.orEmpty()),
                     color = Color.White,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -7491,6 +8090,10 @@ private fun mapCoordinate(city: String): Point? = when (city.substringBefore(","
     "tallinn", "таллин" -> Point.fromLngLat(24.7536, 59.4370)
     "riga", "рига" -> Point.fromLngLat(24.1052, 56.9496)
     "vilnius", "вильнюс" -> Point.fromLngLat(25.2797, 54.6872)
+    "castel gandolfo", "кастель-гандольфо" -> Point.fromLngLat(12.6500, 41.7475)
+    "lake como", "озеро комо" -> Point.fromLngLat(9.2600, 45.8080)
+    "bormio", "бормио" -> Point.fromLngLat(10.3740, 46.4670)
+    "val viola valley", "долина валь-виола" -> Point.fromLngLat(10.1900, 46.4200)
     else -> null
 }
 
@@ -7504,7 +8107,12 @@ private fun WeatherPlaceholder(
 ) {
     val temperature = weather?.temperature?.removeSuffix("°C")?.toIntOrNull()
     val displayedTemperature = if (tripDatesWeather) weather?.tripTemperature else weather?.temperature
-    val displayedCondition = if (tripDatesWeather) weather?.tripCondition ?: localized("Прогноз пока недоступен", "Forecast unavailable", "Pronóstico no disponible", "Vorhersage nicht verfügbar") else weather?.condition
+    val displayedCondition = if (tripDatesWeather) {
+        weather?.tripCondition?.let { localizedWeatherCondition(it) }
+            ?: localized("Прогноз пока недоступен", "Forecast unavailable", "Pronóstico no disponible", "Vorhersage nicht verfügbar")
+    } else {
+        weather?.condition?.let { localizedWeatherCondition(it) }
+    }
     Box(
         modifier = Modifier.width(104.dp).height(140.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
     ) {
@@ -7518,7 +8126,7 @@ private fun WeatherPlaceholder(
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000)))))
         Text(
-            text = city,
+                    text = localizedCityName(city),
             color = Color.White,
             fontFamily = Manrope,
             fontWeight = FontWeight.W700,
@@ -7584,7 +8192,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
             }
         }
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 17.dp)) {
-            Text(trip.title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp)
+            Text(localizedTripTitle(trip.title), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp)
             Text(
                 text = localizedTripDateText(trip.dates, language),
                 color = OdysseySubtext,
@@ -7612,7 +8220,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                     pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.W800))
                     append(localized("Маршрут заполнен на ${trip.progress}%", "Route ${trip.progress}% complete", "Ruta completada al ${trip.progress}%", "Route zu ${trip.progress}% abgeschlossen"))
                     pop()
-                    if (trip.cities.isNotBlank()) append(" · ${trip.cities}")
+                    if (trip.cities.isNotBlank()) append(" · ${localizedCityList(trip.cities, language)}")
                 },
                 color = OdysseySubtext,
                 fontFamily = Manrope,
