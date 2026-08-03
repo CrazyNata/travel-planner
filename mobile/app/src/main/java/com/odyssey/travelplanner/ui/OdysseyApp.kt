@@ -1,5 +1,6 @@
 package com.odyssey.travelplanner.ui
 
+import android.app.DatePickerDialog
 import android.net.Uri
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.credentials.CredentialManager
@@ -42,6 +43,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +51,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -2133,6 +2136,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var message by remember { mutableStateOf<String?>(null) }
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
+    var cityPickerOpen by remember { mutableStateOf(false) }
     var uploadingRestaurantId by remember { mutableStateOf<String?>(null) }
     var selectedCity by remember { mutableStateOf("Все города") }
     var cityMenuOpen by remember { mutableStateOf(false) }
@@ -2146,7 +2150,14 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var draftPriceFilter by remember { mutableStateOf("€€") }
     var draftRatingFilter by remember { mutableStateOf("4.5+") }
     val scope = rememberCoroutineScope()
-    val cityOptions = listOf("Все города") + overview.restaurants.map { it.city }.filter(String::isNotBlank).distinct()
+    val tripCityOptions = (
+        overview.cities +
+            overview.routeLegs.flatMap { listOf(it.from, it.to) } +
+            overview.sights.map { it.city } +
+            overview.accommodations.map { it.city } +
+            overview.restaurants.map { it.city }
+        ).map(String::trim).filter(String::isNotBlank).distinct()
+    val cityOptions = listOf("Все города") + tripCityOptions
     val visibleRestaurants = overview.restaurants.filter { restaurant ->
         val note = restaurant.note.lowercase()
         val typeMatches = when (appliedTypeFilter) {
@@ -2415,7 +2426,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     }
     if (adding) {
         ModalBottomSheet(
-            onDismissRequest = { adding = false; message = null },
+            onDismissRequest = { adding = false; message = null; cityPickerOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
@@ -2432,11 +2443,27 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 address = address,
                 status = status,
                 priority = priority,
+                cityOptions = tripCityOptions,
+                cityPickerOpen = cityPickerOpen,
                 photoUri = newRestaurantPhotoUri,
                 saving = saving,
                 message = message,
                 onNameChange = { name = it },
                 onCityChange = { city = it },
+                onCityPickerOpen = { cityPickerOpen = true },
+                onCityPickerDismiss = { cityPickerOpen = false },
+                onDatePickerOpen = {
+                    val today = Calendar.getInstance()
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            dateTime = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                        },
+                        today.get(Calendar.YEAR),
+                        today.get(Calendar.MONTH),
+                        today.get(Calendar.DAY_OF_MONTH),
+                    ).show()
+                },
                 onCuisineChange = { cuisine = it },
                 onDateTimeChange = { dateTime = it },
                 onPriceChange = { price = it },
@@ -2444,7 +2471,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onStatusChange = { status = it },
                 onPriorityChange = { priority = !priority },
                 onPickPhoto = { newRestaurantPhotoPicker.launch("image/*") },
-                onClose = { adding = false; message = null },
+                onClose = { adding = false; message = null; cityPickerOpen = false },
                 onSave = {
                     scope.launch {
                         saving = true
@@ -2458,6 +2485,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                                     note = cuisine,
                                     price = price,
                                     link = address,
+                                    date = dateTime,
                                 ),
                                 tripId,
                             )
@@ -2469,6 +2497,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                         }.onSuccess {
                             adding = false
                             message = null
+                            cityPickerOpen = false
                             name = ""
                             city = ""
                             cuisine = ""
@@ -2500,11 +2529,16 @@ private fun RestaurantAddSheet(
     address: String,
     status: String,
     priority: Boolean,
+    cityOptions: List<String>,
+    cityPickerOpen: Boolean,
     photoUri: Uri?,
     saving: Boolean,
     message: String?,
     onNameChange: (String) -> Unit,
     onCityChange: (String) -> Unit,
+    onCityPickerOpen: () -> Unit,
+    onCityPickerDismiss: () -> Unit,
+    onDatePickerOpen: () -> Unit,
     onCuisineChange: (String) -> Unit,
     onDateTimeChange: (String) -> Unit,
     onPriceChange: (String) -> Unit,
@@ -2727,8 +2761,10 @@ private fun RestaurantAddSheet(
                         placeholder = localized("Выберите город", "Choose a city", "Elija una ciudad", "Stadt auswählen"),
                         scale = scale,
                         trailingChevron = true,
+                        readOnly = true,
+                        onClick = onCityPickerOpen,
                         modifier = Modifier.width(d(154.5f)),
-                        onValueChange = onCityChange,
+                        onValueChange = { onCityChange(it) },
                     )
                     RestaurantAddField(
                         label = localized("Кухня", "Cuisine", "Cocina", "Küche"),
@@ -2749,8 +2785,10 @@ private fun RestaurantAddSheet(
                         placeholder = localized("Выберите дату", "Choose date", "Elija una fecha", "Datum auswählen"),
                         scale = scale,
                         trailingChevron = true,
+                        readOnly = true,
+                        onClick = onDatePickerOpen,
                         modifier = Modifier.width(d(154.5f)),
-                        onValueChange = onDateTimeChange,
+                        onValueChange = { onDateTimeChange(it) },
                     )
                     RestaurantAddPriceField(
                         selected = price,
@@ -2849,6 +2887,42 @@ private fun RestaurantAddSheet(
             }
         }
     }
+    if (cityPickerOpen) {
+        AlertDialog(
+            onDismissRequest = onCityPickerDismiss,
+            title = { Text(localized("Выберите город", "Choose a city", "Elija una ciudad", "Stadt auswählen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
+            text = {
+                if (cityOptions.isEmpty()) {
+                    Text(localized("В поездке пока нет городов", "No cities have been added to this trip yet", "Aún no hay ciudades en este viaje", "Für diese Reise wurden noch keine Städte hinzugefügt"), fontFamily = Manrope)
+                } else {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        cityOptions.forEach { option ->
+                            Text(
+                                text = option,
+                                color = if (option == city) OdysseyPurple else contentTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W700,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (option == city) OdysseyTint else Color.Transparent)
+                                    .clickable {
+                                        onCityChange(option)
+                                        onCityPickerDismiss()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onCityPickerDismiss) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -2859,6 +2933,8 @@ private fun RestaurantAddField(
     scale: Float,
     modifier: Modifier = Modifier,
     trailingChevron: Boolean = false,
+    readOnly: Boolean = false,
+    onClick: (() -> Unit)? = null,
     valueWeight: FontWeight = FontWeight.W600,
     onValueChange: (String) -> Unit,
 ) {
@@ -2897,10 +2973,13 @@ private fun RestaurantAddField(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
+                readOnly = readOnly,
                 singleLine = true,
                 textStyle = textStyle,
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(OdysseyPurple),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
                 decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier
@@ -2927,7 +3006,12 @@ private fun RestaurantAddField(
                 },
             )
             if (trailingChevron) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
                     OdysseyChevronDown(d(16f), OdysseySubtext)
                 }
             }
@@ -3041,9 +3125,7 @@ private fun RestaurantEditSheet(
     val language = LocalLanguage.current
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
-    // The existing restaurant payload has no reservation-date field. Keep this input transient
-    // until the data model provides a supported place to persist it.
-    var whenBooked by remember(restaurant.id) { mutableStateOf("") }
+    var whenBooked by remember(restaurant.id) { mutableStateOf(restaurant.date) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -3229,6 +3311,7 @@ private fun RestaurantEditSheet(
                                             note = restaurant.note,
                                             price = restaurant.price,
                                             link = restaurant.link,
+                                            date = whenBooked,
                                         ),
                                     )
                                 }.onSuccess {

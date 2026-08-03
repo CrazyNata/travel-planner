@@ -81,7 +81,19 @@ data class BudgetExpense(val id: String, val name: String, val amount: Double, v
 data class BudgetGroup(val name: String, val people: Int)
 data class TripMember(val id: String, val name: String, val email: String, val role: String, val initials: String, val tone: String)
 data class Sight(val id: String, val name: String, val city: String, val photo: String, val category: String, val done: Boolean, val walkDay: Int, val walkOrder: Int, val description: String, val longitude: Double?, val latitude: Double?, val rating: Double? = null)
-data class Restaurant(val id: String, val name: String, val city: String, val status: String, val photos: List<String>, val rating: Double?, val reviews: String, val price: String, val note: String, val link: String)
+data class Restaurant(
+    val id: String,
+    val name: String,
+    val city: String,
+    val status: String,
+    val photos: List<String>,
+    val rating: Double?,
+    val reviews: String,
+    val price: String,
+    val note: String,
+    val link: String,
+    val date: String = "",
+)
 data class TripOverview(
     val id: String,
     val title: String,
@@ -97,6 +109,7 @@ data class TripOverview(
     val members: List<TripMember>,
     val sights: List<Sight>,
     val restaurants: List<Restaurant>,
+    val cities: List<String> = emptyList(),
 )
 
 enum class TripSection {
@@ -124,6 +137,7 @@ data class RestaurantInput(
     val note: String = "",
     val price: String = "",
     val link: String = "",
+    val date: String = "",
 )
 
 data class AccommodationInput(
@@ -320,6 +334,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 price = restaurantText("price"),
                 note = restaurantText("note"),
                 link = restaurantText("link"),
+                date = restaurantText("date").ifBlank { restaurantText("dateTime") },
             )
         }
         return TripOverview(
@@ -339,6 +354,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             members = members,
             sights = sights,
             restaurants = restaurants,
+            cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
         )
     }
 
@@ -968,6 +984,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("note", input.note.trim())
             put("price", input.price.trim())
             put("link", input.link.trim())
+            put("date", input.date.trim())
             put("photos", buildJsonArray { })
         }
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "restaurants", item))) {
@@ -988,6 +1005,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("note", kotlinx.serialization.json.JsonPrimitive(input.note.trim()))
                 put("price", kotlinx.serialization.json.JsonPrimitive(input.price.trim()))
                 put("link", kotlinx.serialization.json.JsonPrimitive(input.link.trim()))
+                put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
             })
         }
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", tripId) } }
