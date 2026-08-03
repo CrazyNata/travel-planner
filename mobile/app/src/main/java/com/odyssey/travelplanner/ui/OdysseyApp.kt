@@ -2154,10 +2154,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     val tripCityOptions = (
         overview.cities +
             overview.routeLegs.flatMap { listOf(it.from, it.to) } +
-            overview.sights.map { it.city } +
+        overview.sights.map { it.city } +
             overview.accommodations.map { it.city } +
             overview.restaurants.map { it.city }
-        ).map(String::trim).filter(String::isNotBlank).distinct()
+        ).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     val cityOptions = listOf("Все города") + tripCityOptions
     val visibleRestaurants = overview.restaurants.filter { restaurant ->
         val note = restaurant.note.lowercase()
@@ -2176,7 +2176,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             }
         }
         val ratingMatches = ratingFilter.isBlank() || (restaurant.rating ?: 0.0) >= (ratingFilter.removeSuffix("+").toDoubleOrNull() ?: 0.0)
-        (selectedCity == "Все города" || restaurant.city == selectedCity) &&
+        (selectedCity == "Все города" || cityFilterKey(restaurant.city) == cityFilterKey(selectedCity)) &&
             typeMatches &&
             featureMatches &&
             (priceFilter.isBlank() || restaurant.price == priceFilter) &&
@@ -3966,11 +3966,13 @@ private fun RestaurantMapCard(
         }
     }
     val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
+    val numberAnnotationManager = remember(mapView) { mapView.annotations.createPointAnnotationManager() }
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
+                    mapStyleReady = false
                     mapView.onStart()
                     mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
                         mapStyleReady = true
@@ -3991,26 +3993,35 @@ private fun RestaurantMapCard(
     LaunchedEffect(mapStyleReady, restaurantPoints) {
         if (!mapStyleReady) return@LaunchedEffect
         annotationManager.deleteAll()
-        restaurantPoints.forEach { point ->
+        numberAnnotationManager.deleteAll()
+        restaurantPoints.forEachIndexed { index, point ->
             annotationManager.create(
                 CircleAnnotationOptions()
                     .withPoint(point)
-                    .withCircleRadius(8.0)
+                    .withCircleRadius(9.0)
                     .withCircleColor("#6C5CE7")
                     .withCircleStrokeColor("#FFFFFF")
-                    .withCircleStrokeWidth(2.5),
+                    .withCircleStrokeWidth(3.0),
+            )
+            numberAnnotationManager.create(
+                PointAnnotationOptions()
+                    .withPoint(point)
+                    .withTextField((index + 1).toString())
+                    .withTextColor("#FFFFFF")
+                    .withTextSize(12.0)
+                    .withTextAnchor(TextAnchor.CENTER),
             )
         }
         val camera = when {
             restaurantPoints.size > 1 -> mapView.mapboxMap.cameraForCoordinates(
                 restaurantPoints,
-                EdgeInsets(32.0, 32.0, 32.0, 32.0),
+                EdgeInsets(34.0, 34.0, 34.0, 34.0),
                 null,
                 null,
             )
             restaurantPoints.size == 1 -> CameraOptions.Builder()
                 .center(restaurantPoints.first())
-                .zoom(11.0)
+                .zoom(9.0)
                 .build()
             else -> CameraOptions.Builder()
                 .center(Point.fromLngLat(12.4964, 41.9028))
@@ -4026,55 +4037,49 @@ private fun RestaurantMapCard(
         "${restaurants.size} lugares cercanos",
         "${restaurants.size} Orte in der Nähe",
     )
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(150.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFFE7ECF1)),
+            .height(282.dp)
+            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x19141428), spotColor = Color(0x19141428))
+            .clip(RoundedCornerShape(22.dp))
+            .background(cardSurfaceColor()),
     ) {
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize(),
-        )
-        Box(modifier = Modifier.size(16.dp).align(Alignment.Center).clip(CircleShape).background(OdysseyText), contentAlignment = Alignment.Center) {
-            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color.White))
+        Box(modifier = Modifier.fillMaxWidth().height(220.dp)) {
+            AndroidView(
+                factory = { mapView },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
-        Text(
-            localized("Жильё", "Lodging", "Alojamiento", "Unterkunft"),
-            color = contentTextColor(),
-            fontFamily = Manrope,
-            fontWeight = FontWeight.W800,
-            fontSize = 10.sp,
-            lineHeight = 14.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-            modifier = Modifier.align(Alignment.Center).offset(y = (-16).dp),
-        )
         Row(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 12.dp)
-                .shadow(3.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
-                .clip(RoundedCornerShape(11.dp))
-                .background(Color.White.copy(alpha = 0.95f))
-                .padding(horizontal = 11.dp, vertical = 7.dp),
+                .fillMaxWidth()
+                .height(62.dp)
+                .padding(horizontal = 15.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            OdysseyUtensilsIcon(15.dp)
-            Text(placesLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 12.dp)
-                .size(32.dp)
-                .shadow(3.dp, RoundedCornerShape(10.dp), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.95f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            OdysseyExpandIcon(15.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "RESTAURANTS",
+                    color = OdysseyPurple,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    letterSpacing = 0.66.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+                Text(
+                    placesLabel,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
     }
 }
@@ -7147,27 +7152,49 @@ private fun OverviewMapCard(
     cardShadow: Dp? = null,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val coordinates = routePoints.ifEmpty { cities.mapNotNull(::mapCoordinate) }
+    var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context) {
-        MapView(context).also {
+        MapView(
+            context,
+            MapInitOptions(
+                context = context,
+                textureView = true,
+                styleUri = null,
+            ),
+        ).also {
             it.scalebar.enabled = false
-            it.mapboxMap.loadStyle(Style.MAPBOX_STREETS)
         }
     }
     val routeAnnotationManager = remember(mapView) { mapView.annotations.createPolylineAnnotationManager() }
     val sightAnnotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
     val sightNumberAnnotationManager = remember(mapView) { mapView.annotations.createPointAnnotationManager() }
 
-    DisposableEffect(mapView) {
-        mapView.onStart()
+    DisposableEffect(lifecycleOwner, mapView) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    mapStyleReady = false
+                    mapView.onStart()
+                    mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
+                        mapStyleReady = true
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onStop()
             mapView.onDestroy()
         }
     }
 
-    LaunchedEffect(coordinates) {
-        if (coordinates.isNotEmpty()) {
+    LaunchedEffect(mapStyleReady, coordinates) {
+        if (mapStyleReady && coordinates.isNotEmpty()) {
             routeAnnotationManager.deleteAll()
             sightAnnotationManager.deleteAll()
             sightNumberAnnotationManager.deleteAll()
@@ -7248,7 +7275,16 @@ private fun OverviewMapCard(
     }
 }
 
-private fun mapCoordinate(city: String): Point? = when (city.substringBefore(",").trim().lowercase()) {
+private fun cityFilterKey(city: String): String {
+    val point = mapCoordinate(city)
+    return if (point != null) {
+        "point:${String.format(Locale.US, "%.4f:%.4f", point.longitude(), point.latitude())}"
+    } else {
+        city.substringBefore(",").trim().lowercase(Locale.ROOT)
+    }
+}
+
+private fun mapCoordinate(city: String): Point? = when (city.substringBefore(",").trim().lowercase(Locale.ROOT)) {
     "prague", "прага" -> Point.fromLngLat(14.4378, 50.0755)
     "salzburg" -> Point.fromLngLat(13.0550, 47.8095)
     "verona", "верона" -> Point.fromLngLat(10.9916, 45.4384)
