@@ -1109,6 +1109,7 @@ fun OdysseyApp() {
     var language by remember { mutableStateOf("RU") }
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
+    var rememberSession by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         hasSession = SupabaseProvider.restorePersistentSession()
@@ -1130,18 +1131,19 @@ fun OdysseyApp() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(authReady) {
+        if (!authReady) return@LaunchedEffect
         val authClients = listOf(SupabaseProvider.sessionOnlyClient, SupabaseProvider.persistentClient)
         authClients.forEach { client ->
             launch {
                 client.auth.sessionStatus.collect { status ->
-                    val sessionLost = status is SessionStatus.RefreshFailure ||
-                        (status is SessionStatus.NotAuthenticated && status.isSignOut)
-                    if (sessionLost && navController.currentDestination?.route != "foundation") {
+                    val isActiveClient = SupabaseProvider.clientForCurrentAuthFlow() === client
+                    val sessionLost = isActiveClient && (
+                        status is SessionStatus.RefreshFailure ||
+                            status is SessionStatus.NotAuthenticated
+                        )
+                    if (sessionLost) {
                         hasSession = false
-                        navController.navigate("foundation") {
-                            popUpTo(0) { inclusive = true }
-                        }
                     }
                 }
             }
@@ -1155,10 +1157,14 @@ fun OdysseyApp() {
                 TripOverviewLoading()
             } else NavHost(navController = navController, startDestination = "foundation") {
                 composable("foundation") {
-                    AuthScreen(onAuthenticated = {
+                    AuthScreen(
+                        rememberSession = rememberSession,
+                        onRememberSessionChange = { rememberSession = it },
+                        onAuthenticated = {
                         hasSession = true
                         navController.navigate("trips")
-                    })
+                        },
+                    )
                 }
                 composable("trips") {
                     MyTripsScreen(
@@ -1209,7 +1215,11 @@ fun OdysseyApp() {
 }
 
 @Composable
-private fun AuthScreen(onAuthenticated: () -> Unit) {
+private fun AuthScreen(
+    rememberSession: Boolean,
+    onRememberSessionChange: (Boolean) -> Unit,
+    onAuthenticated: () -> Unit,
+) {
     val darkTheme = LocalDarkTheme.current
     val context = LocalContext.current
     val language = LocalLanguage.current
@@ -1220,7 +1230,6 @@ private fun AuthScreen(onAuthenticated: () -> Unit) {
     var repeatPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    var rememberSession by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     fun messageText(ru: String, en: String, es: String, de: String) = localized(language, ru, en, es, de)
 
@@ -1384,7 +1393,7 @@ private fun AuthScreen(onAuthenticated: () -> Unit) {
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 14.dp).clickable { rememberSession = !rememberSession },
+            modifier = Modifier.padding(top = 14.dp).clickable { onRememberSessionChange(!rememberSession) },
         ) {
             Box(
                 contentAlignment = Alignment.Center,

@@ -11,6 +11,8 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.functions.Functions
 import io.ktor.client.engine.okhttp.OkHttp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object SupabaseProvider {
     val isConfigured: Boolean =
@@ -25,7 +27,7 @@ object SupabaseProvider {
             httpEngine = OkHttp.create()
             install(Auth) {
                 sessionManager = if (rememberSession) SettingsSessionManager() else MemorySessionManager()
-                autoLoadFromStorage = rememberSession
+                autoLoadFromStorage = false
                 autoSaveToStorage = rememberSession
             }
             install(Postgrest)
@@ -43,8 +45,14 @@ object SupabaseProvider {
     }
 
     suspend fun restorePersistentSession(): Boolean = runCatching {
-        persistentClient.auth.currentSessionOrNull()?.let {
+        val restored = withContext(Dispatchers.IO) {
+            persistentClient.auth.loadFromStorage(autoRefresh = false)
+        }
+        if (restored) {
             activeClient = persistentClient
+            withContext(Dispatchers.IO) {
+                persistentClient.auth.startAutoRefreshForCurrentSession()
+            }
             return@runCatching true
         }
         sessionOnlyClient.auth.currentSessionOrNull() != null
