@@ -4767,20 +4767,20 @@ private fun RestaurantCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(222.dp)
+            .height(250.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(cardSurfaceColor())
             .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428))
             .padding(12.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(104.dp),
+            modifier = Modifier.fillMaxWidth().height(132.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(104.dp)
+                    .size(132.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFFE4E1EA))
                     .clickable(enabled = !uploading) {
@@ -4850,7 +4850,7 @@ private fun RestaurantCard(
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f).height(104.dp)) {
+            Column(modifier = Modifier.weight(1f).height(132.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Text(
                         restaurant.name,
