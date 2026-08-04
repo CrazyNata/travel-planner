@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
@@ -1688,12 +1689,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     modifier = Modifier.padding(top = 22.dp),
                 )
             }
-            if (editingTrip != null) item {
-                EditTripPanel(editingTrip!!, onClose = { editingTrip = null }, onSaved = { updated ->
-                    trips = trips.map { if (it.id == updated.id) updated else it }
-                    editingTrip = null
-                })
-            }
             item {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(9.dp),
@@ -1747,6 +1742,35 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
             }
             item { NewTripCard(onNewTrip) }
         }
+        }
+
+        if (editingTrip != null) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { editingTrip = null },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0x730F0F19)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 24.dp)
+                            .heightIn(max = 700.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(cardSurfaceColor())
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        EditTripPanel(editingTrip!!, onClose = { editingTrip = null }, onSaved = { updated ->
+                            trips = trips.map { if (it.id == updated.id) updated else it }
+                            editingTrip = null
+                        })
+                    }
+                }
+            }
         }
 
         if (menuOpen) {
