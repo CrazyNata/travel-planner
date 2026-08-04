@@ -6557,6 +6557,9 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
     val cityLabel = listOf(cityPrefix, localizedCityName(city)).filter(String::isNotBlank).joinToString(" ")
     val dates = formatAccommodationDates(accommodation.dates, language)
     val price = formatAccommodationPrice(accommodation.price)
+    val photos = accommodation.photos
+    var photoIndex by remember(accommodation.id, photos) { mutableStateOf(0) }
+    val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -6565,8 +6568,68 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
             .shadow(8.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0x12141428), spotColor = Color(0x12141428)),
     ) {
         Box(modifier = Modifier.fillMaxWidth().height(210.dp).background(Color(0xFFCCCCCC))) {
-            accommodation.photos.firstOrNull()?.let { imageUrl ->
+            photos.getOrNull(activePhotoIndex)?.let { imageUrl ->
                 AsyncImage(model = imageUrl, contentDescription = accommodation.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            if (photos.size > 1) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 10.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x990F0F19))
+                        .clickable {
+                            photoIndex = (activePhotoIndex - 1 + photos.size) % photos.size
+                        },
+                ) {
+                    Icon(
+                        Icons.Outlined.ArrowBack,
+                        contentDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto"),
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 10.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x990F0F19))
+                        .clickable {
+                            photoIndex = (activePhotoIndex + 1) % photos.size
+                        },
+                ) {
+                    Icon(
+                        Icons.Outlined.ArrowBack,
+                        contentDescription = localized("Следующее фото", "Next photo", "Foto siguiente", "Nächstes Foto"),
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = 180f),
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 10.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0x990F0F19))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        text = "${activePhotoIndex + 1}/${photos.size}",
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
             }
         }
         Column(modifier = Modifier.padding(start = 15.dp, top = 13.dp, end = 15.dp, bottom = 15.dp)) {
