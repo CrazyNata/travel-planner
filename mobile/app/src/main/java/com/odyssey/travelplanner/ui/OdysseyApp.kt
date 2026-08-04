@@ -2832,9 +2832,9 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var appliedTypeFilter by remember { mutableStateOf("Ресторан") }
     var appliedFeatureFilters by remember { mutableStateOf(setOf<String>()) }
     var draftTypeFilter by remember { mutableStateOf("Ресторан") }
-    var draftFeatureFilters by remember { mutableStateOf(setOf("priority", "dog")) }
-    var draftPriceFilter by remember { mutableStateOf("€€") }
-    var draftRatingFilter by remember { mutableStateOf("4.5+") }
+    var draftFeatureFilters by remember { mutableStateOf(emptySet<String>()) }
+    var draftPriceFilter by remember { mutableStateOf("") }
+    var draftRatingFilter by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val tripCityOptions = (
         overview.cities +
@@ -2867,8 +2867,11 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             (priceFilter.isBlank() || restaurant.price == priceFilter) &&
             ratingMatches
     }
-    val activeFilterCount = listOf(priceFilter.isNotBlank(), ratingFilter.isNotBlank()).count { it }
-    val filterCount = if (activeFilterCount == 0) 2 else activeFilterCount
+    val filterCount = listOf(
+        appliedTypeFilter != "Ресторан",
+        priceFilter.isNotBlank(),
+        ratingFilter.isNotBlank(),
+    ).count { it } + appliedFeatureFilters.size
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val restaurantId = uploadingRestaurantId ?: return@rememberLauncherForActivityResult
         if (uri == null) {
