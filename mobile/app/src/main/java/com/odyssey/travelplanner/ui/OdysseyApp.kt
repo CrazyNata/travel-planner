@@ -8494,7 +8494,12 @@ private fun WeatherPlaceholder(
             modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
         )
         Column(modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text(displayedTemperature ?: "…", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp)
+            val temperatureText = if (tripDatesWeather && weather?.tripIsEstimate == true) {
+                displayedTemperature?.let { "≈ $it" } ?: "…"
+            } else {
+                displayedTemperature ?: "…"
+            }
+            Text(temperatureText, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp)
             Text(displayedCondition.orEmpty(), color = Color(0xDDFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
         }
     }
