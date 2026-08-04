@@ -3695,6 +3695,7 @@ private fun RestaurantAddField(
                 Box(
                     Modifier
                         .fillMaxSize()
+                        .padding(end = d(12f))
                         .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
