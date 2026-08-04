@@ -2068,7 +2068,12 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
     )
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(if (darkTheme) Color(0xFF141416) else OdysseyBackground).padding(WindowInsets.statusBars.asPaddingValues()),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 18.dp,
+            top = 18.dp,
+            end = 18.dp,
+            bottom = 30.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -2084,7 +2089,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
             Text(localized("Каталог\nмаршрутов", "Route\ncatalog", "Catálogo de\nrutas", "Routen\nkatalog"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 29.sp, lineHeight = 31.sp, modifier = Modifier.padding(top = 8.dp))
             Text(localized("Готовые маршруты — используйте как основу для своей поездки", "Ready routes to use as a starting point for your trip", "Rutas listas para usar como base de su viaje", "Fertige Routen als Grundlage für Ihre Reise"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
         }
-        items(templates) { template ->
+        items(templates, key = { it[0] }) { template ->
             val (id, title, duration, route, image) = template
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor())) {
                 Box(modifier = Modifier.fillMaxWidth().height(130.dp)) {
