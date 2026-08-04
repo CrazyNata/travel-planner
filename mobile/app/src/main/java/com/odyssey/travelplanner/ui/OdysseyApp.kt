@@ -2609,6 +2609,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
                 saving = true
                 runCatching {
                     val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                    repository.reorderSights(tripId, previewSights.map { it.id })
                     repository.addRouteLeg(tripId, city, city)
                     val namesToAdd = placeNames + placeName.trim().takeIf { it.isNotBlank() }.orEmpty()
                     namesToAdd.forEach { sightName ->

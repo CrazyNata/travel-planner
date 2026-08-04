@@ -193,6 +193,7 @@ interface TripRepository {
     suspend fun deleteTripItem(id: String, section: String, itemId: String)
     suspend fun addSightDetails(id: String, name: String, city: String, category: String, description: String, walkDay: Int): String
     suspend fun updateSightDetailsRich(id: String, sightId: String, name: String, city: String, category: String, description: String, walkDay: Int)
+    suspend fun reorderSights(id: String, orderedSightIds: List<String>)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
     suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String
@@ -940,14 +941,24 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
         val sightId = UUID.randomUUID().toString()
+        val normalizedWalkDay = walkDay.coerceAtLeast(1)
+        val nextWalkOrder = current.payload["sights"]?.jsonArray.orEmpty()
+            .mapNotNull { sight ->
+                val sightObject = sight.jsonObject
+                val sightDay = sightObject["walkDay"]?.jsonPrimitive?.intOrNull ?: 0
+                if (sightDay.coerceAtLeast(1) == normalizedWalkDay) sightObject["walkOrder"]?.jsonPrimitive?.intOrNull else null
+            }
+            .maxOrNull()
+            ?.plus(1)
+            ?: 0
         val item = buildJsonObject {
             put("id", sightId)
             put("name", name.trim())
             put("city", city.trim())
             put("subcategory", category.trim())
             put("description", description.trim())
-            put("walkDay", walkDay.coerceAtLeast(0))
-            put("walkOrder", 0)
+            put("walkDay", normalizedWalkDay)
+            put("walkOrder", nextWalkOrder)
             put("done", false)
         }
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "sights", item))) {
@@ -978,6 +989,47 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             })
         }
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", id) } }
+    }
+
+    override suspend fun reorderSights(id: String, orderedSightIds: List<String>) {
+        if (orderedSightIds.isEmpty()) return
+        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
+            ?: error("РџСѓС‚РµС€РµСЃС‚РІРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ")
+        val sights = current.payload["sights"]?.jsonArray.orEmpty()
+        val requestedIds = orderedSightIds.distinct()
+        val requestedSightObjects = requestedIds.mapNotNull { requestedId ->
+            sights.firstOrNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull == requestedId }
+        }
+        if (requestedSightObjects.isEmpty()) return
+        val targetDay = (requestedSightObjects.first().jsonObject["walkDay"]?.jsonPrimitive?.intOrNull ?: 0).coerceAtLeast(1)
+        val targetDayObjects = sights.filter { item ->
+            val sight = item.jsonObject
+            val sightDay = (sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0).coerceAtLeast(1)
+            sightDay == targetDay
+        }
+        val requestedTargetIds = requestedIds.filter { requestedId ->
+            targetDayObjects.any { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull == requestedId }
+        }
+        val remainingTargetIds = targetDayObjects.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
+            .filterNot { it in requestedTargetIds }
+        val orderById = (requestedTargetIds + remainingTargetIds)
+            .withIndex()
+            .associate { (index, sightId) -> sightId to index }
+        val reorderedSights = buildJsonArray {
+            sights.forEach { item ->
+                val sight = item.jsonObject
+                val sightId = sight["id"]?.jsonPrimitive?.contentOrNull
+                val order = sightId?.let(orderById::get)
+                if (order == null) {
+                    add(item)
+                } else {
+                    add(JsonObject(sight.toMutableMap().apply {
+                        put("walkOrder", kotlinx.serialization.json.JsonPrimitive(order))
+                    }))
+                }
+            }
+        }
+        updateTripSection(id, "sights", reorderedSights)
     }
 
     override suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String {
