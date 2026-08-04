@@ -6874,6 +6874,7 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
     val price = formatAccommodationPrice(accommodation.price)
     val photos = accommodation.photos
     var photoIndex by remember(accommodation.id, photos) { mutableStateOf(0) }
+    var fullScreenPhotoIndex by remember(accommodation.id, photos) { mutableStateOf<Int?>(null) }
     val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
     Column(
         modifier = Modifier
@@ -6884,7 +6885,12 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
     ) {
         Box(modifier = Modifier.fillMaxWidth().height(210.dp).background(Color(0xFFCCCCCC))) {
             photos.getOrNull(activePhotoIndex)?.let { imageUrl ->
-                AsyncImage(model = imageUrl, contentDescription = accommodation.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = accommodation.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clickable { fullScreenPhotoIndex = activePhotoIndex },
+                )
             }
             if (photos.size > 1) {
                 Box(
@@ -6986,6 +6992,105 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
                         }
                     }
                 }
+            }
+        }
+        fullScreenPhotoIndex?.let { initialIndex ->
+            if (photos.isNotEmpty()) {
+                AccommodationPhotoViewer(
+                    photos = photos,
+                    initialIndex = initialIndex,
+                    accommodationName = accommodation.name,
+                    onDismiss = { selectedIndex ->
+                        photoIndex = selectedIndex
+                        fullScreenPhotoIndex = null
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccommodationPhotoViewer(
+    photos: List<String>,
+    initialIndex: Int,
+    accommodationName: String,
+    onDismiss: (Int) -> Unit,
+) {
+    var photoIndex by remember(photos, initialIndex) {
+        mutableStateOf(initialIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)))
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { onDismiss(photoIndex) },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            AsyncImage(
+                model = photos[photoIndex],
+                contentDescription = accommodationName,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(WindowInsets.statusBars.asPaddingValues())
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xAA0F0F19))
+                        .clickable { onDismiss(photoIndex) },
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+            }
+            if (photos.size > 1) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 14.dp)
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xAA0F0F19))
+                        .clickable { photoIndex = (photoIndex - 1 + photos.size) % photos.size },
+                ) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto"), tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 14.dp)
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xAA0F0F19))
+                        .clickable { photoIndex = (photoIndex + 1) % photos.size },
+                ) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Следующее фото", "Next photo", "Foto siguiente", "Nächstes Foto"), tint = Color.White, modifier = Modifier.size(22.dp).graphicsLayer(rotationZ = 180f))
+                }
+                Text(
+                    text = "${photoIndex + 1}/${photos.size}",
+                    color = Color.White,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 22.dp)
+                        .background(Color(0xAA0F0F19), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
+                )
             }
         }
     }
