@@ -46,7 +46,7 @@ object SupabaseProvider {
 
     suspend fun restorePersistentSession(): Boolean = runCatching {
         val restored = withContext(Dispatchers.IO) {
-            persistentClient.auth.loadFromStorage(autoRefresh = false)
+            persistentClient.auth.loadFromStorage(autoRefresh = true)
         }
         if (restored) {
             activeClient = persistentClient
