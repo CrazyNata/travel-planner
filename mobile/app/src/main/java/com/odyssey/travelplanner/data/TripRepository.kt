@@ -239,7 +239,9 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
 
     override suspend fun loadTripOverview(id: String): TripOverview? {
-        val row = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id } ?: return null
+        val row = client.from("trips").select {
+            filter { eq("id", id) }
+        }.decodeList<TripRow>().firstOrNull() ?: return null
         fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
         val covers = row.payload["coverPhotos"]?.jsonArray.orEmpty().mapNotNull { item ->
             val photo = item.jsonObject

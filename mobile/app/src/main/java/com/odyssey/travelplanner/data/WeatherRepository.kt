@@ -6,6 +6,9 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
@@ -104,10 +107,12 @@ class WeatherRepository {
 
     suspend fun loadCurrent(cities: List<String>, tripDates: String = ""): Map<String, WeatherSnapshot> {
         val targetDate = tripDateFrom(tripDates)
-        return cities.mapNotNull { city ->
+        return supervisorScope {
+            cities.mapNotNull { city ->
         val cityKey = city.substringBefore(",").trim().lowercase(Locale.ROOT)
-        val coordinates = cityCoordinates[cityKey] ?: return@mapNotNull null
-        runCatching {
+                val coordinates = cityCoordinates[cityKey] ?: return@mapNotNull null
+                async {
+                    runCatching {
             val weather: OpenMeteoResponse = http.get(
                 "https://api.open-meteo.com/v1/forecast?latitude=${coordinates.first}&longitude=${coordinates.second}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&forecast_days=16&timezone=auto",
             ).body()
@@ -125,8 +130,10 @@ class WeatherRepository {
                 tripCondition = tripWeather?.condition,
                 tripIsEstimate = tripWeather?.isEstimate == true,
             )
-        }.getOrNull()
-        }.toMap()
+                    }.getOrNull()
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
     }
 
     private suspend fun loadArchivedTripWeather(

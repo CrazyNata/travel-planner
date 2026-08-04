@@ -2119,29 +2119,29 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
     var sectionMenuOpen by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    DisposableEffect(lifecycleOwner, tripId) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refresh++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     LaunchedEffect(tripId, refresh) {
-        loading = true
+        val hadOverview = overview != null
+        if (!hadOverview) loading = true
         loadError = null
-        overview = runCatching {
+        val loadedOverview = runCatching {
             SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTripOverview(tripId)
         }.onFailure { loadError = it.message }.getOrNull()
-        overview?.let { trip ->
+        if (loadedOverview == null) {
+            if (!hadOverview) overview = null
+            loading = false
+            return@LaunchedEffect
+        }
+
+        overview = loadedOverview
+        loading = false
+
+        loadedOverview.let { trip ->
             val cities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
-            }
+            }.distinct()
             weather = WeatherRepository().loadCurrent(cities, trip.dates)
         }
-        loading = false
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
