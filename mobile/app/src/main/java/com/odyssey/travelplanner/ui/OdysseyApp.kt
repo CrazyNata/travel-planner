@@ -158,7 +158,9 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
@@ -1097,6 +1099,23 @@ fun OdysseyApp() {
                 language = normalizeLanguage(profile.language)
             }
             navController.navigate("trips") { popUpTo("foundation") { inclusive = true } }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val authClients = listOf(SupabaseProvider.sessionOnlyClient, SupabaseProvider.persistentClient)
+        authClients.forEach { client ->
+            launch {
+                client.auth.sessionStatus.collect { status ->
+                    val sessionLost = status is SessionStatus.RefreshFailure ||
+                        (status is SessionStatus.NotAuthenticated && status.isSignOut)
+                    if (sessionLost && navController.currentDestination?.route != "foundation") {
+                        navController.navigate("foundation") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2265,13 +2284,17 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     }
     val selectedDayCity = dayCities.getOrNull(routeDay - 1).orEmpty().ifBlank { initialRouteCity }
     val visibleSights = sights.filter { sightRouteDay(it.walkDay) == routeDay }
+    var selectedSightId by remember(tripId, routeDay) { mutableStateOf<String?>(null) }
     val selectedLeg = overview.routeLegs.firstOrNull { routeLegDayNumber(it, overview.routeLegs) == routeDay }
     val mapCities = selectedLeg?.let { listOf(it.from, it.to) } ?: listOf(selectedDayCity)
     val sightRoutePoints = visibleSights.mapNotNull { sight -> sight.longitude?.let { longitude -> sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) } } }
-    val sightMapPoints = visibleSights.mapNotNull { sight ->
-        sight.longitude?.let { longitude -> sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) } }
+    val sightMapEntries = visibleSights.mapNotNull { sight ->
+        val point = sight.longitude?.let { longitude -> sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) } }
             ?: mapCoordinate(sight.city)
+        point?.let { sight.id to it }
     }
+    val sightMapPoints = sightMapEntries.map { it.second }
+    val selectedSightMapIndex = sightMapEntries.indexOfFirst { it.first == selectedSightId }.takeIf { it >= 0 }
     val routeShareUrl = if (sightRoutePoints.size > 1) {
         val stops = sightRoutePoints.map { "${it.latitude()},${it.longitude()}" }
         "https://www.google.com/maps/dir/?api=1&origin=${stops.first()}&destination=${stops.last()}&waypoints=${stops.drop(1).dropLast(1).joinToString("|")}" 
@@ -2416,6 +2439,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     cardShape = RoundedCornerShape(22.dp),
                     cardShadow = 10.dp,
                     routePoints = sightMapPoints,
+                    selectedPointIndex = selectedSightMapIndex,
                     footer = {
                         Row(modifier = Modifier.fillMaxWidth().height(62.dp).padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -2478,7 +2502,13 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 })
             }
             items(visibleSights, key = { it.id }) { sight ->
-                SightCard(sight, uploadingSightId == sight.id, onEdit = { editingSight = sight }, onAddPhoto = { uploadingSightId = sight.id; photoPicker.launch("image/*") })
+                SightCard(
+                    sight = sight,
+                    uploading = uploadingSightId == sight.id,
+                    selected = sight.id == selectedSightId,
+                    onSelect = { selectedSightId = sight.id },
+                    onAddPhoto = { uploadingSightId = sight.id; photoPicker.launch("image/*") },
+                )
             }
         }
     }
@@ -2691,7 +2721,13 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
 }
 
 @Composable
-private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit) {
+private fun SightCard(
+    sight: com.odyssey.travelplanner.data.Sight,
+    uploading: Boolean,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onAddPhoto: () -> Unit,
+) {
     val displayedName = localizedSightName(sight.name)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -2701,6 +2737,7 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Bo
             .clip(RoundedCornerShape(18.dp))
             .background(cardSurfaceColor())
             .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x10141428), spotColor = Color(0x10141428))
+            .border(if (selected) 2.dp else 0.dp, if (selected) OdysseyPurple else Color.Transparent, RoundedCornerShape(18.dp))
             .padding(11.dp),
     ) {
         Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFE3E1EC)).clickable(enabled = !uploading) { onAddPhoto() }) {
@@ -2710,7 +2747,7 @@ private fun SightCard(sight: com.odyssey.travelplanner.data.Sight, uploading: Bo
                 SurfaceEmptyMedia(Icons.Outlined.LocationOn, Modifier.fillMaxSize())
             }
         }
-        Column(modifier = Modifier.weight(1f).clickable { onEdit() }, verticalArrangement = Arrangement.Center) {
+        Column(modifier = Modifier.weight(1f).clickable { onSelect() }, verticalArrangement = Arrangement.Center) {
             Text(
                 displayedName,
                 color = contentTextColor(),
@@ -8063,6 +8100,7 @@ private fun OverviewMapCard(
     mapHeight: Dp = 260.dp,
     footer: @Composable (() -> Unit)? = null,
     routePoints: List<Point> = emptyList(),
+    selectedPointIndex: Int? = null,
     cardShape: RoundedCornerShape = RoundedCornerShape(20.dp),
     cardShadow: Dp? = null,
 ) {
@@ -8109,7 +8147,7 @@ private fun OverviewMapCard(
         }
     }
 
-    LaunchedEffect(mapStyleReady, coordinates) {
+    LaunchedEffect(mapStyleReady, coordinates, selectedPointIndex) {
         if (mapStyleReady && coordinates.isNotEmpty()) {
             routeAnnotationManager.deleteAll()
             sightAnnotationManager.deleteAll()
@@ -8124,24 +8162,30 @@ private fun OverviewMapCard(
             }
             if (routePoints.isNotEmpty()) {
                 routePoints.forEachIndexed { index, point ->
+                    val selected = index == selectedPointIndex
                     sightAnnotationManager.create(
                         CircleAnnotationOptions()
                             .withPoint(point)
-                            .withCircleRadius(9.0)
-                            .withCircleColor("#6C5CE7")
+                            .withCircleRadius(if (selected) 14.0 else 9.0)
+                            .withCircleColor(if (selected) "#FF6B65" else "#6C5CE7")
                             .withCircleStrokeColor("#FFFFFF")
-                            .withCircleStrokeWidth(3.0),
+                            .withCircleStrokeWidth(if (selected) 4.0 else 3.0),
                     )
                     sightNumberAnnotationManager.create(
                         PointAnnotationOptions()
                             .withPoint(point)
                             .withTextField((index + 1).toString())
                             .withTextColor("#FFFFFF")
-                            .withTextSize(12.0)
+                            .withTextSize(if (selected) 13.5 else 12.0)
                             .withTextAnchor(TextAnchor.CENTER),
                     )
                 }
             }
+        }
+    }
+
+    LaunchedEffect(mapStyleReady, coordinates) {
+        if (mapStyleReady && coordinates.isNotEmpty()) {
             val camera = if (routePoints.isNotEmpty()) {
                 mapView.mapboxMap.cameraForCoordinates(
                     coordinates,
@@ -8159,6 +8203,19 @@ private fun OverviewMapCard(
                     .build()
             }
             mapView.mapboxMap.setCamera(camera)
+        }
+    }
+
+    LaunchedEffect(mapStyleReady, selectedPointIndex, routePoints) {
+        if (mapStyleReady) {
+            routePoints.getOrNull(selectedPointIndex ?: -1)?.let { point ->
+                mapView.mapboxMap.setCamera(
+                    CameraOptions.Builder()
+                        .center(point)
+                        .zoom(14.0)
+                        .build(),
+                )
+            }
         }
     }
 
