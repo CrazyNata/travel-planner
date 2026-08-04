@@ -2381,6 +2381,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     var message by remember { mutableStateOf<String?>(null) }
     var editingSight by remember { mutableStateOf<com.odyssey.travelplanner.data.Sight?>(null) }
     var uploadingSightId by remember { mutableStateOf<String?>(null) }
+    var fullScreenSight by remember { mutableStateOf<com.odyssey.travelplanner.data.Sight?>(null) }
     var editingDay by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -2582,10 +2583,16 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     uploading = uploadingSightId == sight.id,
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
-                    onAddPhoto = { uploadingSightId = sight.id; photoPicker.launch("image/*") },
+                    onOpenPhoto = { fullScreenSight = sight },
                 )
             }
         }
+    }
+    fullScreenSight?.let { sight ->
+        FullScreenSightPhotoViewer(
+            sight = sight,
+            onDismiss = { fullScreenSight = null },
+        )
     }
     if (editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
@@ -2713,7 +2720,7 @@ private suspend fun cachedSightBitmap(photoUrl: String): Bitmap? {
 }
 
 @Composable
-private fun SightPhoto(sight: com.odyssey.travelplanner.data.Sight, modifier: Modifier) {
+private fun rememberSightBitmap(sight: com.odyssey.travelplanner.data.Sight): Bitmap? {
     val displayedName = localizedSightName(sight.name)
     val displayedCity = localizedCityName(sight.city)
     val englishCity = localizedCityName(sight.city, "EN")
@@ -2730,7 +2737,19 @@ private fun SightPhoto(sight: com.odyssey.travelplanner.data.Sight, modifier: Mo
         }
         bitmap = if (resolvedPhotoUrl.isBlank()) null else cachedSightBitmap(resolvedPhotoUrl)
     }
-    Box(modifier = modifier.background(Color(0xFFE3E1EC)), contentAlignment = Alignment.Center) {
+    return bitmap
+}
+
+@Composable
+private fun SightPhoto(
+    sight: com.odyssey.travelplanner.data.Sight,
+    modifier: Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val bitmap = rememberSightBitmap(sight)
+    val canOpenPhoto = onClick != null && (sight.photo.isNotBlank() || bitmap != null)
+    val photoModifier = if (canOpenPhoto) modifier.clickable { onClick?.invoke() } else modifier
+    Box(modifier = photoModifier.background(Color(0xFFE3E1EC)), contentAlignment = Alignment.Center) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
@@ -2941,7 +2960,7 @@ private fun SightCard(
     uploading: Boolean,
     selected: Boolean,
     onSelect: () -> Unit,
-    onAddPhoto: () -> Unit,
+    onOpenPhoto: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
     Row(
@@ -2955,8 +2974,12 @@ private fun SightCard(
             .border(if (selected) 2.dp else 0.dp, if (selected) OdysseyPurple else Color.Transparent, RoundedCornerShape(18.dp))
             .padding(11.dp),
     ) {
-        Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp)).clickable(enabled = !uploading) { onAddPhoto() }) {
-            SightPhoto(sight, Modifier.fillMaxSize())
+        Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp))) {
+            SightPhoto(
+                sight = sight,
+                modifier = Modifier.fillMaxSize(),
+                onClick = onOpenPhoto.takeIf { !uploading },
+            )
         }
         Column(modifier = Modifier.weight(1f).clickable { onSelect() }, verticalArrangement = Arrangement.Center) {
             Text(
@@ -7018,6 +7041,61 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
                         fullScreenPhotoIndex = null
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FullScreenSightPhotoViewer(
+    sight: com.odyssey.travelplanner.data.Sight,
+    onDismiss: () -> Unit,
+) {
+    val bitmap = rememberSightBitmap(sight)
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = localizedSightName(sight.name),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center).size(34.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(WindowInsets.statusBars.asPaddingValues())
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xAA0F0F19))
+                        .clickable { onDismiss() },
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
             }
         }
     }
