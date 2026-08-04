@@ -3729,15 +3729,15 @@ private fun RestaurantAddPriceField(
         )
         Spacer(Modifier.height(d(8f)))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(d(5f)),
+            horizontalArrangement = Arrangement.spacedBy(d(3.5f)),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(d(51f))
                 .clip(RoundedCornerShape(d(14f)))
                 .background(OdysseyTrack)
-                .padding(d(5f)),
+                .padding(d(4f)),
         ) {
-            listOf("€€", "€€€", "€€€€").forEach { option ->
+            listOf("€", "€€", "€€€", "€€€€").forEach { option ->
                 val active = option == selected
                 Box(
                     contentAlignment = Alignment.Center,
@@ -3754,8 +3754,8 @@ private fun RestaurantAddPriceField(
                         color = if (active) contentTextColor() else Color(0xFFA0A0AA),
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
-                        fontSize = s(14f),
-                        lineHeight = s(19f),
+                        fontSize = s(12f),
+                        lineHeight = s(16f),
                         style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                         textAlign = TextAlign.Center,
                     )
@@ -4195,10 +4195,11 @@ private fun RestaurantFilterSheet(
                 modifier = Modifier.offset(x = d(16f), y = d(330f)).width(d(336f)).height(d(15f)),
             )
             RestaurantFilterSegmentedRow(
-                options = listOf("€", "€€", "€€€"),
+                options = listOf("€", "€€", "€€€", "€€€€"),
                 selected = price,
                 onSelect = onPriceChange,
                 scale = scale,
+                itemFontSize = 12f,
                 modifier = Modifier.offset(x = d(16f), y = d(355f)),
             )
 
@@ -4318,6 +4319,7 @@ private fun RestaurantFilterSegmentedRow(
     selected: String,
     onSelect: (String) -> Unit,
     scale: Float,
+    itemFontSize: Float = 14f,
     modifier: Modifier = Modifier,
 ) {
     fun d(value: Float) = (value * scale).dp
@@ -4347,8 +4349,8 @@ private fun RestaurantFilterSegmentedRow(
                     color = if (active) contentTextColor() else Color(0xFFA0A0AA),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
-                    fontSize = d(14f).value.sp,
-                    lineHeight = d(19f).value.sp,
+                    fontSize = d(itemFontSize).value.sp,
+                    lineHeight = d(itemFontSize * 1.35f).value.sp,
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                     textAlign = TextAlign.Center,
                 )
