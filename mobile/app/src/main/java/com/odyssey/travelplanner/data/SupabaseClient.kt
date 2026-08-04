@@ -43,10 +43,12 @@ object SupabaseProvider {
     }
 
     suspend fun restorePersistentSession(): Boolean = runCatching {
-        persistentClient.auth.currentSessionOrNull() != null
-    }.getOrDefault(false).also { hasSession ->
-        if (hasSession) activeClient = persistentClient
-    }
+        persistentClient.auth.currentSessionOrNull()?.let {
+            activeClient = persistentClient
+            return@runCatching true
+        }
+        sessionOnlyClient.auth.currentSessionOrNull() != null
+    }.getOrDefault(false)
 
     fun clientForCurrentAuthFlow(): SupabaseClient = activeClient
 }

@@ -3,6 +3,8 @@ package com.odyssey.travelplanner.ui
 import android.app.DatePickerDialog
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.credentials.CredentialManager
@@ -14,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -117,6 +120,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -144,6 +148,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.BuildConfig
@@ -161,12 +166,21 @@ import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.util.Calendar
 import java.time.LocalDate
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 private val OdysseyPurple = Color(0xFF6C5CE7)
 private val OdysseyBackground = Color(0xFFF4F4F7)
@@ -1089,16 +1103,30 @@ private fun SurfaceEmptyMedia(
 @Composable
 fun OdysseyApp() {
     val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
     var darkTheme by remember { mutableStateOf(false) }
     var language by remember { mutableStateOf("RU") }
+    var authReady by remember { mutableStateOf(false) }
+    var hasSession by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (SupabaseProvider.restorePersistentSession()) {
+        hasSession = SupabaseProvider.restorePersistentSession()
+        authReady = true
+        if (hasSession) {
             runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
                 darkTheme = profile.darkTheme
                 language = normalizeLanguage(profile.language)
             }
+        }
+    }
+
+    LaunchedEffect(authReady, hasSession, currentRoute) {
+        if (!authReady || currentRoute == null) return@LaunchedEffect
+        if (hasSession && currentRoute == "foundation") {
             navController.navigate("trips") { popUpTo("foundation") { inclusive = true } }
+        } else if (!hasSession && currentRoute != "foundation") {
+            navController.navigate("foundation") { popUpTo(0) { inclusive = true } }
         }
     }
 
@@ -1110,6 +1138,7 @@ fun OdysseyApp() {
                     val sessionLost = status is SessionStatus.RefreshFailure ||
                         (status is SessionStatus.NotAuthenticated && status.isSignOut)
                     if (sessionLost && navController.currentDestination?.route != "foundation") {
+                        hasSession = false
                         navController.navigate("foundation") {
                             popUpTo(0) { inclusive = true }
                         }
@@ -1122,13 +1151,21 @@ fun OdysseyApp() {
     CompositionLocalProvider(LocalDarkTheme provides darkTheme, LocalLanguage provides language) {
     MaterialTheme {
         Surface(color = if (darkTheme) Color(0xFF141416) else OdysseyBackground) {
-            NavHost(navController = navController, startDestination = "foundation") {
-                composable("foundation") { AuthScreen(onAuthenticated = { navController.navigate("trips") }) }
+            if (!authReady) {
+                TripOverviewLoading()
+            } else NavHost(navController = navController, startDestination = "foundation") {
+                composable("foundation") {
+                    AuthScreen(onAuthenticated = {
+                        hasSession = true
+                        navController.navigate("trips")
+                    })
+                }
                 composable("trips") {
                     MyTripsScreen(
                         onTripClick = { navController.navigate("trip/$it") },
                         onNewTrip = { navController.navigate("create-trip") },
                         onLogout = {
+                            hasSession = false
                             navController.navigate("foundation") {
                                 popUpTo(0) { inclusive = true }
                             }
@@ -2526,6 +2563,149 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
 
 private fun sightRouteDay(walkDay: Int): Int = walkDay.coerceAtLeast(1)
 
+private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
+private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
+private val sightPhotoSearchGate = Semaphore(6)
+private val sightPhotoDownloadGate = Semaphore(6)
+
+private fun knownSightPhotoUrl(sight: com.odyssey.travelplanner.data.Sight): String? {
+    if (sight.city.trim().lowercase(Locale.ROOT) != "верона" || sight.walkDay != 2) return null
+    return listOf(
+        "https://api.openverse.org/v1/images/1943615d-4370-4634-93b6-0c11d304f75b/thumb/",
+        "https://api.openverse.org/v1/images/6d13d700-5ffb-405d-a7b4-a5a34f9ce1be/thumb/",
+        "https://api.openverse.org/v1/images/1943615d-4370-4634-93b6-0c11d304f75b/thumb/",
+        "https://api.openverse.org/v1/images/196b5db9-4cd5-4157-ac87-5302eba8c335/thumb/",
+        "https://api.openverse.org/v1/images/e92694b6-f5af-46cc-aaef-ed8e2009bb04/thumb/",
+        "https://api.openverse.org/v1/images/e92694b6-f5af-46cc-aaef-ed8e2009bb04/thumb/",
+        "https://api.openverse.org/v1/images/31541f5a-91f6-46ad-90d0-209d9f4ea5a4/thumb/",
+        "https://api.openverse.org/v1/images/9d211074-fbaf-4ab1-ac95-756708f0a986/thumb/",
+        "https://api.openverse.org/v1/images/2ed31ff9-c5d6-448d-bad3-9e074683cd3a/thumb/",
+        "https://api.openverse.org/v1/images/02c3c260-169b-4e59-bb58-2c2a4bc44fda/thumb/",
+    ).getOrNull(sight.walkOrder)
+}
+
+private suspend fun loadSightPhoto(vararg searchTexts: String): String? = withContext(Dispatchers.IO) {
+    searchTexts.asSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+        .mapNotNull { searchText ->
+            val query = URLEncoder.encode(searchText, Charsets.UTF_8.name())
+            listOf(
+                URL("https://api.openverse.org/v1/images?q=$query&page_size=5"),
+                URL(
+                    "https://commons.wikimedia.org/w/api.php?action=query&generator=search" +
+                        "&gsrsearch=$query&gsrnamespace=6&prop=imageinfo&iiprop=url" +
+                        "&iiurlwidth=900&format=json&origin=*",
+                ),
+                URL(
+                    "https://en.wikipedia.org/w/api.php?action=query&generator=search" +
+                        "&gsrsearch=$query&gsrnamespace=0&prop=pageimages" +
+                        "&piprop=thumbnail&pithumbsize=900&format=json&origin=*",
+                ),
+            ).asSequence().mapNotNull { endpoint ->
+                runCatching {
+                    (endpoint.openConnection() as HttpURLConnection).run {
+                        connectTimeout = 5_000
+                        readTimeout = 5_000
+                        requestMethod = "GET"
+                        setRequestProperty("Accept", "application/json")
+                        setRequestProperty("Accept-Encoding", "identity")
+                        setRequestProperty("User-Agent", "OdysseyTravelPlanner/0.1 (Android)")
+                        inputStream.bufferedReader().use { reader ->
+                            val response = JSONObject(reader.readText())
+                            if (endpoint.host == "api.openverse.org") {
+                                val results = response.optJSONArray("results") ?: return@run null
+                                for (index in 0 until results.length()) {
+                                    val result = results.optJSONObject(index) ?: continue
+                                    val photo = result.optString("thumbnail")
+                                        .ifBlank { result.optString("url") }
+                                    if (photo.isNotBlank()) return@run photo
+                                }
+                                return@run null
+                            }
+                            val pages = response
+                                .optJSONObject("query")
+                                ?.optJSONObject("pages")
+                                ?: return@run null
+                            val keys = pages.keys()
+                            while (keys.hasNext()) {
+                                val page = pages.optJSONObject(keys.next()) ?: continue
+                                val photo = page.optJSONArray("imageinfo")
+                                    ?.optJSONObject(0)
+                                    ?.optString("thumburl")
+                                    .orEmpty()
+                                    .ifBlank { page.optJSONObject("thumbnail")?.optString("source").orEmpty() }
+                                if (photo.isNotBlank()) return@run photo
+                            }
+                            null
+                        }
+                    }
+                }.getOrNull()
+            }.firstOrNull()
+        }
+        .firstOrNull()
+}
+
+private suspend fun cachedSightPhotoUrl(cacheKey: String, vararg searchTexts: String): String? {
+    sightPhotoUrlCache[cacheKey]?.let { return it }
+    val photoUrl = sightPhotoSearchGate.withPermit { loadSightPhoto(*searchTexts) }
+    if (!photoUrl.isNullOrBlank()) sightPhotoUrlCache[cacheKey] = photoUrl
+    return photoUrl
+}
+
+private suspend fun cachedSightBitmap(photoUrl: String): Bitmap? {
+    sightBitmapCache[photoUrl]?.let { return it }
+    val bitmap = withContext(Dispatchers.IO) {
+        sightPhotoDownloadGate.withPermit {
+        runCatching {
+            (URL(photoUrl).openConnection() as HttpURLConnection).run {
+                connectTimeout = 8_000
+                readTimeout = 8_000
+                requestMethod = "GET"
+                setRequestProperty("Accept", "image/*")
+                setRequestProperty("User-Agent", "OdysseyTravelPlanner/0.1 (Android)")
+                inputStream.use { BitmapFactory.decodeStream(it) }
+            }
+        }.getOrNull()
+        }
+    }
+    if (bitmap != null) sightBitmapCache[photoUrl] = bitmap
+    return bitmap
+}
+
+@Composable
+private fun SightPhoto(sight: com.odyssey.travelplanner.data.Sight, modifier: Modifier) {
+    val displayedName = localizedSightName(sight.name)
+    val displayedCity = localizedCityName(sight.city)
+    val englishCity = localizedCityName(sight.city, "EN")
+    var bitmap by remember(sight.id, sight.photo) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(sight.id, sight.name, sight.city, sight.photo, displayedName, displayedCity) {
+        bitmap = null
+        val resolvedPhotoUrl = sight.photo.ifBlank { knownSightPhotoUrl(sight).orEmpty() }.ifBlank {
+            cachedSightPhotoUrl(
+                sight.id,
+                "$displayedName $englishCity",
+                "${sight.name} ${sight.city}",
+                "$displayedName $displayedCity",
+            ).orEmpty()
+        }
+        bitmap = if (resolvedPhotoUrl.isBlank()) null else cachedSightBitmap(resolvedPhotoUrl)
+    }
+    Box(modifier = modifier.background(Color(0xFFE3E1EC)), contentAlignment = Alignment.Center) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = sight.name,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            SurfaceEmptyMedia(Icons.Outlined.LocationOn, Modifier.fillMaxSize())
+        }
+    }
+}
+
 private fun routeLegDayNumber(
     leg: com.odyssey.travelplanner.data.RouteLeg,
     legs: List<com.odyssey.travelplanner.data.RouteLeg>,
@@ -2642,11 +2822,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
         sights.take(3).forEach { sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF5F4F8)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (sight.photo.isNotBlank()) {
-                    AsyncImage(model = sight.photo, contentDescription = sight.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
-                } else {
-                    SurfaceEmptyMedia(Icons.Outlined.LocationOn, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
-                }
+                SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
                 Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFE9E8)).clickable {
                     scope.launch {
@@ -2741,12 +2917,8 @@ private fun SightCard(
             .border(if (selected) 2.dp else 0.dp, if (selected) OdysseyPurple else Color.Transparent, RoundedCornerShape(18.dp))
             .padding(11.dp),
     ) {
-        Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFE3E1EC)).clickable(enabled = !uploading) { onAddPhoto() }) {
-            if (sight.photo.isNotBlank()) {
-                AsyncImage(model = sight.photo, contentDescription = sight.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                SurfaceEmptyMedia(Icons.Outlined.LocationOn, Modifier.fillMaxSize())
-            }
+        Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp)).clickable(enabled = !uploading) { onAddPhoto() }) {
+            SightPhoto(sight, Modifier.fillMaxSize())
         }
         Column(modifier = Modifier.weight(1f).clickable { onSelect() }, verticalArrangement = Arrangement.Center) {
             Text(

@@ -82,6 +82,24 @@ data class BudgetExpense(val id: String, val name: String, val amount: Double, v
 data class BudgetGroup(val name: String, val people: Int)
 data class TripMember(val id: String, val name: String, val email: String, val role: String, val initials: String, val tone: String)
 data class Sight(val id: String, val name: String, val city: String, val photo: String, val category: String, val done: Boolean, val walkDay: Int, val walkOrder: Int, val description: String, val longitude: Double?, val latitude: Double?, val rating: Double? = null)
+
+private fun jsonText(element: JsonElement?): String =
+    runCatching { element?.jsonPrimitive?.contentOrNull?.trim().orEmpty() }.getOrDefault("")
+
+private fun sightPhotoUrl(sight: JsonObject): String {
+    listOf("photo", "image", "photoUrl", "imageUrl").forEach { key ->
+        jsonText(sight[key]).takeIf { it.isNotBlank() }?.let { return it }
+    }
+    return sight["photos"]?.let { element ->
+        runCatching {
+            element.jsonArray.firstNotNullOfOrNull { photo ->
+                jsonText(photo).takeIf { it.isNotBlank() }
+                    ?: runCatching { jsonText(photo.jsonObject["url"]) }.getOrDefault("").takeIf { it.isNotBlank() }
+                    ?: runCatching { jsonText(photo.jsonObject["image"]) }.getOrDefault("").takeIf { it.isNotBlank() }
+            }.orEmpty()
+        }.getOrDefault("")
+    }.orEmpty()
+}
 data class Restaurant(
     val id: String,
     val name: String,
@@ -317,7 +335,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 id = sightText("id").ifBlank { name },
                 name = name,
                 city = sightText("city"),
-                photo = sightText("photo"),
+                photo = sightPhotoUrl(sight),
                 category = sightText("subcategory").ifBlank { sightText("group") },
                 done = sight["done"]?.jsonPrimitive?.booleanOrNull ?: false,
                 walkDay = sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0,
