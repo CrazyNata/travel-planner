@@ -5065,7 +5065,7 @@ private fun RestaurantMapCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(282.dp)
+            .height(267.dp)
             .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x19141428), spotColor = Color(0x19141428))
             .clip(RoundedCornerShape(22.dp))
             .background(cardSurfaceColor()),
@@ -5079,7 +5079,7 @@ private fun RestaurantMapCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(47.dp)
                 .padding(horizontal = 15.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -5093,16 +5093,6 @@ private fun RestaurantMapCard(
                     lineHeight = 15.sp,
                     letterSpacing = 0.66.sp,
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                )
-                Text(
-                    placesLabel,
-                    color = secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W700,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
