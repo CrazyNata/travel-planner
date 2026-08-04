@@ -4747,6 +4747,7 @@ private fun RestaurantCard(
 ) {
     val photos = restaurant.photos
     var photoIndex by remember(restaurant.id, photos) { mutableStateOf(0) }
+    var fullScreenPhotoIndex by remember(restaurant.id, photos) { mutableStateOf<Int?>(null) }
     val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
     val displayedNote = localizedRestaurantNote(restaurant.note)
     val booked = restaurant.status == "бронь"
@@ -4777,10 +4778,19 @@ private fun RestaurantCard(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(13.dp),
         ) {
-            Box(modifier = Modifier.size(78.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFE4E1EA)).clickable(enabled = !uploading) { onAddPhoto() }) {
+            Box(
+                modifier = Modifier
+                    .size(78.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFE4E1EA))
+                    .clickable(enabled = !uploading) {
+                        if (photos.isEmpty()) onAddPhoto() else fullScreenPhotoIndex = activePhotoIndex
+                    },
+            ) {
                 photos.getOrNull(activePhotoIndex)?.let { AsyncImage(model = it, contentDescription = restaurant.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 if (photos.isEmpty()) Icon(Icons.Outlined.Restaurant, contentDescription = null, tint = Color(0xFFA7A1B2), modifier = Modifier.align(Alignment.Center).size(27.dp))
-                if (photos.size > 1) {
+                // Restaurant thumbnails stay clean; photo controls are available in the fullscreen viewer.
+                if (photos.size > 1 && fullScreenPhotoIndex != null) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -4937,6 +4947,19 @@ private fun RestaurantCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 OdysseyEditIcon(15.dp, OdysseyPurple)
                 Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+            }
+        }
+        fullScreenPhotoIndex?.let { initialIndex ->
+            if (photos.isNotEmpty()) {
+                FullScreenPhotoViewer(
+                    photos = photos,
+                    initialIndex = initialIndex,
+                    accommodationName = restaurant.name,
+                    onDismiss = { selectedIndex ->
+                        photoIndex = selectedIndex
+                        fullScreenPhotoIndex = null
+                    },
+                )
             }
         }
     }
@@ -6996,7 +7019,7 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
         }
         fullScreenPhotoIndex?.let { initialIndex ->
             if (photos.isNotEmpty()) {
-                AccommodationPhotoViewer(
+                FullScreenPhotoViewer(
                     photos = photos,
                     initialIndex = initialIndex,
                     accommodationName = accommodation.name,
@@ -7011,7 +7034,7 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
 }
 
 @Composable
-private fun AccommodationPhotoViewer(
+private fun FullScreenPhotoViewer(
     photos: List<String>,
     initialIndex: Int,
     accommodationName: String,
