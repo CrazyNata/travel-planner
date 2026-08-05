@@ -5647,7 +5647,7 @@ private fun BudgetContent(
         category = categoryStyles.firstOrNull { it.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT)) }?.key ?: "Прочее"
         scopeName = budgetScopeValue(expense.scope)
         paidBy = expense.paidBy.ifBlank { "Общее" }
-        date = ""
+        date = expense.date
         message = null
         adding = false
         editingExpense = expense
@@ -5793,6 +5793,7 @@ private fun BudgetContent(
                             category = category,
                             scope = scopeName,
                             paidBy = paidBy,
+                            date = date,
                         )
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())

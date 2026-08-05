@@ -79,7 +79,15 @@ data class Accommodation(
     val deadline: String = "",
     val rating: Double? = null,
 )
-data class BudgetExpense(val id: String, val name: String, val amount: Double, val category: String, val scope: String, val paidBy: String)
+data class BudgetExpense(
+    val id: String,
+    val name: String,
+    val amount: Double,
+    val category: String,
+    val scope: String,
+    val paidBy: String,
+    val date: String = "",
+)
 data class BudgetGroup(val name: String, val people: Int)
 data class TripMember(val id: String, val name: String, val email: String, val role: String, val initials: String, val tone: String)
 data class Sight(val id: String, val name: String, val city: String, val photo: String, val category: String, val done: Boolean, val walkDay: Int, val walkOrder: Int, val description: String, val longitude: Double?, val latitude: Double?, val rating: Double? = null)
@@ -185,6 +193,7 @@ data class ExpenseInput(
     val category: String,
     val scope: String = "общий",
     val paidBy: String = "Не указано",
+    val date: String = "",
 )
 
 interface TripRepository {
@@ -325,6 +334,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 category = expenseText("category").ifBlank { "Прочее" },
                 scope = expenseText("scope"),
                 paidBy = expenseText("paidBy"),
+                date = expenseText("date"),
             )
         }
         val groups = row.payload["budgetSplit"]?.jsonObject?.get("groups")?.jsonArray.orEmpty().mapNotNull { item ->
@@ -1167,6 +1177,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("category", input.category)
             put("scope", input.scope)
             put("paidBy", input.paidBy)
+            put("date", input.date.trim())
         }
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "budgetExpenses", item))) {
             filter { eq("id", tripId) }
@@ -1185,6 +1196,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("category", kotlinx.serialization.json.JsonPrimitive(input.category))
                 put("scope", kotlinx.serialization.json.JsonPrimitive(input.scope))
                 put("paidBy", kotlinx.serialization.json.JsonPrimitive(input.paidBy))
+                put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
             })
         }
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", tripId) } }
