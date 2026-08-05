@@ -22,46 +22,6 @@ data class WeatherSnapshot(
     val tripIsEstimate: Boolean = false,
 )
 
-private val cityCoordinates = mapOf(
-    "prague" to Pair(50.0755, 14.4378),
-    "salzburg" to Pair(47.8095, 13.0550),
-    "verona" to Pair(45.4384, 10.9916),
-    "rome" to Pair(41.9028, 12.4964),
-    "pisa" to Pair(43.7228, 10.4017),
-    "figline valdarno" to Pair(43.6190, 11.4690),
-    "figline-valdarno" to Pair(43.6190, 11.4690),
-    "фильине-вальдарно" to Pair(43.6190, 11.4690),
-    "фильине-валдарно" to Pair(43.6190, 11.4690),
-    "san marino" to Pair(43.9424, 12.4578),
-    "chioggia" to Pair(45.2181, 12.2786),
-    "кьоджа" to Pair(45.2181, 12.2786),
-    "ravensburg" to Pair(47.7810, 9.6110),
-    "равенсбург" to Pair(47.7810, 9.6110),
-    "milan" to Pair(45.4642, 9.1900),
-    "valdidentro" to Pair(46.4890, 10.2940),
-    "munich" to Pair(48.1351, 11.5820),
-    "vienna" to Pair(48.2082, 16.3738),
-    "вена" to Pair(48.2082, 16.3738),
-    "innsbruck" to Pair(47.2692, 11.4041),
-    "инсбрук" to Pair(47.2692, 11.4041),
-    "florence" to Pair(43.7696, 11.2558),
-    "флоренция" to Pair(43.7696, 11.2558),
-    "venice" to Pair(45.4408, 12.3155),
-    "венеция" to Pair(45.4408, 12.3155),
-    "tallinn" to Pair(59.4370, 24.7536),
-    "таллин" to Pair(59.4370, 24.7536),
-    "riga" to Pair(56.9496, 24.1052),
-    "рига" to Pair(56.9496, 24.1052),
-    "vilnius" to Pair(54.6872, 25.2797),
-    "вильнюс" to Pair(54.6872, 25.2797),
-    "мюнхен" to Pair(48.1351, 11.5820),
-    "прага" to Pair(50.0755, 14.4378),
-    "рим" to Pair(41.9028, 12.4964),
-    "пиза" to Pair(43.7228, 10.4017),
-    "верона" to Pair(45.4384, 10.9916),
-    "милан" to Pair(45.4642, 9.1900),
-)
-
 @Serializable
 private data class OpenMeteoResponse(
     val current: OpenMeteoCurrent,
@@ -109,8 +69,8 @@ class WeatherRepository {
         val targetDate = tripDateFrom(tripDates)
         return supervisorScope {
             cities.mapNotNull { city ->
-        val cityKey = city.substringBefore(",").trim().lowercase(Locale.ROOT)
-                val coordinates = cityCoordinates[cityKey] ?: return@mapNotNull null
+                val coordinates = cityCatalogEntry(city)?.let { it.latitude to it.longitude }
+                    ?: return@mapNotNull null
                 async {
                     runCatching {
             val weather: OpenMeteoResponse = http.get(

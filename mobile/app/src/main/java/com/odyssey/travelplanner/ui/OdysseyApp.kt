@@ -161,6 +161,8 @@ import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
+import com.odyssey.travelplanner.data.localizedCityCatalogName
+import com.odyssey.travelplanner.data.cityCatalogEntry
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -454,40 +456,17 @@ private fun localizedCityFilter(value: String): String = if (value.trim().equals
 
 private fun localizedCityName(value: String, language: String): String {
     val parts = value.trim().split(Regex("\\s*,\\s*"), limit = 2)
-    val city = when (parts.firstOrNull()?.lowercase(Locale.ROOT)) {
-        "прага" -> localized(language, "Прага", "Prague", "Praga", "Prag")
-        "мюнхен" -> localized(language, "Мюнхен", "Munich", "Múnich", "München")
-        "верона" -> localized(language, "Верона", "Verona", "Verona", "Verona")
-        "милан" -> localized(language, "Милан", "Milan", "Milán", "Mailand")
-        "венеция" -> localized(language, "Венеция", "Venice", "Venecia", "Venedig")
-        "рим" -> localized(language, "Рим", "Rome", "Roma", "Rom")
-        "флоренция" -> localized(language, "Флоренция", "Florence", "Florencia", "Florenz")
-        "пиза" -> localized(language, "Пиза", "Pisa", "Pisa", "Pisa")
-        "кьоджа" -> localized(language, "Кьоджа", "Chioggia", "Chioggia", "Chioggia")
-        "фильине-вальдарно" -> localized(language, "Фильине-Вальдарно", "Figline Valdarno", "Figline Valdarno", "Figline Valdarno")
-        "равенсбург" -> localized(language, "Равенсбург", "Ravensburg", "Ravensburg", "Ravensburg")
-        "сан-марино" -> localized(language, "Сан-Марино", "San Marino", "San Marino", "San Marino")
-        "вальдидентро" -> localized(language, "Вальдидентро", "Valdidentro", "Valdidentro", "Valdidentro")
-        "инсбрук" -> localized(language, "Инсбрук", "Innsbruck", "Innsbruck", "Innsbruck")
-        "зальцбург" -> localized(language, "Зальцбург", "Salzburg", "Salzburgo", "Salzburg")
-        "вена" -> localized(language, "Вена", "Vienna", "Viena", "Wien")
-        "таллин" -> localized(language, "Таллин", "Tallinn", "Tallin", "Tallinn")
-        "рига" -> localized(language, "Рига", "Riga", "Riga", "Riga")
-        "вильнюс" -> localized(language, "Вильнюс", "Vilnius", "Vilna", "Vilnius")
-        "кастель-гандольфо" -> localized(language, "Кастель-Гандольфо", "Castel Gandolfo", "Castel Gandolfo", "Castel Gandolfo")
-        "озеро комо" -> localized(language, "Озеро Комо", "Lake Como", "Lago di Como", "Comer See")
-        "стельвио" -> localized(language, "Стельвио", "Stelvio", "Stelvio", "Stilfser Joch")
-        else -> parts.firstOrNull().orEmpty()
-    }
+    val cityValue = parts.firstOrNull().orEmpty()
+    val city = localizedCityCatalogName(cityValue, language) ?: cityValue
     if (parts.size == 1) return city
     val country = when (parts[1].trim().lowercase(Locale.ROOT)) {
-        "италия" -> localized(language, "Италия", "Italy", "Italia", "Italien")
-        "германия" -> localized(language, "Германия", "Germany", "Alemania", "Deutschland")
-        "австрия" -> localized(language, "Австрия", "Austria", "Austria", "Österreich")
-        "чехия" -> localized(language, "Чехия", "Czechia", "Chequia", "Tschechien")
-        "латвия" -> localized(language, "Латвия", "Latvia", "Letonia", "Lettland")
-        "литва" -> localized(language, "Литва", "Lithuania", "Lituania", "Litauen")
-        "эстония" -> localized(language, "Эстония", "Estonia", "Estonia", "Estland")
+        "италия", "italy", "italia", "italien" -> localized(language, "Италия", "Italy", "Italia", "Italien")
+        "германия", "germany", "alemania", "deutschland" -> localized(language, "Германия", "Germany", "Alemania", "Deutschland")
+        "австрия", "austria", "österreich", "osterreich" -> localized(language, "Австрия", "Austria", "Austria", "Österreich")
+        "чехия", "czechia", "chequia", "tschechien" -> localized(language, "Чехия", "Czechia", "Chequia", "Tschechien")
+        "латвия", "latvia", "letonia", "lettland" -> localized(language, "Латвия", "Latvia", "Letonia", "Lettland")
+        "литва", "lithuania", "lituania", "litauen" -> localized(language, "Литва", "Lithuania", "Lituania", "Litauen")
+        "эстония", "estonia", "estland" -> localized(language, "Эстония", "Estonia", "Estonia", "Estland")
         else -> parts[1].trim()
     }
     return "$city, $country"
@@ -9159,31 +9138,8 @@ private fun cityFilterKey(city: String): String {
     }
 }
 
-private fun mapCoordinate(city: String): Point? = when (city.substringBefore(",").trim().lowercase(Locale.ROOT)) {
-    "prague", "прага" -> Point.fromLngLat(14.4378, 50.0755)
-    "salzburg" -> Point.fromLngLat(13.0550, 47.8095)
-    "verona", "верона" -> Point.fromLngLat(10.9916, 45.4384)
-    "rome", "рим" -> Point.fromLngLat(12.4964, 41.9028)
-    "pisa", "пиза" -> Point.fromLngLat(10.4017, 43.7228)
-    "figline valdarno", "фильине-вальдарно" -> Point.fromLngLat(11.4690, 43.6190)
-    "san marino", "сан-марино" -> Point.fromLngLat(12.4578, 43.9424)
-    "chioggia", "кьоджа" -> Point.fromLngLat(12.2786, 45.2181)
-    "milan", "милан" -> Point.fromLngLat(9.1900, 45.4642)
-    "valdidentro" -> Point.fromLngLat(10.2940, 46.4890)
-    "ravensburg", "равенсбург" -> Point.fromLngLat(9.6110, 47.7810)
-    "munich", "мюнхен" -> Point.fromLngLat(11.5820, 48.1351)
-    "vienna", "вена" -> Point.fromLngLat(16.3738, 48.2082)
-    "innsbruck", "инсбрук" -> Point.fromLngLat(11.4041, 47.2692)
-    "florence", "флоренция" -> Point.fromLngLat(11.2558, 43.7696)
-    "venice", "венеция" -> Point.fromLngLat(12.3155, 45.4408)
-    "tallinn", "таллин" -> Point.fromLngLat(24.7536, 59.4370)
-    "riga", "рига" -> Point.fromLngLat(24.1052, 56.9496)
-    "vilnius", "вильнюс" -> Point.fromLngLat(25.2797, 54.6872)
-    "castel gandolfo", "кастель-гандольфо" -> Point.fromLngLat(12.6500, 41.7475)
-    "lake como", "озеро комо" -> Point.fromLngLat(9.2600, 45.8080)
-    "bormio", "бормио" -> Point.fromLngLat(10.3740, 46.4670)
-    "val viola valley", "долина валь-виола" -> Point.fromLngLat(10.1900, 46.4200)
-    else -> null
+private fun mapCoordinate(city: String): Point? = cityCatalogEntry(city)?.let { entry ->
+    Point.fromLngLat(entry.longitude, entry.latitude)
 }
 
 
