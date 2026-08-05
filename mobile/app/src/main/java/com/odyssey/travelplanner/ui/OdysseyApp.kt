@@ -51,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -2687,6 +2688,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
             )
             Spacer(Modifier.height(16.dp))
+            Box(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2757,8 +2759,18 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     }
                 }
             }
-            if (dayMenuOpen) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(vertical = 7.dp)) {
+            DropdownMenu(
+                expanded = dayMenuOpen,
+                onDismissRequest = { dayMenuOpen = false },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+                scrollState = rememberScrollState(),
+                shape = RoundedCornerShape(18.dp),
+                containerColor = cardSurfaceColor(),
+                shadowElevation = 16.dp,
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp)) {
                     dayCities.forEachIndexed { index, dayCity ->
                         val selected = index + 1 == routeDay
                         Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFFF0EDFF) else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2775,6 +2787,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     }
                 }
             }
+        }
         }
         item {
             Box(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
