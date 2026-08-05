@@ -94,6 +94,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
@@ -3392,6 +3393,13 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             overview.restaurants.map { it.city }
         ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     val cityOptions = listOf("Все города") + tripCityOptions
+    val cityCounts = cityOptions.associateWith { option ->
+        if (option == cityOptions.first()) {
+            overview.restaurants.size
+        } else {
+            overview.restaurants.count { restaurant -> cityFilterKey(restaurant.city) == cityFilterKey(option) }
+        }
+    }
     val visibleRestaurants = overview.restaurants.filter { restaurant ->
         val note = restaurant.note.lowercase()
         val typeMatches = when (appliedTypeFilter) {
@@ -3522,15 +3530,6 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 }
             }
         }
-        if (cityMenuOpen) {
-            item {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cardSurfaceColor()).padding(7.dp)) {
-                    cityOptions.forEach { option ->
-                        Text(localizedCityFilter(option), color = if (option == selectedCity) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (option == selectedCity) OdysseyTint else Color.Transparent).clickable { selectedCity = option; cityMenuOpen = false }.padding(horizontal = 12.dp, vertical = 11.dp))
-                    }
-                }
-            }
-        }
         item {
             Row(
                 modifier = Modifier
@@ -3601,6 +3600,25 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     }
                 }
             }
+        }
+    }
+    if (cityMenuOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { cityMenuOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+            dragHandle = null,
+        ) {
+            RestaurantCityFilterSheet(
+                options = cityOptions,
+                counts = cityCounts,
+                selectedCity = selectedCity,
+                onSelect = { option -> selectedCity = option; cityMenuOpen = false },
+                onClose = { cityMenuOpen = false },
+            )
         }
     }
     if (editingRestaurant != null) {
@@ -4632,6 +4650,118 @@ private fun RestaurantEditStatusChip(
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun RestaurantCityFilterSheet(
+    options: List<String>,
+    counts: Map<String, Int>,
+    selectedCity: String,
+    onSelect: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val maxSheetHeight = maxHeight * 0.8f
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 20.dp, end = 16.dp, bottom = 18.dp + navigationBarInset),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .size(40.dp, 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color(0xFFE2E2E8)),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = localized("\u0413\u043e\u0440\u043e\u0434", "City", "Ciudad", "Stadt"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 22.sp,
+                lineHeight = 30.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            )
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(secondarySurfaceColor())
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = localized("\u0417\u0430\u043a\u0440\u044b\u0442\u044c", "Close", "Cerrar", "Schlie\u00dfen"),
+                    tint = OdysseySubtext,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        options.forEach { option ->
+            val active = option == selectedCity
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (active) OdysseyTint else cardSurfaceColor())
+                    .border(1.6.dp, if (active) OdysseyPurple else OdysseyBorder, RoundedCornerShape(14.dp))
+                    .clickable { onSelect(option) }
+                    .padding(horizontal = 15.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                if (option == options.first()) {
+                    Box(
+                        modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(OdysseyTint),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Outlined.Explore, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Text(
+                    text = localizedCityFilter(option),
+                    color = if (active) OdysseyPurple else contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 15.5.sp,
+                    lineHeight = 20.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.weight(1f),
+                )
+                if (option != options.first()) {
+                    Text(
+                        text = (counts[option] ?: 0).toString(),
+                        color = Color(0xFFB6B6BE),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+                if (active) {
+                    Box(
+                        modifier = Modifier.size(22.dp).clip(CircleShape).background(OdysseyPurple),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+        }
     }
 }
 
