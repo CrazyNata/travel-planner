@@ -965,29 +965,6 @@ private fun OdysseyFilterIcon(iconSize: Dp = 15.dp, color: Color = OdysseyLabel)
 }
 
 @Composable
-private fun OdysseyUtensilsIcon(iconSize: Dp = 15.dp, color: Color = OdysseyPurple) {
-    Canvas(Modifier.size(iconSize)) {
-        val sx = size.width / 24f
-        val sy = size.height / 24f
-        val path = Path().apply {
-            moveTo(3f * sx, 2f * sy)
-            lineTo(3f * sx, 9f * sy)
-            cubicTo(3f * sx, 10.1f * sy, 3.9f * sx, 11f * sy, 5f * sx, 11f * sy)
-            cubicTo(6.1f * sx, 11f * sy, 7f * sx, 10.1f * sy, 7f * sx, 9f * sy)
-            lineTo(7f * sx, 2f * sy)
-            moveTo(5f * sx, 2f * sy)
-            lineTo(5f * sx, 22f * sy)
-            moveTo(17f * sx, 2f * sy)
-            lineTo(17f * sx, 12f * sy)
-            cubicTo(19f * sx, 12f * sy, 21f * sx, 10.5f * sy, 21f * sx, 7f * sy)
-            cubicTo(21f * sx, 3.5f * sy, 19f * sx, 2f * sy, 17f * sx, 2f * sy)
-            lineTo(17f * sx, 12f * sy)
-        }
-        drawPath(path, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
-    }
-}
-
-@Composable
 private fun OdysseyExternalLinkIcon(iconSize: Dp = 17.dp, color: Color = OdysseyPurple, modifier: Modifier = Modifier) {
     Canvas(modifier.size(iconSize)) {
         val sx = size.width / 24f
@@ -5127,12 +5104,6 @@ private fun RestaurantMapCard(
         mapView.mapboxMap.setCamera(camera)
     }
 
-    val placesLabel = localized(
-        "${restaurants.size} мест поблизости",
-        "${restaurants.size} places nearby",
-        "${restaurants.size} lugares cercanos",
-        "${restaurants.size} Orte in der Nähe",
-    )
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -5146,19 +5117,6 @@ private fun RestaurantMapCard(
                 factory = { mapView },
                 modifier = Modifier.fillMaxSize(),
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(cardSurfaceColor().copy(alpha = 0.95f))
-                    .padding(horizontal = 11.dp, vertical = 7.dp),
-            ) {
-                OdysseyUtensilsIcon(15.dp, OdysseyPurple)
-                Text(placesLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-            }
         }
     }
 }
