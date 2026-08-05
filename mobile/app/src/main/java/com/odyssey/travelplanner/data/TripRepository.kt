@@ -21,6 +21,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.util.Locale
 import java.util.UUID
 
 @Serializable
@@ -159,6 +160,13 @@ data class RestaurantInput(
     val link: String = "",
     val date: String = "",
 )
+
+private fun normalizeRestaurantStatus(status: String): String = when (status.trim().lowercase(Locale.ROOT)) {
+    "want", "хочу" -> "хочу"
+    "reserve", "reserved", "бронь" -> "бронь"
+    "visited", "были" -> "были"
+    else -> status.trim()
+}
 
 data class AccommodationInput(
     val name: String,
@@ -357,7 +365,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 id = restaurantText("id").ifBlank { name },
                 name = name,
                 city = restaurantText("city"),
-                status = restaurantText("status"),
+                status = normalizeRestaurantStatus(restaurantText("status")),
                 photos = restaurant["photos"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
                 rating = restaurant["googleRating"]?.jsonPrimitive?.doubleOrNull,
                 reviews = restaurantText("googleReviews"),
@@ -680,7 +688,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             current.payload["restaurants"]?.jsonArray.orEmpty().forEach { item ->
                 val restaurant = item.jsonObject
                 if (restaurant["id"]?.jsonPrimitive?.contentOrNull == restaurantId) {
-                    add(JsonObject(restaurant.toMutableMap().apply { put("status", kotlinx.serialization.json.JsonPrimitive(status)) }))
+                    add(JsonObject(restaurant.toMutableMap().apply { put("status", kotlinx.serialization.json.JsonPrimitive(normalizeRestaurantStatus(status))) }))
                 } else {
                     add(item)
                 }
@@ -1062,7 +1070,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("id", restaurantId)
             put("name", input.name.trim())
             put("city", input.city.trim())
-            put("status", input.status)
+            put("status", normalizeRestaurantStatus(input.status))
             put("note", input.note.trim())
             put("price", input.price.trim())
             put("link", input.link.trim())
@@ -1083,7 +1091,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             JsonObject(restaurant.toMutableMap().apply {
                 put("name", kotlinx.serialization.json.JsonPrimitive(input.name.trim()))
                 put("city", kotlinx.serialization.json.JsonPrimitive(input.city.trim()))
-                put("status", kotlinx.serialization.json.JsonPrimitive(input.status))
+                put("status", kotlinx.serialization.json.JsonPrimitive(normalizeRestaurantStatus(input.status)))
                 put("note", kotlinx.serialization.json.JsonPrimitive(input.note.trim()))
                 put("price", kotlinx.serialization.json.JsonPrimitive(input.price.trim()))
                 put("link", kotlinx.serialization.json.JsonPrimitive(input.link.trim()))

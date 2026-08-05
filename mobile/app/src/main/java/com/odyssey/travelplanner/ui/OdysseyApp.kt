@@ -3821,9 +3821,9 @@ private fun RestaurantAddSheet(
                     horizontalArrangement = Arrangement.spacedBy(d(9f)),
                     modifier = Modifier.offset(x = d(16f), y = d(696f)).height(d(38f)),
                 ) {
-                    RestaurantAddStatusChip(localized("хочу", "want", "quiero", "möchte"), "want", status == "хочу", 61.4f, scale, onStatusChange)
-                    RestaurantAddStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "reserve", status == "бронь", 71.4f, scale, onStatusChange)
-                    RestaurantAddStatusChip(localized("были", "visited", "visitado", "besucht"), "visited", status == "были", 65.1f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("хочу", "want", "quiero", "möchte"), "хочу", status == "хочу", 61.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "бронь", status == "бронь", 71.4f, scale, onStatusChange)
+                    RestaurantAddStatusChip(localized("были", "visited", "visitado", "besucht"), "были", status == "были", 65.1f, scale, onStatusChange)
                 }
                 RestaurantAddStatusChip(
                     label = localized("🔥 Приоритет", "🔥 Priority", "🔥 Prioridad", "🔥 Priorität"),
