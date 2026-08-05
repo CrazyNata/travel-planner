@@ -8766,8 +8766,14 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
         routeDateParts(leg.date, tripDates, dayIndex, language)
     }
     Column(
-        modifier = Modifier.fillMaxWidth().height(141.dp).clip(RoundedCornerShape(19.dp)).background(cardSurfaceColor()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 158.dp)
+            .shadow(8.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0x12202040), spotColor = Color(0x12202040))
+            .clip(RoundedCornerShape(20.dp))
+            .background(cardSurfaceColor())
+            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.width(38.dp).padding(top = 1.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -8788,7 +8794,15 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
                 }
             }
         }
-        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(secondarySurfaceColor()).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(13.dp))
+                .background(secondarySurfaceColor())
+                .border(1.dp, Color(0xFFF0EEFB), RoundedCornerShape(13.dp))
+                .padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(Icons.Outlined.Key, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(16.dp))
             Text(localized("Заселение", "Check-in", "Entrada", "Check-in"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
             Spacer(Modifier.weight(1f))
