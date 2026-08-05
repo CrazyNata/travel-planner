@@ -2089,13 +2089,10 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
             Text(localized("Каталог\nмаршрутов", "Route\ncatalog", "Catálogo de\nrutas", "Routen\nkatalog"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 29.sp, lineHeight = 31.sp, modifier = Modifier.padding(top = 8.dp))
             Text(localized("Готовые маршруты — используйте как основу для своей поездки", "Ready routes to use as a starting point for your trip", "Rutas listas para usar como base de su viaje", "Fertige Routen als Grundlage für Ihre Reise"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
         }
-        items(templates, key = { it[0] }) { template ->
+        itemsIndexed(templates, key = { _, template -> template[0] }) { index, template ->
             val (id, title, duration, route, image) = template
             Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor())) {
-                Box(modifier = Modifier.fillMaxWidth().height(130.dp)) {
-                    AsyncImage(model = image, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    Text(duration, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp).background(Color(0xAA26343D), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
-                }
+                CatalogCover(imageUrl = image, index = index, darkTheme = darkTheme, duration = duration)
                 Column(modifier = Modifier.padding(15.dp)) {
                     Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
                     Text(route, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp))
@@ -2106,6 +2103,55 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
             }
         }
     }
+}
+
+@Composable
+private fun CatalogCover(imageUrl: String, index: Int, darkTheme: Boolean, duration: String) {
+    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(130.dp)
+            .background(catalogCoverBrush(index, darkTheme)),
+    ) {
+        if (!imageFailed) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                onError = { imageFailed = true },
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.Explore,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.42f),
+                modifier = Modifier.align(Alignment.Center).size(48.dp),
+            )
+        }
+        Text(duration, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp).background(Color(0xAA26343D), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
+    }
+}
+
+private fun catalogCoverBrush(index: Int, darkTheme: Boolean): Brush {
+    val palettes = if (darkTheme) {
+        listOf(
+            listOf(Color(0xFF694A3B), Color(0xFF273A43)),
+            listOf(Color(0xFF49385F), Color(0xFF25263A)),
+            listOf(Color(0xFF315D73), Color(0xFF263E4D)),
+            listOf(Color(0xFF6A4E37), Color(0xFF3F3042)),
+        )
+    } else {
+        listOf(
+            listOf(Color(0xFFE8B18C), Color(0xFF667A78)),
+            listOf(Color(0xFF8872AA), Color(0xFF33354C)),
+            listOf(Color(0xFF91B7C8), Color(0xFF557D82)),
+            listOf(Color(0xFFE1B77D), Color(0xFF8C6170)),
+        )
+    }
+    return Brush.linearGradient(palettes[index.coerceIn(palettes.indices)])
 }
 
 @Composable
