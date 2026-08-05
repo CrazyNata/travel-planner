@@ -1786,7 +1786,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                             fontSize = 16.sp,
                             modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(10.dp)).padding(horizontal = 11.dp, vertical = 7.dp),
                         )
-                        Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp, modifier = Modifier.padding(start = 10.dp))
+                        Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(start = 10.dp))
                     }
                     Button(
                         onClick = { menuOpen = false; onNewTrip() },
@@ -1794,7 +1794,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth().padding(top = 22.dp).height(52.dp),
                     ) {
-                        Text("+  " + localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
+                        Text("+  " + localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
                     }
                     Text(localized("НАВИГАЦИЯ", "NAVIGATION", "NAVEGACIÓN", "NAVIGATION"), color = Color(0xFFA4A4AF), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.5.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 28.dp, start = 6.dp, bottom = 12.dp))
                     Row(
@@ -1802,14 +1802,14 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         modifier = Modifier.fillMaxWidth().background(Color(0xFFF0EDFF), RoundedCornerShape(12.dp)).clickable { accountMenuOpen = false; menuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp),
                     ) {
                         Text("◇", color = OdysseyPurple, fontSize = 22.sp)
-                        Text(localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 12.dp))
+                        Text(localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.5.sp, modifier = Modifier.padding(start = 12.dp))
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { menuOpen = false; onCatalog() }.padding(horizontal = 14.dp, vertical = 16.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { menuOpen = false; onCatalog() }.padding(horizontal = 14.dp, vertical = 13.dp),
                     ) {
                         Text("+", color = Color(0xFF8B8B96), fontSize = 22.sp)
-                        Text(localized("Каталог маршрутов", "Route catalog", "Catálogo de rutas", "Routenkatalog"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.padding(start = 12.dp))
+                        Text(localized("Каталог маршрутов", "Route catalog", "Catálogo de rutas", "Routenkatalog"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.5.sp, modifier = Modifier.padding(start = 12.dp))
                     }
                     Spacer(Modifier.weight(1f))
                     if (accountMenuOpen) {
@@ -2553,20 +2553,21 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                 Box(modifier = Modifier.fillMaxSize().background(Color(0x66000000)).clickable { sectionMenuOpen = false })
                 Column(modifier = Modifier.fillMaxHeight().width(330.dp).background(cardSurfaceColor()).padding(start = 18.dp, top = 22.dp, end = 18.dp, bottom = 32.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(45.dp).background(OdysseyPurple, RoundedCornerShape(12.dp))) {
-                            Icon(Icons.Outlined.Explore, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).background(OdysseyPurple, RoundedCornerShape(13.dp))) {
+                            Icon(Icons.Outlined.Explore, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 10.dp, top = 7.dp)) {
-                            Text(localizedTripTitle(overview?.title.orEmpty()), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 14.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(localizedTripTitle(overview?.title.orEmpty()), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(20.dp))
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
+                            Icon(Icons.Filled.Close, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder))
-                    Spacer(Modifier.height(16.dp))
-                    listOf(
+                    Spacer(Modifier.height(12.dp))
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        listOf(
                         Triple("overview", Icons.Outlined.Explore, localized("Главная", "Overview", "Inicio", "Übersicht")),
                         Triple("route", Icons.Outlined.Share, localized("Маршрут", "Route", "Ruta", "Route")),
                         Triple("sights", Icons.Outlined.LocationOn, localized("Достопримечательности", "Sights", "Lugares", "Sehenswürdigkeiten")),
@@ -2575,12 +2576,13 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                         Triple("budget", Icons.Outlined.AccountBalanceWallet, localized("Бюджет", "Budget", "Presupuesto", "Budget")),
                         Triple("members", Icons.Outlined.Group, localized("Участники", "Members", "Participantes", "Teilnehmer")),
                         Triple("photos", Icons.Outlined.Image, localized("Фото", "Photos", "Fotos", "Fotos")),
-                    ).forEach { (entry, icon, label) ->
+                        ).forEach { (entry, icon, label) ->
                         val selected = tab == entry
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).background(if (selected) OdysseyTint else Color.Transparent, RoundedCornerShape(12.dp)).clickable { tab = entry; sectionMenuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().background(if (selected) OdysseyTint else Color.Transparent, RoundedCornerShape(14.dp)).clickable { tab = entry; sectionMenuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp)) {
                             Icon(icon, contentDescription = null, tint = if (selected) OdysseyPurple else secondaryTextColor(), modifier = Modifier.size(20.dp))
-                            Text(label, color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 14.dp))
+                            Text(label, color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = if (selected) FontWeight.W800 else FontWeight.W700, fontSize = 15.5.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 14.dp))
                         }
+                    }
                     }
                 }
             }
