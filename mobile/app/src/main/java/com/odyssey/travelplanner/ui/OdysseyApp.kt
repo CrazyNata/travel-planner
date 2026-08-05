@@ -4388,9 +4388,12 @@ private fun RestaurantFilterSheet(
     onApply: () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val scale = maxWidth.value / 368f
+        // Keep the reference proportions on wider Android devices; only shrink on narrower ones.
+        val scale = minOf(maxWidth.value / 368f, 1f)
         fun d(value: Float) = (value * scale).dp
         fun s(value: Float) = (value * scale).sp
+        val contentWidth = (maxWidth.value - 32f).coerceAtLeast(0f).dp
+        val resetX = (maxWidth.value - 97f).coerceAtLeast(16f).dp
         val sectionStyle = androidx.compose.ui.text.TextStyle(
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
@@ -4399,20 +4402,13 @@ private fun RestaurantFilterSheet(
             color = Color(0xFFB6B6BE),
             platformStyle = OdysseyNoFontPadding,
         )
-        val bodyStyle = androidx.compose.ui.text.TextStyle(
-            fontFamily = Manrope,
-            fontWeight = FontWeight.W800,
-            fontSize = s(13.5f),
-            lineHeight = s(18f),
-            platformStyle = OdysseyNoFontPadding,
-        )
-        val controlShape = RoundedCornerShape(d(12f))
         val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
         Box(Modifier.fillMaxWidth().height(d(604f) + navigationBarInset)) {
             Box(
                 modifier = Modifier
-                    .offset(x = d(164f), y = d(12f))
+                    .align(Alignment.TopCenter)
+                    .offset(y = d(12f))
                     .size(d(40f), d(4f))
                     .clip(RoundedCornerShape(d(2f)))
                     .background(Color(0xFFE6E6EC)),
@@ -4430,7 +4426,7 @@ private fun RestaurantFilterSheet(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .offset(x = d(271f), y = d(34.5f))
+                    .offset(x = resetX, y = d(34.5f))
                     .width(d(81f))
                     .height(d(21f))
                     .clickable(onClick = onReset),
@@ -4449,11 +4445,11 @@ private fun RestaurantFilterSheet(
             Text(
                 text = localized("ТИП ЗАВЕДЕНИЯ", "VENUE TYPE", "TIPO DE LOCAL", "ART DES LOKALS"),
                 style = sectionStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(78f)).width(d(336f)).height(d(15f)),
+                modifier = Modifier.offset(x = d(16f), y = d(78f)).width(contentWidth).height(d(15f)),
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(10f)),
-                modifier = Modifier.offset(x = d(16f), y = d(103f)).width(d(336f)).height(d(75f)),
+                modifier = Modifier.offset(x = d(16f), y = d(103f)).width(contentWidth).height(d(75f)),
             ) {
                 listOf(
                     "Ресторан" to "restaurant",
@@ -4465,6 +4461,7 @@ private fun RestaurantFilterSheet(
                         kind = kind,
                         selected = type == label,
                         scale = scale,
+                        modifier = Modifier.weight(1f),
                         onClick = { onTypeChange(label) },
                     )
                 }
@@ -4473,55 +4470,56 @@ private fun RestaurantFilterSheet(
             Text(
                 text = localized("ОСОБЕННОСТИ", "FEATURES", "CARACTERÍSTICAS", "MERKMALE"),
                 style = sectionStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(198f)).width(d(336f)).height(d(15f)),
+                modifier = Modifier.offset(x = d(16f), y = d(198f)).width(contentWidth).height(d(15f)),
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
                 modifier = Modifier.offset(x = d(16f), y = d(223f)).height(d(38f)),
             ) {
-                RestaurantFilterFeatureChip(localized("Приоритет", "Priority", "Prioridad", "Priorität"), "priority", "priority" in features, 122.5f, scale, onFeatureToggle)
-                RestaurantFilterFeatureChip(localized("С собакой", "Dog-friendly", "Con perro", "Hundefreundlich"), "dog", "dog" in features, 117.1f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Приоритет", "Priority", "Prioridad", "Priorität"), "priority", "priority" in features, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("С собакой", "Dog-friendly", "Con perro", "Hundefreundlich"), "dog", "dog" in features, scale, onFeatureToggle)
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
                 modifier = Modifier.offset(x = d(16f), y = d(270f)).height(d(38f)),
             ) {
-                RestaurantFilterFeatureChip(localized("Есть бронь", "Has reservation", "Tiene reserva", "Reservierung vorhanden"), "reservation", "reservation" in features, 123.1f, scale, onFeatureToggle)
-                RestaurantFilterFeatureChip(localized("Веган", "Vegan", "Vegano", "Vegan"), "vegan", "vegan" in features, 87.64f, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Есть бронь", "Has reservation", "Tiene reserva", "Reservierung vorhanden"), "reservation", "reservation" in features, scale, onFeatureToggle)
+                RestaurantFilterFeatureChip(localized("Веган", "Vegan", "Vegano", "Vegan"), "vegan", "vegan" in features, scale, onFeatureToggle)
             }
 
             Text(
                 text = localized("СРЕДНИЙ ЧЕК", "AVERAGE PRICE", "PRECIO MEDIO", "DURCHSCHNITTSPREIS"),
                 style = sectionStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(330f)).width(d(336f)).height(d(15f)),
+                modifier = Modifier.offset(x = d(16f), y = d(330f)).width(contentWidth).height(d(15f)),
             )
             RestaurantFilterSegmentedRow(
+                // Product requirement: keep all four restaurant price levels.
                 options = listOf("€", "€€", "€€€", "€€€€"),
                 selected = price,
                 onSelect = onPriceChange,
                 scale = scale,
                 itemFontSize = 12f,
-                modifier = Modifier.offset(x = d(16f), y = d(355f)),
+                modifier = Modifier.offset(x = d(16f), y = d(355f)).width(contentWidth),
             )
 
             Text(
                 text = localized("РЕЙТИНГ ОТ", "RATING FROM", "VALORACIÓN DESDE", "BEWERTUNG AB"),
                 style = sectionStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(430f)).width(d(336f)).height(d(15f)),
+                modifier = Modifier.offset(x = d(16f), y = d(430f)).width(contentWidth).height(d(15f)),
             )
             RestaurantFilterSegmentedRow(
                 options = listOf("4.0+", "4.5+", "4.8+"),
                 selected = rating,
                 onSelect = onRatingChange,
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(455f)),
+                modifier = Modifier.offset(x = d(16f), y = d(455f)).width(contentWidth),
             )
 
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .offset(x = d(16f), y = d(532f))
-                    .width(d(336f))
+                    .width(contentWidth)
                     .height(d(54f))
                     .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
                     .clip(RoundedCornerShape(d(15f)))
@@ -4548,14 +4546,14 @@ private fun RestaurantFilterTypeButton(
     kind: String,
     selected: Boolean,
     scale: Float,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     fun d(value: Float) = (value * scale).dp
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(d(7f)),
-        modifier = Modifier
-            .width(d(105.33f))
+        modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(d(15f)))
             .background(if (selected) Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))) else Brush.linearGradient(listOf(Color.White, Color.White)))
@@ -4582,7 +4580,6 @@ private fun RestaurantFilterFeatureChip(
     label: String,
     kind: String,
     selected: Boolean,
-    width: Float,
     scale: Float,
     onToggle: (String) -> Unit,
 ) {
@@ -4591,7 +4588,6 @@ private fun RestaurantFilterFeatureChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(d(5f)),
         modifier = Modifier
-            .width(d(width))
             .height(d(38f))
             .clip(RoundedCornerShape(d(12f)))
             .background(if (selected) OdysseyPurple else Color.White)
@@ -4627,7 +4623,6 @@ private fun RestaurantFilterSegmentedRow(
     Row(
         horizontalArrangement = Arrangement.spacedBy(d(5f)),
         modifier = modifier
-            .width(d(336f))
             .height(d(53f))
             .clip(RoundedCornerShape(d(14f)))
             .background(Color(0xFFEEEEF2))
