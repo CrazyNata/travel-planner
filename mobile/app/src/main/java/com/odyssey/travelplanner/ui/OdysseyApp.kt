@@ -185,6 +185,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.util.Calendar
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -525,6 +526,29 @@ private fun localizedTripDateText(value: String, language: String, multilineDura
         "ES" -> "días"
         "DE" -> "Tage"
         else -> "дней"
+    }
+    val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value)
+        .mapNotNull { match -> runCatching { LocalDate.parse(match.value) }.getOrNull() }
+        .toList()
+    if (isoDates.isNotEmpty()) {
+        val shortMonths = monthNames.values.toList().distinct()
+        if (shortMonths.size >= 12) {
+            fun formatIsoDate(date: LocalDate) = "${date.dayOfMonth} ${shortMonths[date.monthValue - 1]} ${date.year}"
+            val formattedRange = isoDates.take(2).joinToString(" – ", transform = ::formatIsoDate)
+            val duration = isoDates.takeIf { it.size >= 2 }?.let { dates ->
+                ChronoUnit.DAYS.between(dates[0], dates[1]).toInt() + 1
+            }
+            val formatted = if (duration != null && duration > 0) {
+                "$formattedRange · $duration $durationWord"
+            } else {
+                formattedRange
+            }
+            return if (multilineDuration) {
+                formatted.replace(Regex("\\s+·\\s+"), " ·\n")
+            } else {
+                formatted
+            }
+        }
     }
     result = result.replace(Regex("(\\d+)\\s+дн(?:ей|я|ень)", RegexOption.IGNORE_CASE)) { "${it.groupValues[1]} $durationWord" }
     val dateJoiner = when (normalizeLanguage(language)) {
