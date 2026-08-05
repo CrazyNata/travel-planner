@@ -4839,20 +4839,19 @@ private fun RestaurantCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(250.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(cardSurfaceColor())
             .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428))
             .padding(12.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(132.dp),
+            modifier = Modifier.fillMaxWidth().height(78.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(132.dp)
+                    .size(78.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFFE4E1EA))
                     .clickable(enabled = !uploading) {
@@ -4922,7 +4921,7 @@ private fun RestaurantCard(
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f).height(132.dp)) {
+            Column(modifier = Modifier.weight(1f).height(78.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Text(
                         restaurant.name,
@@ -5137,35 +5136,28 @@ private fun RestaurantMapCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(267.dp)
+            .height(150.dp)
             .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x19141428), spotColor = Color(0x19141428))
             .clip(RoundedCornerShape(22.dp))
             .background(cardSurfaceColor()),
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(220.dp)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
                 factory = { mapView },
                 modifier = Modifier.fillMaxSize(),
             )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(47.dp)
-                .padding(horizontal = 15.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    localized("РЕСТОРАНЫ", "RESTAURANTS", "RESTAURANTES", "RESTAURANTS"),
-                    color = OdysseyPurple,
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                    letterSpacing = 0.66.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(cardSurfaceColor().copy(alpha = 0.95f))
+                    .padding(horizontal = 11.dp, vertical = 7.dp),
+            ) {
+                OdysseyUtensilsIcon(15.dp, OdysseyPurple)
+                Text(placesLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
             }
         }
     }
