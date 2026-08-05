@@ -56,6 +56,11 @@ data class RouteLeg(
     val from: String,
     val to: String,
     val date: String,
+    val dateDay: String = "",
+    val dateMonth: String = "",
+    val weekday: String = "",
+    val distance: String = "",
+    val travelTime: String = "",
     val checkIn: String,
     val checkOut: String,
     val notes: String,
@@ -210,6 +215,11 @@ interface TripRepository {
         checkOut: String = "",
         notes: String = "",
         mapsUrl: String = "",
+        dateDay: String = "",
+        dateMonth: String = "",
+        weekday: String = "",
+        distance: String = "",
+        travelTime: String = "",
     )
     suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String)
     suspend fun updateMemberRole(id: String, memberId: String, role: String)
@@ -225,7 +235,21 @@ interface TripRepository {
     suspend fun updateRestaurantStatus(id: String, restaurantId: String, status: String)
     suspend fun updateBudgetExpense(id: String, expenseId: String, name: String, amount: Double, category: String)
     suspend fun updateRouteLegCities(id: String, dayId: String, from: String, to: String)
-    suspend fun updateRouteLegDetails(id: String, dayId: String, from: String, to: String, checkIn: String, checkOut: String, notes: String, mapsUrl: String)
+    suspend fun updateRouteLegDetails(
+        id: String,
+        dayId: String,
+        from: String,
+        to: String,
+        checkIn: String,
+        checkOut: String,
+        notes: String,
+        mapsUrl: String,
+        dateDay: String = "",
+        dateMonth: String = "",
+        weekday: String = "",
+        distance: String = "",
+        travelTime: String = "",
+    )
     suspend fun updateRestaurantDetails(id: String, restaurantId: String, name: String, city: String, note: String)
     suspend fun updateAccommodationDetails(id: String, accommodationId: String, name: String, city: String, dates: String, price: String)
     suspend fun updateSightDetails(id: String, sightId: String, name: String, city: String, category: String)
@@ -300,6 +324,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 mapsUrl = roadText("mapsUrl"),
                 completed = roadLeg["completed"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
                 dayNumber = dayNumber,
+                dateDay = roadText("dateDay").ifBlank { roadText("day") },
+                dateMonth = roadText("dateMonth").ifBlank { roadText("month") },
+                weekday = roadText("weekday").ifBlank { roadText("weekDay") },
+                distance = roadText("distance").ifBlank { roadText("km") },
+                travelTime = roadText("travelTime").ifBlank { roadText("hr") },
             )
         }
         val routeDayCount = days.mapIndexed { dayIndex, day ->
@@ -483,7 +512,20 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         patchTripPayload(id, buildJsonObject { put(key, value) })
     }
 
-    override suspend fun addRouteLeg(id: String, from: String, to: String, checkIn: String, checkOut: String, notes: String, mapsUrl: String) {
+    override suspend fun addRouteLeg(
+        id: String,
+        from: String,
+        to: String,
+        checkIn: String,
+        checkOut: String,
+        notes: String,
+        mapsUrl: String,
+        dateDay: String,
+        dateMonth: String,
+        weekday: String,
+        distance: String,
+        travelTime: String,
+    ) {
         require(from.isNotBlank() && to.isNotBlank()) { "Укажите оба города" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
@@ -498,6 +540,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("checkOutFrom", checkOut.trim())
                 put("notes", notes.trim())
                 put("mapsUrl", mapsUrl.trim())
+                put("dateDay", dateDay.trim())
+                put("dateMonth", dateMonth.trim())
+                put("weekday", weekday.trim())
+                put("distance", distance.trim())
+                put("travelTime", travelTime.trim())
                 put("completed", buildJsonArray { })
             })
         }
@@ -777,7 +824,21 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         updateTripSection(id, "days", days)
     }
 
-    override suspend fun updateRouteLegDetails(id: String, dayId: String, from: String, to: String, checkIn: String, checkOut: String, notes: String, mapsUrl: String) {
+    override suspend fun updateRouteLegDetails(
+        id: String,
+        dayId: String,
+        from: String,
+        to: String,
+        checkIn: String,
+        checkOut: String,
+        notes: String,
+        mapsUrl: String,
+        dateDay: String,
+        dateMonth: String,
+        weekday: String,
+        distance: String,
+        travelTime: String,
+    ) {
         require(from.isNotBlank() && to.isNotBlank()) { "Укажите оба города" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id } ?: error("Путешествие не найдено")
         val days = buildJsonArray {
@@ -789,6 +850,9 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         put("from", kotlinx.serialization.json.JsonPrimitive(from.trim())); put("to", kotlinx.serialization.json.JsonPrimitive(to.trim()))
                         put("checkInFrom", kotlinx.serialization.json.JsonPrimitive(checkIn.trim())); put("checkOutFrom", kotlinx.serialization.json.JsonPrimitive(checkOut.trim()))
                         put("notes", kotlinx.serialization.json.JsonPrimitive(notes.trim())); put("mapsUrl", kotlinx.serialization.json.JsonPrimitive(mapsUrl.trim()))
+                        put("dateDay", kotlinx.serialization.json.JsonPrimitive(dateDay.trim())); put("dateMonth", kotlinx.serialization.json.JsonPrimitive(dateMonth.trim()))
+                        put("weekday", kotlinx.serialization.json.JsonPrimitive(weekday.trim())); put("distance", kotlinx.serialization.json.JsonPrimitive(distance.trim()))
+                        put("travelTime", kotlinx.serialization.json.JsonPrimitive(travelTime.trim()))
                     })
                     add(JsonObject(day.toMutableMap().apply { put("city", kotlinx.serialization.json.JsonPrimitive(to.trim())); put("roadLeg", nextLeg) }))
                 } else add(item)

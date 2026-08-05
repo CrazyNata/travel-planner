@@ -8457,6 +8457,11 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
     var checkOut by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var mapsUrl by remember { mutableStateOf("") }
+    var dateDay by remember { mutableStateOf("") }
+    var dateMonth by remember { mutableStateOf("") }
+    var weekday by remember { mutableStateOf("") }
+    var distance by remember { mutableStateOf("") }
+    var travelTime by remember { mutableStateOf("") }
     var editingLeg by remember { mutableStateOf<com.odyssey.travelplanner.data.RouteLeg?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -8498,6 +8503,12 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                     checkOut = leg.checkOut
                     notes = leg.notes
                     mapsUrl = leg.mapsUrl
+                    val dateValues = routeEditorDateValues(leg.date, overview.dates, dayIndex, language)
+                    dateDay = leg.dateDay.ifBlank { dateValues.day }
+                    dateMonth = leg.dateMonth.ifBlank { dateValues.month }
+                    weekday = leg.weekday.ifBlank { dateValues.weekday }
+                    distance = leg.distance
+                    travelTime = leg.travelTime
                     adding = true
                 }) { itemId, completed ->
                     scope.launch {
@@ -8529,7 +8540,22 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                             cornerRadius = CornerRadius(16.dp.toPx()),
                             style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))),
                         )
-                    }.clickable { adding = true }.padding(top = 17.dp),
+                    }.clickable {
+                        editingLeg = null
+                        from = ""
+                        to = ""
+                        checkIn = ""
+                        checkOut = ""
+                        notes = ""
+                        mapsUrl = ""
+                        val dateValues = routeEditorDateValues("", overview.dates, overview.routeLegs.size, language)
+                        dateDay = dateValues.day
+                        dateMonth = dateValues.month
+                        weekday = dateValues.weekday
+                        distance = ""
+                        travelTime = ""
+                        adding = true
+                    }.padding(top = 17.dp),
                 )
             }
         }
@@ -8543,12 +8569,22 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
             RouteLegEditorSheet(
                 from = from,
                 to = to,
+                dateDay = dateDay,
+                dateMonth = dateMonth,
+                weekday = weekday,
+                distance = distance,
+                travelTime = travelTime,
                 checkIn = checkIn,
                 mapsUrl = mapsUrl,
                 saving = saving,
                 message = message,
                 onFromChange = { from = it },
                 onToChange = { to = it },
+                onDateDayChange = { dateDay = it },
+                onDateMonthChange = { dateMonth = it },
+                onWeekdayChange = { weekday = it },
+                onDistanceChange = { distance = it },
+                onTravelTimeChange = { travelTime = it },
                 onCheckInChange = { checkIn = it },
                 onMapsUrlChange = { mapsUrl = it },
                 onCancel = { adding = false; editingLeg = null; message = null },
@@ -8569,9 +8605,37 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                         saving = true
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                            editingLeg?.let { repository.updateRouteLegDetails(tripId, it.dayId, from, to, checkIn, checkOut, notes, mapsUrl) }
-                                ?: repository.addRouteLeg(tripId, from, to, checkIn, checkOut, notes, mapsUrl)
-                        }.onSuccess { adding = false; editingLeg = null; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; onRouteAdded() }
+                            editingLeg?.let {
+                                repository.updateRouteLegDetails(
+                                    id = tripId,
+                                    dayId = it.dayId,
+                                    from = from,
+                                    to = to,
+                                    checkIn = checkIn,
+                                    checkOut = checkOut,
+                                    notes = notes,
+                                    mapsUrl = mapsUrl,
+                                    dateDay = dateDay,
+                                    dateMonth = dateMonth,
+                                    weekday = weekday,
+                                    distance = distance,
+                                    travelTime = travelTime,
+                                )
+                            } ?: repository.addRouteLeg(
+                                id = tripId,
+                                from = from,
+                                to = to,
+                                checkIn = checkIn,
+                                checkOut = checkOut,
+                                notes = notes,
+                                mapsUrl = mapsUrl,
+                                dateDay = dateDay,
+                                dateMonth = dateMonth,
+                                weekday = weekday,
+                                distance = distance,
+                                travelTime = travelTime,
+                            )
+                        }.onSuccess { adding = false; editingLeg = null; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; dateDay = ""; dateMonth = ""; weekday = ""; distance = ""; travelTime = ""; onRouteAdded() }
                             .onFailure { message = it.message ?: localized(language, "Не удалось сохранить переезд", "Could not save route leg", "No se pudo guardar el trayecto", "Etappe konnte nicht gespeichert werden") }
                         saving = false
                     }
@@ -8585,12 +8649,22 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
 private fun RouteLegEditorSheet(
     from: String,
     to: String,
+    dateDay: String,
+    dateMonth: String,
+    weekday: String,
+    distance: String,
+    travelTime: String,
     checkIn: String,
     mapsUrl: String,
     saving: Boolean,
     message: String?,
     onFromChange: (String) -> Unit,
     onToChange: (String) -> Unit,
+    onDateDayChange: (String) -> Unit,
+    onDateMonthChange: (String) -> Unit,
+    onWeekdayChange: (String) -> Unit,
+    onDistanceChange: (String) -> Unit,
+    onTravelTimeChange: (String) -> Unit,
     onCheckInChange: (String) -> Unit,
     onMapsUrlChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -8603,8 +8677,6 @@ private fun RouteLegEditorSheet(
     val displayedTo = localizedCityName(to)
     var visibleFrom by remember(from, language) { mutableStateOf(displayedFrom) }
     var visibleTo by remember(to, language) { mutableStateOf(displayedTo) }
-    var distance by remember { mutableStateOf("") }
-    var travelTime by remember { mutableStateOf("") }
     val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Column(
         modifier = Modifier
@@ -8625,13 +8697,13 @@ private fun RouteLegEditorSheet(
             RouteEditorField(localized("Куда", "To", "A", "Nach"), visibleTo, { visibleTo = it; onToChange(it) }, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RouteEditorField(localized("Число", "Date", "Día", "Tag"), "", {}, Modifier.weight(.8f), placeholder = "—")
-            RouteEditorField(localized("Месяц", "Month", "Mes", "Monat"), "", {}, Modifier.weight(.9f), placeholder = "—")
-            RouteEditorField(localized("День недели", "Weekday", "Día de semana", "Wochentag"), "", {}, Modifier.weight(1.4f), placeholder = "—")
+            RouteEditorField(localized("Число", "Date", "Día", "Tag"), dateDay, onDateDayChange, Modifier.weight(.8f), placeholder = "—")
+            RouteEditorField(localized("Месяц", "Month", "Mes", "Monat"), dateMonth, onDateMonthChange, Modifier.weight(.9f), placeholder = "—")
+            RouteEditorField(localized("День недели", "Weekday", "Día de semana", "Wochentag"), weekday, onWeekdayChange, Modifier.weight(1.4f), placeholder = "—")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RouteEditorField(localized("Расстояние", "Distance", "Distancia", "Entfernung"), distance, { distance = it }, Modifier.weight(1f), placeholder = "—")
-            RouteEditorField(localized("В пути", "Travel time", "En ruta", "Fahrzeit"), travelTime, { travelTime = it }, Modifier.weight(1f), placeholder = "—")
+            RouteEditorField(localized("Расстояние", "Distance", "Distancia", "Entfernung"), distance, onDistanceChange, Modifier.weight(1f), placeholder = "—")
+            RouteEditorField(localized("В пути", "Travel time", "En ruta", "Fahrzeit"), travelTime, onTravelTimeChange, Modifier.weight(1f), placeholder = "—")
         }
         RouteEditorField(localized("Заселение до", "Check-in by", "Entrada antes de", "Check-in bis"), checkIn, onCheckInChange, Modifier.fillMaxWidth(), placeholder = "—")
         RouteEditorField(localized("Ссылка на карту", "Map link", "Enlace al mapa", "Kartenlink"), mapsUrl, onMapsUrlChange, Modifier.fillMaxWidth(), placeholder = "maps.app.goo.gl/..." )
@@ -8688,7 +8760,11 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
         "https://www.google.com/maps/dir/?api=1&origin=${Uri.encode(leg.from)}&destination=${Uri.encode(leg.to)}"
     }
     val longDestination = leg.to.length > 14
-    val dateParts = routeDateParts(leg.date, tripDates, dayIndex, language)
+    val dateParts = if (leg.dateDay.isNotBlank() || leg.dateMonth.isNotBlank()) {
+        leg.dateDay.ifBlank { "—" } to leg.dateMonth.ifBlank { "—" }
+    } else {
+        routeDateParts(leg.date, tripDates, dayIndex, language)
+    }
     Column(
         modifier = Modifier.fillMaxWidth().height(141.dp).clip(RoundedCornerShape(19.dp)).background(cardSurfaceColor()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -8731,6 +8807,48 @@ private fun RouteStop(city: String, flag: String, isLast: Boolean, compact: Bool
         }
         Text("$flag ${localizedCityName(city)}", color = if (isLast) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = if (isLast) FontWeight.W800 else FontWeight.W700, fontSize = if (compact) 14.sp else if (isLast) 17.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.padding(start = 4.dp))
     }
+}
+
+private data class RouteEditorDateValues(val day: String, val month: String, val weekday: String)
+
+private fun routeEditorDateValues(date: String, tripDates: String, dayIndex: Int, language: String): RouteEditorDateValues {
+    val russianMonths = mapOf(
+        "января" to 0, "январь" to 0, "февраля" to 1, "февраль" to 1, "марта" to 2, "март" to 2,
+        "апреля" to 3, "апрель" to 3, "мая" to 4, "май" to 4, "июня" to 5, "июнь" to 5,
+        "июля" to 6, "июль" to 6, "августа" to 7, "август" to 7, "сентября" to 8, "сентябрь" to 8,
+        "октября" to 9, "октябрь" to 9, "ноября" to 10, "ноябрь" to 10, "декабря" to 11, "декабрь" to 11,
+    )
+    fun parse(source: String): Calendar? {
+        val iso = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(source)
+        val russian = Regex("(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})", RegexOption.IGNORE_CASE).find(source)
+        return when {
+            iso != null -> Calendar.getInstance().apply { clear(); set(iso.groupValues[1].toInt(), iso.groupValues[2].toInt() - 1, iso.groupValues[3].toInt()) }
+            russian != null -> Calendar.getInstance().apply { clear(); set(russian.groupValues[3].toInt(), russianMonths[russian.groupValues[2].lowercase()] ?: 0, russian.groupValues[1].toInt()) }
+            else -> null
+        }
+    }
+    val legDate = parse(date)
+    val calendar = (legDate ?: parse(tripDates)) ?: return RouteEditorDateValues("", "", "")
+    if (legDate == null) calendar.add(Calendar.DAY_OF_YEAR, dayIndex)
+    val months = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+        "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+        else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    }
+    val weekdays = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        "ES" -> listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+        "DE" -> listOf("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+        else -> listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+    }
+    val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+    val weekdayIndex = if (dayOfWeek == Calendar.SUNDAY) 6 else dayOfWeek - Calendar.MONDAY
+    return RouteEditorDateValues(
+        day = calendar.get(Calendar.DAY_OF_MONTH).toString(),
+        month = months[calendar.get(Calendar.MONTH)],
+        weekday = weekdays[weekdayIndex],
+    )
 }
 
 private fun routeDateParts(date: String, tripDates: String, dayIndex: Int, language: String): Pair<String, String> {
