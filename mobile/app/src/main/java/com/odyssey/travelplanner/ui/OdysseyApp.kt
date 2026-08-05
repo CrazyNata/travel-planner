@@ -4382,8 +4382,9 @@ private fun RestaurantFilterSheet(
             platformStyle = OdysseyNoFontPadding,
         )
         val controlShape = RoundedCornerShape(d(12f))
+        val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-        Box(Modifier.fillMaxWidth().height(d(604f))) {
+        Box(Modifier.fillMaxWidth().height(d(604f) + navigationBarInset)) {
             Box(
                 modifier = Modifier
                     .offset(x = d(164f), y = d(12f))
@@ -8027,7 +8028,11 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
         }
     }
     if (adding) {
-        ModalBottomSheet(onDismissRequest = { adding = false; editingLeg = null; message = null }, containerColor = cardSurfaceColor()) {
+        ModalBottomSheet(
+            onDismissRequest = { adding = false; editingLeg = null; message = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+        ) {
             RouteLegEditorSheet(
                 from = from,
                 to = to,
@@ -8093,7 +8098,14 @@ private fun RouteLegEditorSheet(
     var visibleTo by remember(to, language) { mutableStateOf(displayedTo) }
     var distance by remember { mutableStateOf("") }
     var travelTime by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+    val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(bottom = navigationBarInset),
+        verticalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(localized("День маршрута", "Route day", "Día de ruta", "Reisetag"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 23.sp)
             Spacer(Modifier.weight(1f))
