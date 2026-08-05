@@ -2669,7 +2669,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
             runCatching {
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Не удалось прочитать изображение")
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addSightPhoto(tripId, sightId, bytes)
-            }.onSuccess { onSightUpdated() }
+            }.onSuccess {
+                message = null
+                onSightUpdated()
+            }.onFailure {
+                message = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Foto konnte nicht hochgeladen werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+            }
             uploadingSightId = null
         }
     }
@@ -2844,6 +2849,11 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                         }
                     },
                 )
+            }
+        }
+        if (message != null) {
+            item {
+                Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
         if (visibleSights.isEmpty()) {
@@ -3369,6 +3379,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var newRestaurantPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
     var cityPickerOpen by remember { mutableStateOf(false) }
@@ -3439,7 +3450,12 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: error("Не удалось прочитать изображение")
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addRestaurantPhoto(tripId, restaurantId, bytes)
-            }.onSuccess { onRestaurantAdded() }
+            }.onSuccess {
+                actionMessage = null
+                onRestaurantAdded()
+            }.onFailure {
+                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Foto konnte nicht hochgeladen werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+            }
             uploadingRestaurantId = null
         }
     }
@@ -3551,7 +3567,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                             ),
                         )
                     }
-                    .clickable { adding = true; message = null },
+                    .clickable { adding = true; message = null; actionMessage = null },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
@@ -3566,6 +3582,11 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                     modifier = Modifier.padding(start = 8.dp),
                 )
+            }
+        }
+        if (actionMessage != null) {
+            item {
+                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
             }
         }
         item {
@@ -3595,7 +3616,13 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     scope.launch {
                         savingRestaurantId = restaurant.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateRestaurantStatus(tripId, restaurant.id, status) }
-                            .onSuccess { onRestaurantAdded() }
+                            .onSuccess {
+                                actionMessage = null
+                                onRestaurantAdded()
+                            }
+                            .onFailure {
+                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Status konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                            }
                         savingRestaurantId = null
                     }
                 }
@@ -5700,6 +5727,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
     var role by remember { mutableStateOf("Редактор") }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
@@ -5719,6 +5747,11 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                 }
             }
         }
+        if (actionMessage != null) {
+            item {
+                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
+        }
         if (overview.members.isEmpty()) {
             item { Text(localized("Участники пока не добавлены", "No members added yet", "Aún no se han añadido participantes", "Noch keine Mitglieder hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
@@ -5727,14 +5760,26 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                     scope.launch {
                         savingMemberId = member.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "members", member.id) }
-                            .onSuccess { onRoleUpdated() }
+                            .onSuccess {
+                                actionMessage = null
+                                onRoleUpdated()
+                            }
+                            .onFailure {
+                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0443\u0434\u0430\u043b\u0438\u0442\u044c \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not remove the member. Check your connection and try again.", "No se pudo eliminar al participante. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Mitglied konnte nicht entfernt werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                            }
                         savingMemberId = null
                     }
                 }) { role ->
                     scope.launch {
                         savingMemberId = member.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateMemberRole(tripId, member.id, role) }
-                            .onSuccess { onRoleUpdated() }
+                            .onSuccess {
+                                actionMessage = null
+                                onRoleUpdated()
+                            }
+                            .onFailure {
+                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0440\u043e\u043b\u044c. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the role. Check your connection and try again.", "No se pudo cambiar el rol. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Rolle konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
+                            }
                         savingMemberId = null
                     }
                 }
@@ -7089,6 +7134,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
     var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
     var editingAccommodation by remember { mutableStateOf<com.odyssey.travelplanner.data.Accommodation?>(null) }
     var uploadingAccommodationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -7103,7 +7149,12 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: error("Не удалось прочитать изображение")
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addAccommodationPhoto(tripId, accommodationId, bytes)
-            }.onSuccess { onStatusUpdated() }
+            }.onSuccess {
+                actionMessage = null
+                onStatusUpdated()
+            }.onFailure {
+                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Foto konnte nicht hochgeladen werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+            }
             uploadingAccommodationId = null
         }
     }
@@ -7120,6 +7171,11 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (actionMessage != null) {
+            item {
+                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
+        }
         if (overview.accommodations.isEmpty()) {
             item { Text(localized("Жильё пока не добавлено", "No lodging added yet", "Aún no se ha añadido alojamiento", "Noch keine Unterkunft hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
@@ -7134,7 +7190,13 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                         scope.launch {
                             savingAccommodationId = accommodation.id
                             runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).moveAccommodationPhoto(tripId, accommodation.id, index, direction) }
-                                .onSuccess { onStatusUpdated() }
+                                .onSuccess {
+                                    actionMessage = null
+                                    onStatusUpdated()
+                                }
+                                .onFailure {
+                                    actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u043e\u0440\u044f\u0434\u043e\u043a \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the photo order. Check your connection and try again.", "No se pudo cambiar el orden de las fotos. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Fotoreihenfolge konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
+                                }
                             savingAccommodationId = null
                         }
                     },
@@ -7142,7 +7204,13 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                     scope.launch {
                         savingAccommodationId = accommodation.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationStatus(tripId, accommodation.id, status) }
-                            .onSuccess { onStatusUpdated() }
+                            .onSuccess {
+                                actionMessage = null
+                                onStatusUpdated()
+                            }
+                            .onFailure {
+                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Status konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                            }
                         savingAccommodationId = null
                     }
                 }
@@ -8368,6 +8436,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
     var editingLeg by remember { mutableStateOf<com.odyssey.travelplanner.data.RouteLeg?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val cityCount = overview.overviewMapPoints.ifEmpty { overview.routeLegs.flatMap { listOf(it.from, it.to) }.distinct() }.size
     val tripDays = routeDurationDays(overview.dates)
@@ -8384,6 +8453,11 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 fontWeight = FontWeight.W800,
                 fontSize = 11.sp,
             )
+        }
+        if (actionMessage != null) {
+            item {
+                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
         }
         if (overview.routeLegs.isEmpty()) {
             item {
@@ -8406,7 +8480,12 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                         runCatching {
                             SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                                 .updateRouteChecklist(tripId, leg.dayId, itemId, completed)
-                        }.onSuccess { onRouteAdded() }
+                        }.onSuccess {
+                            actionMessage = null
+                            onRouteAdded()
+                        }.onFailure {
+                            actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 checklist. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the checklist change. Check your connection and try again.", "No se pudo guardar el cambio del checklist. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Checklisten\u00e4nderung konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                        }
                     }
                 }
             }
