@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -1269,7 +1270,9 @@ private fun AuthScreen(
             .fillMaxSize()
             .background(if (darkTheme) Color(0xFF141416) else OdysseyBackground)
             .padding(WindowInsets.statusBars.asPaddingValues())
-            .padding(start = 24.dp, top = 40.dp, end = 24.dp, bottom = 28.dp),
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+            .padding(start = 24.dp, top = 40.dp, end = 24.dp, bottom = 28.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -2032,6 +2035,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
         ) {
             Text(
