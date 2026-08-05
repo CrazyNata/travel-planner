@@ -1979,6 +1979,12 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
     var cities by remember(template) { mutableStateOf(templateData.second) }
+    var creationMode by remember(template) { mutableStateOf(if (template.isNullOrBlank()) "blank" else "template") }
+    var cityDialogOpen by remember { mutableStateOf(false) }
+    var cityDraft by remember { mutableStateOf("") }
+    val cityList = remember(cities) {
+        cities.split(",").map(String::trim).filter(String::isNotBlank)
+    }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -2005,32 +2011,280 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(if (darkTheme) Color(0xFF141416) else OdysseyBackground).padding(WindowInsets.statusBars.asPaddingValues()).padding(horizontal = 18.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (darkTheme) Color(0xFF141416) else OdysseyBackground)
+            .padding(WindowInsets.statusBars.asPaddingValues()),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(58.dp)) {
-            Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.width(40.dp).size(24.dp).clickable { onBack() })
-            Text(localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp)
-        }
-        Text(localized("С нуля", "From scratch", "Desde cero", "Von Grund auf"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp))
-        Text(localized("Спланируйте новую поездку", "Plan a new trip", "Planifique un nuevo viaje", "Planen Sie eine neue Reise"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 5.dp))
-        Text(localized("Основные данные можно дополнить позже", "You can add details later", "Podrá añadir los detalles más tarde", "Details können Sie später ergänzen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
-        AuthField(localized("Название", "Title", "Nombre", "Name"), localized("Например, Италия с семьей", "For example, Italy with family", "Por ejemplo, Italia en familia", "Zum Beispiel Italien mit Familie"), title) { title = it }
-        Spacer(Modifier.height(14.dp))
-        AuthField(localized("Города", "Cities", "Ciudades", "Städte"), localized("Рим, Флоренция, Венеция", "Rome, Florence, Venice", "Roma, Florencia, Venecia", "Rom, Florenz, Venedig"), cities) { cities = it }
-        Spacer(Modifier.height(14.dp))
-        AuthField(localized("Дата начала", "Start date", "Fecha de inicio", "Startdatum"), "YYYY-MM-DD", startDate) { startDate = it }
-        Spacer(Modifier.height(14.dp))
-        AuthField(localized("Дата окончания", "End date", "Fecha de finalización", "Enddatum"), "YYYY-MM-DD", endDate) { endDate = it }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
-        Button(
-            onClick = ::save,
-            enabled = !saving,
-            colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth().height(54.dp).padding(top = 18.dp),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 16.dp),
         ) {
-            Text(if (saving) localized("Создаём…", "Creating…", "Creando…", "Wird erstellt…") else localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(40.dp).clickable { onBack() },
+            ) {
+                Icon(Icons.Outlined.Menu, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.size(22.dp))
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    "O",
+                    color = Color.White,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                    modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp),
+                )
+                Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
+            }
+            Spacer(Modifier.size(40.dp))
         }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+        ) {
+            Text(
+                localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 30.sp,
+                lineHeight = 31.sp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                localized("Начните с нуля или выберите шаблон", "Start from scratch or choose a template", "Empiece desde cero o elija una plantilla", "Beginnen Sie neu oder wählen Sie eine Vorlage"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W500,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFEEEEF2))
+                    .padding(4.dp),
+            ) {
+                TripCreationModeSegment(
+                    label = localized("С нуля", "From scratch", "Desde cero", "Von Grund auf"),
+                    selected = creationMode == "blank",
+                    onClick = { creationMode = "blank" },
+                    modifier = Modifier.weight(1f),
+                )
+                TripCreationModeSegment(
+                    label = localized("Из шаблона", "From template", "Desde una plantilla", "Aus Vorlage"),
+                    selected = creationMode == "template",
+                    onClick = { creationMode = "template" },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                TripCreateField(
+                    label = localized("Название поездки", "Trip name", "Nombre del viaje", "Name der Reise"),
+                    placeholder = localized("Италия весной", "Italy in spring", "Italia en primavera", "Italien im Frühling"),
+                    value = title,
+                    onValueChange = { title = it },
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    TripCreateField(
+                        label = localized("Начало", "Start", "Inicio", "Beginn"),
+                        placeholder = "15.04.2027",
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TripCreateField(
+                        label = localized("Конец", "End", "Fin", "Ende"),
+                        placeholder = "28.04.2027",
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Column {
+                    Text(
+                        localized("Города", "Cities", "Ciudades", "Städte"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 7.dp),
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 49.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .border(1.5.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, RoundedCornerShape(13.dp))
+                            .padding(11.dp)
+                            .horizontalScroll(rememberScrollState()),
+                    ) {
+                        cityList.forEach { city ->
+                            TripCityChip(city) {
+                                cities = cityList.filterNot { it == city }.joinToString(", ")
+                            }
+                        }
+                        Text(
+                            localized("+ добавить…", "+ add…", "+ add…", "+ hinzufügen…"),
+                            color = Color(0xFFB6B6BE),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 14.sp,
+                            modifier = Modifier.clickable { cityDialogOpen = true },
+                        )
+                    }
+                }
+            }
+
+            if (message != null) {
+                Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+            }
+            Button(
+                onClick = ::save,
+                enabled = !saving,
+                colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
+                shape = RoundedCornerShape(15.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+                modifier = Modifier.fillMaxWidth().padding(top = 26.dp).height(54.dp),
+            ) {
+                Text(if (saving) localized("Создаём…", "Creating…", "Creando…", "Wird erstellt…") else localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
+            }
+        }
+    }
+
+    if (cityDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { cityDialogOpen = false },
+            title = { Text(localized("Добавить город", "Add city", "Añadir ciudad", "Stadt hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
+            text = {
+                OutlinedTextField(
+                    value = cityDraft,
+                    onValueChange = { cityDraft = it },
+                    singleLine = true,
+                    placeholder = { Text(localized("Например, Рим", "For example, Rome", "Por ejemplo, Roma", "Zum Beispiel Rom"), fontFamily = Manrope) },
+                    shape = RoundedCornerShape(13.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newCity = cityDraft.trim()
+                    if (newCity.isNotBlank()) {
+                        cities = (cityList + newCity).joinToString(", ")
+                        cityDraft = ""
+                        cityDialogOpen = false
+                    }
+                }) { Text(localized("Добавить", "Add", "Añadir", "Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+            },
+            dismissButton = { TextButton(onClick = { cityDialogOpen = false }) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope) } },
+        )
+    }
+}
+
+@Composable
+private fun TripCreationModeSegment(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (selected) cardSurfaceColor() else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 11.dp),
+    ) {
+        Text(
+            label,
+            color = if (selected) contentTextColor() else secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 14.sp,
+            lineHeight = 19.sp,
+        )
+    }
+}
+
+@Composable
+private fun TripCreateField(
+    label: String,
+    placeholder: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val shape = RoundedCornerShape(13.dp)
+    Column(modifier = modifier) {
+        Text(
+            label,
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W700,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(bottom = 7.dp),
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                platformStyle = OdysseyNoFontPadding,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(47.dp)
+                .clip(shape)
+                .background(cardSurfaceColor())
+                .border(1.5.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, shape)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            decorationBox = { innerTextField ->
+                if (value.isBlank()) {
+                    Text(placeholder, color = Color(0xFFB6B6BE), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 15.sp, lineHeight = 20.sp)
+                }
+                innerTextField()
+            },
+        )
+    }
+}
+
+@Composable
+private fun TripCityChip(city: String, onRemove: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(Color(0xFFF1EEFE))
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+    ) {
+        Text(city, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, lineHeight = 17.sp)
+        Text("×", color = OdysseyPurple.copy(alpha = 0.6f), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onRemove))
     }
 }
 
