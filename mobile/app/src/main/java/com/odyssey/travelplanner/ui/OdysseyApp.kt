@@ -3179,6 +3179,9 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
 @OptIn(ExperimentalMaterial3Api::class)
 private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
     var addingSight by remember { mutableStateOf(false) }
+    var deletingSightId by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3191,14 +3194,23 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
             RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), localizedCityName(city), {}, Modifier.weight(1f))
         }
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
+        if (message != null) {
+            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        }
         sights.take(3).forEach { sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF5F4F8)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
-                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFE9E8)).clickable {
+                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFE9E8)).clickable(enabled = deletingSightId == null) {
+                    deletingSightId = sight.id
+                    message = null
                     scope.launch {
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "sights", sight.id) }
                             .onSuccess { onSaved() }
+                            .onFailure {
+                                message = it.message ?: localized(language, "Не удалось удалить достопримечательность", "Could not delete sight", "No se pudo eliminar el lugar", "Ort konnte nicht gelöscht werden")
+                            }
+                        deletingSightId = null
                     }
                 }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(18.dp))
@@ -3751,15 +3763,12 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 address = address,
                 status = status,
                 priority = priority,
-                cityOptions = tripCityOptions,
-                cityPickerOpen = cityPickerOpen,
                 photoUri = newRestaurantPhotoUri,
                 saving = saving,
                 message = message,
                 onNameChange = { name = it },
                 onCityChange = { city = it },
                 onCityPickerOpen = { cityPickerOpen = true },
-                onCityPickerDismiss = { cityPickerOpen = false },
                 onDatePickerOpen = {
                     val today = Calendar.getInstance()
                     DatePickerDialog(
@@ -3826,6 +3835,127 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             )
         }
     }
+    if (adding && cityPickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { cityPickerOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantAddCitySheet(
+                options = tripCityOptions,
+                selectedCity = city,
+                onSelect = { option -> city = option; cityPickerOpen = false },
+                onClose = { cityPickerOpen = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RestaurantAddCitySheet(
+    options: List<String>,
+    selectedCity: String,
+    onSelect: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val maxSheetHeight = maxHeight * 0.8f
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 20.dp, end = 16.dp, bottom = 18.dp + navigationBarInset),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(40.dp, 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFFE2E2E8)),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = localized("\u0413\u043e\u0440\u043e\u0434", "City", "Ciudad", "Stadt"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 22.sp,
+                    lineHeight = 30.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(secondarySurfaceColor())
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = localized("\u0417\u0430\u043a\u0440\u044b\u0442\u044c", "Close", "Cerrar", "Schlie\u00dfen"),
+                        tint = OdysseySubtext,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            if (options.isEmpty()) {
+                Text(
+                    text = localized("\u0412 \u043f\u043e\u0435\u0437\u0434\u043a\u0435 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \u0433\u043e\u0440\u043e\u0434\u043e\u0432", "No cities in this trip yet", "Aún no hay ciudades en este viaje", "Noch keine Städte in dieser Reise"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                options.forEach { option ->
+                    val active = option == selectedCity
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (active) OdysseyTint else cardSurfaceColor())
+                            .border(1.6.dp, if (active) OdysseyPurple else OdysseyBorder, RoundedCornerShape(14.dp))
+                            .clickable { onSelect(option) }
+                            .padding(horizontal = 15.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = localizedCityName(option),
+                            color = if (active) OdysseyPurple else contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 15.5.sp,
+                            lineHeight = 20.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (active) {
+                            Box(
+                                modifier = Modifier.size(22.dp).clip(CircleShape).background(OdysseyPurple),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -3838,15 +3968,12 @@ private fun RestaurantAddSheet(
     address: String,
     status: String,
     priority: Boolean,
-    cityOptions: List<String>,
-    cityPickerOpen: Boolean,
     photoUri: Uri?,
     saving: Boolean,
     message: String?,
     onNameChange: (String) -> Unit,
     onCityChange: (String) -> Unit,
     onCityPickerOpen: () -> Unit,
-    onCityPickerDismiss: () -> Unit,
     onDatePickerOpen: () -> Unit,
     onCuisineChange: (String) -> Unit,
     onDateTimeChange: (String) -> Unit,
@@ -4105,49 +4232,6 @@ private fun RestaurantAddSheet(
                         modifier = Modifier.width(d(154.5f)),
                         onSelect = onPriceChange,
                     )
-                }
-                if (cityPickerOpen) {
-                    Column(
-                        modifier = Modifier
-                            .offset(x = d(16f), y = d(466f))
-                            .width(d(154.5f))
-                            .clip(RoundedCornerShape(d(12f)))
-                            .background(cardSurfaceColor())
-                            .border(d(1f), OdysseyBorder, RoundedCornerShape(d(12f)))
-                            .padding(d(7f)),
-                    ) {
-                        if (cityOptions.isEmpty()) {
-                            Text(
-                                localized("В поездке пока нет городов", "No cities in this trip yet", "Aún no hay ciudades en este viaje", "Noch keine Städte in dieser Reise"),
-                                color = secondaryTextColor(),
-                                fontFamily = Manrope,
-                                fontWeight = FontWeight.W600,
-                                fontSize = s(12f),
-                                lineHeight = s(16f),
-                                modifier = Modifier.padding(d(8f)),
-                            )
-                        } else {
-                            cityOptions.forEach { option ->
-                                Text(
-                                    text = localizedCityName(option),
-                                    color = if (option == city) OdysseyPurple else contentTextColor(),
-                                    fontFamily = Manrope,
-                                    fontWeight = FontWeight.W700,
-                                    fontSize = s(13f),
-                                    lineHeight = s(18f),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(d(9f)))
-                                        .background(if (option == city) OdysseyTint else Color.Transparent)
-                                        .clickable {
-                                            onCityChange(option)
-                                            onCityPickerDismiss()
-                                        }
-                                        .padding(horizontal = d(9f), vertical = d(9f)),
-                                )
-                            }
-                        }
-                    }
                 }
                 RestaurantAddField(
                     label = localized("Адрес", "Address", "Dirección", "Adresse"),
