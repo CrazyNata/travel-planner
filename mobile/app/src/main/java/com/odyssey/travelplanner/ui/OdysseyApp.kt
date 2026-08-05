@@ -1059,7 +1059,7 @@ private fun SurfaceEmptyMedia(
 }
 
 @Composable
-fun OdysseyApp() {
+fun OdysseyApp(onThemeChanged: (Boolean) -> Unit = {}) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
@@ -1068,6 +1068,10 @@ fun OdysseyApp() {
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
     var rememberSession by remember { mutableStateOf(false) }
+
+    LaunchedEffect(darkTheme) {
+        onThemeChanged(darkTheme)
+    }
 
     LaunchedEffect(Unit) {
         hasSession = SupabaseProvider.restorePersistentSession()
