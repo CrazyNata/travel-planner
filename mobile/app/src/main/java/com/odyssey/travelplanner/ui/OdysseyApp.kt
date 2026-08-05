@@ -5314,7 +5314,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
                         Text(groupMeta(city, cityPhotos.size), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.5.sp)
                     }
 
-                    if (index == 0 && cityPhotos.size >= 3) {
+                    if (cityPhotos.size >= 3) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             PhotoTile(cityPhotos[0].first, Modifier.weight(1.7f).height(216.dp))
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
