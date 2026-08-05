@@ -6894,6 +6894,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                                     status = status,
                                     details = details,
                                     bookingUrl = bookingUrl,
+                                    deadline = deadline,
                                 ),
                                 tripId,
                             )
@@ -7420,6 +7421,7 @@ private fun AccommodationEditSheet(
     var name by remember(accommodation.id) { mutableStateOf(accommodation.name) }
     var checkIn by remember(accommodation.id) { mutableStateOf(initialDates.first) }
     var checkOut by remember(accommodation.id) { mutableStateOf(initialDates.second) }
+    var deadline by remember(accommodation.id) { mutableStateOf(accommodation.deadline) }
     var price by remember(accommodation.id) { mutableStateOf(formatAccommodationPrice(accommodation.price)) }
     var bookingUrl by remember(accommodation.id) { mutableStateOf(accommodation.bookingUrl) }
     var saving by remember { mutableStateOf(false) }
@@ -7435,7 +7437,7 @@ private fun AccommodationEditSheet(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(d(537f)),
+                .height(d(630f)),
         ) {
             Box(
                 modifier = Modifier
@@ -7522,8 +7524,15 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W700,
                 valueColor = contentTextColor(),
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(272f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(365f)).width(d(336f)),
                 onValueChange = { price = it },
+            )
+            AccommodationEditDateField(
+                label = localized("Бесплатная отмена до", "Free cancellation until", "Cancelación gratuita hasta", "Kostenlose Stornierung bis"),
+                value = deadline,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(272f)).width(d(336f)),
+                onClick = { datePickerTarget = "deadline" },
             )
             AccommodationEditTextField(
                 label = localized("Ссылка на Booking", "Booking link", "Enlace de Booking", "Booking-Link"),
@@ -7532,14 +7541,14 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W600,
                 valueColor = OdysseyPurple,
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(365f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(458f)).width(d(336f)),
                 onValueChange = { bookingUrl = it },
             )
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(11f)),
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(466f))
+                    .offset(x = d(16f), y = d(559f))
                     .width(d(336f))
                     .height(d(53f)),
             ) {
@@ -7593,6 +7602,7 @@ private fun AccommodationEditSheet(
                                             status = accommodation.status,
                                             details = accommodation.details,
                                             bookingUrl = bookingUrl,
+                                            deadline = deadline,
                                         ),
                                     )
                                 }.onSuccess {
@@ -7624,17 +7634,25 @@ private fun AccommodationEditSheet(
                     fontSize = s(11f),
                     lineHeight = s(15f),
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    modifier = Modifier.offset(x = d(16f), y = d(440f)).width(d(336f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(533f)).width(d(336f)),
                 )
             }
         }
     }
     datePickerTarget?.let { target ->
         AccommodationCalendarDialog(
-            initialValue = if (target == "checkIn") checkIn else checkOut,
+            initialValue = when (target) {
+                "checkIn" -> checkIn
+                "checkOut" -> checkOut
+                else -> deadline
+            },
             onDismiss = { datePickerTarget = null },
             onConfirm = { selected ->
-                if (target == "checkIn") checkIn = selected else checkOut = selected
+                when (target) {
+                    "checkIn" -> checkIn = selected
+                    "checkOut" -> checkOut = selected
+                    else -> deadline = selected
+                }
                 datePickerTarget = null
             },
         )

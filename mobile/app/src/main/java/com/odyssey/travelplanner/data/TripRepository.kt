@@ -168,6 +168,7 @@ data class AccommodationInput(
     val status: String,
     val details: String = "",
     val bookingUrl: String = "",
+    val deadline: String = "",
 )
 
 data class ExpenseInput(
@@ -1106,6 +1107,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("status", input.status)
             put("details", input.details.trim())
             put("bookingUrl", input.bookingUrl.trim())
+            put("deadline", input.deadline.trim())
             put("photos", buildJsonArray { })
         }
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "accommodations", item))) {
@@ -1127,6 +1129,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("status", kotlinx.serialization.json.JsonPrimitive(input.status))
                 put("details", kotlinx.serialization.json.JsonPrimitive(input.details.trim()))
                 put("bookingUrl", kotlinx.serialization.json.JsonPrimitive(input.bookingUrl.trim()))
+                put("deadline", kotlinx.serialization.json.JsonPrimitive(input.deadline.trim()))
             })
         }
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", tripId) } }
