@@ -4035,6 +4035,49 @@ private fun RestaurantAddSheet(
                         onSelect = onPriceChange,
                     )
                 }
+                if (cityPickerOpen) {
+                    Column(
+                        modifier = Modifier
+                            .offset(x = d(16f), y = d(466f))
+                            .width(d(154.5f))
+                            .clip(RoundedCornerShape(d(12f)))
+                            .background(cardSurfaceColor())
+                            .border(d(1f), OdysseyBorder, RoundedCornerShape(d(12f)))
+                            .padding(d(7f)),
+                    ) {
+                        if (cityOptions.isEmpty()) {
+                            Text(
+                                localized("В поездке пока нет городов", "No cities in this trip yet", "Aún no hay ciudades en este viaje", "Noch keine Städte in dieser Reise"),
+                                color = secondaryTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = s(12f),
+                                lineHeight = s(16f),
+                                modifier = Modifier.padding(d(8f)),
+                            )
+                        } else {
+                            cityOptions.forEach { option ->
+                                Text(
+                                    text = localizedCityName(option),
+                                    color = if (option == city) OdysseyPurple else contentTextColor(),
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W700,
+                                    fontSize = s(13f),
+                                    lineHeight = s(18f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(d(9f)))
+                                        .background(if (option == city) OdysseyTint else Color.Transparent)
+                                        .clickable {
+                                            onCityChange(option)
+                                            onCityPickerDismiss()
+                                        }
+                                        .padding(horizontal = d(9f), vertical = d(9f)),
+                                )
+                            }
+                        }
+                    }
+                }
                 RestaurantAddField(
                     label = localized("Адрес", "Address", "Dirección", "Adresse"),
                     value = address,
@@ -4124,42 +4167,6 @@ private fun RestaurantAddSheet(
                 }
             }
         }
-    }
-    if (cityPickerOpen) {
-        AlertDialog(
-            onDismissRequest = onCityPickerDismiss,
-            title = { Text(localized("Выберите город", "Choose a city", "Elija una ciudad", "Stadt auswählen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
-            text = {
-                if (cityOptions.isEmpty()) {
-                    Text(localized("В поездке пока нет городов", "No cities have been added to this trip yet", "Aún no hay ciudades en este viaje", "Für diese Reise wurden noch keine Städte hinzugefügt"), fontFamily = Manrope)
-                } else {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        cityOptions.forEach { option ->
-                            Text(
-                                text = localizedCityName(option),
-                                color = if (option == city) OdysseyPurple else contentTextColor(),
-                                fontFamily = Manrope,
-                                fontWeight = FontWeight.W700,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (option == city) OdysseyTint else Color.Transparent)
-                                    .clickable {
-                                        onCityChange(option)
-                                        onCityPickerDismiss()
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = onCityPickerDismiss) {
-                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
-                }
-            },
-        )
     }
 }
 
