@@ -3170,7 +3170,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         }
         val featureMatches = appliedFeatureFilters.all { feature ->
             when (feature) {
-                "priority" -> note.contains("приоритет") || note.contains("priority")
+                "priority" -> restaurant.priority || note.contains("приоритет") || note.contains("priority")
                 "dog" -> note.contains("с собакой") || note.contains("dog")
                 "reservation" -> restaurant.status == "бронь" || note.contains("бронь") || note.contains("reserv")
                 "vegan" -> note.contains("веган") || note.contains("vegan")
@@ -3492,6 +3492,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                                     price = price,
                                     link = address,
                                     date = dateTime,
+                                    priority = priority,
                                 ),
                                 tripId,
                             )
@@ -4319,6 +4320,7 @@ private fun RestaurantEditSheet(
                                             price = restaurant.price,
                                             link = restaurant.link,
                                             date = whenBooked,
+                                            priority = restaurant.priority,
                                         ),
                                     )
                                 }.onSuccess {
@@ -5215,6 +5217,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
                                 note = note,
                                 price = price,
                                 link = link,
+                                priority = restaurant.priority,
                             ),
                         )
                     }

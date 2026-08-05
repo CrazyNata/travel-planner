@@ -121,6 +121,7 @@ data class Restaurant(
     val note: String,
     val link: String,
     val date: String = "",
+    val priority: Boolean = false,
 )
 data class TripOverview(
     val id: String,
@@ -167,6 +168,7 @@ data class RestaurantInput(
     val price: String = "",
     val link: String = "",
     val date: String = "",
+    val priority: Boolean = false,
 )
 
 private fun normalizeRestaurantStatus(status: String): String = when (status.trim().lowercase(Locale.ROOT)) {
@@ -391,6 +393,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 note = restaurantText("note"),
                 link = restaurantText("link"),
                 date = restaurantText("date").ifBlank { restaurantText("dateTime") },
+                priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
         return TripOverview(
@@ -1097,6 +1100,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("price", input.price.trim())
             put("link", input.link.trim())
             put("date", input.date.trim())
+            put("priority", input.priority)
             put("photos", buildJsonArray { })
         }
         client.from("trips").update(TripPayloadUpdate(TripPayloadCodec.append(current.payload, "restaurants", item))) {
@@ -1118,6 +1122,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("price", kotlinx.serialization.json.JsonPrimitive(input.price.trim()))
                 put("link", kotlinx.serialization.json.JsonPrimitive(input.link.trim()))
                 put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
+                put("priority", kotlinx.serialization.json.JsonPrimitive(input.priority))
             })
         }
         client.from("trips").update(TripPayloadUpdate(payload)) { filter { eq("id", tripId) } }
