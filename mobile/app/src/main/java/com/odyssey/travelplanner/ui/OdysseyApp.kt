@@ -8127,7 +8127,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                             editingLeg?.let { repository.updateRouteLegDetails(tripId, it.dayId, from, to, checkIn, checkOut, notes, mapsUrl) }
-                                ?: repository.addRouteLeg(tripId, from, to)
+                                ?: repository.addRouteLeg(tripId, from, to, checkIn, checkOut, notes, mapsUrl)
                         }.onSuccess { adding = false; editingLeg = null; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; onRouteAdded() }
                             .onFailure { message = it.message ?: localized(language, "Не удалось сохранить переезд", "Could not save route leg", "No se pudo guardar el trayecto", "Etappe konnte nicht gespeichert werden") }
                         saving = false

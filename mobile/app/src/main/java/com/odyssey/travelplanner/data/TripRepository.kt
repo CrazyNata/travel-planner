@@ -192,7 +192,15 @@ interface TripRepository {
     suspend fun loadTripOverview(id: String): TripOverview?
     suspend fun createTrip(title: String, startDate: String, endDate: String, cities: String): TripCard
     suspend fun updateTripSection(id: String, key: String, value: JsonElement)
-    suspend fun addRouteLeg(id: String, from: String, to: String)
+    suspend fun addRouteLeg(
+        id: String,
+        from: String,
+        to: String,
+        checkIn: String = "",
+        checkOut: String = "",
+        notes: String = "",
+        mapsUrl: String = "",
+    )
     suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String)
     suspend fun updateMemberRole(id: String, memberId: String, role: String)
     suspend fun updateAccommodationStatus(id: String, accommodationId: String, status: String)
@@ -452,7 +460,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
     }
 
-    override suspend fun addRouteLeg(id: String, from: String, to: String) {
+    override suspend fun addRouteLeg(id: String, from: String, to: String, checkIn: String, checkOut: String, notes: String, mapsUrl: String) {
         require(from.isNotBlank() && to.isNotBlank()) { "Укажите оба города" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
@@ -463,6 +471,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("roadLeg", buildJsonObject {
                 put("from", from.trim())
                 put("to", to.trim())
+                put("checkInFrom", checkIn.trim())
+                put("checkOutFrom", checkOut.trim())
+                put("notes", notes.trim())
+                put("mapsUrl", mapsUrl.trim())
                 put("completed", buildJsonArray { })
             })
         }
