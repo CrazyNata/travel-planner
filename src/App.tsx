@@ -11,7 +11,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
 
-type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public";
+type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public" | "delete-account";
 type Tab =
   | "overview"
   | "route"
@@ -9868,6 +9868,100 @@ function Auth({
   );
 }
 
+function AccountDeletionPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!email.trim() || !password) {
+      setMessage("Введите e-mail и пароль, чтобы подтвердить удаление аккаунта.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    setAuthSessionPersistence(!rememberMe);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error || !data.user) {
+      setMessage(error?.message ?? "Не удалось подтвердить аккаунт.");
+      setBusy(false);
+      return;
+    }
+    const { error: deleteError } = await supabase.functions.invoke("delete-account", {
+      body: {},
+    });
+    if (deleteError) {
+      setMessage(deleteError.message || "Не удалось удалить аккаунт. Попробуйте ещё раз.");
+      setBusy(false);
+      return;
+    }
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <div className="auth-form">
+          <div className="auth-brand">
+            <span>O</span>
+            <b>Одиссея</b>
+          </div>
+          <h1>Удаление аккаунта</h1>
+          <p>
+            Войдите, чтобы подтвердить удаление аккаунта и связанных с ним данных.
+            Будут удалены поездки, участники, профиль и загруженные фотографии.
+          </p>
+          <form onSubmit={handleSubmit}>
+            <label>
+              E-mail
+              <input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+              />
+            </label>
+            <label>
+              Пароль
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                autoComplete="current-password"
+                placeholder="Введите пароль"
+              />
+            </label>
+            <label className="remember">
+              <input
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Не сохранять вход на этом устройстве</span>
+            </label>
+            {message && <p className="auth-message">{message}</p>}
+            <button className="primary" type="submit" disabled={busy}>
+              {busy ? "Удаляем аккаунт…" : "Удалить аккаунт"}
+            </button>
+          </form>
+          <button className="auth-link" type="button" onClick={() => navigate("/auth")}>
+            Вернуться ко входу
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -9894,6 +9988,8 @@ export function App() {
         ? "catalog"
         : location.pathname === "/public"
           ? "public"
+          : location.pathname === "/delete-account"
+            ? "delete-account"
           : location.pathname === "/trips"
             ? "trips"
             : "auth";
@@ -9913,6 +10009,7 @@ export function App() {
       create: "/create",
       catalog: "/catalog",
       public: "/public",
+      "delete-account": "/delete-account",
     };
     navigate(next === "trip" ? `/trips/${tripId}/overview` : paths[next]);
     setMenu(false);
@@ -10098,9 +10195,10 @@ export function App() {
         if (error) console.error("Could not save the sight.", error);
       });
   };
-  if (!authReady || (!isAuthenticated && view !== "auth") || (isAuthenticated && view === "auth")) {
+  if (!authReady || (!isAuthenticated && view !== "auth" && view !== "delete-account") || (isAuthenticated && view === "auth")) {
     return null;
   }
+  if (view === "delete-account") return <AccountDeletionPage />;
   if (view === "auth")
     return (
       <Auth

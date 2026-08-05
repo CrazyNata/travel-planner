@@ -12,6 +12,23 @@ val supabaseProperties = Properties().apply {
     if (file.exists()) file.inputStream().use(::load)
 }
 
+val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
+val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() } && rootProject.file(releaseKeystorePath ?: "").isFile
+val releaseTasksRequested = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+if (releaseTasksRequested && !hasReleaseSigning) {
+    error("Release signing is not configured. Set ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD.")
+}
+val versionCodeFromEnvironment = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toIntOrNull() ?: 1
+val versionNameFromEnvironment = providers.environmentVariable("ANDROID_VERSION_NAME").orNull ?: "0.1.0"
+
 android {
     namespace = "com.odyssey.travelplanner"
     compileSdk = 36
@@ -20,8 +37,8 @@ android {
         applicationId = "com.odyssey.travelplanner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = versionCodeFromEnvironment
+        versionName = versionNameFromEnvironment
 
         buildConfigField("String", "SUPABASE_URL", "\"${supabaseProperties.getProperty("SUPABASE_URL", "")}\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabaseProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "")}\"")
@@ -33,6 +50,27 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = rootProject.file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isDebuggable = false
+            isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     compileOptions {

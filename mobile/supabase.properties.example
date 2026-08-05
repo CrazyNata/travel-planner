@@ -1,0 +1,5 @@
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
+MAPBOX_ACCESS_TOKEN=pk.your_public_mapbox_token
+MAPBOX_DOWNLOADS_TOKEN=sk.your_mapbox_downloads_token
+GOOGLE_WEB_CLIENT_ID=your-google-web-client-id.apps.googleusercontent.com

@@ -2,6 +2,7 @@ package com.odyssey.travelplanner.data
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.storage.storage
 import kotlinx.serialization.SerialName
@@ -82,5 +83,13 @@ class AccountRepository(private val client: SupabaseClient) {
     suspend fun changePassword(password: String) {
         require(password.length >= 6) { "Пароль должен содержать минимум 6 символов" }
         client.auth.updateUser { this.password = password }
+    }
+
+    suspend fun deleteAccount() {
+        check(client.auth.currentUserOrNull() != null) { "Необходимо войти в аккаунт" }
+        client.functions.invoke(
+            function = "delete-account",
+            body = buildJsonObject { },
+        )
     }
 }

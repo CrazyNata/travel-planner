@@ -40,3 +40,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY
 ```
 
 В настройках репозитория откройте `Settings` → `Pages` и выберите `GitHub Actions` как источник публикации.
+
+## Android-релиз
+
+Native Android-проект находится в `mobile/`. Инструкция по production-конфигурации, подписанному AAB, GitHub Actions и чек-листу Play Console: [`mobile/RELEASE.md`](mobile/RELEASE.md).

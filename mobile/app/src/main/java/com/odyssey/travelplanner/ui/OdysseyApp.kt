@@ -94,6 +94,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
@@ -1552,6 +1553,8 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var newPassword by remember { mutableStateOf("") }
     var repeatedNewPassword by remember { mutableStateOf("") }
     var accountMessage by remember { mutableStateOf<String?>(null) }
+    var accountDeleteDialogOpen by remember { mutableStateOf(false) }
+    var accountDeleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -1879,6 +1882,10 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 }
                             }
                             Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder).padding(top = 8.dp))
+                            AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), Color(0xFFE85B56)) {
+                                accountMessage = null
+                                accountDeleteDialogOpen = true
+                            }
                             AccountMenuItem(Icons.Outlined.Logout, localized("Выйти", "Sign out", "Cerrar sesión", "Abmelden"), Color(0xFFE85B56)) {
                                 scope.launch {
                                     SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
@@ -1903,6 +1910,76 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     }
                 }
             }
+        }
+        if (accountDeleteDialogOpen) {
+            AlertDialog(
+                onDismissRequest = { if (!accountDeleting) accountDeleteDialogOpen = false },
+                title = {
+                    Text(
+                        localized("Удалить аккаунт?", "Delete account?", "¿Eliminar cuenta?", "Konto löschen?"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            localized(
+                                "Будут удалены профиль, поездки, участники и загруженные фотографии. Это действие нельзя отменить.",
+                                "Your profile, trips, collaborators, and uploaded photos will be deleted. This cannot be undone.",
+                                "Se eliminarán su perfil, viajes, colaboradores y fotos subidas. Esta acción no se puede deshacer.",
+                                "Ihr Profil, Reisen, Mitreisende und hochgeladene Fotos werden gelöscht. Das kann nicht rückgängig gemacht werden.",
+                            ),
+                            fontFamily = Manrope,
+                            fontSize = 13.sp,
+                        )
+                        if (accountMessage != null) {
+                            Text(
+                                accountMessage!!,
+                                color = Color(0xFFE85B56),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W700,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !accountDeleting,
+                        onClick = {
+                            scope.launch {
+                                accountDeleting = true
+                                accountMessage = null
+                                runCatching {
+                                    AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteAccount()
+                                    SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
+                                }.onSuccess {
+                                    accountDeleteDialogOpen = false
+                                    accountMenuOpen = false
+                                    menuOpen = false
+                                    onLogout()
+                                }.onFailure {
+                                    accountMessage = it.message ?: localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden")
+                                }
+                                accountDeleting = false
+                            }
+                        },
+                    ) {
+                        Text(
+                            if (accountDeleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…") else localized("Удалить", "Delete", "Eliminar", "Löschen"),
+                            color = Color(0xFFE85B56),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(enabled = !accountDeleting, onClick = { accountDeleteDialogOpen = false }) {
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope)
+                    }
+                },
+            )
         }
     }
 }
@@ -2346,6 +2423,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
                 }
             }
         }
+
     }
 }
 
