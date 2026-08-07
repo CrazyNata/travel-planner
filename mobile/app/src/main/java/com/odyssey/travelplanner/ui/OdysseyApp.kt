@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -5822,7 +5823,9 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         item {
             Row(
@@ -5920,7 +5923,9 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
@@ -6228,6 +6233,7 @@ private fun BudgetContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars)
             .verticalScroll(budgetScrollState)
             .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp),
     ) {
@@ -7092,7 +7098,9 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         item {
             Text(localized("Бюджет поездки", "Trip budget", "Presupuesto del viaje", "Reisebudget"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
@@ -9202,9 +9210,15 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
         .distinctBy { cityFilterKey(it) }
 
     LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 18.dp,
+            end = 18.dp,
+            bottom = 30.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
         item {
             Box(
@@ -9500,7 +9514,7 @@ private fun WeatherPlaceholder(
         weather?.condition?.let { localizedWeatherCondition(it) }
     }
     Box(
-        modifier = Modifier.width(104.dp).height(140.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
+        modifier = Modifier.width(120.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
     ) {
         if (photo != null) {
             AsyncImage(
