@@ -9880,7 +9880,7 @@ function Auth({
 type LegalPageKind = "privacy" | "terms";
 
 const legalEntityName =
-  import.meta.env.VITE_LEGAL_ENTITY_NAME || "Команда Одиссеи";
+  import.meta.env.VITE_LEGAL_ENTITY_NAME || "Ramingo";
 const legalContactEmail = import.meta.env.VITE_LEGAL_CONTACT_EMAIL || "";
 const legalEffectiveDate =
   import.meta.env.VITE_LEGAL_EFFECTIVE_DATE || "7 августа 2026 года";
