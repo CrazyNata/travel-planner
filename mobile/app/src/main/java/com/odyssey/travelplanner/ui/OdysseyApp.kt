@@ -6,9 +6,12 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -58,6 +61,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,6 +118,7 @@ import com.mapbox.maps.plugin.annotation.generated.createPolylineAnnotationManag
 import com.mapbox.maps.plugin.annotation.generated.createCircleAnnotationManager
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.scalebar.scalebar
+import com.mapbox.maps.extension.localization.localizeLabels
 import com.mapbox.maps.extension.style.layers.properties.generated.TextAnchor
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -135,6 +141,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -178,6 +188,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
@@ -188,7 +199,6 @@ import java.net.URLEncoder
 import java.util.Calendar
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 private val OdysseyPurple = Color(0xFF6C5CE7)
@@ -201,6 +211,30 @@ private val OdysseyLabel = Color(0xFF3A3A42)
 private val OdysseySubtext = Color(0xFF8A8A95)
 private val OdysseyBorder = Color(0xFFE6E6EC)
 private val OdysseyTint = Color(0xFFF1EEFE)
+private val OdysseyLightColors = lightColorScheme(
+    primary = OdysseyPurple,
+    onPrimary = Color.White,
+    background = OdysseyBackground,
+    onBackground = OdysseyText,
+    surface = OdysseySurface,
+    onSurface = OdysseyText,
+    surfaceVariant = OdysseySurface2,
+    onSurfaceVariant = OdysseySubtext,
+    outline = OdysseyBorder,
+    error = Color(0xFFE0524B),
+)
+private val OdysseyDarkColors = darkColorScheme(
+    primary = OdysseyPurple,
+    onPrimary = Color.White,
+    background = Color(0xFF141416),
+    onBackground = Color(0xFFF5F6FA),
+    surface = Color(0xFF20222E),
+    onSurface = Color(0xFFF5F6FA),
+    surfaceVariant = Color(0xFF2B2E3B),
+    onSurfaceVariant = Color(0xFFBEC1CC),
+    outline = Color(0xFF454958),
+    error = Color(0xFFFF7B76),
+)
 private val Manrope = FontFamily(
     Font(R.font.manrope_regular, FontWeight.W400),
     Font(R.font.manrope_medium, FontWeight.W500),
@@ -211,6 +245,23 @@ private val Manrope = FontFamily(
 private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
+
+private fun mapLocale(language: String): Locale = when (normalizeLanguage(language)) {
+    "EN" -> Locale.ENGLISH
+    "ES" -> Locale("es", "ES")
+    "DE" -> Locale.GERMAN
+    else -> Locale("ru", "RU")
+}
+
+private fun labelMapboxAccessibility(view: View, attributionDescription: String) {
+    when {
+        view.javaClass.name.endsWith("LogoViewImpl") -> view.contentDescription = "Mapbox"
+        view.javaClass.name.endsWith("AttributionViewImpl") -> view.contentDescription = attributionDescription
+    }
+    if (view is ViewGroup) {
+        repeat(view.childCount) { index -> labelMapboxAccessibility(view.getChildAt(index), attributionDescription) }
+    }
+}
 
 @Composable
 private fun localized(ru: String, en: String, es: String, de: String): String = localized(LocalLanguage.current, ru, en, es, de)
@@ -1074,6 +1125,18 @@ private fun cardSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF20222E) e
 private fun secondarySurfaceColor() = if (LocalDarkTheme.current) Color(0xFF2B2E3B) else Color(0xFFF0F0F4)
 
 @Composable
+private fun contentBorderColor() = if (LocalDarkTheme.current) Color(0xFF454958) else OdysseyBorder
+
+@Composable
+private fun tintedSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF2A2940) else Color(0xFFFAF9FF)
+
+@Composable
+private fun dangerSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF47282C) else Color(0xFFFFE9E8)
+
+@Composable
+private fun warningSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF443721) else Color(0xFFFDF5E6)
+
+@Composable
 private fun SurfaceEmptyMedia(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
@@ -1087,7 +1150,12 @@ private fun SurfaceEmptyMedia(
 }
 
 @Composable
-fun OdysseyApp(onThemeChanged: (Boolean) -> Unit = {}) {
+fun OdysseyApp(
+    onThemeChanged: (Boolean) -> Unit = {},
+    pendingTripId: String? = null,
+    pendingPasswordReset: Boolean = false,
+    onPendingDeepLinkHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
@@ -1128,6 +1196,9 @@ fun OdysseyApp(onThemeChanged: (Boolean) -> Unit = {}) {
             launch {
                 client.auth.sessionStatus.collect { status ->
                     val isActiveClient = SupabaseProvider.clientForCurrentAuthFlow() === client
+                    if (isActiveClient && status is SessionStatus.Authenticated) {
+                        hasSession = true
+                    }
                     val sessionLost = isActiveClient && (
                         status is SessionStatus.RefreshFailure ||
                             status is SessionStatus.NotAuthenticated
@@ -1140,8 +1211,22 @@ fun OdysseyApp(onThemeChanged: (Boolean) -> Unit = {}) {
         }
     }
 
+    LaunchedEffect(authReady, hasSession, currentRoute, pendingTripId, pendingPasswordReset) {
+        if (!authReady || !hasSession || currentRoute == null) return@LaunchedEffect
+        when {
+            pendingPasswordReset && currentRoute != "reset-password" -> {
+                navController.navigate("reset-password")
+                onPendingDeepLinkHandled()
+            }
+            !pendingTripId.isNullOrBlank() && currentRoute != "trip/{tripId}" -> {
+                navController.navigate("trip/$pendingTripId")
+                onPendingDeepLinkHandled()
+            }
+        }
+    }
+
     CompositionLocalProvider(LocalDarkTheme provides darkTheme, LocalLanguage provides language) {
-    MaterialTheme {
+    MaterialTheme(colorScheme = if (darkTheme) OdysseyDarkColors else OdysseyLightColors) {
         Surface(color = if (darkTheme) Color(0xFF141416) else OdysseyBackground) {
             if (!authReady) {
                 TripOverviewLoading()
@@ -1192,6 +1277,16 @@ fun OdysseyApp(onThemeChanged: (Boolean) -> Unit = {}) {
                         onCreated = { navController.navigate("trips") { popUpTo("trips") { inclusive = true } } },
                     )
                 }
+                composable("reset-password") {
+                    ResetPasswordScreen(
+                        onFinished = {
+                            navController.navigate("trips") {
+                                popUpTo("reset-password") { inclusive = true }
+                            }
+                        },
+                        onCancel = { navController.popBackStack() },
+                    )
+                }
                 composable("trip/{tripId}") { entry ->
                     TripOverviewScreen(
                         tripId = entry.arguments?.getString("tripId").orEmpty(),
@@ -1232,6 +1327,10 @@ private fun AuthScreen(
             message = messageText("Пароли не совпадают", "Passwords do not match", "Las contraseñas no coinciden", "Passwörter stimmen nicht überein")
             return
         }
+        if (isRegistration && password.length < 6) {
+            message = messageText("Пароль должен содержать минимум 6 символов", "Password must contain at least 6 characters", "La contraseña debe tener al menos 6 caracteres", "Das Passwort muss mindestens 6 Zeichen enthalten")
+            return
+        }
         scope.launch {
             isLoading = true
             message = null
@@ -1244,14 +1343,16 @@ private fun AuthScreen(
                         this.password = password
                         data = buildJsonObject { put("full_name", name.trim()) }
                     }
+                    auth.currentSessionOrNull() != null
                 } else {
                     auth.signInWith(Email) {
                         this.email = email.trim()
                         this.password = password
                     }
+                    true
                 }
-            }.onSuccess {
-                if (isRegistration) {
+            }.onSuccess { authenticatedImmediately ->
+                if (isRegistration && !authenticatedImmediately) {
                     message = messageText("Проверьте e-mail для подтверждения", "Check your email to confirm", "Revise su correo para confirmar", "Prüfen Sie Ihre E-Mail zur Bestätigung")
                 } else {
                     onAuthenticated()
@@ -1285,8 +1386,12 @@ private fun AuthScreen(
                     idToken = googleCredential.idToken
                     provider = Google
                 }
-            }.onSuccess { onAuthenticated() }.onFailure {
-                message = messageText("Не удалось войти через Google", "Google sign-in failed", "No se pudo iniciar sesión con Google", "Google-Anmeldung fehlgeschlagen")
+            }.onSuccess { onAuthenticated() }.onFailure { error ->
+                message = if (error is NoCredentialException) {
+                    messageText("Аккаунт Google не выбран", "No Google account was selected", "No se seleccionó ninguna cuenta de Google", "Kein Google-Konto ausgewählt")
+                } else {
+                    messageText("Не удалось войти через Google", "Google sign-in failed", "No se pudo iniciar sesión con Google", "Google-Anmeldung fehlgeschlagen")
+                }
             }
             isLoading = false
         }
@@ -1371,7 +1476,7 @@ private fun AuthScreen(
                             scope.launch {
                                 isLoading = true
                                 runCatching {
-                                    SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://travelplanner.muntim.ru")
+                                    SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://travelplanner.muntim.ru/mobile/reset")
                                 }.onSuccess {
                                     message = messageText("Письмо для восстановления отправлено", "Password reset email sent", "Correo de restablecimiento enviado", "E-Mail zum Zurücksetzen gesendet")
                                 }.onFailure {
@@ -1539,6 +1644,75 @@ private fun AuthField(
 }
 
 @Composable
+private fun ResetPasswordScreen(onFinished: () -> Unit, onCancel: () -> Unit) {
+    val language = LocalLanguage.current
+    val scope = rememberCoroutineScope()
+    var password by remember { mutableStateOf("") }
+    var repeatedPassword by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (LocalDarkTheme.current) Color(0xFF141416) else OdysseyBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+    ) {
+        Text(
+            localized("Новый пароль", "New password", "Nueva contraseña", "Neues Passwort"),
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 28.sp,
+        )
+        Text(
+            localized("Задайте новый пароль для аккаунта", "Choose a new password for your account", "Elija una nueva contraseña para su cuenta", "Legen Sie ein neues Passwort für Ihr Konto fest"),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 22.dp),
+        )
+        AuthField(localized("Новый пароль", "New password", "Nueva contraseña", "Neues Passwort"), "••••••••", password, password = true) { password = it }
+        Spacer(Modifier.height(12.dp))
+        AuthField(localized("Повторите пароль", "Repeat password", "Repita la contraseña", "Passwort wiederholen"), "••••••••", repeatedPassword, password = true) { repeatedPassword = it }
+        message?.let {
+            Text(it, color = Color(0xFFE85B56), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+        }
+        Button(
+            enabled = !saving,
+            onClick = {
+                when {
+                    password.length < 6 -> message = localized(language, "Пароль должен содержать минимум 6 символов", "Password must contain at least 6 characters", "La contraseña debe tener al menos 6 caracteres", "Das Passwort muss mindestens 6 Zeichen enthalten")
+                    password != repeatedPassword -> message = localized(language, "Пароли не совпадают", "Passwords do not match", "Las contraseñas no coinciden", "Passwörter stimmen nicht überein")
+                    else -> scope.launch {
+                        saving = true
+                        message = null
+                        runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).changePassword(password) }
+                            .onSuccess { onFinished() }
+                            .onFailure { message = it.message ?: localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden") }
+                        saving = false
+                    }
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
+            shape = RoundedCornerShape(13.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp).padding(top = 16.dp),
+        ) {
+            Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить пароль", "Save password", "Guardar contraseña", "Passwort speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) {
+            Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700)
+        }
+    }
+}
+
+@Composable
 private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, onCatalog: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
@@ -1638,12 +1812,14 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 .padding(WindowInsets.statusBars.asPaddingValues()),
         ) {
         Box(modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Icon(
-                Icons.Outlined.Menu,
-                contentDescription = localized("Открыть меню", "Open menu", "Abrir menú", "Menü öffnen"),
-                tint = contentTextColor(),
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp).size(24.dp).clickable { menuOpen = !menuOpen },
-            )
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(48.dp).clickable { menuOpen = !menuOpen }) {
+                Icon(
+                    Icons.Outlined.Menu,
+                    contentDescription = localized("Открыть меню", "Open menu", "Abrir menú", "Menü öffnen"),
+                    tint = contentTextColor(),
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
                 Text(
                     text = "O",
@@ -1657,7 +1833,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 )
                 Text(
                     text = "Одиссея",
-                    color = OdysseyText,
+                    color = contentTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 16.sp,
@@ -1674,7 +1850,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
             item {
                 Text(
                     text = localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"),
-                    color = OdysseyText,
+                    color = contentTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 32.sp,
@@ -1766,12 +1942,17 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
             }
         }
 
+        val closeDrawerDescription = localized("Закрыть меню", "Close menu", "Cerrar menú", "Menü schließen")
         if (menuOpen) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color(0x66000000))
+                        .semantics {
+                            contentDescription = closeDrawerDescription
+                            role = Role.Button
+                        }
                         .clickable { menuOpen = false },
                 )
                 Column(
@@ -1779,6 +1960,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         .fillMaxHeight()
                         .width(312.dp)
                         .background(cardSurfaceColor())
+                        .windowInsetsPadding(WindowInsets.statusBars)
                         .padding(start = 2.dp, top = 20.dp, end = 16.dp, bottom = 68.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp)) {
@@ -1803,7 +1985,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     Text(localized("НАВИГАЦИЯ", "NAVIGATION", "NAVEGACIÓN", "NAVIGATION"), color = Color(0xFFA4A4AF), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.5.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 28.dp, start = 6.dp, bottom = 12.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().background(Color(0xFFF0EDFF), RoundedCornerShape(12.dp)).clickable { accountMenuOpen = false; menuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp),
+                        modifier = Modifier.fillMaxWidth().background(tintedSurfaceColor(), RoundedCornerShape(12.dp)).clickable { accountMenuOpen = false; menuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp),
                     ) {
                         Text("◇", color = OdysseyPurple, fontSize = 22.sp)
                         Text(localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.5.sp, modifier = Modifier.padding(start = 12.dp))
@@ -1898,16 +2080,18 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(62.dp).background(Color(0xFFF4F3F8), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(62.dp).background(secondarySurfaceColor(), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp),
                     ) {
                         if (profileAvatarUrl != null) {
                             AsyncImage(model = profileAvatarUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
                         } else Text(profileEmail.firstOrNull()?.uppercaseChar()?.toString() ?: "T", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.size(40.dp).background(Color(0xFFFF974C), RoundedCornerShape(10.dp)).padding(top = 9.dp))
                         Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text(profileEmail.ifBlank { localized("Личный кабинет", "Account", "Cuenta", "Konto") }, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1)
-                            Text(localized("Личный кабинет", "Account", "Cuenta", "Konto") + " · $language", color = Color(0xFF8E8D98), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, maxLines = 1)
+                            Text(profileEmail.ifBlank { localized("Личный кабинет", "Account", "Cuenta", "Konto") }, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1)
+                            Text(localized("Личный кабинет", "Account", "Cuenta", "Konto") + " · $language", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, maxLines = 1)
                         }
-                        Icon(Icons.Outlined.Settings, contentDescription = null, tint = Color(0xFF9A99A3), modifier = Modifier.size(19.dp).clickable { accountMenuOpen = !accountMenuOpen })
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clickable { accountMenuOpen = !accountMenuOpen }) {
+                            Icon(Icons.Outlined.Settings, contentDescription = localized("Настройки аккаунта", "Account settings", "Ajustes de la cuenta", "Kontoeinstellungen"), tint = secondaryTextColor(), modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }
@@ -1954,7 +2138,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 accountMessage = null
                                 runCatching {
                                     AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteAccount()
-                                    SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
+                                    SupabaseProvider.clearActiveSessionLocally()
                                 }.onSuccess {
                                     accountDeleteDialogOpen = false
                                     accountMenuOpen = false
@@ -1987,12 +2171,13 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
 
 @Composable
 private fun AccountMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, color: Color = OdysseyText, onClick: (() -> Unit)? = null) {
+    val resolvedTextColor = if (color == OdysseyText) contentTextColor() else color
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().let { modifier -> if (onClick != null) modifier.clickable { onClick() } else modifier }.padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).let { modifier -> if (onClick != null) modifier.clickable { onClick() } else modifier }.padding(vertical = 10.dp),
     ) {
         Icon(icon, contentDescription = null, tint = if (color == OdysseyText) OdysseyPurple else color, modifier = Modifier.size(21.dp))
-        Text(label, color = color, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.padding(start = 11.dp))
+        Text(label, color = resolvedTextColor, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.padding(start = 11.dp))
     }
 }
 
@@ -2371,7 +2556,7 @@ private fun TripCityChip(city: String, onRemove: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(9.dp))
-            .background(Color(0xFFF1EEFE))
+            .background(tintedSurfaceColor())
             .padding(horizontal = 11.dp, vertical = 6.dp),
     ) {
         Text(city, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, lineHeight = 17.sp)
@@ -2418,7 +2603,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
                 Column(modifier = Modifier.padding(15.dp)) {
                     Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
                     Text(route, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp))
-                    Button(onClick = { onUseTemplate(id) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF0EDFF), contentColor = OdysseyPurple), shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth().height(42.dp).padding(top = 10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues()) {
+                    Button(onClick = { onUseTemplate(id) }, colors = ButtonDefaults.buttonColors(containerColor = tintedSurfaceColor(), contentColor = OdysseyPurple), shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth().height(42.dp).padding(top = 10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues()) {
                         Text(localized("Использовать шаблон", "Use template", "Usar plantilla", "Vorlage verwenden"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
                     }
                 }
@@ -2536,23 +2721,24 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                         transformOrigin = TransformOrigin(0f, 0f)
                     },
             ) {
+        val backContentDescription = localized("Назад", "Back", "Atrás", "Zurück")
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 16.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .width(28.dp)
-                    .height(34.dp)
-                    .offset(x = (-6).dp),
+                    .size(48.dp)
+                    .offset(x = (-6).dp)
+                    .semantics {
+                        contentDescription = backContentDescription
+                        role = Role.Button
+                    }
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier.size(34.dp).clickable { onBack() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    OdysseyBackArrow()
+                OdysseyBackArrow(color = contentTextColor())
                 }
-            }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.weight(1f).clickable { sectionMenuOpen = !sectionMenuOpen },
@@ -2593,7 +2779,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                     OdysseyChevronDown(14.dp)
                 }
             }
-            Spacer(Modifier.width(40.dp))
+            Spacer(Modifier.width(48.dp))
         }
 
         if (loading) {
@@ -2627,9 +2813,10 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
         }
         }
 
+        val closeSectionMenuDescription = localized("Закрыть меню разделов", "Close sections menu", "Cerrar menú de secciones", "Bereichsmenü schließen")
         if (sectionMenuOpen) {
             Box(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxSize().background(Color(0x66000000)).clickable { sectionMenuOpen = false })
+                Box(modifier = Modifier.fillMaxSize().background(Color(0x66000000)).semantics { contentDescription = closeSectionMenuDescription; role = Role.Button }.clickable { sectionMenuOpen = false })
                 Column(modifier = Modifier.fillMaxHeight().width(330.dp).background(cardSurfaceColor()).padding(start = 18.dp, top = 22.dp, end = 18.dp, bottom = 32.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).background(OdysseyPurple, RoundedCornerShape(13.dp))) {
@@ -2639,8 +2826,8 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
                             Text(localizedTripTitle(overview?.title.orEmpty()), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(16.dp))
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
+                            Icon(Icons.Filled.Close, contentDescription = localized("Закрыть меню", "Close menu", "Cerrar menú", "Menü schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder))
@@ -2878,7 +3065,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp)) {
                     dayCities.forEachIndexed { index, dayCity ->
                         val selected = index + 1 == routeDay
-                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color(0xFFF0EDFF) else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) tintedSurfaceColor() else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} ${index + 1}", color = if (selected) OdysseyPurple else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.width(64.dp))
                             Text(localizedCityName(dayCity), color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                             Spacer(Modifier.weight(1f))
@@ -2887,7 +3074,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     }
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder).padding(horizontal = 12.dp))
                     Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 22.dp).clickable { creatingDay = true; dayMenuOpen = false }, verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFFF3F1FF)), contentAlignment = Alignment.Center) { Text("+", color = OdysseyPurple, fontSize = 23.sp, fontWeight = FontWeight.W500) }
+                        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Text("+", color = OdysseyPurple, fontSize = 23.sp, fontWeight = FontWeight.W500) }
                         Text(localized("Добавить день", "Add day", "Añadir día", "Tag hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
                     }
                 }
@@ -3175,7 +3362,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) { Text(localized("СОЗДАТЬ ДЕНЬ", "CREATE DAY", "CREAR DÍA", "TAG ERSTELLEN"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp); Text(localized("Места и маршрут дня", "Places and day route", "Lugares y ruta del día", "Orte und Tagesroute"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp) }
-            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = null, tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
+            Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp)) }
         }
         RouteEditorField(localized("День", "Day", "Día", "Tag"), dayNumber, { dayNumber = it }, Modifier.fillMaxWidth())
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${sights.size + placeNames.size}", "SIGHTS · ${sights.size + placeNames.size}", "LUGARES · ${sights.size + placeNames.size}", "ORTE · ${sights.size + placeNames.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
@@ -3213,7 +3400,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
             }
         }
         placeNames.forEachIndexed { index, pendingName ->
-            Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1EEFF)).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(tintedSurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text((sights.take(3).size + index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
                 Text(pendingName, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3266,7 +3453,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(localized("Редактировать день", "Edit day", "Editar día", "Tag bearbeiten"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.5.sp)
             Spacer(Modifier.weight(1f))
-            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
+            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RouteEditorField(localized("День №", "Day no.", "Día nº", "Tag Nr."), day.toString(), {}, Modifier.width(74.dp))
@@ -3277,10 +3464,10 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
             Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
         sights.take(3).forEach { sight ->
-            Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF5F4F8)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(secondarySurfaceColor()).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
-                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFE9E8)).clickable(enabled = deletingSightId == null) {
+                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(dangerSurfaceColor()).clickable(enabled = deletingSightId == null) {
                     deletingSightId = sight.id
                     message = null
                     scope.launch {
@@ -3296,7 +3483,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
                 }
             }
         }
-        Text(localized("＋  Добавить достопримечательность", "＋  Add sight", "＋  Añadir lugar", "＋  Ort hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFD7D0FF), RoundedCornerShape(14.dp)).background(Color(0xFFFAF9FF)).clickable { addingSight = true }.padding(top = 15.dp))
+        Text(localized("＋  Добавить достопримечательность", "＋  Add sight", "＋  Añadir lugar", "＋  Ort hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { addingSight = true }.padding(top = 15.dp))
         Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(14.dp)) { Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
     }
     if (addingSight) {
@@ -3323,12 +3510,12 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                 Text("${localizedCityName(city).uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $day", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
                 Text(localized("Добавить\nдостопримечательность", "Add\nsight", "Añadir\nlugar", "Sehenswürdigkeit\nhinzufügen"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, lineHeight = 27.sp)
             }
-            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(18.dp)) }
+            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp)) }
         }
         RouteEditorField(localized("Главная достопримечательность", "Main sight", "Lugar principal", "Hauptsehenswürdigkeit"), name, { name = it }, Modifier.fillMaxWidth(), placeholder = localized("Напр. Две башни", "E.g. Two towers", "P. ej. Dos torres", "Z. B. Zwei Türme"))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(value = description, onValueChange = { description = it }, placeholder = { Text(localized("Описание объекта: что\nважно увидеть, время\nпосещения, заметки...", "Description", "Descripción", "Beschreibung"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) }, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE0DFE7), unfocusedBorderColor = Color(0xFFE0DFE7)), modifier = Modifier.weight(1f).height(110.dp))
-            Box(modifier = Modifier.width(132.dp).height(110.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFD7D0FF), RoundedCornerShape(14.dp)).background(Color(0xFFFAF9FF)).clickable { photoPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.width(132.dp).height(110.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { photoPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
                 if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Выбранное фото", "Selected photo", "Foto seleccionada", "Ausgewähltes Foto"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("⇧", color = OdysseyPurple, fontSize = 28.sp); Text(localized("Фото объекта", "Photo", "Foto", "Foto"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp); Text(localized("Выберите\nфайл", "Choose file", "Elige archivo", "Datei wählen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, textAlign = TextAlign.Center) }
             }
         }
@@ -4363,8 +4550,8 @@ private fun RestaurantAddSheet(
                         .width(d(135.3f))
                         .height(d(53f))
                         .clip(RoundedCornerShape(d(15f)))
-                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
-                        .background(Color.White)
+                        .border(d(1f), contentBorderColor(), RoundedCornerShape(d(15f)))
+                        .background(cardSurfaceColor())
                         .clickable(onClick = onClose),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -4430,7 +4617,7 @@ private fun RestaurantAddField(
     Column(modifier = modifier.height(d(77f))) {
         Text(
             text = label,
-            color = OdysseyLabel,
+            color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
@@ -4446,8 +4633,8 @@ private fun RestaurantAddField(
                 .fillMaxWidth()
                 .height(d(51f))
                 .clip(RoundedCornerShape(d(14f)))
-                .background(Color.White)
-                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f))),
+                .background(cardSurfaceColor())
+                .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f))),
         ) {
             BasicTextField(
                 value = value,
@@ -4469,15 +4656,15 @@ private fun RestaurantAddField(
                         if (value.isBlank()) {
                             Text(
                                 text = placeholder,
-                                color = Color(0xFFA0A0AA),
-                                fontFamily = Manrope,
-                                fontWeight = FontWeight.W600,
-                                fontSize = s(15f),
-                                lineHeight = s(20f),
-                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
+                                 color = Color(0xFFA0A0AA),
+                                 fontFamily = Manrope,
+                                 fontWeight = FontWeight.W600,
+                                 fontSize = s(13f),
+                                 lineHeight = s(15f),
+                                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                 maxLines = 2,
+                                 softWrap = true,
+                                 overflow = TextOverflow.Clip,
                             )
                         }
                         innerTextField()
@@ -4492,7 +4679,7 @@ private fun RestaurantAddField(
                         .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
-                    OdysseyChevronDown(d(16f), OdysseySubtext)
+                    OdysseyChevronDown(d(16f), secondaryTextColor())
                 }
             }
         }
@@ -4511,7 +4698,7 @@ private fun RestaurantAddPriceField(
     Column(modifier = modifier.height(d(79f))) {
         Text(
             text = localized("Средний чек", "Average price", "Precio medio", "Durchschnittspreis"),
-            color = OdysseyLabel,
+            color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
@@ -4540,7 +4727,7 @@ private fun RestaurantAddPriceField(
                         .height(d(43f))
                         .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
                         .clip(RoundedCornerShape(d(11f)))
-                        .background(if (active) Color.White else Color.Transparent)
+                        .background(if (active) cardSurfaceColor() else Color.Transparent)
                         .clickable { onSelect(option) },
                 ) {
                     Text(
@@ -4577,13 +4764,13 @@ private fun RestaurantAddStatusChip(
             .width(d(width))
             .height(d(38f))
             .clip(RoundedCornerShape(d(12f)))
-            .background(if (selected) OdysseyPurple else Color.White)
-            .border(d(1f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
+            .background(if (selected) OdysseyPurple else cardSurfaceColor())
+            .border(d(1f), if (selected) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(12f)))
             .clickable { onClick(value) },
     ) {
         Text(
             text = label,
-            color = if (selected) Color.White else OdysseySubtext,
+            color = if (selected) Color.White else secondaryTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = s(13.5f),
@@ -4748,8 +4935,8 @@ private fun RestaurantEditSheet(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Color.White)
-                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .background(cardSurfaceColor())
+                        .border(d(1f), contentBorderColor(), RoundedCornerShape(d(15f)))
                         .clickable(onClick = onClose),
                 ) {
                     Text(
@@ -4850,8 +5037,8 @@ private fun RestaurantEditStatusChip(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(d(12f)))
-            .background(if (selected) OdysseyPurple else Color.White)
-            .border(d(1.5f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
+            .background(if (selected) OdysseyPurple else cardSurfaceColor())
+            .border(d(1.5f), if (selected) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(12f)))
             .clickable { onClick(value) },
     ) {
         Text(
@@ -5163,8 +5350,8 @@ private fun RestaurantFilterTypeButton(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(d(15f)))
-            .background(if (selected) Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))) else Brush.linearGradient(listOf(Color.White, Color.White)))
-            .border(d(1.6f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(15f)))
+            .background(if (selected) Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))) else Brush.linearGradient(listOf(cardSurfaceColor(), cardSurfaceColor())))
+            .border(d(1.6f), if (selected) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(15f)))
             .clickable(onClick = onClick)
             .padding(top = d(14f), bottom = d(14f)),
     ) {
@@ -5197,8 +5384,8 @@ private fun RestaurantFilterFeatureChip(
         modifier = Modifier
             .height(d(38f))
             .clip(RoundedCornerShape(d(12f)))
-            .background(if (selected) OdysseyPurple else Color.White)
-            .border(d(1.6f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f)))
+            .background(if (selected) OdysseyPurple else cardSurfaceColor())
+            .border(d(1.6f), if (selected) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(12f)))
             .clickable { onToggle(kind) }
             .padding(horizontal = d(13f)),
     ) {
@@ -5232,7 +5419,7 @@ private fun RestaurantFilterSegmentedRow(
         modifier = modifier
             .height(d(53f))
             .clip(RoundedCornerShape(d(14f)))
-            .background(Color(0xFFEEEEF2))
+            .background(secondarySurfaceColor())
             .padding(d(5f)),
     ) {
         options.forEach { option ->
@@ -5244,7 +5431,7 @@ private fun RestaurantFilterSegmentedRow(
                     .height(d(43f))
                     .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
                     .clip(RoundedCornerShape(d(11f)))
-                    .background(if (active) Color.White else Color.Transparent)
+                    .background(if (active) cardSurfaceColor() else Color.Transparent)
                     .clickable { onSelect(option) },
             ) {
                 Text(
@@ -5532,7 +5719,7 @@ private fun RestaurantCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 9.dp).height(25.dp)) {
                     restaurant.rating?.let {
                         Row(
-                            modifier = Modifier.height(25.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFFDF5E6)).padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(25.dp).clip(RoundedCornerShape(8.dp)).background(warningSurfaceColor()).padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
@@ -5621,14 +5808,15 @@ private fun RestaurantMapCard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val language = LocalLanguage.current
+    val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val restaurantPoints = remember(restaurants) {
         restaurants
             .mapNotNull { mapCoordinate(it.city) }
             .distinctBy { "${it.longitude()},${it.latitude()}" }
     }
     var mapStyleReady by remember { mutableStateOf(false) }
-    val mapView = remember(context) {
+    val mapView = remember(context, attributionDescription) {
         MapView(
             context,
             MapInitOptions(
@@ -5638,31 +5826,29 @@ private fun RestaurantMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
+            it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
     val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
     val numberAnnotationManager = remember(mapView) { mapView.annotations.createPointAnnotationManager() }
 
-    DisposableEffect(lifecycleOwner, mapView) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> {
-                    mapStyleReady = false
-                    mapView.onStart()
-                    mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
-                        mapStyleReady = true
-                    }
-                }
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                else -> Unit
-            }
+    LaunchedEffect(mapView) {
+        mapStyleReady = false
+        mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) { style ->
+            style.localizeLabels(mapLocale(language))
+            mapStyleReady = true
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
+    }
+
+    DisposableEffect(annotationManager, numberAnnotationManager) {
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onStop()
-            mapView.onDestroy()
+            annotationManager.deleteAll()
+            numberAnnotationManager.deleteAll()
         }
+    }
+
+    LaunchedEffect(mapStyleReady, language) {
+        if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
     }
 
     LaunchedEffect(mapStyleReady, restaurantPoints) {
@@ -5743,7 +5929,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
         AuthField(localized("Ссылка", "Link", "Enlace", "Link"), "https://…", link) { link = it }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFE9E8)).clickable {
+            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable {
                 scope.launch {
                     saving = true
                     runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id) }
@@ -5935,7 +6121,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(OdysseyTint).clickable { editing = !editing }.padding(horizontal = 13.dp, vertical = 8.dp),
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить участников", "Edit members", "Editar participantes", "Teilnehmer bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(16.dp))
                     Text(if (editing) localized("Готово", "Done", "Listo", "Fertig") else localized("Изменить", "Edit", "Editar", "Bearbeiten"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 5.dp))
                 }
             }
@@ -5985,21 +6171,21 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                     InviteMemberField("e-mail ${localized("нового участника", "of new member", "del nuevo participante", "des neuen Mitglieds")}", email) { email = it }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEFEFF4)).padding(3.dp),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(secondarySurfaceColor()).padding(3.dp),
                     ) {
                         listOf(
                             localized("Редактор", "Editor", "Editor", "Editor") to "Редактор",
                             localized("Просмотр", "Viewer", "Lector", "Leser") to "Читатель",
                         ).forEach { (label, value) ->
                             val selected = value == role
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).background(if (selected) Color.White else Color.Transparent).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(10.dp)).clickable { role = value }) {
-                                Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).background(if (selected) cardSurfaceColor() else Color.Transparent).border(if (selected) 1.dp else 0.dp, if (selected) contentBorderColor() else Color.Transparent, RoundedCornerShape(10.dp)).clickable { role = value }) {
+                                Text(label, color = if (selected) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
                             }
                         }
                     }
                     if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).clip(RoundedCornerShape(13.dp)).background(Color.White).border(1.dp, OdysseyBorder, RoundedCornerShape(13.dp)).clickable { adding = false; message = null }) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).clip(RoundedCornerShape(13.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp)).clickable { adding = false; message = null }) {
                             Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                         }
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).shadow(6.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7)).clip(RoundedCornerShape(13.dp)).background(OdysseyPurple).clickable(enabled = !saving) {
@@ -6051,8 +6237,8 @@ private fun InviteMemberField(placeholder: String, value: String, onValueChange:
             .fillMaxWidth()
             .height(47.dp)
             .clip(shape)
-            .background(Color.White)
-            .border(1.dp, OdysseyBorder, shape),
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), shape),
         contentAlignment = Alignment.CenterStart,
     ) {
         BasicTextField(
@@ -6073,7 +6259,7 @@ private fun InviteMemberField(placeholder: String, value: String, onValueChange:
                     if (value.isBlank()) {
                         Text(
                             placeholder,
-                            color = OdysseySubtext,
+                            color = secondaryTextColor(),
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W600,
                             fontSize = 14.5.sp,
@@ -6093,6 +6279,7 @@ private fun InviteMemberField(placeholder: String, value: String, onValueChange:
 @Composable
 private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving: Boolean, editing: Boolean, onDelete: () -> Unit, onRoleChange: (String) -> Unit) {
     val language = LocalLanguage.current
+    val darkTheme = LocalDarkTheme.current
     val surface = cardSurfaceColor()
     val avatarColor = when (member.tone) {
         "sand", "orange" -> Color(0xFFF29A32)
@@ -6107,14 +6294,14 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
         else -> member.role
     }
     val roleBackground = when (member.role) {
-        "Владелец" -> Color(0xFFEDEAFF)
-        "Редактор" -> Color(0xFFEEFAF3)
-        else -> Color(0xFFF3F3F6)
+        "Владелец" -> if (darkTheme) Color(0xFF34304E) else Color(0xFFEDEAFF)
+        "Редактор" -> if (darkTheme) Color(0xFF203C35) else Color(0xFFEEFAF3)
+        else -> secondarySurfaceColor()
     }
     val roleColor = when (member.role) {
         "Владелец" -> OdysseyPurple
         "Редактор" -> Color(0xFF22B07D)
-        else -> OdysseySubtext
+        else -> secondaryTextColor()
     }
     Column(
         modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(surface).padding(horizontal = 15.dp, vertical = 13.dp),
@@ -6125,7 +6312,7 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
             }
             Column(modifier = Modifier.weight(1f).padding(start = 13.dp)) {
                 Text(member.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (member.email.isNotBlank()) Text(member.email, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (member.email.isNotBlank()) Text(member.email, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (!editing || isOwner) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(roleBackground).padding(horizontal = 10.dp, vertical = 5.dp)) {
@@ -6140,11 +6327,11 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
                     localized("Просмотр", "Viewer", "Lector", "Leser") to "Читатель",
                 ).forEach { (label, value) ->
                     val selected = member.role == value
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) Color.White else Color(0xFFEFEFF4)).border(if (selected) 1.dp else 0.dp, if (selected) OdysseyBorder else Color.Transparent, RoundedCornerShape(11.dp)).clickable(enabled = !saving) { onRoleChange(value) }) {
-                        Text(label, color = if (selected) contentTextColor() else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) cardSurfaceColor() else secondarySurfaceColor()).border(if (selected) 1.dp else 0.dp, if (selected) contentBorderColor() else Color.Transparent, RoundedCornerShape(11.dp)).clickable(enabled = !saving) { onRoleChange(value) }) {
+                        Text(label, color = if (selected) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
                     }
                 }
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFEBEB)).clickable(enabled = !saving) { onDelete() }) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable(enabled = !saving) { onDelete() }) {
                     Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить участника", "Remove member", "Eliminar participante", "Mitglied entfernen"), tint = Color(0xFFE35D61), modifier = Modifier.size(18.dp))
                 }
             }
@@ -6335,7 +6522,7 @@ private fun BudgetContent(
         ModalBottomSheet(
             onDismissRequest = ::closeExpenseSheet,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Color.White,
+            containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
             scrimColor = Color(0x730F0F19),
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
@@ -6526,12 +6713,12 @@ private fun BudgetCurrencySelector(
                     .weight(1f)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(11.dp))
-                    .background(if (selected) Color.White else Color.Transparent)
+                    .background(if (selected) cardSurfaceColor() else Color.Transparent)
                     .clickable(enabled = !saving && !selected) { onSelect(option.code) },
             ) {
                 Text(
                     text = option.symbol,
-                    color = if (selected) OdysseyText else Color(0xFFA0A0AA),
+                    color = if (selected) contentTextColor() else secondaryTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 13.sp,
@@ -6549,13 +6736,13 @@ private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = 
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .border(1.dp, OdysseyBorder, RoundedCornerShape(16.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(16.dp))
             .padding(start = 12.dp, top = 13.dp, end = 12.dp),
     ) {
         Text(
             text = label,
-            color = OdysseySubtext,
+            color = secondaryTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = 10.sp,
@@ -6568,7 +6755,7 @@ private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = 
         )
         Text(
             text = value,
-            color = OdysseyText,
+            color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = 17.sp,
@@ -6590,7 +6777,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
             Box(modifier = Modifier.size(11.dp).clip(RoundedCornerShape(4.dp)).background(style.color))
             Text(
                 text = localizedBudgetCategory(style.label),
-                color = OdysseyText,
+                color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
                 fontSize = 14.sp,
@@ -6615,7 +6802,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
             Spacer(Modifier.weight(1f))
             Text(
                 text = formatBudgetAmount(amount, currencySymbol),
-                color = OdysseyText,
+                color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 14.sp,
@@ -6626,7 +6813,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
             )
         }
         Spacer(Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(5.dp)).background(OdysseyTrack)) {
+        Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(5.dp)).background(secondarySurfaceColor())) {
             Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(5.dp)).background(style.color))
         }
     }
@@ -6643,12 +6830,13 @@ private fun BudgetExpensesCard(
     onEdit: (com.odyssey.travelplanner.data.BudgetExpense) -> Unit,
     onDelete: (com.odyssey.travelplanner.data.BudgetExpense) -> Unit,
 ) {
+    val dividerColor = contentBorderColor()
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .border(1.dp, OdysseyBorder, RoundedCornerShape(20.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(20.dp))
             .padding(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 14.dp),
     ) {
         Row(
@@ -6657,12 +6845,12 @@ private fun BudgetExpensesCard(
                 .fillMaxWidth()
                 .height(62.dp)
                 .drawBehind {
-                    drawLine(Color(0xFFF2F2F5), Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
+                    drawLine(dividerColor, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), strokeWidth = 1.dp.toPx())
                 },
         ) {
             Text(
                 text = localized("Расходы", "Expenses", "Gastos", "Ausgaben"),
-                color = OdysseyText,
+                color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 16.sp,
@@ -6788,7 +6976,7 @@ private fun BudgetExpenseRow(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color(0xFFF6F6F8)),
+                    .background(secondarySurfaceColor()),
             )
         }
     }
@@ -6816,7 +7004,7 @@ private fun BudgetDashedButton(onClick: () -> Unit) {
             .fillMaxWidth()
             .height(47.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFF6F4FE))
+            .background(tintedSurfaceColor())
             .drawBehind {
                 val stroke = 1.6.dp.toPx()
                 drawRoundRect(
@@ -6861,8 +7049,8 @@ private fun BudgetChoiceChip(
             .width(d(width))
             .height(d(40f))
             .clip(RoundedCornerShape(d(20f)))
-            .background(if (selected) OdysseyPurple else Color.White)
-            .border(d(1f), if (selected) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(20f)))
+            .background(if (selected) OdysseyPurple else cardSurfaceColor())
+            .border(d(1f), if (selected) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(20f)))
             .clickable(onClick = onClick),
     ) {
         Text(
@@ -7030,8 +7218,8 @@ private fun BudgetExpenseSheet(
                         .width(d(141.578f))
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Color.White)
-                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .background(cardSurfaceColor())
+                        .border(d(1f), contentBorderColor(), RoundedCornerShape(d(15f)))
                         .clickable(onClick = onClose),
                 ) {
                     Text(
@@ -7141,7 +7329,7 @@ private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpens
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         categories.forEach { option ->
                             val selected = category == option
-                            Text(localizedBudgetCategory(option), color = if (selected) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else Color(0xFFF0F0F4), RoundedCornerShape(12.dp)).clickable { category = option }.padding(horizontal = 10.dp, vertical = 7.dp))
+                            Text(localizedBudgetCategory(option), color = if (selected) Color.White else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) OdysseyPurple else secondarySurfaceColor(), RoundedCornerShape(12.dp)).clickable { category = option }.padding(horizontal = 10.dp, vertical = 7.dp))
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -7271,7 +7459,7 @@ private fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpen
         AuthField(localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"), localized("общий / семья / личный", "shared / family / personal", "compartido / familiar / personal", "gemeinsam / Familie / privat"), scopeName) { scopeName = it }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFFFE9E8)).clickable {
+            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable {
                 scope.launch {
                     saving = true
                     runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "budgetExpenses", expense.id) }
@@ -7871,7 +8059,7 @@ private fun AccommodationAddSheet(
         fun d(value: Float) = (value * scale).dp
         fun s(value: Float) = (value * scale).sp
         val scrollState = rememberScrollState()
-        val labelStyle = androidx.compose.ui.text.TextStyle(color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(13f), lineHeight = s(18f), platformStyle = OdysseyNoFontPadding)
+        val labelStyle = androidx.compose.ui.text.TextStyle(color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(13f), lineHeight = s(18f), platformStyle = OdysseyNoFontPadding)
         val photoScrollState = rememberScrollState()
 
         Box(
@@ -7915,7 +8103,7 @@ private fun AccommodationAddSheet(
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
-                        tint = OdysseySubtext,
+                        tint = secondaryTextColor(),
                         modifier = Modifier.size(d(16f)),
                     )
                 }
@@ -7944,10 +8132,10 @@ private fun AccommodationAddSheet(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(Icons.Outlined.Image, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(d(26f)))
-                                Text(text = localized("Обложка — перетащите фото\nили выберите файл", "Cover — drag a photo\nor choose a file", "Portada — arrastre una foto\no elija un archivo", "Cover — Foto ziehen\noder Datei auswählen"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(11.5f), lineHeight = s(17f), textAlign = TextAlign.Center, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(top = d(6f)))
+                                Text(text = localized("Обложка — перетащите фото\nили выберите файл", "Cover — drag a photo\nor choose a file", "Portada — arrastre una foto\no elija un archivo", "Cover — Foto ziehen\noder Datei auswählen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(11.5f), lineHeight = s(17f), textAlign = TextAlign.Center, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(top = d(6f)))
                             }
                         }
-                        Box(modifier = Modifier.width(d(128f)).height(d(168f)).clip(RoundedCornerShape(d(14f))).background(Color(0xFFE9E7F4))) {
+                        Box(modifier = Modifier.width(d(128f)).height(d(168f)).clip(RoundedCornerShape(d(14f))).background(secondarySurfaceColor())) {
                             if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Обложка жилья", "Accommodation cover", "Portada del alojamiento", "Unterkunft-Titelbild"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
                             Text(text = localized("Обложка", "Cover", "Portada", "Cover"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(10f), lineHeight = s(14f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.align(Alignment.TopStart).padding(start = d(8f), top = d(8f)).background(Color(0x8C141419), RoundedCornerShape(d(20f))).padding(horizontal = d(7f), vertical = d(3f)))
                         }
@@ -7975,8 +8163,8 @@ private fun AccommodationAddSheet(
                 Text(text = localized("Статус", "Status", "Estado", "Status"), style = labelStyle, modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(321f)).height(d(18f)))
                 @Composable
                 fun AddStatusChip(label: String, value: String, width: Float, modifier: Modifier = Modifier) {
-                    Box(contentAlignment = Alignment.Center, modifier = modifier.width(d(width)).height(d(41f)).clip(RoundedCornerShape(d(12f))).background(if (status == value) OdysseyPurple else Color.White).border(d(1f), if (status == value) OdysseyPurple else OdysseyBorder, RoundedCornerShape(d(12f))).clickable { onStatusChange(value) }) {
-                        Text(text = label, color = if (status == value) Color.White else OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(12f), lineHeight = s(16f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    Box(contentAlignment = Alignment.Center, modifier = modifier.width(d(width)).height(d(41f)).clip(RoundedCornerShape(d(12f))).background(if (status == value) OdysseyPurple else cardSurfaceColor()).border(d(1f), if (status == value) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(12f))).clickable { onStatusChange(value) }) {
+                        Text(text = label, color = if (status == value) Color.White else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(12f), lineHeight = s(16f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(d(9f)), modifier = Modifier.offset(x = d(16f), y = d(324f)).height(d(41f))) {
@@ -8002,7 +8190,7 @@ private fun AccommodationAddSheet(
                 message?.let {
                     Text(text = it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = s(11f), lineHeight = s(15f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.offset(x = d(16f), y = d(984f)).width(d(336f)))
                 }
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.offset(x = d(16f), y = d(1031f)).width(d(135.3f)).height(d(53f)).clip(RoundedCornerShape(d(15f))).background(Color.White).border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f))).clickable(onClick = onClose)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.offset(x = d(16f), y = d(1031f)).width(d(135.3f)).height(d(53f)).clip(RoundedCornerShape(d(15f))).background(cardSurfaceColor()).border(d(1f), contentBorderColor(), RoundedCornerShape(d(15f))).clickable(onClick = onClose)) {
                     Text(text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(15f), lineHeight = s(20f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                 }
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.offset(x = d(162.3f), y = d(1031f)).width(d(174.7f)).height(d(53f)).shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7)).clip(RoundedCornerShape(d(15f))).background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0)))).clickable(enabled = !saving, onClick = onSave)) {
@@ -8083,7 +8271,7 @@ private fun AccommodationEditSheet(
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
-                        tint = OdysseySubtext,
+                        tint = secondaryTextColor(),
                         modifier = Modifier.size(d(16f)),
                     )
                 }
@@ -8162,8 +8350,8 @@ private fun AccommodationEditSheet(
                         .width(d(141.578f))
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Color.White)
-                        .border(d(1f), OdysseyBorder, RoundedCornerShape(d(15f)))
+                        .background(cardSurfaceColor())
+                        .border(d(1f), contentBorderColor(), RoundedCornerShape(d(15f)))
                         .clickable(onClick = onClose),
                 ) {
                     Text(
@@ -8279,7 +8467,7 @@ private fun AccommodationEditTextField(
     Column(modifier = modifier.height(d(77f))) {
         Text(
             text = label,
-            color = OdysseyLabel,
+            color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
@@ -8295,8 +8483,8 @@ private fun AccommodationEditTextField(
                 .fillMaxWidth()
                 .height(d(51f))
                 .clip(RoundedCornerShape(d(14f)))
-                .background(Color.White)
-                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f))),
+                .background(cardSurfaceColor())
+                .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f))),
         ) {
             BasicTextField(
                 value = value,
@@ -8354,7 +8542,7 @@ private fun AccommodationEditDateField(
     Column(modifier = modifier.height(d(77f))) {
         Text(
             text = label,
-            color = OdysseyLabel,
+            color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
@@ -8370,8 +8558,8 @@ private fun AccommodationEditDateField(
                 .fillMaxWidth()
                 .height(d(51f))
                 .clip(RoundedCornerShape(d(14f)))
-                .background(Color.White)
-                .border(d(1f), OdysseyBorder, RoundedCornerShape(d(14f)))
+                .background(cardSurfaceColor())
+                .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f)))
                 .clickable(onClick = onClick),
         ) {
             BasicTextField(
@@ -8407,7 +8595,7 @@ private fun AccommodationEditDateField(
                     .padding(end = d(12f)),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                OdysseyCalendarIcon(d(14f), OdysseyText)
+                OdysseyCalendarIcon(d(14f), contentTextColor())
             }
         }
     }
@@ -8462,7 +8650,7 @@ private fun AccommodationCalendarDialog(
                 modifier = Modifier
                     .width(336.dp)
                     .clip(RoundedCornerShape(26.dp))
-                    .background(Color.White)
+                    .background(cardSurfaceColor())
                     .padding(16.dp),
             ) {
                 Row(
@@ -8472,7 +8660,7 @@ private fun AccommodationCalendarDialog(
                 ) {
                     Text(
                         text = localized("Выберите дату", "Choose date", "Elige una fecha", "Datum auswählen"),
-                        color = OdysseyText,
+                        color = contentTextColor(),
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                         fontSize = 18.sp,
@@ -8487,7 +8675,7 @@ private fun AccommodationCalendarDialog(
                             .background(OdysseySurface2)
                             .clickable(onClick = onDismiss),
                     ) {
-                        Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(16.dp))
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -8511,7 +8699,7 @@ private fun AccommodationCalendarDialog(
                     }
                     Text(
                         text = "${monthNames[displayedMonth]} $displayedYear",
-                        color = OdysseyText,
+                        color = contentTextColor(),
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                         fontSize = 16.sp,
@@ -8537,7 +8725,7 @@ private fun AccommodationCalendarDialog(
                     weekDays.forEach { day ->
                         Text(
                             text = day,
-                            color = OdysseySubtext,
+                            color = secondaryTextColor(),
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W800,
                             fontSize = 11.sp,
@@ -8572,7 +8760,7 @@ private fun AccommodationCalendarDialog(
                                         ) {
                                             Text(
                                                 text = dayIndex.toString(),
-                                                color = if (selected) Color.White else OdysseyText,
+                                                color = if (selected) Color.White else contentTextColor(),
                                                 fontFamily = Manrope,
                                                 fontWeight = if (selected) FontWeight.W800 else FontWeight.W600,
                                                 fontSize = 14.sp,
@@ -8595,11 +8783,11 @@ private fun AccommodationCalendarDialog(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(15.dp))
-                            .background(Color.White)
-                            .border(1.dp, OdysseyBorder, RoundedCornerShape(15.dp))
+                            .background(cardSurfaceColor())
+                            .border(1.dp, contentBorderColor(), RoundedCornerShape(15.dp))
                             .clickable(onClick = onDismiss),
                     ) {
-                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                     }
                     Box(
                         contentAlignment = Alignment.Center,
@@ -8706,7 +8894,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                     fontWeight = FontWeight.W800,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().height(55.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFFAF9FF)).drawBehind {
+                    modifier = Modifier.fillMaxWidth().height(55.dp).clip(RoundedCornerShape(16.dp)).background(tintedSurfaceColor()).drawBehind {
                         drawRoundRect(
                             color = Color(0xFFD7D0FF),
                             cornerRadius = CornerRadius(16.dp.toPx()),
@@ -8860,7 +9048,7 @@ private fun RouteLegEditorSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(localized("День маршрута", "Route day", "Día de ruta", "Reisetag"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 23.sp)
             Spacer(Modifier.weight(1f))
-            Box(modifier = Modifier.size(37.dp).clip(CircleShape).background(Color(0xFFF5F4F8)).clickable { onCancel() }, contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(37.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onCancel() }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(18.dp))
             }
         }
@@ -8882,7 +9070,7 @@ private fun RouteLegEditorSheet(
         if (message != null) Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             if (canDelete) {
-                Box(modifier = Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFE9E8)).clickable { onDelete() }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(dangerSurfaceColor()).clickable { onDelete() }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(22.dp))
                 }
             }
@@ -8899,8 +9087,8 @@ private fun RouteOrderButton(icon: androidx.compose.ui.graphics.vector.ImageVect
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (enabled) Color(0xFFF1EEFF) else Color(0xFFF7F6FA))
-            .border(1.dp, if (enabled) Color(0xFFD9D1FF) else Color(0xFFE6E3EC), RoundedCornerShape(10.dp))
+            .background(if (enabled) tintedSurfaceColor() else secondarySurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(10.dp))
             .clickable(enabled = enabled, onClick = onClick),
     ) {
         Icon(icon, contentDescription = contentDescription, tint = if (enabled) OdysseyPurple else Color(0xFFC2BFCA), modifier = Modifier.size(19.dp))
@@ -8958,10 +9146,10 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
                 RouteStop(leg.to, cityFlag(leg.to), isLast = true, compact = longDestination)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFF3F1FF)).clickable { clipboard.setText(AnnotatedString(mapsUrl)) }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { clipboard.setText(AnnotatedString(mapsUrl)) }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.ContentCopy, contentDescription = localized("Копировать ссылку", "Copy link", "Copiar enlace", "Link kopieren"), tint = OdysseyPurple, modifier = Modifier.size(18.dp))
                 }
-                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFF3F1FF)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { onEdit() }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить", "Edit", "Editar", "Bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(18.dp))
                 }
             }
@@ -8971,7 +9159,7 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(13.dp))
                 .background(secondarySurfaceColor())
-                .border(1.dp, Color(0xFFF0EEFB), RoundedCornerShape(13.dp))
+                .border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp))
                 .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -9333,7 +9521,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
 private fun OverviewMapCard(
     legs: List<com.odyssey.travelplanner.data.RouteLeg>,
     cities: List<String>,
-    mapHeight: Dp = 260.dp,
+    mapHeight: Dp = 200.dp,
     footer: @Composable (() -> Unit)? = null,
     routePoints: List<Point> = emptyList(),
     selectedPointIndex: Int? = null,
@@ -9341,11 +9529,12 @@ private fun OverviewMapCard(
     cardShadow: Dp? = null,
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val language = LocalLanguage.current
+    val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val cityCount = cities.distinctBy { cityFilterKey(it) }.size
     val coordinates = routePoints.ifEmpty { cities.mapNotNull(::mapCoordinate) }
     var mapStyleReady by remember { mutableStateOf(false) }
-    val mapView = remember(context) {
+    val mapView = remember(context, attributionDescription) {
         MapView(
             context,
             MapInitOptions(
@@ -9355,32 +9544,31 @@ private fun OverviewMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
+            it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
     val routeAnnotationManager = remember(mapView) { mapView.annotations.createPolylineAnnotationManager() }
     val sightAnnotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
     val sightNumberAnnotationManager = remember(mapView) { mapView.annotations.createPointAnnotationManager() }
 
-    DisposableEffect(lifecycleOwner, mapView) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> {
-                    mapStyleReady = false
-                    mapView.onStart()
-                    mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) {
-                        mapStyleReady = true
-                    }
-                }
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                else -> Unit
-            }
+    LaunchedEffect(mapView) {
+        mapStyleReady = false
+        mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) { style ->
+            style.localizeLabels(mapLocale(language))
+            mapStyleReady = true
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
+    }
+
+    DisposableEffect(routeAnnotationManager, sightAnnotationManager, sightNumberAnnotationManager) {
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            mapView.onStop()
-            mapView.onDestroy()
+            routeAnnotationManager.deleteAll()
+            sightAnnotationManager.deleteAll()
+            sightNumberAnnotationManager.deleteAll()
         }
+    }
+
+    LaunchedEffect(mapStyleReady, language) {
+        if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
     }
 
     LaunchedEffect(mapStyleReady, coordinates, selectedPointIndex) {
@@ -9593,7 +9781,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(36.dp).background(Color(0xF8FFFFFF), RoundedCornerShape(12.dp)).clickable { onEdit() },
             ) {
-                Icon(Icons.Filled.MoreVert, contentDescription = null, tint = Color(0xFF46464D), modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.MoreVert, contentDescription = localized("Действия с путешествием", "Trip actions", "Acciones del viaje", "Reiseaktionen"), tint = Color(0xFF46464D), modifier = Modifier.size(20.dp))
             }
         }
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 17.dp)) {

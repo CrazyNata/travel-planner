@@ -31,6 +31,7 @@ data class TripRow(
     val id: String,
     val payload: JsonObject,
     @SerialName("owner_id") val ownerId: String? = null,
+    val revision: Long = 0,
 )
 
 @Serializable
@@ -272,11 +273,9 @@ interface TripRepository {
 }
 
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
-    override suspend fun loadTrips(): List<TripCard> = client
-        .from("trips")
-        .select()
-        .decodeList<TripRow>()
-        .map { row ->
+    override suspend fun loadTrips(): List<TripCard> {
+        val rows = client.from("trips").select().decodeList<TripRow>()
+        return rows.map { row ->
             fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             TripCard(
                 id = row.id,
@@ -285,9 +284,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 status = text("status").ifBlank { "Черновик" },
                 progress = row.payload["progress"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100) ?: 0,
                 cities = text("cities"),
-                coverImage = text("coverImage").takeIf(String::isNotBlank),
+                coverImage = client.resolveTripPhotoReference(text("coverImage")),
             )
         }
+    }
 
     override suspend fun loadTripOverview(id: String): TripOverview? {
         val row = client.from("trips").select {
@@ -424,23 +424,35 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
+        val resolvedCovers = (covers.ifEmpty {
+            text("coverImage").takeIf(String::isNotBlank)?.let { listOf(CoverPhoto("legacy", it, "")) }.orEmpty()
+        }).map { photo ->
+            photo.copy(imageUrl = client.resolveTripPhotoReference(photo.imageUrl) ?: photo.imageUrl)
+        }
+        val resolvedAccommodations = accommodations.map { accommodation ->
+            accommodation.copy(photos = accommodation.photos.map { client.resolveTripPhotoReference(it) ?: it })
+        }
+        val resolvedSights = sights.map { sight ->
+            sight.copy(photo = client.resolveTripPhotoReference(sight.photo) ?: sight.photo)
+        }
+        val resolvedRestaurants = restaurants.map { restaurant ->
+            restaurant.copy(photos = restaurant.photos.map { client.resolveTripPhotoReference(it) ?: it })
+        }
         return TripOverview(
             id = row.id,
             title = text("title").ifBlank { "Путешествие" },
             dates = text("dates"),
             status = text("status"),
-            coverPhotos = covers.ifEmpty {
-                text("coverImage").takeIf(String::isNotBlank)?.let { listOf(CoverPhoto("legacy", it, "")) }.orEmpty()
-            },
+            coverPhotos = resolvedCovers,
             overviewMapPoints = mapPoints,
             routeLegs = legs,
-            accommodations = accommodations,
+            accommodations = resolvedAccommodations,
             budgetCurrency = text("budgetCurrency").ifBlank { "EUR" },
             budgetExpenses = expenses,
             budgetGroups = groups,
             members = members,
-            sights = sights,
-            restaurants = restaurants,
+            sights = resolvedSights,
+            restaurants = resolvedRestaurants,
             cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
             routeDayCount = routeDayCount,
         )
@@ -492,24 +504,40 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         return TripCard(id, resolvedTitle, dates, "Черновик", 0, cities.trim(), null)
     }
 
-    private suspend fun patchTripPayload(id: String, patch: JsonObject) {
+    private suspend fun loadTripRow(id: String): TripRow =
+        client.from("trips").select {
+            filter { eq("id", id) }
+        }.decodeList<TripRow>().firstOrNull() ?: error("Путешествие не найдено")
+
+    private suspend fun patchTripPayload(id: String, patch: JsonObject, expectedRevision: Long) {
         require(patch.isNotEmpty()) { "Изменения отсутствуют" }
         client.postgrest.rpc(
             function = "patch_trip_payload",
             parameters = buildJsonObject {
                 put("p_trip_id", id)
                 put("p_patch", patch)
+                put("p_expected_revision", expectedRevision)
             },
         )
     }
 
-    private suspend fun patchTripSectionFromPayload(id: String, key: String, payload: JsonObject) {
+    private suspend fun patchTripSectionFromPayload(
+        id: String,
+        key: String,
+        payload: JsonObject,
+        expectedRevision: Long,
+    ) {
         val value = payload[key] ?: error("Раздел путешествия не найден")
-        patchTripPayload(id, buildJsonObject { put(key, value) })
+        patchTripPayload(id, buildJsonObject { put(key, value) }, expectedRevision)
+    }
+
+    private suspend fun updateTripSection(id: String, key: String, value: JsonElement, expectedRevision: Long) {
+        patchTripPayload(id, buildJsonObject { put(key, value) }, expectedRevision)
     }
 
     override suspend fun updateTripSection(id: String, key: String, value: JsonElement) {
-        patchTripPayload(id, buildJsonObject { put(key, value) })
+        val current = loadTripRow(id)
+        updateTripSection(id, key, value, current.revision)
     }
 
     override suspend fun addRouteLeg(
@@ -552,7 +580,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             current.payload["days"]?.jsonArray.orEmpty().forEach { add(it) }
             add(day)
         }
-        updateTripSection(id, "days", days)
+        updateTripSection(id, "days", days, current.revision)
     }
 
     override suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String) {
@@ -571,24 +599,20 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("paidBy", "Не указано")
             })
         }
-        updateTripSection(id, "budgetExpenses", expenses)
+        updateTripSection(id, "budgetExpenses", expenses, current.revision)
     }
 
     override suspend fun updateMemberRole(id: String, memberId: String, role: String) {
         require(role == "Редактор" || role == "Читатель") { "Недопустимая роль" }
-        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
-            ?: error("Путешествие не найдено")
-        val members = buildJsonArray {
-            current.payload["members"]?.jsonArray.orEmpty().forEach { item ->
-                val member = item.jsonObject
-                if (member["id"]?.jsonPrimitive?.contentOrNull == memberId) {
-                    add(JsonObject(member.toMutableMap().apply { put("role", kotlinx.serialization.json.JsonPrimitive(role)) }))
-                } else {
-                    add(item)
-                }
-            }
-        }
-        updateTripSection(id, "members", members)
+        client.postgrest.rpc(
+            function = "manage_trip_member",
+            parameters = buildJsonObject {
+                put("p_trip_id", id)
+                put("p_member_id", memberId)
+                put("p_role", role)
+                put("p_delete", false)
+            },
+        )
     }
 
     override suspend fun updateAccommodationStatus(id: String, accommodationId: String, status: String) {
@@ -604,7 +628,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "accommodations", accommodations)
+        updateTripSection(id, "accommodations", accommodations, current.revision)
     }
 
     override suspend fun updateSightDone(id: String, sightId: String, done: Boolean) {
@@ -620,7 +644,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "sights", sights)
+        updateTripSection(id, "sights", sights, current.revision)
     }
 
     override suspend fun addRestaurant(id: String, name: String, city: String, status: String) {
@@ -637,7 +661,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("photos", buildJsonArray { })
             })
         }
-        updateTripSection(id, "restaurants", restaurants)
+        updateTripSection(id, "restaurants", restaurants, current.revision)
     }
 
     override suspend fun addAccommodation(id: String, name: String, city: String, dates: String, price: String, status: String) {
@@ -656,7 +680,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("photos", buildJsonArray { })
             })
         }
-        updateTripSection(id, "accommodations", accommodations)
+        updateTripSection(id, "accommodations", accommodations, current.revision)
     }
 
     override suspend fun addSight(id: String, name: String, city: String, category: String) {
@@ -673,7 +697,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("done", false)
             })
         }
-        updateTripSection(id, "sights", sights)
+        updateTripSection(id, "sights", sights, current.revision)
     }
 
     override suspend fun updateRouteChecklist(id: String, dayId: String, itemId: String, completed: Boolean) {
@@ -695,7 +719,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "days", days)
+        updateTripSection(id, "days", days, current.revision)
     }
 
     override suspend fun addMember(id: String, name: String, email: String, role: String) {
@@ -709,7 +733,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("name", name.trim())
                 put("role", role)
                 put("tripId", id)
-                put("redirectTo", "https://travelplanner.muntim.ru")
+                put("redirectTo", "https://travelplanner.muntim.ru/mobile/invite?tripId=$id")
             },
             headers = Headers.build { append(HttpHeaders.ContentType, "application/json") },
         )
@@ -726,7 +750,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("tone", "blue")
             })
         }
-        updateTripSection(id, "members", members)
+        updateTripSection(id, "members", members, current.revision)
     }
 
     override suspend fun addCoverPhoto(id: String, bytes: ByteArray) {
@@ -734,7 +758,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
         val path = "$ownerId/$id/covers/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
-        val imageUrl = client.storage.from("trip-photos").publicUrl(path)
+        val imageUrl = storedTripPhotoReference(path)
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
         val photos = buildJsonArray {
@@ -748,17 +772,18 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("coverPhotos", photos)
             if (current.payload["coverImage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()) put("coverImage", kotlinx.serialization.json.JsonPrimitive(imageUrl))
         }
-        patchTripPayload(id, patch)
+        patchTripPayload(id, patch, current.revision)
     }
 
     override suspend fun updateTripDetails(id: String, title: String, dates: String, cities: String) {
         require(title.isNotBlank()) { "Укажите название путешествия" }
+        val current = loadTripRow(id)
         val patch = buildJsonObject {
             put("title", kotlinx.serialization.json.JsonPrimitive(title.trim()))
             put("dates", kotlinx.serialization.json.JsonPrimitive(dates.trim()))
             put("cities", kotlinx.serialization.json.JsonPrimitive(cities.trim()))
         }
-        patchTripPayload(id, patch)
+        patchTripPayload(id, patch, current.revision)
     }
 
     override suspend fun updateRestaurantStatus(id: String, restaurantId: String, status: String) {
@@ -774,7 +799,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "restaurants", restaurants)
+        updateTripSection(id, "restaurants", restaurants, current.revision)
     }
 
     override suspend fun updateBudgetExpense(id: String, expenseId: String, name: String, amount: Double, category: String) {
@@ -796,7 +821,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "budgetExpenses", expenses)
+        updateTripSection(id, "budgetExpenses", expenses, current.revision)
     }
 
     override suspend fun updateRouteLegCities(id: String, dayId: String, from: String, to: String) {
@@ -821,7 +846,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "days", days)
+        updateTripSection(id, "days", days, current.revision)
     }
 
     override suspend fun updateRouteLegDetails(
@@ -858,7 +883,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "days", days)
+        updateTripSection(id, "days", days, current.revision)
     }
 
     override suspend fun updateRestaurantDetails(id: String, restaurantId: String, name: String, city: String, note: String) {
@@ -879,7 +904,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "restaurants", restaurants)
+        updateTripSection(id, "restaurants", restaurants, current.revision)
     }
 
     override suspend fun updateAccommodationDetails(id: String, accommodationId: String, name: String, city: String, dates: String, price: String) {
@@ -901,7 +926,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "accommodations", accommodations)
+        updateTripSection(id, "accommodations", accommodations, current.revision)
     }
 
     override suspend fun updateSightDetails(id: String, sightId: String, name: String, city: String, category: String) {
@@ -922,7 +947,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "sights", sights)
+        updateTripSection(id, "sights", sights, current.revision)
     }
 
     override suspend fun addBudgetGroup(id: String, name: String, people: Int) {
@@ -939,7 +964,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("people", people)
             })
         }
-        updateTripSection(id, "budgetSplit", JsonObject(split.toMutableMap().apply { put("groups", groups) }))
+        updateTripSection(id, "budgetSplit", JsonObject(split.toMutableMap().apply { put("groups", groups) }), current.revision)
     }
 
     override suspend fun addAccommodationPhoto(id: String, accommodationId: String, bytes: ByteArray) {
@@ -947,7 +972,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
         val path = "$ownerId/$id/accommodations/$accommodationId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
-        val imageUrl = client.storage.from("trip-photos").publicUrl(path)
+        val imageUrl = storedTripPhotoReference(path)
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
         val accommodations = buildJsonArray {
@@ -964,7 +989,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "accommodations", accommodations)
+        updateTripSection(id, "accommodations", accommodations, current.revision)
     }
 
     override suspend fun addSightPhoto(id: String, sightId: String, bytes: ByteArray) {
@@ -972,7 +997,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
         val path = "$ownerId/$id/sights/$sightId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
-        val imageUrl = client.storage.from("trip-photos").publicUrl(path)
+        val imageUrl = storedTripPhotoReference(path)
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id } ?: error("Путешествие не найдено")
         val sights = buildJsonArray {
             current.payload["sights"]?.jsonArray.orEmpty().forEach { item ->
@@ -982,7 +1007,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "sights", sights)
+        updateTripSection(id, "sights", sights, current.revision)
     }
 
     override suspend fun moveAccommodationPhoto(id: String, accommodationId: String, photoIndex: Int, direction: Int) {
@@ -1001,7 +1026,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "accommodations", accommodations)
+        updateTripSection(id, "accommodations", accommodations, current.revision)
     }
 
     override suspend fun moveRestaurantPhoto(id: String, restaurantId: String, photoIndex: Int, direction: Int) {
@@ -1017,7 +1042,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "restaurants", restaurants)
+        updateTripSection(id, "restaurants", restaurants, current.revision)
     }
 
     override suspend fun addRestaurantPhoto(id: String, restaurantId: String, bytes: ByteArray) {
@@ -1025,7 +1050,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
         val path = "$ownerId/$id/restaurants/$restaurantId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
-        val imageUrl = client.storage.from("trip-photos").publicUrl(path)
+        val imageUrl = storedTripPhotoReference(path)
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
         val restaurants = buildJsonArray {
@@ -1042,17 +1067,28 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "restaurants", restaurants)
+        updateTripSection(id, "restaurants", restaurants, current.revision)
     }
 
     override suspend fun deleteTripItem(id: String, section: String, itemId: String) {
         require(section in setOf("days", "sights", "restaurants", "accommodations", "budgetExpenses", "members", "coverPhotos")) {
             "Недопустимый раздел"
         }
+        if (section == "members") {
+            client.postgrest.rpc(
+                function = "manage_trip_member",
+                parameters = buildJsonObject {
+                    put("p_trip_id", id)
+                    put("p_member_id", itemId)
+                    put("p_delete", true)
+                },
+            )
+            return
+        }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
             ?: error("Путешествие не найдено")
         val payload = TripPayloadCodec.removeArrayItem(current.payload, section, itemId)
-        patchTripSectionFromPayload(id, section, payload)
+        patchTripSectionFromPayload(id, section, payload, current.revision)
     }
 
     override suspend fun addSightDetails(
@@ -1087,7 +1123,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("walkOrder", nextWalkOrder)
             put("done", false)
         }
-        patchTripSectionFromPayload(id, "sights", TripPayloadCodec.append(current.payload, "sights", item))
+        patchTripSectionFromPayload(id, "sights", TripPayloadCodec.append(current.payload, "sights", item), current.revision)
         return sightId
     }
 
@@ -1112,13 +1148,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("walkDay", kotlinx.serialization.json.JsonPrimitive(walkDay.coerceAtLeast(0)))
             })
         }
-        patchTripSectionFromPayload(id, "sights", payload)
+        patchTripSectionFromPayload(id, "sights", payload, current.revision)
     }
 
     override suspend fun reorderSights(id: String, orderedSightIds: List<String>) {
         if (orderedSightIds.isEmpty()) return
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
-            ?: error("РџСѓС‚РµС€РµСЃС‚РІРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ")
+            ?: error("Путешествие не найдено")
         val sights = current.payload["sights"]?.jsonArray.orEmpty()
         val requestedIds = orderedSightIds.distinct()
         val requestedSightObjects = requestedIds.mapNotNull { requestedId ->
@@ -1153,7 +1189,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "sights", reorderedSights)
+        updateTripSection(id, "sights", reorderedSights, current.revision)
     }
 
     override suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String {
@@ -1173,7 +1209,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("priority", input.priority)
             put("photos", buildJsonArray { })
         }
-        patchTripSectionFromPayload(tripId, "restaurants", TripPayloadCodec.append(current.payload, "restaurants", item))
+        patchTripSectionFromPayload(tripId, "restaurants", TripPayloadCodec.append(current.payload, "restaurants", item), current.revision)
         return restaurantId
     }
 
@@ -1193,7 +1229,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("priority", kotlinx.serialization.json.JsonPrimitive(input.priority))
             })
         }
-        patchTripSectionFromPayload(tripId, "restaurants", payload)
+        patchTripSectionFromPayload(tripId, "restaurants", payload, current.revision)
     }
 
     override suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String {
@@ -1213,7 +1249,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("deadline", input.deadline.trim())
             put("photos", buildJsonArray { })
         }
-        patchTripSectionFromPayload(tripId, "accommodations", TripPayloadCodec.append(current.payload, "accommodations", item))
+        patchTripSectionFromPayload(tripId, "accommodations", TripPayloadCodec.append(current.payload, "accommodations", item), current.revision)
         return accommodationId
     }
 
@@ -1233,7 +1269,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("deadline", kotlinx.serialization.json.JsonPrimitive(input.deadline.trim()))
             })
         }
-        patchTripSectionFromPayload(tripId, "accommodations", payload)
+        patchTripSectionFromPayload(tripId, "accommodations", payload, current.revision)
     }
 
     override suspend fun addBudgetExpenseDetails(tripId: String, input: ExpenseInput) {
@@ -1250,7 +1286,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("paidBy", input.paidBy)
             put("date", input.date.trim())
         }
-        patchTripSectionFromPayload(tripId, "budgetExpenses", TripPayloadCodec.append(current.payload, "budgetExpenses", item))
+        patchTripSectionFromPayload(tripId, "budgetExpenses", TripPayloadCodec.append(current.payload, "budgetExpenses", item), current.revision)
     }
 
     override suspend fun updateBudgetExpenseDetails(tripId: String, expenseId: String, input: ExpenseInput) {
@@ -1268,6 +1304,6 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
             })
         }
-        patchTripSectionFromPayload(tripId, "budgetExpenses", payload)
+        patchTripSectionFromPayload(tripId, "budgetExpenses", payload, current.revision)
     }
 }

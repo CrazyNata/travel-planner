@@ -11,7 +11,16 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
 
-type View = "auth" | "trips" | "create" | "trip" | "catalog" | "public" | "delete-account";
+type View =
+  | "auth"
+  | "trips"
+  | "create"
+  | "trip"
+  | "catalog"
+  | "public"
+  | "delete-account"
+  | "privacy"
+  | "terms";
 type Tab =
   | "overview"
   | "route"
@@ -9815,8 +9824,8 @@ function Auth({
               <label className="terms">
                 <input name="terms" type="checkbox" defaultChecked />{" "}
                 <span>
-                  Я принимаю <a href="#terms">условия использования</a> и{" "}
-                  <a href="#privacy">политику конфиденциальности</a>
+                  Я принимаю <a href="#/terms">условия использования</a> и{" "}
+                  <a href="#/privacy">политику конфиденциальности</a>
                 </span>
               </label>
             )}
@@ -9864,6 +9873,158 @@ function Auth({
           </div>
         </aside>
       </section>
+    </main>
+  );
+}
+
+type LegalPageKind = "privacy" | "terms";
+
+const legalEntityName =
+  import.meta.env.VITE_LEGAL_ENTITY_NAME || "Команда Одиссеи";
+const legalContactEmail = import.meta.env.VITE_LEGAL_CONTACT_EMAIL || "";
+const legalEffectiveDate =
+  import.meta.env.VITE_LEGAL_EFFECTIVE_DATE || "7 августа 2026 года";
+
+function LegalPage({ kind }: { kind: LegalPageKind }) {
+  const navigate = useNavigate();
+  const isPrivacy = kind === "privacy";
+
+  return (
+    <main className="legal-page">
+      <article className="legal-card">
+        <header className="legal-header">
+          <a className="legal-brand" href="/#/auth" aria-label="Одиссея">
+            <span>O</span>
+            <b>Одиссея</b>
+          </a>
+          <button className="legal-back" type="button" onClick={() => navigate(-1)}>
+            Вернуться назад
+          </button>
+        </header>
+        <div className="legal-content">
+          <p className="legal-eyebrow">Одиссея · Travel Planner</p>
+          <h1>{isPrivacy ? "Политика конфиденциальности" : "Условия использования"}</h1>
+          <p className="legal-updated">Последнее обновление: {legalEffectiveDate}</p>
+
+          {isPrivacy ? (
+            <>
+              <p>
+                Эта политика объясняет, какие данные обрабатывает сервис «Одиссея»,
+                зачем они нужны и как запросить их удаление. Оператор сервиса —{" "}
+                <strong>{legalEntityName}</strong>.
+              </p>
+              <h2>Какие данные мы обрабатываем</h2>
+              <ul>
+                <li>
+                  данные аккаунта: адрес электронной почты, имя и идентификатор
+                  аккаунта провайдера авторизации;
+                </li>
+                <li>
+                  содержимое путешествий: маршруты, даты, города, места, рестораны,
+                  жильё, бронирования, бюджет, фотографии и заметки;
+                </li>
+                <li>
+                  данные совместной работы: приглашённые участники, их роли и
+                  адреса электронной почты;
+                </li>
+                <li>
+                  технические данные, необходимые для авторизации, защиты аккаунта и
+                  работы приложения.
+                </li>
+              </ul>
+              <h2>Зачем это нужно</h2>
+              <p>
+                Мы используем эти данные для входа в аккаунт, синхронизации
+                путешествий между устройствами, совместного планирования, загрузки
+                фотографий, отправки приглашений и отображения карт, маршрутов и
+                прогноза погоды.
+              </p>
+              <h2>Сторонние сервисы</h2>
+              <p>
+                Для работы функций сервис обращается к Supabase (авторизация, база
+                данных, функции и хранилище), Mapbox (карты и маршруты), Open-Meteo
+                (погода), а также к сервисам изображений и электронной почты,
+                подключённым в production-конфигурации. Эти сервисы получают только
+                данные, необходимые для соответствующего запроса.
+              </p>
+              <h2>Публичные ссылки и совместный доступ</h2>
+              <p>
+                Если вы включаете публичную ссылку или приглашаете участника, часть
+                содержимого путешествия становится доступной людям, которым вы
+                передали ссылку или приглашение. Не публикуйте в путешествиях данные,
+                которыми не хотите делиться.
+              </p>
+              <h2>Хранение и удаление</h2>
+              <p>
+                Данные хранятся, пока аккаунт и путешествия используются. Удалить
+                аккаунт можно в приложении или на странице{" "}
+                <a href="/#/delete-account">удаления аккаунта</a>. При удалении мы
+                удаляем аккаунт, связанные путешествия, участников, пользовательские
+                данные и фотографии из доступного хранилища.
+              </p>
+              <h2>Ваши права и контакт</h2>
+              <p>
+                Вы можете запросить доступ, исправление или удаление своих данных.
+                Для этого напишите на{" "}
+                {legalContactEmail ? (
+                  <a href={`mailto:${legalContactEmail}`}>{legalContactEmail}</a>
+                ) : (
+                  <strong>контактный адрес издателя не настроен</strong>
+                )}
+                .
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Используя «Одиссею», вы соглашаетесь с настоящими условиями. Сервис
+                предназначен для личного планирования путешествий и совместной работы
+                над маршрутами.
+              </p>
+              <h2>Аккаунт</h2>
+              <p>
+                Вы отвечаете за актуальность данных аккаунта и сохранность доступа к
+                нему. Не передавайте пароль или коды входа другим людям.
+              </p>
+              <h2>Пользовательский контент</h2>
+              <p>
+                Вы сохраняете права на добавленные маршруты, фотографии и заметки и
+                подтверждаете, что имеете право их использовать. Не добавляйте
+                незаконный, вредоносный или чужой контент без разрешения.
+              </p>
+              <h2>Совместная работа</h2>
+              <p>
+                Владелец путешествия управляет приглашениями и ролями участников.
+                Перед отправкой приглашения убедитесь, что у вас есть основание
+                использовать адрес получателя.
+              </p>
+              <h2>Сторонние сервисы</h2>
+              <p>
+                Карты, погода, изображения, ссылки на бронирования и другие внешние
+                сервисы могут иметь собственные условия и быть временно недоступны.
+                «Одиссея» не подтверждает содержание или доступность сторонних сайтов.
+              </p>
+              <h2>Удаление аккаунта и прекращение доступа</h2>
+              <p>
+                Вы можете удалить аккаунт в приложении или через{" "}
+                <a href="/#/delete-account">страницу удаления аккаунта</a>. Мы можем
+                ограничить доступ при нарушении этих условий или угрозе безопасности
+                сервиса.
+              </p>
+              <h2>Контакт</h2>
+              <p>
+                По вопросам сервиса обращайтесь на{" "}
+                {legalContactEmail ? (
+                  <a href={`mailto:${legalContactEmail}`}>{legalContactEmail}</a>
+                ) : (
+                  <strong>контактный адрес издателя не настроен</strong>
+                )}
+                .
+              </p>
+            </>
+          )}
+        </div>
+      </article>
     </main>
   );
 }
@@ -9990,6 +10151,10 @@ export function App() {
           ? "public"
           : location.pathname === "/delete-account"
             ? "delete-account"
+            : location.pathname === "/privacy"
+              ? "privacy"
+              : location.pathname === "/terms"
+                ? "terms"
           : location.pathname === "/trips"
             ? "trips"
             : "auth";
@@ -10010,6 +10175,8 @@ export function App() {
       catalog: "/catalog",
       public: "/public",
       "delete-account": "/delete-account",
+      privacy: "/privacy",
+      terms: "/terms",
     };
     navigate(next === "trip" ? `/trips/${tripId}/overview` : paths[next]);
     setMenu(false);
@@ -10195,10 +10362,20 @@ export function App() {
         if (error) console.error("Could not save the sight.", error);
       });
   };
-  if (!authReady || (!isAuthenticated && view !== "auth" && view !== "delete-account") || (isAuthenticated && view === "auth")) {
+  if (
+    !authReady ||
+    (!isAuthenticated &&
+      view !== "auth" &&
+      view !== "delete-account" &&
+      view !== "privacy" &&
+      view !== "terms") ||
+    (isAuthenticated && view === "auth")
+  ) {
     return null;
   }
   if (view === "delete-account") return <AccountDeletionPage />;
+  if (view === "privacy") return <LegalPage kind="privacy" />;
+  if (view === "terms") return <LegalPage kind="terms" />;
   if (view === "auth")
     return (
       <Auth

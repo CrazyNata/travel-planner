@@ -6,19 +6,31 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   bundle:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mobile
     env:
-      ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/odyssey-release.jks
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE || '1' }}
-      ANDROID_VERSION_NAME: ${{ vars.ANDROID_VERSION_NAME || '0.1.0' }}
+      ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE }}
+      ANDROID_VERSION_NAME: ${{ vars.ANDROID_VERSION_NAME }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+      MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
 
     steps:
       - name: Check out source
@@ -35,30 +47,134 @@ jobs:
         shell: bash
         run: |
           test -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}"
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          chmod 600 "$ANDROID_KEYSTORE_PATH"
+          keystore_path="$RUNNER_TEMP/odyssey-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+
+      - name: Resolve monotonically increasing version
+        shell: bash
+        run: |
+          version_code="${ANDROID_VERSION_CODE:-$((10000 + GITHUB_RUN_NUMBER))}"
+          version_name="$ANDROID_VERSION_NAME"
+          if [ -z "$version_name" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version_name="${GITHUB_REF_NAME#v}"
+          fi
+          version_name="${version_name:-0.1.${GITHUB_RUN_NUMBER}}"
+          test "$version_code" -gt 1
+          echo "ANDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+          echo "ANDROID_VERSION_NAME=$version_name" >> "$GITHUB_ENV"
+
+      - name: Verify release inputs
+        shell: bash
+        run: |
+          test -s "$ANDROID_KEYSTORE_PATH"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+          test -n "$MAPBOX_ACCESS_TOKEN"
+          test -n "$MAPBOX_DOWNLOADS_TOKEN"
+          test -n "$GOOGLE_WEB_CLIENT_ID"
 
       - name: Create production properties
         shell: bash
         run: |
-          test -n "${{ secrets.SUPABASE_URL }}"
-          test -n "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
-          test -n "${{ secrets.MAPBOX_ACCESS_TOKEN }}"
-          test -n "${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}"
           cat > supabase.properties <<EOF
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          MAPBOX_ACCESS_TOKEN=${{ secrets.MAPBOX_ACCESS_TOKEN }}
-          MAPBOX_DOWNLOADS_TOKEN=${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
-          GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+          MAPBOX_ACCESS_TOKEN=$MAPBOX_ACCESS_TOKEN
+          MAPBOX_DOWNLOADS_TOKEN=$MAPBOX_DOWNLOADS_TOKEN
+          GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID
           EOF
 
-      - name: Build signed Android App Bundle
-        run: ./gradlew :app:bundleRelease --no-daemon --stacktrace
+      - name: Run Android tests and lint
+        run: ./gradlew :app:testReleaseUnitTest :app:lintRelease --no-daemon --stacktrace
+
+      - name: Build signed Android release
+        run: ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify signed bundle output
+        shell: bash
+        run: |
+          test -s app/build/outputs/bundle/release/app-release.aab
+          test -s app/build/outputs/apk/release/app-release.apk
+          apksigner_path="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner_path"
+          "$apksigner_path" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          sha256sum app/build/outputs/bundle/release/app-release.aab
+          sha256sum app/build/outputs/apk/release/app-release.apk
 
       - name: Upload signed AAB
         uses: actions/upload-artifact@v4
         with:
           name: odyssey-android-${{ github.ref_name }}
-          path: mobile/app/build/outputs/bundle/release/app-release.aab
+          path: |
+            mobile/app/build/outputs/bundle/release/app-release.aab
+            mobile/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      - name: Set up Node.js for the public download page
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Publish the same signed APK and app-link certificate
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          apk_path="mobile/app/build/outputs/apk/release/app-release.apk"
+          apksigner_path="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          fingerprint="$($apksigner_path verify --print-certs "$apk_path" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          test -n "$fingerprint"
+          fingerprint="$(echo "$fingerprint" | sed 's/../&:/g; s/:$//' | tr '[:lower:]' '[:upper:]')"
+          cp "$apk_path" public/travel-planner.apk
+          mkdir -p public/.well-known
+          cat > public/.well-known/assetlinks.json <<EOF
+          [{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.odyssey.travelplanner",
+              "sha256_cert_fingerprints": ["$fingerprint"]
+            }
+          }]
+          EOF
+
+      - name: Install web dependencies
+        working-directory: ${{ github.workspace }}
+        run: npm ci
+
+      - name: Verify public configuration
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          test -n "${{ vars.VITE_SUPABASE_URL }}"
+          test -n "${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}"
+          test -n "${{ vars.VITE_MAPBOX_ACCESS_TOKEN }}"
+          test -n "${{ vars.VITE_LEGAL_ENTITY_NAME }}"
+          test -n "${{ vars.VITE_LEGAL_CONTACT_EMAIL }}"
+          test -n "${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}"
+
+      - name: Build public download page
+        working-directory: ${{ github.workspace }}
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_MAPBOX_ACCESS_TOKEN: ${{ vars.VITE_MAPBOX_ACCESS_TOKEN }}
+          VITE_LEGAL_ENTITY_NAME: ${{ vars.VITE_LEGAL_ENTITY_NAME }}
+          VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
+          VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy public APK and website
+        id: deployment
+        uses: actions/deploy-pages@v4

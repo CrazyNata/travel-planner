@@ -26,6 +26,18 @@ val releaseTasksRequested = gradle.startParameter.taskNames.any { it.contains("R
 if (releaseTasksRequested && !hasReleaseSigning) {
     error("Release signing is not configured. Set ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD.")
 }
+val requiredReleaseProperties = listOf(
+    "SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "MAPBOX_ACCESS_TOKEN",
+    "GOOGLE_WEB_CLIENT_ID",
+)
+val missingReleaseProperties = requiredReleaseProperties.filter {
+    supabaseProperties.getProperty(it).orEmpty().trim().isBlank()
+}
+if (releaseTasksRequested && missingReleaseProperties.isNotEmpty()) {
+    error("Release configuration is incomplete. Missing: ${missingReleaseProperties.joinToString()}. Set these values in mobile/supabase.properties or CI secrets.")
+}
 val versionCodeFromEnvironment = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toIntOrNull() ?: 1
 val versionNameFromEnvironment = providers.environmentVariable("ANDROID_VERSION_NAME").orNull ?: "0.1.0"
 
@@ -50,6 +62,12 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
     }
 
     signingConfigs {
@@ -82,6 +100,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.appcompat)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)

@@ -5,6 +5,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.MemorySessionManager
 import io.github.jan.supabase.auth.SettingsSessionManager
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
@@ -29,6 +30,10 @@ object SupabaseProvider {
                 sessionManager = if (rememberSession) SettingsSessionManager() else MemorySessionManager()
                 autoLoadFromStorage = false
                 autoSaveToStorage = rememberSession
+                flowType = FlowType.PKCE
+                scheme = "https"
+                host = "travelplanner.muntim.ru"
+                defaultRedirectUrl = "https://travelplanner.muntim.ru/mobile/auth"
             }
             install(Postgrest)
             install(Storage)
@@ -40,7 +45,12 @@ object SupabaseProvider {
     val sessionOnlyClient: SupabaseClient by lazy { newClient(rememberSession = false) }
     private var activeClient: SupabaseClient = sessionOnlyClient
 
-    fun selectSessionPersistence(rememberSession: Boolean) {
+    suspend fun selectSessionPersistence(rememberSession: Boolean) {
+        if (!rememberSession) {
+            persistentClient.auth.stopAutoRefreshForCurrentSession()
+            persistentClient.auth.clearSession()
+            persistentClient.auth.sessionManager.deleteSession()
+        }
         activeClient = if (rememberSession) persistentClient else sessionOnlyClient
     }
 
@@ -57,6 +67,12 @@ object SupabaseProvider {
         }
         sessionOnlyClient.auth.currentSessionOrNull() != null
     }.getOrDefault(false)
+
+    suspend fun clearActiveSessionLocally() {
+        activeClient.auth.stopAutoRefreshForCurrentSession()
+        activeClient.auth.clearSession()
+        activeClient.auth.sessionManager.deleteSession()
+    }
 
     fun clientForCurrentAuthFlow(): SupabaseClient = activeClient
 }

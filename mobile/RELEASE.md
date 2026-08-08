@@ -38,7 +38,15 @@ Run `.github/workflows/android-release.yml` manually or push a `v*` tag. Configu
 - `MAPBOX_DOWNLOADS_TOKEN`
 - `GOOGLE_WEB_CLIENT_ID`
 
-The workflow only produces a signed AAB artifact. Uploading to Google Play still requires the Play Console app, package registration, Data safety answers, content rating, screenshots, store listing, and a Play service-account secret owned by the publisher.
+The workflow verifies every secret before resolving release dependencies. A missing
+secret stops the build before a misleading unsigned or partially configured AAB is
+created.
+
+The workflow produces signed AAB and APK artifacts. It also publishes that exact APK
+as `public/travel-planner.apk`, derives `assetlinks.json` from its real signing
+certificate, and deploys the website. Uploading to Google Play still requires the
+Play Console app, package registration, Data safety answers, content rating,
+screenshots, store listing, and a Play service-account secret owned by the publisher.
 
 ## Account deletion and privacy
 
@@ -49,6 +57,13 @@ The Android account menu includes an in-app account deletion action. The externa
 Deploy the web application and the `delete-account` Supabase Edge Function before submitting the Android app. The function must keep JWT verification enabled and must have its server-side `SUPABASE_SERVICE_ROLE_KEY` available only in Supabase.
 
 Before submission, replace the placeholder legal/support information in the public privacy policy and confirm the Data safety declaration against the production data flows.
+
+The web deploy requires these repository variables so the public legal pages cannot
+be published without an operator name, support contact, and effective date:
+
+- `VITE_LEGAL_ENTITY_NAME`
+- `VITE_LEGAL_CONTACT_EMAIL`
+- `VITE_LEGAL_EFFECTIVE_DATE`
 
 ## Store submission gate
 

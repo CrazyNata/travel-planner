@@ -36,7 +36,7 @@ class AccountRepository(private val client: SupabaseClient) {
             filter { eq("user_id", userId); eq("key", "account_profile") }
         }.decodeList<UserDataRow>().firstOrNull()
         return AccountProfile(
-            avatarUrl = row?.value?.get("avatar_url")?.jsonPrimitive?.contentOrNull,
+            avatarUrl = client.resolveTripPhotoReference(row?.value?.get("avatar_url")?.jsonPrimitive?.contentOrNull),
             notificationsEnabled = row?.value?.get("notifications_enabled")?.jsonPrimitive?.content == "true",
             language = row?.value?.get("language")?.jsonPrimitive?.contentOrNull ?: "RU",
             darkTheme = row?.value?.get("dark_theme")?.jsonPrimitive?.content == "true",
@@ -54,7 +54,7 @@ class AccountRepository(private val client: SupabaseClient) {
             filter { eq("user_id", userId); eq("key", "account_profile") }
         }.decodeList<UserDataRow>().firstOrNull()?.value
         val value = existing?.toMutableMap() ?: mutableMapOf()
-        avatarUrl?.let { value["avatar_url"] = JsonPrimitive(it) }
+        canonicalTripPhotoReference(avatarUrl)?.let { value["avatar_url"] = JsonPrimitive(it) }
         value["notifications_enabled"] = JsonPrimitive(notificationsEnabled)
         language?.let { value["language"] = JsonPrimitive(it) }
         darkTheme?.let { value["dark_theme"] = JsonPrimitive(it) }
@@ -77,7 +77,8 @@ class AccountRepository(private val client: SupabaseClient) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
         val path = "$userId/profile/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
-        return client.storage.from("trip-photos").publicUrl(path)
+        val reference = storedTripPhotoReference(path)
+        return client.resolveTripPhotoReference(reference) ?: error("Не удалось открыть изображение")
     }
 
     suspend fun changePassword(password: String) {

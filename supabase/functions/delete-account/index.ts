@@ -57,54 +57,47 @@ Deno.serve(async (request) => {
     if (tripsLookupError) throw tripsLookupError;
 
     const ownedTripIds = (ownedTrips ?? []).map((trip) => trip.id as string);
-
-    const { error: collaboratorError } = await admin
-      .from("trip_collaborators")
-      .delete()
-      .eq("user_id", user.id);
-    if (collaboratorError) throw collaboratorError;
-
-    if (ownedTripIds.length > 0) {
-      const { error: ownedCollaboratorError } = await admin
-        .from("trip_collaborators")
-        .delete()
-        .in("trip_id", ownedTripIds);
-      if (ownedCollaboratorError) throw ownedCollaboratorError;
-
-      const { error: tripsDeleteError } = await admin
-        .from("trips")
-        .delete()
-        .eq("owner_id", user.id);
-      if (tripsDeleteError) throw tripsDeleteError;
-    }
-
-    const { error: userDataError } = await admin
-      .from("user_data")
-      .delete()
-      .eq("user_id", user.id);
-    if (userDataError) throw userDataError;
-
-    const [ownedObjects, prefixedObjects] = await Promise.all([
+    const objectLookups = await Promise.all([
       admin
         .schema("storage")
         .from("objects")
         .select("name")
         .eq("bucket_id", "trip-photos")
-        .eq("owner_id", user.id),
-      admin
-        .schema("storage")
-        .from("objects")
-        .select("name")
-        .eq("bucket_id", "trip-photos")
-        .like("name", `${user.id}/%`),
+        .like("name", `${user.id}/profile/%`),
+      ...ownedTripIds.map((tripId) =>
+        admin
+          .schema("storage")
+          .from("objects")
+          .select("name")
+          .eq("bucket_id", "trip-photos")
+          .like("name", `%/${tripId}/%`)
+      ),
     ]);
-    if (ownedObjects.error) throw ownedObjects.error;
-    if (prefixedObjects.error) throw prefixedObjects.error;
+    const failedLookup = objectLookups.find((lookup) => lookup.error);
+    if (failedLookup?.error) throw failedLookup.error;
 
-    const objectNames = [...(ownedObjects.data ?? []), ...(prefixedObjects.data ?? [])]
+    const objectNames = objectLookups
+      .flatMap((lookup) => lookup.data ?? [])
       .map((object) => object.name as string)
       .filter(Boolean);
     const uniqueObjectNames = [...new Set(objectNames)];
+
+    // Revoke refresh tokens before deleting data. The current access token can
+    // remain valid until its short JWT expiry, so sensitive database access
+    // must continue to rely on the rows removed below.
+    const revokeResponse = await fetch(`${supabaseUrl}/auth/v1/logout?scope=global`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: authorization,
+      },
+    });
+    if (!revokeResponse.ok && revokeResponse.status !== 401) {
+      throw new Error(`Could not revoke sessions (${revokeResponse.status})`);
+    }
+
+    // Remove only the profile photo and photos belonging to trips the user
+    // owns. Uploads made by this user in somebody else's shared trip remain.
     for (let index = 0; index < uniqueObjectNames.length; index += 100) {
       const batch = uniqueObjectNames.slice(index, index + 100);
       const { error: storageError } = await admin.storage
@@ -112,6 +105,12 @@ Deno.serve(async (request) => {
         .remove(batch);
       if (storageError) throw storageError;
     }
+
+    const { error: relationalError } = await admin.rpc(
+      "delete_account_relational_data",
+      { p_user_id: user.id },
+    );
+    if (relationalError) throw relationalError;
 
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
     if (deleteUserError) throw deleteUserError;

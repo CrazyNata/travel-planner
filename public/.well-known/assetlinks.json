@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.odyssey.travelplanner",
+      "sha256_cert_fingerprints": [
+        "39:EF:CE:8F:89:ED:2B:DC:D8:8F:A7:8C:98:48:AF:52:50:E6:D6:05:B0:A9:F2:F5:41:17:6D:53:97:3B:03:CE"
+      ]
+    }
+  }
+]

@@ -4839,6 +4839,69 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   font-size: 30px;
 }
 
+.legal-page {
+  min-height: 100vh;
+  padding: 32px 16px;
+  background: #f0f1f4;
+}
+
+.legal-card {
+  width: min(100%, 840px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #e4e5eb;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(27, 28, 31, 0.12);
+}
+
+.legal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 32px;
+  border-bottom: 1px solid #ececf1;
+}
+
+.legal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #1b1c1f;
+  text-decoration: none;
+}
+
+.legal-brand span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), #6e68e8);
+  color: #fff;
+  font: 800 15px Unbounded, sans-serif;
+}
+
+.legal-brand b { font: 600 19px Unbounded, sans-serif; }
+.legal-back { border: 0; background: transparent; color: var(--accent); font-size: 13px; font-weight: 800; }
+
+.legal-content {
+  padding: 38px 56px 52px;
+  color: #3d414b;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.legal-content h1 { margin: 0 0 6px; color: #1b1c1f; font: 600 31px/1.2 Unbounded, sans-serif; letter-spacing: -0.04em; }
+.legal-content h2 { margin: 30px 0 8px; color: #1b1c1f; font-size: 18px; line-height: 1.35; }
+.legal-content p { margin: 0 0 14px; }
+.legal-content ul { margin: 0 0 16px; padding-left: 22px; }
+.legal-content li { margin: 6px 0; }
+.legal-content a { color: var(--accent); font-weight: 700; }
+.legal-eyebrow { margin-bottom: 12px !important; color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.legal-updated { margin-bottom: 24px !important; color: #8b8f9c; font-size: 13px; }
+
 .auth-page {
   display: grid;
   min-height: 100vh;
@@ -4994,6 +5057,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .auth-promo blockquote small { display: block; margin-top: 2px; color: #c5c3ee; font-size: 11px; font-weight: 500; }
 
 @media (max-width: 800px) {
+  .legal-page { padding: 0; }
+  .legal-card { min-height: 100vh; border-radius: 0; }
+  .legal-header { padding: 20px 24px; }
+  .legal-content { padding: 32px 24px 44px; }
+  .legal-content h1 { font-size: 25px; }
   .auth-page { display: block; padding: 0; }
   .auth-card { width: 100%; height: auto; min-height: 100vh; grid-template-columns: 1fr; border-radius: 0; }
   .auth-form form { min-height: 0; }

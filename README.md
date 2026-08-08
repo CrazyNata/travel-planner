@@ -37,6 +37,10 @@ Workflow `.github/workflows/deploy-pages.yml` публикует сайт пос
 ```text
 VITE_SUPABASE_URL
 VITE_SUPABASE_PUBLISHABLE_KEY
+VITE_MAPBOX_ACCESS_TOKEN
+VITE_LEGAL_ENTITY_NAME
+VITE_LEGAL_CONTACT_EMAIL
+VITE_LEGAL_EFFECTIVE_DATE
 ```
 
 В настройках репозитория откройте `Settings` → `Pages` и выберите `GitHub Actions` как источник публикации.
