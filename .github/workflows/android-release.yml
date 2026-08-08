@@ -129,7 +129,7 @@ jobs:
         run: |
           apk_path="mobile/app/build/outputs/apk/release/app-release.apk"
           apksigner_path="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          fingerprint="$($apksigner_path verify --print-certs "$apk_path" 2>&1 | sed -n 's/.*Signer #1 certificate SHA-256 digest:[[:space:]]*//p' | head -n 1)"
+          fingerprint="$($apksigner_path verify --print-certs "$apk_path" 2>&1 | sed -n 's/.*certificate SHA-256 digest:[[:space:]]*//p' | head -n 1)"
           if [ -z "$fingerprint" ]; then
             echo "Unable to extract the release certificate fingerprint from apksigner output." >&2
             "$apksigner_path" verify --print-certs "$apk_path" >&2 || true
