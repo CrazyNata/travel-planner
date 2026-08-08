@@ -21,18 +21,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
-      - name: Verify public legal configuration
-        shell: bash
-        run: |
-          test -n "${{ vars.VITE_LEGAL_ENTITY_NAME }}"
-          test -n "${{ vars.VITE_LEGAL_CONTACT_EMAIL }}"
-          test -n "${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}"
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}

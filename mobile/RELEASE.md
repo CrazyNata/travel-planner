@@ -58,8 +58,8 @@ Deploy the web application and the `delete-account` Supabase Edge Function befor
 
 Before submission, replace the placeholder legal/support information in the public privacy policy and confirm the Data safety declaration against the production data flows.
 
-The web deploy requires these repository variables so the public legal pages cannot
-be published without an operator name, support contact, and effective date:
+The web deploy accepts these optional repository variables to replace the public
+legal-page defaults with the publisher's official details:
 
 - `VITE_LEGAL_ENTITY_NAME`
 - `VITE_LEGAL_CONTACT_EMAIL`
