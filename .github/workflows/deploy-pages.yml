@@ -38,7 +38,7 @@ jobs:
       - name: Add the verified Android release
         shell: bash
         run: |
-          curl --fail --location --retry 3 \
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
             --output dist/travel-planner.apk \
             https://github.com/CrazyNata/travel-planner/releases/latest/download/travel-planner.apk
           test -s dist/travel-planner.apk
