@@ -11,6 +11,10 @@ val supabaseProperties = Properties().apply {
     val file = rootProject.file("supabase.properties")
     if (file.exists()) file.inputStream().use(::load)
 }
+val configuredValue: (String) -> String = { name ->
+    supabaseProperties.getProperty(name).orEmpty().trim()
+        .ifBlank { providers.environmentVariable(name).orNull.orEmpty().trim() }
+}
 
 val releaseKeystorePath = providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull
 val releaseKeystorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull
@@ -33,7 +37,7 @@ val requiredReleaseProperties = listOf(
     "GOOGLE_WEB_CLIENT_ID",
 )
 val missingReleaseProperties = requiredReleaseProperties.filter {
-    supabaseProperties.getProperty(it).orEmpty().trim().isBlank()
+    configuredValue(it).isBlank()
 }
 if (releaseTasksRequested && missingReleaseProperties.isNotEmpty()) {
     error("Release configuration is incomplete. Missing: ${missingReleaseProperties.joinToString()}. Set these values in mobile/supabase.properties or CI secrets.")
@@ -52,11 +56,11 @@ android {
         versionCode = versionCodeFromEnvironment
         versionName = versionNameFromEnvironment
 
-        buildConfigField("String", "SUPABASE_URL", "\"${supabaseProperties.getProperty("SUPABASE_URL", "")}\"")
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabaseProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "")}\"")
-        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${supabaseProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")}\"")
-        resValue("string", "mapbox_access_token", supabaseProperties.getProperty("MAPBOX_ACCESS_TOKEN", ""))
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${supabaseProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")}\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${configuredValue("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${configuredValue("SUPABASE_PUBLISHABLE_KEY")}\"")
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"${configuredValue("MAPBOX_ACCESS_TOKEN")}\"")
+        resValue("string", "mapbox_access_token", configuredValue("MAPBOX_ACCESS_TOKEN"))
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${configuredValue("GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
     buildFeatures {

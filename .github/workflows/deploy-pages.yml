@@ -35,6 +35,13 @@ jobs:
           VITE_LEGAL_ENTITY_NAME: ${{ vars.VITE_LEGAL_ENTITY_NAME }}
           VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
           VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
+      - name: Add the verified Android release
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            --output dist/travel-planner.apk \
+            https://github.com/CrazyNata/travel-planner/releases/latest/download/travel-planner.apk
+          test -s dist/travel-planner.apk
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
