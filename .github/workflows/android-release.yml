@@ -178,9 +178,24 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      - uses: actions/upload-pages-artifact@v4
+      - name: Package GitHub Pages artifact with App Links metadata
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          tar --dereference --hard-dereference \
+            --directory dist \
+            --exclude=.git \
+            --exclude=.github \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            .
+          tar -tf "$RUNNER_TEMP/artifact.tar" | grep -qx './.well-known/assetlinks.json'
+
+      - uses: actions/upload-artifact@v6
         with:
-          path: dist
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Deploy public APK and website
         id: deployment
