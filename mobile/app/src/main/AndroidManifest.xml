@@ -8,7 +8,7 @@
         android:fullBackupContent="false"
         android:icon="@drawable/ic_odyssey_mark"
         android:roundIcon="@drawable/ic_odyssey_mark"
-        android:label="Одиссея"
+        android:label="Ramingo"
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="33"
         android:theme="@style/Theme.Odyssey">

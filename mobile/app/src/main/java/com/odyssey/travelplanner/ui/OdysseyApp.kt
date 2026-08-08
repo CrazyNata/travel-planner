@@ -1421,7 +1421,7 @@ private fun AuthScreen(
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
             Text(
-                text = "Одиссея",
+                text = "Ramingo",
                 color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -1832,7 +1832,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         .padding(horizontal = 9.dp, vertical = 5.dp),
                 )
                 Text(
-                    text = "Одиссея",
+                    text = "Ramingo",
                     color = contentTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -1972,7 +1972,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                             fontSize = 16.sp,
                             modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(10.dp)).padding(horizontal = 11.dp, vertical = 7.dp),
                         )
-                        Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(start = 10.dp))
+                        Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(start = 10.dp))
                     }
                     Button(
                         onClick = { menuOpen = false; onNewTrip() },
@@ -2314,7 +2314,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
                     fontSize = 13.sp,
                     modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp),
                 )
-                Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
+                Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
             }
             Spacer(Modifier.size(40.dp))
         }
@@ -2588,7 +2588,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
                 Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.align(Alignment.CenterStart).size(24.dp).clickable { onBack() })
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
                     Text("O", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp))
-                    Text("Одиссея", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
+                    Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
                 }
             }
         }
