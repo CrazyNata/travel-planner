@@ -2,9 +2,11 @@ name: Android release
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+    inputs:
+      version_name:
+        description: Public Android version name, for example 0.2.0
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,7 +27,7 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE }}
-      ANDROID_VERSION_NAME: ${{ vars.ANDROID_VERSION_NAME }}
+      ANDROID_VERSION_NAME: ${{ inputs.version_name || vars.ANDROID_VERSION_NAME }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
@@ -107,7 +109,7 @@ jobs:
           sha256sum app/build/outputs/apk/release/app-release.apk
 
       - name: Upload signed AAB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: odyssey-android-${{ github.ref_name }}
           path: |
@@ -168,7 +170,7 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 

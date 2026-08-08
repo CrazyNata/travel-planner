@@ -36,7 +36,7 @@ jobs:
           VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
           VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
       - id: deployment
