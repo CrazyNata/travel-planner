@@ -42,6 +42,9 @@ jobs:
             --output dist/travel-planner.apk \
             https://github.com/CrazyNata/travel-planner/releases/latest/download/travel-planner.apk
           test -s dist/travel-planner.apk
+          mkdir -p dist/.well-known
+          cp public/.well-known/assetlinks.json dist/.well-known/assetlinks.json
+          test -s dist/.well-known/assetlinks.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

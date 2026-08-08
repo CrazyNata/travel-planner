@@ -168,6 +168,14 @@ jobs:
           VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
           VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
 
+      - name: Preserve Android App Links metadata
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p dist/.well-known
+          cp public/.well-known/assetlinks.json dist/.well-known/assetlinks.json
+          test -s dist/.well-known/assetlinks.json
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4
