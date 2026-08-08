@@ -733,7 +733,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("name", name.trim())
                 put("role", role)
                 put("tripId", id)
-                put("redirectTo", "https://travelplanner.muntim.ru/mobile/invite?tripId=$id")
+                put("redirectTo", "https://ramingo.online/mobile/invite?tripId=$id")
             },
             headers = Headers.build { append(HttpHeaders.ContentType, "application/json") },
         )

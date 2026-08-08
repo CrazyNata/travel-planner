@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const allowedOrigins = [
+  "https://ramingo.online",
   "https://travelplanner.muntim.ru",
   "https://crazynata.github.io",
   "http://localhost:5173",

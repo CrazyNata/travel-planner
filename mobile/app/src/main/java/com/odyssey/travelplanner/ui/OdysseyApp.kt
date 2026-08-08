@@ -1476,7 +1476,7 @@ private fun AuthScreen(
                             scope.launch {
                                 isLoading = true
                                 runCatching {
-                                    SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://travelplanner.muntim.ru/mobile/reset")
+                                    SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://ramingo.online/mobile/reset")
                                 }.onSuccess {
                                     message = messageText("Письмо для восстановления отправлено", "Password reset email sent", "Correo de restablecimiento enviado", "E-Mail zum Zurücksetzen gesendet")
                                 }.onFailure {

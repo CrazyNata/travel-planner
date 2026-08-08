@@ -9,12 +9,20 @@ class AndroidDeepLinkTest {
     fun `invite link carries trip id`() {
         assertEquals(
             AndroidDeepLink.Invite("trip-123"),
-            parseAndroidDeepLink("https://travelplanner.muntim.ru/mobile/invite?tripId=trip-123"),
+            parseAndroidDeepLink("https://ramingo.online/mobile/invite?tripId=trip-123"),
         )
     }
 
     @Test
     fun `reset link opens password flow`() {
+        assertEquals(
+            AndroidDeepLink.PasswordReset,
+            parseAndroidDeepLink("https://ramingo.online/mobile/reset"),
+        )
+    }
+
+    @Test
+    fun `legacy host remains supported`() {
         assertEquals(
             AndroidDeepLink.PasswordReset,
             parseAndroidDeepLink("https://travelplanner.muntim.ru/mobile/reset"),
@@ -24,6 +32,6 @@ class AndroidDeepLinkTest {
     @Test
     fun `foreign hosts and missing trip ids are rejected`() {
         assertNull(parseAndroidDeepLink("https://example.com/mobile/reset"))
-        assertNull(parseAndroidDeepLink("https://travelplanner.muntim.ru/mobile/invite"))
+        assertNull(parseAndroidDeepLink("https://ramingo.online/mobile/invite"))
     }
 }

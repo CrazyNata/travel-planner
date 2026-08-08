@@ -22,9 +22,14 @@ internal sealed interface AndroidDeepLink {
     data object PasswordReset : AndroidDeepLink
 }
 
+private val supportedAppLinkHosts = setOf(
+    "ramingo.online",
+    "travelplanner.muntim.ru",
+)
+
 internal fun parseAndroidDeepLink(value: String?): AndroidDeepLink? {
     val uri = runCatching { URI(value.orEmpty()) }.getOrNull() ?: return null
-    if (uri.scheme != "https" || uri.host != "travelplanner.muntim.ru") return null
+    if (uri.scheme != "https" || uri.host !in supportedAppLinkHosts) return null
     return when {
         uri.path?.startsWith("/mobile/invite") == true -> {
             val tripId = uri.rawQuery.orEmpty()

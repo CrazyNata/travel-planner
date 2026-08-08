@@ -55,7 +55,7 @@ screenshots, store listing, and a Play service-account secret owned by the publi
 
 The Android account menu includes an in-app account deletion action. The external deletion page is:
 
-`https://travelplanner.muntim.ru/#/delete-account`
+`https://ramingo.online/#/delete-account`
 
 Deploy the web application and the `delete-account` Supabase Edge Function before submitting the Android app. The function must keep JWT verification enabled and must have its server-side `SUPABASE_SERVICE_ROLE_KEY` available only in Supabase.
 

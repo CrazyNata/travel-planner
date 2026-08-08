@@ -7,6 +7,6 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS && repository ? `/${repository}/` : "/",
   plugins: [react()],
   server: {
-    allowedHosts: ["travelplanner.muntim.ru"],
+    allowedHosts: ["ramingo.online", "travelplanner.muntim.ru"],
   },
 });

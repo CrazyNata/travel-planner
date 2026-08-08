@@ -32,8 +32,8 @@ object SupabaseProvider {
                 autoSaveToStorage = rememberSession
                 flowType = FlowType.PKCE
                 scheme = "https"
-                host = "travelplanner.muntim.ru"
-                defaultRedirectUrl = "https://travelplanner.muntim.ru/mobile/auth"
+                host = "ramingo.online"
+                defaultRedirectUrl = "https://ramingo.online/mobile/auth"
             }
             install(Postgrest)
             install(Storage)
