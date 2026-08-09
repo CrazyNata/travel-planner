@@ -3514,7 +3514,15 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> photoUri = uri }
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(bottom = navigationBarInset),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("${localizedCityName(city).uppercase()} · ${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} $day", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
@@ -3524,9 +3532,13 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
         }
         RouteEditorField(localized("Главная достопримечательность", "Main sight", "Lugar principal", "Hauptsehenswürdigkeit"), name, { name = it }, Modifier.fillMaxWidth(), placeholder = localized("Напр. Две башни", "E.g. Two towers", "P. ej. Dos torres", "Z. B. Zwei Türme"))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(value = description, onValueChange = { description = it }, placeholder = { Text(localized("Описание объекта: что\nважно увидеть, время\nпосещения, заметки...", "Description", "Descripción", "Beschreibung"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) }, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE0DFE7), unfocusedBorderColor = Color(0xFFE0DFE7)), modifier = Modifier.weight(1f).height(110.dp))
-            Box(modifier = Modifier.width(132.dp).height(110.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { photoPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
-                if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Выбранное фото", "Selected photo", "Foto seleccionada", "Ausgewähltes Foto"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("⇧", color = OdysseyPurple, fontSize = 28.sp); Text(localized("Фото объекта", "Photo", "Foto", "Foto"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp); Text(localized("Выберите\nфайл", "Choose file", "Elige archivo", "Datei wählen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, textAlign = TextAlign.Center) }
+            OutlinedTextField(value = description, onValueChange = { description = it }, placeholder = { Text(localized("Описание объекта: что\nважно увидеть, время\nпосещения, заметки...", "Description", "Descripción", "Beschreibung"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp, lineHeight = 20.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding)) }, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFFE0DFE7), unfocusedBorderColor = Color(0xFFE0DFE7)), modifier = Modifier.weight(1f).height(122.dp))
+            Box(modifier = Modifier.width(132.dp).height(122.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { photoPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
+                if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Выбранное фото", "Selected photo", "Foto seleccionada", "Ausgewähltes Foto"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("⇧", color = OdysseyPurple, fontSize = 25.sp, lineHeight = 28.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    Text(localized("Фото объекта", "Photo", "Foto", "Foto"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, lineHeight = 13.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    Text(localized("Выберите\nфайл", "Choose file", "Elige archivo", "Datei wählen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 15.sp, textAlign = TextAlign.Center, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                }
             }
         }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
