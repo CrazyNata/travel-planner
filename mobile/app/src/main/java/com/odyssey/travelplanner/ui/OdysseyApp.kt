@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
@@ -117,6 +118,8 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.createPolylineAnnotationManager
 import com.mapbox.maps.plugin.annotation.generated.createCircleAnnotationManager
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
+import com.mapbox.maps.plugin.gestures.OnMapClickListener
+import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.scalebar.scalebar
 import com.mapbox.maps.extension.localization.localizeLabels
 import com.mapbox.maps.extension.style.layers.properties.generated.TextAnchor
@@ -282,7 +285,10 @@ private fun localizedDatePickerContext(context: Context, language: String): Cont
         "DE" -> Locale.GERMAN
         else -> Locale.forLanguageTag("ru")
     }
-    return context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(locale) })
+    val configuration = Configuration(context.resources.configuration).apply { setLocale(locale) }
+    return ContextThemeWrapper(context, context.theme).apply {
+        applyOverrideConfiguration(configuration)
+    }
 }
 
 private fun localized(language: String, ru: String, en: String, es: String, de: String): String = when (normalizeLanguage(language)) {
@@ -3174,6 +3180,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
                     onOpenPhoto = { fullScreenSight = sight },
+                    onEdit = { editingSight = sight },
                 )
             }
         }
@@ -3504,6 +3511,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () -> Unit, onSaved: () -> Unit) {
     val context = LocalContext.current
     val language = LocalLanguage.current
@@ -3511,6 +3519,8 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedPoint by remember { mutableStateOf<Point?>(null) }
+    var locationPickerOpen by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> photoUri = uri }
@@ -3541,6 +3551,11 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                 }
             }
         }
+        SightLocationField(
+            point = selectedPoint,
+            onClick = { locationPickerOpen = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(
             onClick = {
@@ -3548,7 +3563,16 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                     saving = true
                     runCatching {
                         val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                        val sightId = repository.addSightDetails(tripId, name, city, "достопримечательности", description, day)
+                        val sightId = repository.addSightDetails(
+                            id = tripId,
+                            name = name,
+                            city = city,
+                            category = "достопримечательности",
+                            description = description,
+                            walkDay = day,
+                            longitude = selectedPoint?.longitude(),
+                            latitude = selectedPoint?.latitude(),
+                        )
                         photoUri?.let { uri ->
                             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                 ?: error("Не удалось прочитать изображение")
@@ -3566,6 +3590,326 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
             shape = RoundedCornerShape(14.dp),
         ) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Добавить место", "Add sight", "Añadir lugar", "Ort hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
     }
+    if (locationPickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { locationPickerOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            dragHandle = null,
+        ) {
+            SightLocationPickerSheet(
+                city = city,
+                initialPoint = selectedPoint,
+                onClose = { locationPickerOpen = false },
+                onConfirm = { point ->
+                    selectedPoint = point
+                    locationPickerOpen = false
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SightLocationField(
+    point: Point?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(
+            localized("Точка на карте", "Map point", "Punto en el mapa", "Punkt auf der Karte"),
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(cardSurfaceColor())
+                .border(1.dp, OdysseyBorder, RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.LocationOn,
+                    contentDescription = null,
+                    tint = if (point == null) OdysseySubtext else OdysseyPurple,
+                    modifier = Modifier.size(19.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (point == null) {
+                            localized("Указать точку на карте", "Choose a point on the map", "Elegir un punto en el mapa", "Punkt auf der Karte wählen")
+                        } else {
+                            localized("Точка выбрана", "Point selected", "Punto seleccionado", "Punkt ausgewählt")
+                        },
+                        color = if (point == null) OdysseySubtext else contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (point != null) {
+                        Text(
+                            text = formatSightCoordinate(point),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Icon(
+                    Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = OdysseyPurple,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SightLocationPickerSheet(
+    city: String,
+    initialPoint: Point?,
+    onClose: () -> Unit,
+    onConfirm: (Point?) -> Unit,
+) {
+    val context = LocalContext.current
+    val language = LocalLanguage.current
+    val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val cityPoint = remember(city) { mapCoordinate(city) }
+    val cameraPoint = initialPoint ?: cityPoint ?: Point.fromLngLat(10.0, 50.0)
+    val cameraZoom = when {
+        initialPoint != null -> 15.0
+        cityPoint != null -> 11.5
+        else -> 3.8
+    }
+    var selectedPoint by remember(city, initialPoint) { mutableStateOf(initialPoint) }
+    var mapStyleReady by remember { mutableStateOf(false) }
+    val attributionDescription = localized(
+        "Информация об источниках карты",
+        "Map attribution information",
+        "Información de atribución del mapa",
+        "Informationen zur Kartenquelle",
+    )
+    val mapView = remember(context, city, initialPoint) {
+        MapView(
+            context,
+            MapInitOptions(
+                context = context,
+                textureView = true,
+                styleUri = null,
+            ),
+        ).also {
+            it.scalebar.enabled = false
+            it.post { labelMapboxAccessibility(it, attributionDescription) }
+        }
+    }
+    val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
+    val mapClickListener = remember(mapView) {
+        object : OnMapClickListener {
+            override fun onMapClick(point: Point): Boolean {
+                selectedPoint = point
+                return true
+            }
+        }
+    }
+
+    LaunchedEffect(mapView) {
+        mapStyleReady = false
+        mapView.mapboxMap.loadStyle(Style.MAPBOX_STREETS) { style ->
+            style.localizeLabels(mapLocale(language))
+            mapStyleReady = true
+        }
+    }
+
+    DisposableEffect(mapView, mapClickListener) {
+        mapView.gestures.addOnMapClickListener(mapClickListener)
+        onDispose {
+            mapView.gestures.removeOnMapClickListener(mapClickListener)
+        }
+    }
+
+    DisposableEffect(mapView, annotationManager) {
+        onDispose {
+            annotationManager.deleteAll()
+            mapView.onDestroy()
+        }
+    }
+
+    LaunchedEffect(mapStyleReady, language) {
+        if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
+    }
+
+    LaunchedEffect(mapStyleReady, cameraPoint) {
+        if (mapStyleReady) {
+            mapView.mapboxMap.setCamera(
+                CameraOptions.Builder()
+                    .center(cameraPoint)
+                    .zoom(cameraZoom)
+                    .build(),
+            )
+        }
+    }
+
+    LaunchedEffect(mapStyleReady, selectedPoint) {
+        if (mapStyleReady) {
+            annotationManager.deleteAll()
+            selectedPoint?.let { point ->
+                annotationManager.create(
+                    CircleAnnotationOptions()
+                        .withPoint(point)
+                        .withCircleRadius(11.0)
+                        .withCircleColor("#6C5CE7")
+                        .withCircleStrokeColor("#FFFFFF")
+                        .withCircleStrokeWidth(4.0),
+                )
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(bottom = 16.dp + navigationBarInset),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("ТОЧКА НА КАРТЕ", "MAP POINT", "PUNTO EN EL MAPA", "PUNKT AUF DER KARTE"),
+                    color = OdysseyPurple,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+                Text(
+                    localized("Выберите место", "Choose a place", "Elige un lugar", "Ort auswählen"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 23.sp,
+                    lineHeight = 28.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(secondarySurfaceColor())
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                    tint = secondaryTextColor(),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        Text(
+            localizedCityName(city),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W700,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .clip(RoundedCornerShape(18.dp)),
+        ) {
+            AndroidView(
+                factory = { mapView },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Text(
+            localized(
+                "Нажмите на карту, чтобы поставить точку. Карту можно двигать и приближать.",
+                "Tap the map to place a point. You can pan and zoom the map.",
+                "Toca el mapa para colocar un punto. Puedes moverlo y acercarlo.",
+                "Tippen Sie auf die Karte, um einen Punkt zu setzen. Sie können die Karte verschieben und zoomen.",
+            ),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+        )
+        if (selectedPoint != null) {
+            Text(
+                formatSightCoordinate(selectedPoint!!),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = { selectedPoint = null },
+                enabled = selectedPoint != null,
+            ) {
+                Text(
+                    localized("Очистить", "Clear", "Borrar", "Löschen"),
+                    color = if (selectedPoint != null) Color(0xFFE0524B) else secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            }
+            Button(
+                onClick = { onConfirm(selectedPoint) },
+                modifier = Modifier.weight(1f).height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Text(
+                    localized("Готово", "Done", "Listo", "Fertig"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -3575,6 +3919,7 @@ private fun SightCard(
     selected: Boolean,
     onSelect: () -> Unit,
     onOpenPhoto: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
     Row(
@@ -3644,9 +3989,25 @@ private fun SightCard(
                 }
             }
         }
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(tintedSurfaceColor())
+                .clickable(onClick = onEdit),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Edit,
+                contentDescription = localized("Редактировать", "Edit", "Editar", "Bearbeiten"),
+                tint = OdysseyPurple,
+                modifier = Modifier.size(17.dp),
+            )
+        }
     }
 }
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: String, onClose: () -> Unit, onSaved: () -> Unit) {
     val language = LocalLanguage.current
     val displayedName = localizedSightName(sight.name)
@@ -3658,6 +4019,15 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
     var category by remember(sight.id, language) { mutableStateOf(displayedCategory) }
     var description by remember(sight.id, language) { mutableStateOf(displayedDescription) }
     var walkDay by remember(sight.id) { mutableStateOf(sight.walkDay.toString()) }
+    var selectedPoint by remember(sight.id) {
+        mutableStateOf(
+            sight.longitude?.let { longitude ->
+                sight.latitude?.let { latitude -> Point.fromLngLat(longitude, latitude) }
+            },
+        )
+    }
+    var locationChanged by remember(sight.id) { mutableStateOf(false) }
+    var locationPickerOpen by remember(sight.id) { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -3665,6 +4035,11 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
         Text(localized("Редактировать место", "Edit sight", "Editar lugar", "Ort bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
         AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
         AuthField(localized("Город", "City", "Ciudad", "Stadt"), localized("Город", "City", "Ciudad", "Stadt"), city) { city = it }
+        SightLocationField(
+            point = selectedPoint,
+            onClick = { locationPickerOpen = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
         AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
         AuthField(localized("Описание", "Description", "Descripción", "Beschreibung"), localized("Что важно увидеть", "What is important to see", "Qué es importante ver", "Was sehenswert ist"), description) { description = it }
         AuthField(localized("День маршрута", "Route day", "Día de ruta", "Reisetag"), localized("Например, 1", "For example, 1", "Por ejemplo, 1", "Zum Beispiel 1"), walkDay) { walkDay = it.filter(Char::isDigit) }
@@ -3678,12 +4053,44 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
                     val savedCity = city.trim().takeUnless { it == displayedCity } ?: sight.city.trim()
                     val savedCategory = category.trim().takeUnless { it == displayedCategory } ?: sight.category.trim()
                     val savedDescription = description.trim().takeUnless { it == displayedDescription } ?: sight.description.trim()
-                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDetailsRich(tripId, sight.id, savedName, savedCity, savedCategory, savedDescription, walkDay.toIntOrNull() ?: sight.walkDay) }
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDetailsRich(
+                            id = tripId,
+                            sightId = sight.id,
+                            name = savedName,
+                            city = savedCity,
+                            category = savedCategory,
+                            description = savedDescription,
+                            walkDay = walkDay.toIntOrNull() ?: sight.walkDay,
+                            longitude = selectedPoint?.longitude(),
+                            latitude = selectedPoint?.latitude(),
+                            locationChanged = locationChanged,
+                        )
+                    }
                         .onSuccess { onSaved() }
                         .onFailure { message = it.message ?: localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden") }
                     saving = false
                 }
             }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+        }
+    }
+    if (locationPickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { locationPickerOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            dragHandle = null,
+        ) {
+            SightLocationPickerSheet(
+                city = city.ifBlank { sight.city },
+                initialPoint = selectedPoint,
+                onClose = { locationPickerOpen = false },
+                onConfirm = { point ->
+                    selectedPoint = point
+                    locationChanged = true
+                    locationPickerOpen = false
+                },
+            )
         }
     }
 }
@@ -9794,6 +10201,9 @@ private fun RouteEditorDateField(
 private fun mapCoordinate(city: String): Point? = cityCatalogEntry(city)?.let { entry ->
     Point.fromLngLat(entry.longitude, entry.latitude)
 }
+
+private fun formatSightCoordinate(point: Point): String =
+    String.format(Locale.US, "%.5f, %.5f", point.latitude(), point.longitude())
 
 
 @Composable

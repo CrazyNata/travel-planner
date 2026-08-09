@@ -263,8 +263,28 @@ interface TripRepository {
     suspend fun moveRestaurantPhoto(id: String, restaurantId: String, photoIndex: Int, direction: Int)
     suspend fun addRestaurantPhoto(id: String, restaurantId: String, bytes: ByteArray)
     suspend fun deleteTripItem(id: String, section: String, itemId: String)
-    suspend fun addSightDetails(id: String, name: String, city: String, category: String, description: String, walkDay: Int): String
-    suspend fun updateSightDetailsRich(id: String, sightId: String, name: String, city: String, category: String, description: String, walkDay: Int)
+    suspend fun addSightDetails(
+        id: String,
+        name: String,
+        city: String,
+        category: String,
+        description: String,
+        walkDay: Int,
+        longitude: Double? = null,
+        latitude: Double? = null,
+    ): String
+    suspend fun updateSightDetailsRich(
+        id: String,
+        sightId: String,
+        name: String,
+        city: String,
+        category: String,
+        description: String,
+        walkDay: Int,
+        longitude: Double? = null,
+        latitude: Double? = null,
+        locationChanged: Boolean = false,
+    )
     suspend fun reorderSights(id: String, orderedSightIds: List<String>)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
@@ -1107,6 +1127,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         category: String,
         description: String,
         walkDay: Int,
+        longitude: Double?,
+        latitude: Double?,
     ): String {
         require(name.isNotBlank()) { "Укажите название места" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
@@ -1131,6 +1153,12 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("walkDay", normalizedWalkDay)
             put("walkOrder", nextWalkOrder)
             put("done", false)
+            if (longitude != null && latitude != null) {
+                put("lnglat", buildJsonArray {
+                    add(kotlinx.serialization.json.JsonPrimitive(longitude))
+                    add(kotlinx.serialization.json.JsonPrimitive(latitude))
+                })
+            }
         }
         patchTripSectionFromPayload(id, "sights", TripPayloadCodec.append(current.payload, "sights", item), current.revision)
         return sightId
@@ -1144,6 +1172,9 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         category: String,
         description: String,
         walkDay: Int,
+        longitude: Double?,
+        latitude: Double?,
+        locationChanged: Boolean,
     ) {
         require(name.isNotBlank()) { "Укажите название места" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
@@ -1155,6 +1186,16 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("subcategory", kotlinx.serialization.json.JsonPrimitive(category.trim()))
                 put("description", kotlinx.serialization.json.JsonPrimitive(description.trim()))
                 put("walkDay", kotlinx.serialization.json.JsonPrimitive(walkDay.coerceAtLeast(0)))
+                if (locationChanged) {
+                    if (longitude != null && latitude != null) {
+                        put("lnglat", buildJsonArray {
+                            add(kotlinx.serialization.json.JsonPrimitive(longitude))
+                            add(kotlinx.serialization.json.JsonPrimitive(latitude))
+                        })
+                    } else {
+                        remove("lnglat")
+                    }
+                }
             })
         }
         patchTripSectionFromPayload(id, "sights", payload, current.revision)
