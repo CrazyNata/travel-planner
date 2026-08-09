@@ -5218,20 +5218,48 @@ private fun RestaurantEditSheet(
     onClose: () -> Unit,
     onSaved: () -> Unit,
 ) {
+    val context = LocalContext.current
     val language = LocalLanguage.current
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
     var whenBooked by remember(restaurant.id) { mutableStateOf(restaurant.date) }
     var saving by remember { mutableStateOf(false) }
+    var uploadingPhoto by remember(restaurant.id) { mutableStateOf(false) }
+    var deleting by remember(restaurant.id) { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploadingPhoto = true
+            message = null
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435")
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addRestaurantPhoto(tripId, restaurant.id, bytes)
+            }.onSuccess {
+                uploadingPhoto = false
+                onSaved()
+            }.onFailure {
+                uploadingPhoto = false
+                message = it.message ?: localized(
+                    language,
+                    "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e",
+                    "Could not upload photo",
+                    "No se pudo subir la foto",
+                    "Foto konnte nicht hochgeladen werden",
+                )
+            }
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val scale = maxWidth.value / 368f
         fun d(value: Float) = (value * scale).dp
         fun s(value: Float) = (value * scale).sp
         val booked = status == "бронь"
-        val sheetHeight = if (booked) 470f else 377f
+        val busy = saving || uploadingPhoto || deleting
+        val sheetHeight = if (booked) 563f else 470f
 
         Box(
             modifier = Modifier
@@ -5350,14 +5378,72 @@ private fun RestaurantEditSheet(
                     onValueChange = { whenBooked = it },
                 )
             }
+            RestaurantAddField(
+                label = localized("\u0424\u043e\u0442\u043e", "Photos", "Fotos", "Fotos"),
+                value = if (restaurant.photos.isEmpty()) {
+                    ""
+                } else {
+                    localized(
+                        "${restaurant.photos.size} \u0444\u043e\u0442\u043e",
+                        "${restaurant.photos.size} photos",
+                        "${restaurant.photos.size} fotos",
+                        "${restaurant.photos.size} Fotos",
+                    )
+                },
+                placeholder = localized("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u043e\u0442\u043e", "Add photo", "A\u00f1adir foto", "Foto hinzuf\u00fcgen"),
+                scale = scale,
+                trailingChevron = true,
+                readOnly = true,
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(if (booked) 391f else 298f))
+                    .width(d(336f)),
+                onClick = { if (!busy) photoPicker.launch("image/*") },
+                onValueChange = {},
+            )
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(11f)),
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(if (booked) 399f else 306f))
+                    .offset(x = d(16f), y = d(if (booked) 492f else 399f))
                     .width(d(336f))
                     .height(d(53f)),
             ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .width(d(46f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(d(11f)))
+                        .background(dangerSurfaceColor())
+                        .clickable(enabled = !busy) {
+                            scope.launch {
+                                deleting = true
+                                message = null
+                                runCatching {
+                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id)
+                                }.onSuccess {
+                                    deleting = false
+                                    onSaved()
+                                }.onFailure {
+                                    deleting = false
+                                    message = it.message ?: localized(
+                                        language,
+                                        "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0443\u0434\u0430\u043b\u0438\u0442\u044c \u0440\u0435\u0441\u0442\u043e\u0440\u0430\u043d",
+                                        "Could not delete restaurant",
+                                        "No se pudo eliminar el restaurante",
+                                        "Restaurant konnte nicht gel\u00f6scht werden",
+                                    )
+                                }
+                            }
+                        },
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = localized("\u0423\u0434\u0430\u043b\u0438\u0442\u044c", "Delete", "Eliminar", "L\u00f6schen"),
+                        tint = Color(0xFFFF6B65),
+                        modifier = Modifier.size(d(19f)),
+                    )
+                }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -5392,7 +5478,7 @@ private fun RestaurantEditSheet(
                         )
                         .clip(RoundedCornerShape(d(15f)))
                         .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
-                        .clickable(enabled = !saving) {
+                        .clickable(enabled = !busy) {
                             scope.launch {
                                 saving = true
                                 message = null
@@ -5442,7 +5528,7 @@ private fun RestaurantEditSheet(
                     lineHeight = s(15f),
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                     modifier = Modifier
-                        .offset(x = d(16f), y = d(if (booked) 455f else 362f))
+                        .offset(x = d(16f), y = d(if (booked) 548f else 455f))
                         .width(d(336f)),
                 )
             }
