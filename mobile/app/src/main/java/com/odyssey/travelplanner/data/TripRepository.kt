@@ -138,6 +138,7 @@ data class TripOverview(
     val routeLegs: List<RouteLeg>,
     val accommodations: List<Accommodation>,
     val budgetCurrency: String,
+    val budgetManualRates: Map<String, Double> = emptyMap(),
     val budgetExpenses: List<BudgetExpense>,
     val budgetGroups: List<BudgetGroup>,
     val members: List<TripMember>,
@@ -462,6 +463,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val resolvedRestaurants = restaurants.map { restaurant ->
             restaurant.copy(photos = restaurant.photos.map { client.resolveTripPhotoReference(it) ?: it })
         }
+        val budgetManualRates = row.payload["budgetManualRates"]?.jsonObject.orEmpty()
+            .mapNotNull { (code, value) ->
+                value.jsonPrimitive.doubleOrNull
+                    ?.takeIf { it > 0.0 }
+                    ?.let { code.uppercase(Locale.ROOT) to it }
+            }
+            .toMap()
         return TripOverview(
             id = row.id,
             title = text("title").ifBlank { "Путешествие" },
@@ -472,6 +480,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             routeLegs = legs,
             accommodations = resolvedAccommodations,
             budgetCurrency = text("budgetCurrency").ifBlank { "EUR" },
+            budgetManualRates = budgetManualRates,
             budgetExpenses = expenses,
             budgetGroups = groups,
             members = members,

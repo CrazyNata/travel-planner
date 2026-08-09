@@ -176,6 +176,7 @@ import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
+import com.odyssey.travelplanner.data.ExchangeRateRepository
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.localizedCityCatalogName
@@ -6882,8 +6883,13 @@ private fun BudgetContent(
     val storedCurrencyCode = budgetCurrencyCode(overview.budgetCurrency)
     var selectedCurrencyCode by remember(tripId, storedCurrencyCode) { mutableStateOf(storedCurrencyCode) }
     val currencySymbol = currencyOptions.firstOrNull { it.code == selectedCurrencyCode }?.symbol ?: "₽"
-    val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
-    val dayCount = budgetTripDayCount(overview.dates)
+    val exchangeRateRepository = remember { ExchangeRateRepository() }
+    val storedManualRates = overview.budgetManualRates
+    var manualRates by remember(tripId, storedManualRates) { mutableStateOf(storedManualRates) }
+    var onlineRates by remember(tripId) { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var onlineRateDate by remember(tripId) { mutableStateOf("") }
+    var loadingRates by remember(tripId) { mutableStateOf(false) }
+    var ratesMessage by remember(tripId) { mutableStateOf<String?>(null) }
     val budgetScrollState = rememberScrollState()
     LaunchedEffect(Unit) { budgetScrollState.scrollTo(0) }
 
@@ -6901,6 +6907,118 @@ private fun BudgetContent(
     var savingCurrency by remember { mutableStateOf(false) }
     var deletingExpenseId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var rateEditorCode by remember { mutableStateOf<String?>(null) }
+    var rateInput by remember { mutableStateOf("") }
+    var rateError by remember { mutableStateOf<String?>(null) }
+    var savingRate by remember { mutableStateOf(false) }
+
+    fun fallbackCurrencyRate(code: String): Double = when (code) {
+        "EUR" -> 1.0 / 100.0
+        "CZK" -> 1.0 / 4.0
+        else -> 1.0
+    }
+
+    fun effectiveCurrencyRate(code: String): Double = when {
+        code == "RUB" -> 1.0
+        manualRates[code]?.takeIf { it > 0.0 } != null -> manualRates.getValue(code)
+        onlineRates[code]?.takeIf { it > 0.0 } != null -> onlineRates.getValue(code)
+        else -> fallbackCurrencyRate(code)
+    }
+
+    fun rubPerCurrencyUnit(code: String): Double = 1.0 / effectiveCurrencyRate(code)
+
+    val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
+    val dayCount = budgetTripDayCount(overview.dates)
+    val currencyRate = effectiveCurrencyRate(selectedCurrencyCode)
+
+    suspend fun refreshOnlineRates() {
+        loadingRates = true
+        ratesMessage = null
+        runCatching { exchangeRateRepository.loadRubRates(currencyOptions.map { it.code }.toSet()) }
+            .onSuccess {
+                onlineRates = it.rates
+                onlineRateDate = it.date
+            }
+            .onFailure {
+                ratesMessage = localized(language, "Не удалось обновить онлайн-курс", "Could not refresh the online rate", "No se pudo actualizar el tipo online", "Online-Kurs konnte nicht aktualisiert werden")
+            }
+        loadingRates = false
+    }
+
+    LaunchedEffect(tripId) { refreshOnlineRates() }
+
+    fun manualRatesJson(rates: Map<String, Double>) = buildJsonObject {
+        rates.toSortedMap().forEach { (code, rate) -> put(code, rate) }
+    }
+
+    fun saveManualRate() {
+        val code = rateEditorCode ?: return
+        val rubPerUnit = rateInput.replace(',', '.').toDoubleOrNull()
+        if (rubPerUnit == null || rubPerUnit <= 0.0) {
+            rateError = localized(language, "Введите курс больше нуля", "Enter a rate greater than zero", "Introduce un tipo mayor que cero", "Geben Sie einen Kurs größer als null ein")
+            return
+        }
+        val previousRates = manualRates
+        val previousAmountInput = amountInput
+        val previousRate = effectiveCurrencyRate(code)
+        val updatedRates = manualRates.toMutableMap().apply { put(code, 1.0 / rubPerUnit) }
+        manualRates = updatedRates
+        if (code == selectedCurrencyCode) {
+            previousAmountInput.replace(',', '.').toDoubleOrNull()?.let { enteredAmount ->
+                amountInput = formatBudgetInput(enteredAmount / previousRate, effectiveCurrencyRate(code))
+            }
+        }
+        scope.launch {
+            savingRate = true
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
+                    tripId,
+                    "budgetManualRates",
+                    manualRatesJson(updatedRates),
+                )
+            }.onSuccess {
+                rateEditorCode = null
+                rateError = null
+            }.onFailure {
+                manualRates = previousRates
+                amountInput = previousAmountInput
+                rateError = it.message ?: localized(language, "Не удалось сохранить курс", "Could not save the rate", "No se pudo guardar el tipo", "Kurs konnte nicht gespeichert werden")
+            }
+            savingRate = false
+        }
+    }
+
+    fun resetManualRate() {
+        val code = rateEditorCode ?: return
+        val previousRates = manualRates
+        val previousAmountInput = amountInput
+        val previousRate = effectiveCurrencyRate(code)
+        val updatedRates = manualRates.toMutableMap().apply { remove(code) }
+        manualRates = updatedRates
+        if (code == selectedCurrencyCode) {
+            previousAmountInput.replace(',', '.').toDoubleOrNull()?.let { enteredAmount ->
+                amountInput = formatBudgetInput(enteredAmount / previousRate, effectiveCurrencyRate(code))
+            }
+        }
+        scope.launch {
+            savingRate = true
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
+                    tripId,
+                    "budgetManualRates",
+                    manualRatesJson(updatedRates),
+                )
+            }.onSuccess {
+                rateEditorCode = null
+                rateError = null
+            }.onFailure {
+                manualRates = previousRates
+                amountInput = previousAmountInput
+                rateError = it.message ?: localized(language, "Не удалось сбросить курс", "Could not reset the rate", "No se pudo restablecer el tipo", "Kurs konnte nicht zurückgesetzt werden")
+            }
+            savingRate = false
+        }
+    }
 
     fun closeExpenseSheet() {
         adding = false
@@ -6923,7 +7041,7 @@ private fun BudgetContent(
 
     fun openEditExpense(expense: com.odyssey.travelplanner.data.BudgetExpense) {
         name = expense.name
-        amountInput = formatBudgetInput(expense.amount, currencySymbol)
+        amountInput = formatBudgetInput(expense.amount, currencyRate)
         category = categoryStyles.firstOrNull { it.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT)) }?.key ?: "Прочее"
         scopeName = budgetScopeValue(expense.scope)
         paidBy = expense.paidBy.ifBlank { "Общее" }
@@ -6940,7 +7058,7 @@ private fun BudgetContent(
             .verticalScroll(budgetScrollState)
             .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp),
     ) {
-        BudgetSummaryCard(total = total, currencySymbol = currencySymbol)
+        BudgetSummaryCard(total = total, currencySymbol = currencySymbol, conversionRate = currencyRate)
         Spacer(Modifier.height(14.dp))
         BudgetCurrencySelector(
             selectedCode = selectedCurrencyCode,
@@ -6952,8 +7070,8 @@ private fun BudgetContent(
                     val previousAmountInput = amountInput
                     selectedCurrencyCode = selected
                     previousAmountInput.replace(',', '.').toDoubleOrNull()?.let { enteredAmount ->
-                        val baseAmount = enteredAmount / budgetCurrencyRate(previousCurrencyCode)
-                        amountInput = formatBudgetInput(baseAmount, selected)
+                        val baseAmount = enteredAmount / effectiveCurrencyRate(previousCurrencyCode)
+                        amountInput = formatBudgetInput(baseAmount, effectiveCurrencyRate(selected))
                     }
                     scope.launch {
                         savingCurrency = true
@@ -6974,16 +7092,34 @@ private fun BudgetContent(
                 }
             },
         )
+        Spacer(Modifier.height(10.dp))
+        BudgetExchangeRateCard(
+            currencyCode = selectedCurrencyCode,
+            rubPerUnit = rubPerCurrencyUnit(selectedCurrencyCode),
+            isManual = manualRates.containsKey(selectedCurrencyCode),
+            loading = loadingRates,
+            onlineRateDate = onlineRateDate,
+            hasOnlineRate = selectedCurrencyCode == "RUB" || onlineRates.containsKey(selectedCurrencyCode),
+            message = ratesMessage,
+            onEdit = {
+                if (selectedCurrencyCode != "RUB") {
+                    rateEditorCode = selectedCurrencyCode
+                    rateInput = formatBudgetRateInput(rubPerCurrencyUnit(selectedCurrencyCode))
+                    rateError = null
+                }
+            },
+            onRefresh = { scope.launch { refreshOnlineRates() } },
+        )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(71.dp)) {
             BudgetMetricCard(
                 label = localized("НА ЧЕЛОВЕКА", "PER PERSON", "POR PERSONA", "PRO PERSON"),
-                value = formatBudgetAmount(if (peopleCount == 0) 0.0 else total / peopleCount, currencySymbol),
+                value = formatBudgetAmount(if (peopleCount == 0) 0.0 else total / peopleCount, currencySymbol, currencyRate),
                 modifier = Modifier.weight(1f),
             )
             BudgetMetricCard(
                 label = localized("В ДЕНЬ", "PER DAY", "POR DÍA", "PRO TAG"),
-                value = formatBudgetAmount(if (dayCount == 0) 0.0 else total / dayCount, currencySymbol),
+                value = formatBudgetAmount(if (dayCount == 0) 0.0 else total / dayCount, currencySymbol, currencyRate),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -7009,6 +7145,7 @@ private fun BudgetContent(
                     amount = categoryTotal,
                     total = total,
                     currencySymbol = currencySymbol,
+                    conversionRate = currencyRate,
                 )
             }
         }
@@ -7016,6 +7153,7 @@ private fun BudgetContent(
         BudgetExpensesCard(
             expenses = expenses,
             currencySymbol = currencySymbol,
+            conversionRate = currencyRate,
             editMode = editMode,
             deletingExpenseId = deletingExpenseId,
             onToggleEditMode = { editMode = !editMode },
@@ -7066,7 +7204,7 @@ private fun BudgetContent(
                         saving = true
                         message = null
                         val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-                        val baseValue = value / budgetCurrencyRate(currencySymbol)
+                        val baseValue = value / currencyRate
                         val expenseName = name.trim().ifBlank { category }
                         val input = com.odyssey.travelplanner.data.ExpenseInput(
                             name = expenseName,
@@ -7100,6 +7238,66 @@ private fun BudgetContent(
             onConfirm = {
                 date = it
                 datePickerOpen = false
+            },
+        )
+    }
+    rateEditorCode?.let { code ->
+        AlertDialog(
+            onDismissRequest = { if (!savingRate) rateEditorCode = null },
+            title = {
+                Text(
+                    localized("Курс $code", "${code} exchange rate", "Tipo $code", "$code-Wechselkurs"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        localized(
+                            "Укажите, сколько рублей стоит 1 $code",
+                            "Enter how many rubles 1 $code costs",
+                            "Indica cuántos rublos cuesta 1 $code",
+                            "Geben Sie an, wie viele Rubel 1 $code kostet",
+                        ),
+                        fontFamily = Manrope,
+                    )
+                    AuthField(
+                        label = localized("Курс в RUB", "Rate in RUB", "Tipo en RUB", "Kurs in RUB"),
+                        placeholder = "100,00",
+                        value = rateInput,
+                        onValueChange = { rateInput = it },
+                    )
+                    rateError?.let {
+                        Text(it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                    }
+                    if (manualRates.containsKey(code)) {
+                        TextButton(onClick = ::resetManualRate, enabled = !savingRate) {
+                            Text(
+                                localized("Сбросить на онлайн-курс", "Use online rate", "Usar tipo online", "Online-Kurs verwenden"),
+                                color = OdysseyPurple,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                            )
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { rateEditorCode = null }, enabled = !savingRate) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveManualRate, enabled = !savingRate) {
+                    Text(
+                        if (savingRate) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…")
+                        else localized("Сохранить", "Save", "Guardar", "Speichern"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
             },
         )
     }
@@ -7149,28 +7347,33 @@ private fun budgetTripDayCount(value: String): Int {
     return match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
 }
 
-private fun budgetCurrencyRate(value: String): Double = when (budgetCurrencyCode(value)) {
-    "EUR" -> 1.0 / 100.0
-    "CZK" -> 1.0 / 4.0
-    else -> 1.0
-}
-
-private fun formatBudgetInput(value: Double, currencySymbol: String): String =
-    kotlin.math.round(value * budgetCurrencyRate(currencySymbol)).toLong().toString()
-
-private fun formatBudgetAmount(value: Double, currencySymbol: String): String {
+private fun formatBudgetRate(value: Double): String {
     val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {
         groupingSeparator = '\u00A0'
         decimalSeparator = ','
     }
-    val displayValue = kotlin.math.round(value * budgetCurrencyRate(currencySymbol))
+    return java.text.DecimalFormat("#,##0.####", symbols).format(value)
+}
+
+private fun formatBudgetRateInput(value: Double): String =
+    java.text.DecimalFormat("0.####", java.text.DecimalFormatSymbols(java.util.Locale.US)).format(value)
+
+private fun formatBudgetInput(value: Double, conversionRate: Double): String =
+    java.text.DecimalFormat("0.##", java.text.DecimalFormatSymbols(java.util.Locale.US)).format(value * conversionRate)
+
+private fun formatBudgetAmount(value: Double, currencySymbol: String, conversionRate: Double): String {
+    val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {
+        groupingSeparator = '\u00A0'
+        decimalSeparator = ','
+    }
+    val displayValue = value * conversionRate
     val pattern = if (displayValue % 1.0 == 0.0) "#,##0" else "#,##0.##"
     val formattedValue = java.text.DecimalFormat(pattern, symbols).format(displayValue)
     return if (budgetCurrencyCode(currencySymbol) == "RUB") "$formattedValue $currencySymbol" else "$currencySymbol $formattedValue"
 }
 
 @Composable
-private fun BudgetSummaryCard(total: Double, currencySymbol: String) {
+private fun BudgetSummaryCard(total: Double, currencySymbol: String, conversionRate: Double) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -7191,7 +7394,7 @@ private fun BudgetSummaryCard(total: Double, currencySymbol: String) {
             modifier = Modifier.height(15.dp),
         )
         Text(
-            text = formatBudgetAmount(total, currencySymbol),
+            text = formatBudgetAmount(total, currencySymbol, conversionRate),
             color = Color.White,
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
@@ -7247,6 +7450,110 @@ private fun BudgetCurrencySelector(
 }
 
 @Composable
+private fun BudgetExchangeRateCard(
+    currencyCode: String,
+    rubPerUnit: Double,
+    isManual: Boolean,
+    loading: Boolean,
+    onlineRateDate: String,
+    hasOnlineRate: Boolean,
+    message: String?,
+    onEdit: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    val rateText = if (currencyCode == "RUB") {
+        localized("Базовая валюта: RUB", "Base currency: RUB", "Moneda base: RUB", "Basiswährung: RUB")
+    } else {
+        localized(
+            "1 $currencyCode = ${formatBudgetRate(rubPerUnit)} ₽",
+            "1 $currencyCode = ${formatBudgetRate(rubPerUnit)} RUB",
+            "1 $currencyCode = ${formatBudgetRate(rubPerUnit)} RUB",
+            "1 $currencyCode = ${formatBudgetRate(rubPerUnit)} RUB",
+        )
+    }
+    val sourceText = when {
+        currencyCode == "RUB" -> localized("Расходы хранятся в рублях", "Expenses are stored in RUB", "Los gastos se guardan en RUB", "Ausgaben werden in RUB gespeichert")
+        isManual -> localized("Задано вручную", "Set manually", "Definido manualmente", "Manuell festgelegt")
+        loading -> localized("Обновляем онлайн-курс…", "Refreshing online rate…", "Actualizando el tipo online…", "Online-Kurs wird aktualisiert…")
+        hasOnlineRate -> localized("Frankfurter · ${onlineRateDate.ifBlank { "сегодня" }}", "Frankfurter · ${onlineRateDate.ifBlank { "today" }}", "Frankfurter · ${onlineRateDate.ifBlank { "hoy" }}", "Frankfurter · ${onlineRateDate.ifBlank { "heute" }}")
+        else -> localized("Нет онлайн-курса — задайте вручную", "No online rate — set it manually", "Sin tipo online: establécelo manualmente", "Kein Online-Kurs — manuell festlegen")
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("Курс валюты", "Exchange rate", "Tipo de cambio", "Wechselkurs"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 11.sp,
+                )
+                Text(
+                    rateText,
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 15.sp,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+                Text(
+                    sourceText,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+            if (currencyCode != "RUB") {
+                TextButton(onClick = onEdit) {
+                    Text(
+                        localized("Изменить", "Edit", "Editar", "Ändern"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+        if (currencyCode != "RUB") {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 3.dp)) {
+                if (message != null) {
+                    Text(
+                        message,
+                        color = Color(0xFFE0524B),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 10.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                TextButton(onClick = onRefresh, enabled = !loading) {
+                    Text(
+                        if (loading) localized("Обновляем…", "Refreshing…", "Actualizando…", "Aktualisierung…")
+                        else localized("Обновить онлайн", "Refresh online", "Actualizar online", "Online aktualisieren"),
+                        color = if (loading) secondaryTextColor() else OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
@@ -7285,7 +7592,7 @@ private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = 
 }
 
 @Composable
-private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total: Double, currencySymbol: String) {
+private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total: Double, currencySymbol: String, conversionRate: Double) {
     val fraction = if (total <= 0.0) 0f else (amount / total).toFloat().coerceIn(0f, 1f)
     val percent = if (total <= 0.0) 0 else (amount / total * 100.0).toInt()
     Column(modifier = Modifier.fillMaxWidth().height(35.dp)) {
@@ -7317,7 +7624,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
             )
             Spacer(Modifier.weight(1f))
             Text(
-                text = formatBudgetAmount(amount, currencySymbol),
+                text = formatBudgetAmount(amount, currencySymbol, conversionRate),
                 color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -7339,6 +7646,7 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
 private fun BudgetExpensesCard(
     expenses: List<com.odyssey.travelplanner.data.BudgetExpense>,
     currencySymbol: String,
+    conversionRate: Double,
     editMode: Boolean,
     deletingExpenseId: String?,
     onToggleEditMode: () -> Unit,
@@ -7389,6 +7697,7 @@ private fun BudgetExpensesCard(
             BudgetExpenseRow(
                 expense = expense,
                 currencySymbol = currencySymbol,
+                conversionRate = conversionRate,
                 editMode = editMode,
                 deleting = deletingExpenseId == expense.id,
                 showDivider = index < expenses.lastIndex,
@@ -7405,6 +7714,7 @@ private fun BudgetExpensesCard(
 private fun BudgetExpenseRow(
     expense: com.odyssey.travelplanner.data.BudgetExpense,
     currencySymbol: String,
+    conversionRate: Double,
     editMode: Boolean,
     deleting: Boolean,
     showDivider: Boolean,
@@ -7474,7 +7784,7 @@ private fun BudgetExpenseRow(
                 }
             } else {
                 Text(
-                    text = formatBudgetAmount(expense.amount, currencySymbol),
+                    text = formatBudgetAmount(expense.amount, currencySymbol, conversionRate),
                     color = OdysseyText,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
