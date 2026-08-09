@@ -77,6 +77,107 @@ val cityCatalog: List<CityCatalogEntry> = listOf(
     city("stelvio", "Стельвио", "Stelvio", "Stelvio", "Stilfser Joch", 46.5286, 10.4540),
 )
 
+private val countryFlags = mapOf(
+    "австрия" to "🇦🇹", "austria" to "🇦🇹", "österreich" to "🇦🇹", "osterreich" to "🇦🇹",
+    "беларусь" to "🇧🇾", "belarus" to "🇧🇾",
+    "бельгия" to "🇧🇪", "belgium" to "🇧🇪", "belgica" to "🇧🇪", "belgien" to "🇧🇪",
+    "болгария" to "🇧🇬", "bulgaria" to "🇧🇬", "bulgarien" to "🇧🇬",
+    "великобритания" to "🇬🇧", "united kingdom" to "🇬🇧", "great britain" to "🇬🇧", "uk" to "🇬🇧",
+    "венгрия" to "🇭🇺", "hungary" to "🇭🇺", "hungría" to "🇭🇺", "ungarn" to "🇭🇺",
+    "германия" to "🇩🇪", "germany" to "🇩🇪", "alemania" to "🇩🇪", "deutschland" to "🇩🇪",
+    "греция" to "🇬🇷", "greece" to "🇬🇷", "grecia" to "🇬🇷", "griechenland" to "🇬🇷",
+    "дания" to "🇩🇰", "denmark" to "🇩🇰", "dinamarca" to "🇩🇰", "dänemark" to "🇩🇰", "danemark" to "🇩🇰",
+    "египет" to "🇪🇬", "egypt" to "🇪🇬", "egipto" to "🇪🇬", "ägypten" to "🇪🇬", "agypten" to "🇪🇬",
+    "израиль" to "🇮🇱", "israel" to "🇮🇱",
+    "индия" to "🇮🇳", "india" to "🇮🇳", "indien" to "🇮🇳",
+    "ирландия" to "🇮🇪", "ireland" to "🇮🇪", "irlanda" to "🇮🇪", "irland" to "🇮🇪",
+    "испания" to "🇪🇸", "spain" to "🇪🇸", "españa" to "🇪🇸", "espana" to "🇪🇸", "spanien" to "🇪🇸",
+    "италия" to "🇮🇹", "italy" to "🇮🇹", "italia" to "🇮🇹", "italien" to "🇮🇹",
+    "кипр" to "🇨🇾", "cyprus" to "🇨🇾", "chipre" to "🇨🇾", "zypern" to "🇨🇾",
+    "китай" to "🇨🇳", "china" to "🇨🇳", "chine" to "🇨🇳",
+    "латвия" to "🇱🇻", "latvia" to "🇱🇻", "letonia" to "🇱🇻", "lettland" to "🇱🇻",
+    "литва" to "🇱🇹", "lithuania" to "🇱🇹", "lituania" to "🇱🇹", "litauen" to "🇱🇹",
+    "мальта" to "🇲🇹", "malta" to "🇲🇹",
+    "марокко" to "🇲🇦", "morocco" to "🇲🇦", "marruecos" to "🇲🇦", "marokko" to "🇲🇦",
+    "нидерланды" to "🇳🇱", "netherlands" to "🇳🇱", "países bajos" to "🇳🇱", "paises bajos" to "🇳🇱", "niederlande" to "🇳🇱",
+    "норвегия" to "🇳🇴", "norway" to "🇳🇴", "noruega" to "🇳🇴", "norwegen" to "🇳🇴",
+    "оаэ" to "🇦🇪", "uae" to "🇦🇪", "united arab emirates" to "🇦🇪", "emiratos arabes unidos" to "🇦🇪", "vereinigte arabische emirate" to "🇦🇪",
+    "польша" to "🇵🇱", "poland" to "🇵🇱", "polonia" to "🇵🇱", "polen" to "🇵🇱",
+    "португалия" to "🇵🇹", "portugal" to "🇵🇹",
+    "россия" to "🇷🇺", "russia" to "🇷🇺", "rusia" to "🇷🇺", "russland" to "🇷🇺",
+    "румыния" to "🇷🇴", "romania" to "🇷🇴", "rumänien" to "🇷🇴", "rumanien" to "🇷🇴",
+    "сербия" to "🇷🇸", "serbia" to "🇷🇸", "serbien" to "🇷🇸",
+    "словакия" to "🇸🇰", "slovakia" to "🇸🇰", "eslovaquia" to "🇸🇰", "slowakei" to "🇸🇰",
+    "словения" to "🇸🇮", "slovenia" to "🇸🇮", "eslovenia" to "🇸🇮", "slowenien" to "🇸🇮",
+    "сша" to "🇺🇸", "usa" to "🇺🇸", "united states" to "🇺🇸", "estados unidos" to "🇺🇸", "vereinigte staaten" to "🇺🇸",
+    "турция" to "🇹🇷", "turkey" to "🇹🇷", "türkiye" to "🇹🇷", "turquía" to "🇹🇷", "turkei" to "🇹🇷",
+    "украина" to "🇺🇦", "ukraine" to "🇺🇦", "ucrania" to "🇺🇦",
+    "франция" to "🇫🇷", "france" to "🇫🇷", "francia" to "🇫🇷", "frankreich" to "🇫🇷",
+    "финляндия" to "🇫🇮", "finland" to "🇫🇮", "finlandia" to "🇫🇮", "finnland" to "🇫🇮",
+    "хорватия" to "🇭🇷", "croatia" to "🇭🇷", "croacia" to "🇭🇷", "kroatien" to "🇭🇷",
+    "чехия" to "🇨🇿", "czechia" to "🇨🇿", "czech republic" to "🇨🇿", "chequia" to "🇨🇿", "tschechien" to "🇨🇿",
+    "швейцария" to "🇨🇭", "switzerland" to "🇨🇭", "suiza" to "🇨🇭", "schweiz" to "🇨🇭",
+    "швеция" to "🇸🇪", "sweden" to "🇸🇪", "suecia" to "🇸🇪", "schweden" to "🇸🇪",
+    "эстония" to "🇪🇪", "estonia" to "🇪🇪", "estland" to "🇪🇪",
+    "южная корея" to "🇰🇷", "south korea" to "🇰🇷", "corea del sur" to "🇰🇷", "südkorea" to "🇰🇷", "sudkorea" to "🇰🇷",
+    "япония" to "🇯🇵", "japan" to "🇯🇵", "japón" to "🇯🇵", "japon" to "🇯🇵",
+    "сан-марино" to "🇸🇲", "san marino" to "🇸🇲",
+)
+
+private val cityFlags = mapOf(
+    "амстердам" to "🇳🇱", "amsterdam" to "🇳🇱",
+    "барселона" to "🇪🇸", "barcelona" to "🇪🇸",
+    "берлин" to "🇩🇪", "berlin" to "🇩🇪",
+    "болонья" to "🇮🇹", "bologna" to "🇮🇹",
+    "будапешт" to "🇭🇺", "budapest" to "🇭🇺",
+    "грац" to "🇦🇹", "graz" to "🇦🇹",
+    "гамбург" to "🇩🇪", "hamburg" to "🇩🇪",
+    "генуя" to "🇮🇹", "genoa" to "🇮🇹", "genova" to "🇮🇹",
+    "кёльн" to "🇩🇪", "кельн" to "🇩🇪", "cologne" to "🇩🇪", "köln" to "🇩🇪", "koln" to "🇩🇪",
+    "дубай" to "🇦🇪", "dubai" to "🇦🇪",
+    "хельсинки" to "🇫🇮", "helsinki" to "🇫🇮",
+    "лондон" to "🇬🇧", "london" to "🇬🇧",
+    "лиссабон" to "🇵🇹", "lisbon" to "🇵🇹", "lisboa" to "🇵🇹",
+    "мадрид" to "🇪🇸", "madrid" to "🇪🇸",
+    "неаполь" to "🇮🇹", "naples" to "🇮🇹", "napoli" to "🇮🇹",
+    "париж" to "🇫🇷", "paris" to "🇫🇷",
+    "сиена" to "🇮🇹", "siena" to "🇮🇹",
+    "сан-джиминьяно" to "🇮🇹", "san gimignano" to "🇮🇹",
+    "стамбул" to "🇹🇷", "istanbul" to "🇹🇷", "i̇stanbul" to "🇹🇷",
+    "турин" to "🇮🇹", "turin" to "🇮🇹", "torino" to "🇮🇹",
+    "цюрих" to "🇨🇭", "zurich" to "🇨🇭", "zürich" to "🇨🇭",
+    "лукка" to "🇮🇹", "lucca" to "🇮🇹",
+    "москва" to "🇷🇺", "moscow" to "🇷🇺",
+)
+
+private val catalogFlags = mapOf(
+    "prague" to "🇨🇿",
+    "salzburg" to "🇦🇹",
+    "verona" to "🇮🇹",
+    "rome" to "🇮🇹",
+    "pisa" to "🇮🇹",
+    "figline valdarno" to "🇮🇹",
+    "san marino" to "🇸🇲",
+    "chioggia" to "🇮🇹",
+    "milan" to "🇮🇹",
+    "valdidentro" to "🇮🇹",
+    "ravensburg" to "🇩🇪",
+    "munich" to "🇩🇪",
+    "vienna" to "🇦🇹",
+    "innsbruck" to "🇦🇹",
+    "florence" to "🇮🇹",
+    "venice" to "🇮🇹",
+    "tallinn" to "🇪🇪",
+    "riga" to "🇱🇻",
+    "vilnius" to "🇱🇹",
+    "castel gandolfo" to "🇮🇹",
+    "lake como" to "🇮🇹",
+    "como" to "🇮🇹",
+    "bormio" to "🇮🇹",
+    "val viola valley" to "🇮🇹",
+    "stelvio" to "🇮🇹",
+)
+
 fun cityCatalogEntry(value: String): CityCatalogEntry? {
     val cityPart = value.substringBefore(",")
     val normalized = normalizeCityAlias(cityPart)
@@ -84,3 +185,15 @@ fun cityCatalogEntry(value: String): CityCatalogEntry? {
 }
 
 fun localizedCityCatalogName(value: String, language: String): String? = cityCatalogEntry(value)?.localized(language)
+
+fun cityFlag(value: String): String {
+    val cityPart = value.substringBefore(",")
+    val countryPart = value.substringAfter(",", "")
+    countryFlags[normalizeCityAlias(countryPart)]?.let { return it }
+
+    val normalizedCity = normalizeCityAlias(cityPart)
+    cityFlags[normalizedCity]?.let { return it }
+
+    val catalogKey = cityCatalogEntry(cityPart)?.key
+    return catalogFlags[catalogKey] ?: "📍"
+}

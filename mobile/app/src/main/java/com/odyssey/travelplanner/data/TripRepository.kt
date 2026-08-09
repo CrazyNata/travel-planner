@@ -221,6 +221,7 @@ interface TripRepository {
         weekday: String = "",
         distance: String = "",
         travelTime: String = "",
+        date: String = "",
     )
     suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String)
     suspend fun updateMemberRole(id: String, memberId: String, role: String)
@@ -250,6 +251,7 @@ interface TripRepository {
         weekday: String = "",
         distance: String = "",
         travelTime: String = "",
+        date: String = "",
     )
     suspend fun updateRestaurantDetails(id: String, restaurantId: String, name: String, city: String, note: String)
     suspend fun updateAccommodationDetails(id: String, accommodationId: String, name: String, city: String, dates: String, price: String)
@@ -553,6 +555,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         weekday: String,
         distance: String,
         travelTime: String,
+        date: String,
     ) {
         require(from.isNotBlank() && to.isNotBlank()) { "Укажите оба города" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
@@ -560,6 +563,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val day = buildJsonObject {
             put("id", UUID.randomUUID().toString())
             put("city", to.trim())
+            put("date", date.trim())
             put("places", buildJsonArray { })
             put("roadLeg", buildJsonObject {
                 put("from", from.trim())
@@ -863,6 +867,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         weekday: String,
         distance: String,
         travelTime: String,
+        date: String,
     ) {
         require(from.isNotBlank() && to.isNotBlank()) { "Укажите оба города" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id } ?: error("Путешествие не найдено")
@@ -879,7 +884,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         put("weekday", kotlinx.serialization.json.JsonPrimitive(weekday.trim())); put("distance", kotlinx.serialization.json.JsonPrimitive(distance.trim()))
                         put("travelTime", kotlinx.serialization.json.JsonPrimitive(travelTime.trim()))
                     })
-                    add(JsonObject(day.toMutableMap().apply { put("city", kotlinx.serialization.json.JsonPrimitive(to.trim())); put("roadLeg", nextLeg) }))
+                    add(JsonObject(day.toMutableMap().apply {
+                        put("city", kotlinx.serialization.json.JsonPrimitive(to.trim()))
+                        put("date", kotlinx.serialization.json.JsonPrimitive(date.trim()))
+                        put("roadLeg", nextLeg)
+                    }))
                 } else add(item)
             }
         }

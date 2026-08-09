@@ -177,6 +177,7 @@ import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.localizedCityCatalogName
 import com.odyssey.travelplanner.data.cityCatalogEntry
+import com.odyssey.travelplanner.data.cityFlag
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -243,6 +244,7 @@ private val Manrope = FontFamily(
     Font(R.font.manrope_extrabold, FontWeight.W800),
 )
 private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
+private val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
 
@@ -2817,7 +2819,15 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit) {
         if (sectionMenuOpen) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.fillMaxSize().background(Color(0x66000000)).semantics { contentDescription = closeSectionMenuDescription; role = Role.Button }.clickable { sectionMenuOpen = false })
-                Column(modifier = Modifier.fillMaxHeight().width(330.dp).background(cardSurfaceColor()).padding(start = 18.dp, top = 22.dp, end = 18.dp, bottom = 32.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(330.dp)
+                        .background(cardSurfaceColor())
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(start = 18.dp, top = 22.dp, end = 18.dp, bottom = 32.dp),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).background(OdysseyPurple, RoundedCornerShape(13.dp))) {
                             Icon(Icons.Outlined.Explore, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
@@ -8817,11 +8827,8 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
     var checkOut by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var mapsUrl by remember { mutableStateOf("") }
-    var dateDay by remember { mutableStateOf("") }
-    var dateMonth by remember { mutableStateOf("") }
-    var weekday by remember { mutableStateOf("") }
-    var distance by remember { mutableStateOf("") }
-    var travelTime by remember { mutableStateOf("") }
+    var selectedDateIso by remember { mutableStateOf("") }
+    var datePickerOpen by remember { mutableStateOf(false) }
     var editingLeg by remember { mutableStateOf<com.odyssey.travelplanner.data.RouteLeg?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -8863,12 +8870,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                     checkOut = leg.checkOut
                     notes = leg.notes
                     mapsUrl = leg.mapsUrl
-                    val dateValues = routeEditorDateValues(leg.date, overview.dates, dayIndex, language)
-                    dateDay = leg.dateDay.ifBlank { dateValues.day }
-                    dateMonth = leg.dateMonth.ifBlank { dateValues.month }
-                    weekday = leg.weekday.ifBlank { dateValues.weekday }
-                    distance = leg.distance
-                    travelTime = leg.travelTime
+                    selectedDateIso = routeEditorDateIso(leg.date, overview.dates, dayIndex, leg.dateDay, leg.dateMonth)
                     adding = true
                 }) { itemId, completed ->
                     scope.launch {
@@ -8908,12 +8910,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                         checkOut = ""
                         notes = ""
                         mapsUrl = ""
-                        val dateValues = routeEditorDateValues("", overview.dates, overview.routeLegs.size, language)
-                        dateDay = dateValues.day
-                        dateMonth = dateValues.month
-                        weekday = dateValues.weekday
-                        distance = ""
-                        travelTime = ""
+                        selectedDateIso = routeEditorDateIso("", overview.dates, overview.routeLegs.size, "", "")
                         adding = true
                     }.padding(top = 17.dp),
                 )
@@ -8929,22 +8926,14 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
             RouteLegEditorSheet(
                 from = from,
                 to = to,
-                dateDay = dateDay,
-                dateMonth = dateMonth,
-                weekday = weekday,
-                distance = distance,
-                travelTime = travelTime,
+                date = selectedDateIso,
                 checkIn = checkIn,
                 mapsUrl = mapsUrl,
                 saving = saving,
                 message = message,
                 onFromChange = { from = it },
                 onToChange = { to = it },
-                onDateDayChange = { dateDay = it },
-                onDateMonthChange = { dateMonth = it },
-                onWeekdayChange = { weekday = it },
-                onDistanceChange = { distance = it },
-                onTravelTimeChange = { travelTime = it },
+                onDateClick = { datePickerOpen = true },
                 onCheckInChange = { checkIn = it },
                 onMapsUrlChange = { mapsUrl = it },
                 onCancel = { adding = false; editingLeg = null; message = null },
@@ -8963,6 +8952,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 onSave = {
                     scope.launch {
                         saving = true
+                        val dateValues = routeEditorDateValues(selectedDateIso, "", 0, language)
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                             editingLeg?.let {
@@ -8975,11 +8965,12 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                                     checkOut = checkOut,
                                     notes = notes,
                                     mapsUrl = mapsUrl,
-                                    dateDay = dateDay,
-                                    dateMonth = dateMonth,
-                                    weekday = weekday,
-                                    distance = distance,
-                                    travelTime = travelTime,
+                                    date = selectedDateIso,
+                                    dateDay = dateValues.day,
+                                    dateMonth = dateValues.month,
+                                    weekday = dateValues.weekday,
+                                    distance = it.distance,
+                                    travelTime = it.travelTime,
                                 )
                             } ?: repository.addRouteLeg(
                                 id = tripId,
@@ -8989,13 +8980,12 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                                 checkOut = checkOut,
                                 notes = notes,
                                 mapsUrl = mapsUrl,
-                                dateDay = dateDay,
-                                dateMonth = dateMonth,
-                                weekday = weekday,
-                                distance = distance,
-                                travelTime = travelTime,
+                                date = selectedDateIso,
+                                dateDay = dateValues.day,
+                                dateMonth = dateValues.month,
+                                weekday = dateValues.weekday,
                             )
-                        }.onSuccess { adding = false; editingLeg = null; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; dateDay = ""; dateMonth = ""; weekday = ""; distance = ""; travelTime = ""; onRouteAdded() }
+                        }.onSuccess { adding = false; editingLeg = null; datePickerOpen = false; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; selectedDateIso = ""; onRouteAdded() }
                             .onFailure { message = it.message ?: localized(language, "Не удалось сохранить переезд", "Could not save route leg", "No se pudo guardar el trayecto", "Etappe konnte nicht gespeichert werden") }
                         saving = false
                     }
@@ -9003,28 +8993,30 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
             )
         }
     }
+    if (datePickerOpen) {
+        AccommodationCalendarDialog(
+            initialValue = selectedDateIso,
+            onDismiss = { datePickerOpen = false },
+            onConfirm = {
+                selectedDateIso = it
+                datePickerOpen = false
+            },
+        )
+    }
 }
 
 @Composable
 private fun RouteLegEditorSheet(
     from: String,
     to: String,
-    dateDay: String,
-    dateMonth: String,
-    weekday: String,
-    distance: String,
-    travelTime: String,
+    date: String,
     checkIn: String,
     mapsUrl: String,
     saving: Boolean,
     message: String?,
     onFromChange: (String) -> Unit,
     onToChange: (String) -> Unit,
-    onDateDayChange: (String) -> Unit,
-    onDateMonthChange: (String) -> Unit,
-    onWeekdayChange: (String) -> Unit,
-    onDistanceChange: (String) -> Unit,
-    onTravelTimeChange: (String) -> Unit,
+    onDateClick: () -> Unit,
     onCheckInChange: (String) -> Unit,
     onMapsUrlChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -9056,17 +9048,21 @@ private fun RouteLegEditorSheet(
             RouteEditorField(localized("Откуда", "From", "Desde", "Von"), visibleFrom, { visibleFrom = it; onFromChange(it) }, Modifier.weight(1f))
             RouteEditorField(localized("Куда", "To", "A", "Nach"), visibleTo, { visibleTo = it; onToChange(it) }, Modifier.weight(1f))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RouteEditorField(localized("Число", "Date", "Día", "Tag"), dateDay, onDateDayChange, Modifier.weight(.8f), placeholder = "—")
-            RouteEditorField(localized("Месяц", "Month", "Mes", "Monat"), dateMonth, onDateMonthChange, Modifier.weight(.9f), placeholder = "—")
-            RouteEditorField(localized("День недели", "Weekday", "Día de semana", "Wochentag"), weekday, onWeekdayChange, Modifier.weight(1.4f), placeholder = "—")
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            RouteEditorField(localized("Расстояние", "Distance", "Distancia", "Entfernung"), distance, onDistanceChange, Modifier.weight(1f), placeholder = "—")
-            RouteEditorField(localized("В пути", "Travel time", "En ruta", "Fahrzeit"), travelTime, onTravelTimeChange, Modifier.weight(1f), placeholder = "—")
-        }
+        RouteEditorDateField(
+            label = localized("Дата", "Date", "Fecha", "Datum"),
+            value = routeEditorDateLabel(date, language),
+            onClick = onDateClick,
+            modifier = Modifier.fillMaxWidth(),
+        )
         RouteEditorField(localized("Заселение до", "Check-in by", "Entrada antes de", "Check-in bis"), checkIn, onCheckInChange, Modifier.fillMaxWidth(), placeholder = "—")
-        RouteEditorField(localized("Ссылка на карту", "Map link", "Enlace al mapa", "Kartenlink"), mapsUrl, onMapsUrlChange, Modifier.fillMaxWidth(), placeholder = "maps.app.goo.gl/..." )
+        RouteEditorField(
+            localized("Ссылка на карту", "Map link", "Enlace al mapa", "Kartenlink"),
+            mapsUrl,
+            onMapsUrlChange,
+            Modifier.fillMaxWidth(),
+            placeholder = "https://maps.app.goo.gl/...",
+            includeFontPadding = true,
+        )
         if (message != null) Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             if (canDelete) {
@@ -9096,18 +9092,36 @@ private fun RouteOrderButton(icon: androidx.compose.ui.graphics.vector.ImageVect
 }
 
 @Composable
-private fun RouteEditorField(label: String, value: String, onValueChange: (String) -> Unit, modifier: Modifier, placeholder: String = "") {
+private fun RouteEditorField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier,
+    placeholder: String = "",
+    includeFontPadding: Boolean = false,
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(label, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { if (placeholder.isNotBlank()) Text(placeholder, color = OdysseySubtext, fontFamily = Manrope, fontSize = 14.sp) },
+            placeholder = {
+                if (placeholder.isNotBlank()) {
+                    Text(
+                        placeholder,
+                        color = OdysseySubtext,
+                        fontFamily = Manrope,
+                        fontSize = 14.sp,
+                        lineHeight = if (includeFontPadding) 22.sp else 20.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = if (includeFontPadding) OdysseyFontPadding else OdysseyNoFontPadding),
+                    )
+                }
+            },
             singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = 20.sp, color = contentTextColor(), platformStyle = OdysseyNoFontPadding),
+            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = if (includeFontPadding) 22.sp else 20.sp, color = contentTextColor(), platformStyle = if (includeFontPadding) OdysseyFontPadding else OdysseyNoFontPadding),
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OdysseyBorder, unfocusedBorderColor = OdysseyBorder, focusedContainerColor = cardSurfaceColor(), unfocusedContainerColor = cardSurfaceColor()),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+            modifier = Modifier.fillMaxWidth().height(if (includeFontPadding) 54.dp else 50.dp),
         )
     }
 }
@@ -9185,24 +9199,81 @@ private fun RouteStop(city: String, flag: String, isLast: Boolean, compact: Bool
 
 private data class RouteEditorDateValues(val day: String, val month: String, val weekday: String)
 
-private fun routeEditorDateValues(date: String, tripDates: String, dayIndex: Int, language: String): RouteEditorDateValues {
-    val russianMonths = mapOf(
-        "января" to 0, "январь" to 0, "февраля" to 1, "февраль" to 1, "марта" to 2, "март" to 2,
-        "апреля" to 3, "апрель" to 3, "мая" to 4, "май" to 4, "июня" to 5, "июнь" to 5,
-        "июля" to 6, "июль" to 6, "августа" to 7, "август" to 7, "сентября" to 8, "сентябрь" to 8,
-        "октября" to 9, "октябрь" to 9, "ноября" to 10, "ноябрь" to 10, "декабря" to 11, "декабрь" to 11,
-    )
-    fun parse(source: String): Calendar? {
-        val iso = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(source)
-        val russian = Regex("(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})", RegexOption.IGNORE_CASE).find(source)
-        return when {
-            iso != null -> Calendar.getInstance().apply { clear(); set(iso.groupValues[1].toInt(), iso.groupValues[2].toInt() - 1, iso.groupValues[3].toInt()) }
-            russian != null -> Calendar.getInstance().apply { clear(); set(russian.groupValues[3].toInt(), russianMonths[russian.groupValues[2].lowercase()] ?: 0, russian.groupValues[1].toInt()) }
-            else -> null
-        }
+private val routeEditorMonthIndices = mapOf(
+    "января" to 0, "январь" to 0, "янв" to 0,
+    "февраля" to 1, "февраль" to 1, "фев" to 1,
+    "марта" to 2, "март" to 2, "мар" to 2,
+    "апреля" to 3, "апрель" to 3, "апр" to 3,
+    "мая" to 4, "май" to 4, "май" to 4,
+    "июня" to 5, "июнь" to 5, "июн" to 5,
+    "июля" to 6, "июль" to 6, "июл" to 6,
+    "августа" to 7, "август" to 7, "авг" to 7,
+    "сентября" to 8, "сентябрь" to 8, "сен" to 8,
+    "октября" to 9, "октябрь" to 9, "окт" to 9,
+    "ноября" to 10, "ноябрь" to 10, "ноя" to 10,
+    "декабря" to 11, "декабрь" to 11, "дек" to 11,
+    "january" to 0, "jan" to 0, "february" to 1, "feb" to 1, "march" to 2, "mar" to 2,
+    "april" to 3, "apr" to 3, "may" to 4, "june" to 5, "jun" to 5, "july" to 6, "jul" to 6,
+    "august" to 7, "aug" to 7, "september" to 8, "sep" to 8, "october" to 9, "oct" to 9,
+    "november" to 10, "nov" to 10, "december" to 11, "dec" to 11,
+    "enero" to 0, "ene" to 0, "febrero" to 1, "marzo" to 2, "abril" to 3, "mayo" to 4,
+    "junio" to 5, "julio" to 6, "agosto" to 7, "septiembre" to 8, "octubre" to 9,
+    "noviembre" to 10, "diciembre" to 11,
+    "januar" to 0, "märz" to 2, "maerz" to 2, "juni" to 5, "juli" to 6, "august" to 7,
+    "september" to 8, "oktober" to 9, "dezember" to 11,
+)
+
+private fun routeEditorMonthIndex(value: String): Int? {
+    val normalized = value.trim().lowercase(Locale.ROOT).removeSuffix(".")
+    return normalized.toIntOrNull()?.minus(1)?.takeIf { it in 0..11 } ?: routeEditorMonthIndices[normalized]
+}
+
+private fun parseRouteDate(source: String): Calendar? {
+    val iso = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(source)
+    val dotted = Regex("(\\d{1,2})[./](\\d{1,2})[./](\\d{4})").find(source)
+    val monthPattern = routeEditorMonthIndices.keys.sortedByDescending(String::length).joinToString("|") { Regex.escape(it) }
+    val named = Regex("(\\d{1,2})\\s+($monthPattern)\\s+(\\d{4})", RegexOption.IGNORE_CASE).find(source)
+    return when {
+        iso != null -> Calendar.getInstance().apply { clear(); set(iso.groupValues[1].toInt(), iso.groupValues[2].toInt() - 1, iso.groupValues[3].toInt()) }
+        dotted != null -> Calendar.getInstance().apply { clear(); set(dotted.groupValues[3].toInt(), dotted.groupValues[2].toInt() - 1, dotted.groupValues[1].toInt()) }
+        named != null -> Calendar.getInstance().apply { clear(); set(named.groupValues[3].toInt(), routeEditorMonthIndex(named.groupValues[2]) ?: 0, named.groupValues[1].toInt()) }
+        else -> null
     }
-    val legDate = parse(date)
-    val calendar = (legDate ?: parse(tripDates)) ?: return RouteEditorDateValues("", "", "")
+}
+
+private fun routeEditorDateIso(date: String, tripDates: String, dayIndex: Int, storedDay: String, storedMonth: String): String {
+    val legDate = parseRouteDate(date)
+    val calendar = (legDate ?: parseRouteDate(tripDates))?.also {
+        if (legDate == null) it.add(Calendar.DAY_OF_YEAR, dayIndex)
+    } ?: if (storedDay.toIntOrNull() != null && routeEditorMonthIndex(storedMonth) != null) {
+        Calendar.getInstance()
+    } else {
+        return ""
+    }
+    val day = storedDay.toIntOrNull()
+    val month = routeEditorMonthIndex(storedMonth)
+    if (day != null && month != null) {
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.MONTH, month)
+        calendar.set(Calendar.DAY_OF_MONTH, day.coerceIn(1, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
+    }
+    return accommodationDateIso(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+}
+
+private fun routeEditorDateLabel(date: String, language: String): String {
+    val calendar = parseRouteDate(date) ?: return ""
+    val months = when (normalizeLanguage(language)) {
+        "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+        "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
+        else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+    }
+    return "${calendar.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')} ${months[calendar.get(Calendar.MONTH)]} ${calendar.get(Calendar.YEAR)}"
+}
+
+private fun routeEditorDateValues(date: String, tripDates: String, dayIndex: Int, language: String): RouteEditorDateValues {
+    val legDate = parseRouteDate(date)
+    val calendar = (legDate ?: parseRouteDate(tripDates)) ?: return RouteEditorDateValues("", "", "")
     if (legDate == null) calendar.add(Calendar.DAY_OF_YEAR, dayIndex)
     val months = when (normalizeLanguage(language)) {
         "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -9255,16 +9326,6 @@ private fun routeDurationDays(dates: String): Int? {
     }
     fun day(match: MatchResult): Long = Calendar.getInstance().apply { clear(); set(match.groupValues[1].toInt(), match.groupValues[2].toInt() - 1, match.groupValues[3].toInt()) }.timeInMillis / 86_400_000
     return (day(matches[1]) - day(matches[0]) + 1).toInt().takeIf { it > 0 }
-}
-
-private fun cityFlag(city: String): String {
-    val normalized = city.trim().lowercase()
-    return when {
-        normalized.contains("праг") || normalized.contains("prague") -> "🇨🇿"
-        normalized.contains("мюнхен") || normalized.contains("munich") || normalized.contains("равенсбург") || normalized.contains("ravensburg") -> "🇩🇪"
-        listOf("верон", "verona", "милан", "milan", "венеци", "venice", "рим", "rome", "фильине-вальдарно", "figline valdarno", "кьоджа", "chioggia").any(normalized::contains) -> "🇮🇹"
-        else -> "📍"
-    }
 }
 
 private fun formatAccommodationDates(value: String, language: String): String {
@@ -9678,6 +9739,43 @@ private fun cityFilterKey(city: String): String {
         "point:${String.format(Locale.US, "%.4f:%.4f", point.longitude(), point.latitude())}"
     } else {
         city.substringBefore(",").trim().lowercase(Locale.ROOT)
+    }
+}
+
+@Composable
+private fun RouteEditorDateField(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(cardSurfaceColor())
+                .border(1.dp, OdysseyBorder, RoundedCornerShape(14.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = value.ifBlank { localized("Выберите дату", "Choose date", "Elige una fecha", "Datum auswählen") },
+                    color = if (value.isBlank()) OdysseySubtext else contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+                Spacer(Modifier.weight(1f))
+                OdysseyCalendarIcon(17.dp, if (value.isBlank()) OdysseySubtext else OdysseyPurple)
+            }
+        }
     }
 }
 

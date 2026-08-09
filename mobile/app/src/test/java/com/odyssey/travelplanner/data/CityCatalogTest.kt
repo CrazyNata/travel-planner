@@ -27,4 +27,15 @@ class CityCatalogTest {
             assertEquals(entry.german, entry.localized("DE"))
         }
     }
+
+    @Test
+    fun flagsResolveFromCityNamesAndCountryNames() {
+        assertEquals("🇪🇸", cityFlag("Мадрид"))
+        assertEquals("🇪🇸", cityFlag("Madrid, Spain"))
+        assertEquals("🇩🇪", cityFlag("Berlin, Германия"))
+        assertEquals("🇮🇹", cityFlag("Венеция"))
+        assertEquals("🇫🇮", cityFlag("Хельсинки"))
+        assertEquals("🇫🇮", cityFlag("Helsinki, Finland"))
+        assertEquals("📍", cityFlag("test city"))
+    }
 }
