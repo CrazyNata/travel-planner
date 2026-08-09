@@ -150,6 +150,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -1735,6 +1736,27 @@ private fun ResetPasswordScreen(onFinished: () -> Unit, onCancel: () -> Unit) {
 }
 
 @Composable
+private fun RamingoBrand(modifier: Modifier = Modifier) {
+    val darkTheme = LocalDarkTheme.current
+    val shape = RoundedCornerShape(15.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(shape)
+            .background(if (darkTheme) Color(0xFF20222E) else Color.White)
+            .border(1.dp, if (darkTheme) Color(0xFF454958) else OdysseyBorder, shape)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_ramingo_mark),
+            contentDescription = localized("Логотип Ramingo", "Ramingo logo", "Logotipo de Ramingo", "Ramingo-Logo"),
+            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)),
+        )
+        Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, modifier = Modifier.padding(start = 9.dp))
+    }
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, onCatalog: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit) {
     var filter by remember { mutableStateOf("all") }
@@ -1843,26 +1865,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     modifier = Modifier.size(24.dp),
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
-                Text(
-                    text = "R",
-                    color = Color.White,
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 9.dp, vertical = 5.dp),
-                )
-                Text(
-                    text = "Ramingo",
-                    color = contentTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 9.dp),
-                )
-            }
+            RamingoBrand(modifier = Modifier.align(Alignment.Center))
         }
 
         LazyColumn(
@@ -1986,17 +1989,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .padding(start = 2.dp, top = 20.dp, end = 16.dp, bottom = 68.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp)) {
-                        Text(
-                            text = "R",
-                            color = Color.White,
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W800,
-                            fontSize = 16.sp,
-                            modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(10.dp)).padding(horizontal = 11.dp, vertical = 7.dp),
-                        )
-                        Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(start = 10.dp))
-                    }
+                    RamingoBrand(modifier = Modifier.padding(start = 8.dp))
                     Button(
                         onClick = { menuOpen = false; onNewTrip() },
                         colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
@@ -2635,20 +2628,8 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
             ) {
                 Icon(Icons.Outlined.Menu, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.size(22.dp))
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    "R",
-                    color = Color.White,
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 13.sp,
-                    modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp),
-                )
-                Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f)) {
+                RamingoBrand()
             }
             Spacer(Modifier.size(40.dp))
         }
@@ -2920,10 +2901,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
         item {
             Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
                 Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.align(Alignment.CenterStart).size(24.dp).clickable { onBack() })
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
-                    Text("R", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp))
-                    Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
-                }
+                RamingoBrand(modifier = Modifier.align(Alignment.Center))
             }
         }
         item {
