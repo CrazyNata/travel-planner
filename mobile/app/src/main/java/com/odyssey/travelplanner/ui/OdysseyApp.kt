@@ -52,6 +52,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -1162,6 +1167,7 @@ private fun SurfaceEmptyMedia(
 @Composable
 fun OdysseyApp(
     onThemeChanged: (Boolean) -> Unit = {},
+    onSplashVisibleChanged: (Boolean) -> Unit = {},
     pendingTripId: String? = null,
     pendingPasswordReset: Boolean = false,
     onPendingDeepLinkHandled: () -> Unit = {},
@@ -1175,8 +1181,13 @@ fun OdysseyApp(
     var hasSession by remember { mutableStateOf(false) }
     var rememberSession by remember { mutableStateOf(false) }
 
-    LaunchedEffect(darkTheme) {
-        onThemeChanged(darkTheme)
+    LaunchedEffect(darkTheme, authReady) {
+        if (authReady) {
+            onSplashVisibleChanged(false)
+            onThemeChanged(darkTheme)
+        } else {
+            onSplashVisibleChanged(true)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -1239,7 +1250,7 @@ fun OdysseyApp(
     MaterialTheme(colorScheme = if (darkTheme) OdysseyDarkColors else OdysseyLightColors) {
         Surface(color = if (darkTheme) Color(0xFF141416) else OdysseyBackground) {
             if (!authReady) {
-                TripOverviewLoading()
+                RamingoSplash()
             } else NavHost(navController = navController, startDestination = "foundation") {
                 composable("foundation") {
                     AuthScreen(
@@ -7478,74 +7489,131 @@ private fun BudgetExchangeRateCard(
         hasOnlineRate -> localized("Frankfurter · ${onlineRateDate.ifBlank { "сегодня" }}", "Frankfurter · ${onlineRateDate.ifBlank { "today" }}", "Frankfurter · ${onlineRateDate.ifBlank { "hoy" }}", "Frankfurter · ${onlineRateDate.ifBlank { "heute" }}")
         else -> localized("Нет онлайн-курса — задайте вручную", "No online rate — set it manually", "Sin tipo online: establécelo manualmente", "Kein Online-Kurs — manuell festlegen")
     }
+    val statusText = when {
+        loading -> localized("обновляем", "refreshing", "actualizando", "aktualisiert")
+        hasOnlineRate -> localized("онлайн", "online", "online", "online")
+        isManual -> localized("вручную", "manual", "manual", "manuell")
+        else -> localized("нет курса", "no rate", "sin tipo", "kein Kurs")
+    }
+    val editRateDescription = localized("Изменить курс", "Edit rate", "Editar tipo", "Kurs ändern")
+    val refreshRateDescription = localized("Обновить курс", "Refresh rate", "Actualizar tipo", "Kurs aktualisieren")
+    val detailText = message ?: if (currencyCode == "RUB") {
+        sourceText
+    } else {
+        localized(
+            "за 1 $currencyCode · $sourceText",
+            "per 1 $currencyCode · $sourceText",
+            "por 1 $currencyCode · $sourceText",
+            "pro 1 $currencyCode · $sourceText",
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(cardSurfaceColor())
-            .border(1.dp, contentBorderColor(), RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(18.dp),
+                clip = false,
+                ambientColor = Color(0x40604BD7),
+                spotColor = Color(0x40604BD7),
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF604BD7), OdysseyPurple, Color(0xFF9588F0))))
+            .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    localized("Курс валюты", "Exchange rate", "Tipo de cambio", "Wechselkurs"),
-                    color = secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W700,
-                    fontSize = 11.sp,
-                )
-                Text(
-                    rateText,
-                    color = contentTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-                Text(
-                    sourceText,
-                    color = secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W600,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(top = 3.dp),
-                )
-            }
-            if (currencyCode != "RUB") {
-                TextButton(onClick = onEdit) {
+            Text(
+                localized("Курс валюты", "Exchange rate", "Tipo de cambio", "Wechselkurs"),
+                color = Color.White.copy(alpha = 0.72f),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 10.sp,
+                letterSpacing = 0.4.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
                     Text(
-                        localized("Изменить", "Edit", "Editar", "Ändern"),
-                        color = OdysseyPurple,
+                        statusText,
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 10.sp,
+                    )
+                }
+                if (currencyCode != "RUB") {
+                    Text(
+                        text = localized("Изменить", "Edit", "Editar", "Ändern"),
+                        color = Color.White,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(onClick = onEdit)
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = editRateDescription
+                            }
+                            .padding(horizontal = 7.dp, vertical = 4.dp),
                     )
                 }
             }
         }
-        if (currencyCode != "RUB") {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 3.dp)) {
-                if (message != null) {
-                    Text(
-                        message,
-                        color = Color(0xFFE0524B),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W700,
-                        fontSize = 10.sp,
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-                TextButton(onClick = onRefresh, enabled = !loading) {
+        Text(
+            rateText,
+            color = Color.White,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 22.sp,
+            lineHeight = 25.sp,
+            letterSpacing = (-0.45).sp,
+            modifier = Modifier.padding(top = 9.dp),
+            maxLines = 1,
+            softWrap = false,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 7.dp),
+        ) {
+            Text(
+                detailText,
+                color = if (message != null) Color(0xFFFFD2D0) else Color.White.copy(alpha = 0.76f),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 9.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (currencyCode != "RUB") {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .clickable(enabled = !loading, onClick = onRefresh)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = refreshRateDescription
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
                     Text(
                         if (loading) localized("Обновляем…", "Refreshing…", "Actualizando…", "Aktualisierung…")
-                        else localized("Обновить онлайн", "Refresh online", "Actualizar online", "Online aktualisieren"),
-                        color = if (loading) secondaryTextColor() else OdysseyPurple,
+                        else localized("↻  Обновить", "↻  Refresh", "↻  Actualizar", "↻  Aktualisieren"),
+                        color = Color.White,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                     )
                 }
             }
@@ -11533,6 +11601,161 @@ private fun TripOverviewLoading() {
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
     ) {
         CircularProgressIndicator(color = OdysseyPurple, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+    }
+}
+
+@Composable
+private fun RamingoSplash() {
+    val transition = rememberInfiniteTransition(label = "ramingo-splash")
+    val iconScale by transition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
+        label = "splash-icon-scale",
+    )
+    val dotsProgress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1100), RepeatMode.Reverse),
+        label = "splash-dots",
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF4C39B8), Color(0xFF6C5CE7), Color(0xFF9D8FF4)),
+                ),
+            ),
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.08f),
+                radius = size.width * 0.72f,
+                center = Offset(size.width * 0.96f, size.height * 0.12f),
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.06f),
+                radius = size.width * 0.56f,
+                center = Offset(size.width * 0.02f, size.height * 0.88f),
+            )
+            val route = Path().apply {
+                moveTo(size.width * 0.12f, size.height * 0.22f)
+                cubicTo(
+                    size.width * 0.78f, size.height * 0.29f,
+                    size.width * 0.20f, size.height * 0.47f,
+                    size.width * 0.76f, size.height * 0.57f,
+                )
+                cubicTo(
+                    size.width * 0.91f, size.height * 0.64f,
+                    size.width * 0.35f, size.height * 0.79f,
+                    size.width * 0.86f, size.height * 0.91f,
+                )
+            }
+            drawPath(
+                route,
+                Color.White.copy(alpha = 0.42f),
+                style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 8.dp.toPx()), 0f)),
+            )
+            listOf(
+                Offset(size.width * 0.12f, size.height * 0.22f),
+                Offset(size.width * 0.76f, size.height * 0.57f),
+                Offset(size.width * 0.86f, size.height * 0.91f),
+            ).forEach { point ->
+                drawCircle(Color.White.copy(alpha = 0.88f), radius = 3.5.dp.toPx(), center = point)
+            }
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 24.dp),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(128.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
+                    .shadow(18.dp, RoundedCornerShape(38.dp), ambientColor = Color(0x40251B78), spotColor = Color(0x40251B78))
+                    .clip(RoundedCornerShape(38.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(38.dp))
+                    .background(Color.White.copy(alpha = 0.16f)),
+            ) {
+                Canvas(Modifier.size(78.dp)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.minDimension * 0.34f
+                    val stroke = 3.2.dp.toPx()
+                    drawCircle(Color.White.copy(alpha = 0.96f), radius, center, style = Stroke(stroke))
+
+                    val northNeedle = Path().apply {
+                        moveTo(center.x, center.y - size.height * 0.34f)
+                        lineTo(center.x + size.width * 0.11f, center.y)
+                        lineTo(center.x, center.y + size.height * 0.05f)
+                        lineTo(center.x - size.width * 0.11f, center.y)
+                        close()
+                    }
+                    drawPath(northNeedle, Color.White)
+
+                    val southNeedle = Path().apply {
+                        moveTo(center.x, center.y + size.height * 0.34f)
+                        lineTo(center.x + size.width * 0.11f, center.y)
+                        lineTo(center.x, center.y - size.height * 0.05f)
+                        lineTo(center.x - size.width * 0.11f, center.y)
+                        close()
+                    }
+                    drawPath(southNeedle, Color(0xFFCFC8FF))
+                    drawCircle(OdysseyPurple, radius = 4.4.dp.toPx(), center = center)
+                }
+            }
+
+            Text(
+                text = "Ramingo",
+                color = Color.White,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 30.sp,
+                letterSpacing = (-0.7).sp,
+                modifier = Modifier.padding(top = 24.dp),
+            )
+            Text(
+                text = "Планируй. Путешествуй. Запоминай.",
+                color = Color.White.copy(alpha = 0.78f),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 7.dp),
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 32.dp),
+            ) {
+                repeat(3) { index ->
+                    val phase = (dotsProgress + index * 0.22f) % 1f
+                    val emphasis = 1f - kotlin.math.abs(phase * 2f - 1f)
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .graphicsLayer {
+                                scaleX = 0.82f + emphasis * 0.28f
+                                scaleY = 0.82f + emphasis * 0.28f
+                                alpha = 0.35f + emphasis * 0.65f
+                            }
+                            .background(Color.White, CircleShape),
+                    )
+                }
+            }
+        }
     }
 }
 

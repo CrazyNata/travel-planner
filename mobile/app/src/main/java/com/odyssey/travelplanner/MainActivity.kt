@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             OdysseyApp(
                 onThemeChanged = ::updateSystemBars,
+                onSplashVisibleChanged = ::updateSplashSystemBars,
                 pendingTripId = pendingTripId,
                 pendingPasswordReset = pendingPasswordReset,
                 onPendingDeepLinkHandled = {
@@ -93,6 +94,20 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = !darkTheme
             isAppearanceLightNavigationBars = !darkTheme
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+    }
+
+    private fun updateSplashSystemBars(visible: Boolean) {
+        if (!visible) return
+        val splashColor = Color.parseColor("#4C39B8")
+        window.statusBarColor = splashColor
+        window.navigationBarColor = splashColor
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
