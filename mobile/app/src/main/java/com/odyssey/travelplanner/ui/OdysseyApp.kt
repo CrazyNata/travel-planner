@@ -1408,7 +1408,7 @@ private fun AuthScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "O",
+                text = "R",
                 color = Color.White,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -1822,7 +1822,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
                 Text(
-                    text = "O",
+                    text = "R",
                     color = Color.White,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -1965,7 +1965,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp)) {
                         Text(
-                            text = "O",
+                            text = "R",
                             color = Color.White,
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W800,
@@ -2307,7 +2307,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
-                    "O",
+                    "R",
                     color = Color.White,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -2587,7 +2587,7 @@ private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Un
             Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
                 Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.align(Alignment.CenterStart).size(24.dp).clickable { onBack() })
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.align(Alignment.Center)) {
-                    Text("O", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp))
+                    Text("R", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))), RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp))
                     Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(start = 9.dp))
                 }
             }
@@ -3236,7 +3236,7 @@ private suspend fun loadSightPhoto(vararg searchTexts: String): String? = withCo
                         requestMethod = "GET"
                         setRequestProperty("Accept", "application/json")
                         setRequestProperty("Accept-Encoding", "identity")
-                        setRequestProperty("User-Agent", "OdysseyTravelPlanner/0.1 (Android)")
+                        setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
                         inputStream.bufferedReader().use { reader ->
                             val response = JSONObject(reader.readText())
                             if (endpoint.host == "api.openverse.org") {
@@ -3289,7 +3289,7 @@ private suspend fun cachedSightBitmap(photoUrl: String): Bitmap? {
                 readTimeout = 8_000
                 requestMethod = "GET"
                 setRequestProperty("Accept", "image/*")
-                setRequestProperty("User-Agent", "OdysseyTravelPlanner/0.1 (Android)")
+                setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
                 inputStream.use { BitmapFactory.decodeStream(it) }
             }
         }.getOrNull()

@@ -3320,8 +3320,8 @@ function Sidebar({
       />
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="brand">
-          <span>О</span>
-          <b>Одиссея</b>
+          <span>R</span>
+          <b>Ramingo</b>
           <button onClick={closeSidebar}>×</button>
         </div>
         <button className="primary" onClick={() => go("create")}>
@@ -6857,7 +6857,8 @@ function Members({
   );
   const [published, setPublished] = useState(trip.published ?? false);
   const [copyLabel, setCopyLabel] = useState("Копировать");
-  const publicUrl = "odyssey.travel/p/italy-8d-a1b2";
+  const publicUrl = "ramingo.online/p/italy-8d-a1b2";
+  const publicHref = `https://${publicUrl}`;
   const inviteMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
@@ -6935,7 +6936,7 @@ function Members({
   const copyPublicLink = async () => {
     if (navigator.clipboard)
       await navigator.clipboard
-        .writeText(`${window.location.origin}/${publicUrl}`)
+        .writeText(publicHref)
         .catch(() => undefined);
     setCopyLabel("Скопировано");
     window.setTimeout(() => setCopyLabel("Копировать"), 1800);
@@ -8470,8 +8471,8 @@ function WalkingMap({
         essential: true,
       });
     };
-    window.addEventListener("odyssey-focus-sight", focusSight);
-    return () => window.removeEventListener("odyssey-focus-sight", focusSight);
+    window.addEventListener("ramingo-focus-sight", focusSight);
+    return () => window.removeEventListener("ramingo-focus-sight", focusSight);
   }, [sights]);
   const hours = stats ? Math.floor(stats.duration / 3600) : 0;
   const minutes = stats ? Math.round((stats.duration % 3600) / 60) : 0;
@@ -8529,7 +8530,7 @@ function Sights({
     const dayId = days[selectedDay]?.id;
     if (dayId)
       window.dispatchEvent(
-        new CustomEvent("odyssey-select-sight-day", { detail: dayId }),
+        new CustomEvent("ramingo-select-sight-day", { detail: dayId }),
       );
   }, [selectedDay, days]);
   const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
@@ -9144,9 +9145,9 @@ function Workspace({
   useEffect(() => {
     const selectDay = (event: Event) =>
       setSelectedSightDayId((event as CustomEvent<string>).detail);
-    window.addEventListener("odyssey-select-sight-day", selectDay);
+    window.addEventListener("ramingo-select-sight-day", selectDay);
     return () =>
-      window.removeEventListener("odyssey-select-sight-day", selectDay);
+      window.removeEventListener("ramingo-select-sight-day", selectDay);
   }, []);
   useEffect(() => {
     if (!useDemoSightContent || trip.sightNotes?.["sights-day-2"] !== legacyVeronaDayTwoNotes) return;
@@ -9435,7 +9436,7 @@ function Workspace({
                 }
                 if (!sight) return;
                 window.dispatchEvent(
-                  new CustomEvent("odyssey-focus-sight", { detail: id }),
+                  new CustomEvent("ramingo-focus-sight", { detail: id }),
                 );
                 const query = `${sight.name}, ${sight.city}`;
                 window.open(
@@ -9751,8 +9752,8 @@ function Auth({
       <section className="auth-card">
         <div className="auth-form">
           <div className="auth-brand">
-            <span>O</span>
-            <b>Одиссея</b>
+            <span>R</span>
+            <b>Ramingo</b>
           </div>
           <div className="auth-switch">
             <button
@@ -9849,7 +9850,7 @@ function Auth({
             </p>
           )}
           <div className="auth-footer">
-            {isRegister ? "Уже есть аккаунт?" : "Впервые в Одиссее?"}{" "}
+            {isRegister ? "Уже есть аккаунт?" : "Впервые в Ramingo?"}{" "}
             <button
               onClick={() => {
                 setMode(isRegister ? "login" : "register");
@@ -9893,23 +9894,23 @@ function LegalPage({ kind }: { kind: LegalPageKind }) {
     <main className="legal-page">
       <article className="legal-card">
         <header className="legal-header">
-          <a className="legal-brand" href="/#/auth" aria-label="Одиссея">
-            <span>O</span>
-            <b>Одиссея</b>
+          <a className="legal-brand" href="/#/auth" aria-label="Ramingo">
+            <span>R</span>
+            <b>Ramingo</b>
           </a>
           <button className="legal-back" type="button" onClick={() => navigate(-1)}>
             Вернуться назад
           </button>
         </header>
         <div className="legal-content">
-          <p className="legal-eyebrow">Одиссея · Travel Planner</p>
+          <p className="legal-eyebrow">Ramingo · Travel Planner</p>
           <h1>{isPrivacy ? "Политика конфиденциальности" : "Условия использования"}</h1>
           <p className="legal-updated">Последнее обновление: {legalEffectiveDate}</p>
 
           {isPrivacy ? (
             <>
               <p>
-                Эта политика объясняет, какие данные обрабатывает сервис «Одиссея»,
+                Эта политика объясняет, какие данные обрабатывает сервис «Ramingo»,
                 зачем они нужны и как запросить их удаление. Оператор сервиса —{" "}
                 <strong>{legalEntityName}</strong>.
               </p>
@@ -9977,7 +9978,7 @@ function LegalPage({ kind }: { kind: LegalPageKind }) {
           ) : (
             <>
               <p>
-                Используя «Одиссею», вы соглашаетесь с настоящими условиями. Сервис
+                Используя «Ramingo», вы соглашаетесь с настоящими условиями. Сервис
                 предназначен для личного планирования путешествий и совместной работы
                 над маршрутами.
               </p>
@@ -10002,7 +10003,7 @@ function LegalPage({ kind }: { kind: LegalPageKind }) {
               <p>
                 Карты, погода, изображения, ссылки на бронирования и другие внешние
                 сервисы могут иметь собственные условия и быть временно недоступны.
-                «Одиссея» не подтверждает содержание или доступность сторонних сайтов.
+                «Ramingo» не подтверждает содержание или доступность сторонних сайтов.
               </p>
               <h2>Удаление аккаунта и прекращение доступа</h2>
               <p>
@@ -10072,8 +10073,8 @@ function AccountDeletionPage() {
       <section className="auth-card">
         <div className="auth-form">
           <div className="auth-brand">
-            <span>O</span>
-            <b>Одиссея</b>
+            <span>R</span>
+            <b>Ramingo</b>
           </div>
           <h1>Удаление аккаунта</h1>
           <p>

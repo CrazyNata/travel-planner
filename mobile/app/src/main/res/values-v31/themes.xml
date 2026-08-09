@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.Odyssey" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="Theme.Ramingo" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
@@ -7,7 +7,7 @@
         <item name="android:navigationBarColor">#F4F4F7</item>
         <item name="android:colorAccent">#6C5CE7</item>
         <item name="android:windowSplashScreenBackground">#F4F4F7</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_odyssey_mark</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_ramingo_mark</item>
         <item name="android:windowSplashScreenIconBackgroundColor">#F4F4F7</item>
     </style>
 </resources>

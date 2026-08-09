@@ -2565,7 +2565,7 @@ html[data-sight-city="Верона"] .sights-collection .sight-card:nth-child(10
 .sights-collection .sight-number { position: absolute; top: -10px; left: 12px; }
 .sights-collection .sight-card > div { padding-top: 19px; }
 
-/* The walking planner is a distinct Odyssey workspace, not a generic map panel. */
+/* The walking planner is a distinct Ramingo workspace, not a generic map panel. */
 .sights-page {
   position: relative;
   padding-bottom: 38px;

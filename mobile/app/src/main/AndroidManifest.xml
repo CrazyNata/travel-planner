@@ -6,12 +6,12 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
-        android:icon="@drawable/ic_odyssey_mark"
-        android:roundIcon="@drawable/ic_odyssey_mark"
+        android:icon="@drawable/ic_ramingo_mark"
+        android:roundIcon="@drawable/ic_ramingo_mark"
         android:label="Ramingo"
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="33"
-        android:theme="@style/Theme.Odyssey">
+        android:theme="@style/Theme.Ramingo">
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"

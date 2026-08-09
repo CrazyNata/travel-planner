@@ -35,5 +35,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OdysseyAndroid"
+rootProject.name = "RamingoAndroid"
 include(":app")
