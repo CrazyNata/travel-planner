@@ -8379,7 +8379,7 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
                     Box(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { uriHandler.openUri(accommodation.bookingUrl) }, contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             OdysseyExternalLinkIcon(15.dp, OdysseyPurple)
-                            Text(localized("На Booking", "Booking", "En Booking", "Booking"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                            Text(localized("Открыть ссылку", "Open link", "Abrir enlace", "Link öffnen"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
                         }
                     }
                 }
@@ -8699,7 +8699,7 @@ private fun AccommodationAddSheet(
                     AccommodationEditDateField(label = localized("Выезд", "Check-out", "Salida", "Abreise"), value = checkOut, scale = scale, modifier = Modifier.width(d(154.5f)), onClick = onCheckOutClick)
                 }
                 AccommodationEditDateField(label = localized("Бесплатная отмена до", "Free cancellation until", "Cancelación gratuita hasta", "Kostenlose Stornierung bis"), value = deadline, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(710f)).width(d(321f)), onClick = onDeadlineClick)
-                AccommodationEditTextField(label = localized("Ссылка на Booking", "Booking link", "Enlace de Booking", "Booking-Link"), value = bookingUrl, placeholder = "https://booking.com/...", valueWeight = FontWeight.W600, valueColor = OdysseyPurple, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(321f)), onValueChange = onBookingUrlChange)
+                AccommodationEditTextField(label = localized("Ссылка на жильё", "Accommodation link", "Enlace del alojamiento", "Unterkunftslink"), value = bookingUrl, placeholder = "https://example.com/...", valueWeight = FontWeight.W600, valueColor = OdysseyPurple, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(321f)), onValueChange = onBookingUrlChange)
                 AccommodationEditTextField(label = localized("Адрес / заметка", "Address / note", "Dirección / nota", "Adresse / Notiz"), value = details, placeholder = localized("Дополнительные детали", "Additional details", "Detalles adicionales", "Zusätzliche Details"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(896f)).width(d(321f)), onValueChange = onDetailsChange)
 
                 message?.let {
@@ -8842,9 +8842,9 @@ private fun AccommodationEditSheet(
                 onClick = { datePickerTarget = "deadline" },
             )
             AccommodationEditTextField(
-                label = localized("Ссылка на Booking", "Booking link", "Enlace de Booking", "Booking-Link"),
+                label = localized("Ссылка на жильё", "Accommodation link", "Enlace del alojamiento", "Unterkunftslink"),
                 value = bookingUrl,
-                placeholder = "https://booking.com/...",
+                placeholder = "https://example.com/...",
                 valueWeight = FontWeight.W600,
                 valueColor = OdysseyPurple,
                 scale = scale,
