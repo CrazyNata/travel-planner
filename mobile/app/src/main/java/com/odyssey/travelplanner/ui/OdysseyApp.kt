@@ -13,7 +13,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1414,11 +1414,9 @@ private fun AuthScreen(
             message = null
             runCatching {
                 SupabaseProvider.selectSessionPersistence(rememberSession)
-                val option = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-                    .setAutoSelectEnabled(false)
-                    .build()
+                val option = GetSignInWithGoogleOption.Builder(
+                    BuildConfig.GOOGLE_WEB_CLIENT_ID,
+                ).build()
                 val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
                 val credential = CredentialManager.create(context).getCredential(context, request).credential
                 val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
