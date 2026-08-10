@@ -6905,13 +6905,6 @@ function Members({
           role: inviteRole,
           redirectTo,
           tripId: trip.id,
-          trip: {
-            title: trip.title,
-            dates: trip.dates,
-            cities: trip.cities,
-            inviterName: people.find((person) => person.role === "Владелец")?.name,
-            participants: people.map((person) => person.name),
-          },
         },
       });
       if (error) {

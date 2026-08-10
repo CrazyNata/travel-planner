@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ramingo · варианты письма-приглашения</title>
+    <style>
+      :root {
+        --brand: #6c5ce7;
+        --brand-dark: #4f43bf;
+        --brand-soft: #eeecff;
+        --ink: #171827;
+        --muted: #85899a;
+        --line: #e8e8f0;
+        --page: #eef0f6;
+        --paper: #ffffff;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 10% 0%, #e1ddff 0, transparent 35%),
+          radial-gradient(circle at 96% 24%, #d7f0ec 0, transparent 28%),
+          var(--page);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        width: min(100% - 32px, 1160px);
+        margin: 0 auto;
+        padding: 42px 0 72px;
+      }
+
+      .intro { max-width: 720px; margin-bottom: 24px; }
+      .eyebrow {
+        margin: 0 0 9px;
+        color: var(--brand-dark);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+      }
+      h1 { margin: 0; font-size: clamp(28px, 5vw, 45px); line-height: 1.05; letter-spacing: -.05em; }
+      .intro p { margin: 14px 0 0; color: #626779; font-size: 15px; line-height: 1.6; }
+
+      .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 26px 0 18px;
+      }
+      .tabs button {
+        border: 1px solid #dcddeb;
+        border-radius: 999px;
+        padding: 10px 16px;
+        color: #666a7c;
+        background: rgba(255,255,255,.62);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 750;
+        cursor: pointer;
+        transition: .18s ease;
+      }
+      .tabs button:hover { border-color: #bfb9fa; color: var(--brand-dark); }
+      .tabs button.active { border-color: var(--brand); color: #fff; background: var(--brand); box-shadow: 0 7px 18px #6c5ce733; }
+
+      .variant { display: none; animation: enter .22s ease both; }
+      .variant.active { display: block; }
+      @keyframes enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+      .variant-heading { display: flex; align-items: baseline; gap: 12px; margin: 0 0 13px; }
+      .variant-heading h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+      .variant-heading span { color: #818596; font-size: 13px; }
+
+      .mail-frame {
+        width: min(100%, 680px);
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid #e0e1ea;
+        border-radius: 25px;
+        background: var(--paper);
+        box-shadow: 0 25px 70px #30345a20, 0 4px 15px #30345a0d;
+      }
+      .mail-meta { padding: 16px 22px; border-bottom: 1px solid var(--line); background: #fbfbfd; }
+      .mail-meta-row { display: flex; gap: 14px; padding: 4px 0; font-size: 12px; line-height: 1.45; }
+      .mail-meta-row span { width: 72px; flex: 0 0 72px; color: #9a9dad; }
+      .mail-meta-row strong { color: #343747; font-weight: 650; }
+      .mail-body { font-size: 15px; line-height: 1.55; }
+      .logo { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; }
+      .logo svg { display: block; width: 42px; height: 42px; flex: 0 0 42px; }
+      .logo strong { display: block; font-size: 21px; line-height: 1; letter-spacing: -.04em; }
+      .logo small { display: block; margin-top: 4px; color: #979aaa; font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+      .hero { padding: 42px 42px 38px; color: #fff; background: linear-gradient(135deg, #4c3bb9 0%, #7769ec 100%); }
+      .hero .logo { color: #fff; }
+      .hero .logo small { color: #d9d5ff; }
+      .hero-label { margin: 34px 0 12px; font-size: 11px; font-weight: 850; letter-spacing: .16em; opacity: .78; }
+      .hero h3 { max-width: 540px; margin: 0; font-size: 36px; line-height: 1.08; letter-spacing: -.055em; }
+      .hero p { margin: 15px 0 0; color: #f0efff; font-size: 14px; }
+      .content { padding: 34px 42px 38px; }
+      .sender { display: flex; align-items: center; gap: 13px; }
+      .sender-mark { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 15px; background: var(--brand-soft); }
+      .sender-mark svg { width: 32px; height: 32px; }
+      .sender strong { display: block; font-size: 16px; }
+      .sender span { display: block; margin-top: 3px; color: #777c8e; font-size: 13px; }
+      .sender a { color: var(--brand-dark); text-decoration: none; }
+      .lead { margin: 25px 0 22px; color: #333749; font-size: 16px; line-height: 1.7; }
+      .facts { width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: #fbfbfd; }
+      .fact { display: flex; justify-content: space-between; gap: 20px; padding: 14px 17px; border-bottom: 1px solid var(--line); font-size: 13px; }
+      .fact:last-child { border: 0; }
+      .fact span { color: #85899a; }
+      .fact strong { color: #282b3b; text-align: right; }
+      .fact strong.accent { color: var(--brand-dark); }
+      .cta-row { padding: 2px 42px 38px; text-align: center; }
+      .cta { display: inline-block; border-radius: 13px; padding: 15px 28px; color: #fff; background: var(--brand); box-shadow: 0 9px 20px #6c5ce744; font-size: 14px; font-weight: 800; text-decoration: none; }
+      .fallback { margin: 15px auto 0; max-width: 470px; color: #969aaa; font-size: 11px; line-height: 1.55; }
+      .footer { padding: 20px 32px; border-top: 1px solid var(--line); color: #9a9eaf; font-size: 11px; line-height: 1.6; text-align: center; }
+      .footer a { color: var(--brand-dark); text-decoration: none; }
+
+      /* Variant 2: a darker, more editorial travel-card direction. */
+      .variant-two .mail-frame { border-color: #25254c; background: #18182f; }
+      .variant-two .mail-meta { border-color: #303050; background: #111126; }
+      .variant-two .mail-meta-row span { color: #8585a5; }
+      .variant-two .mail-meta-row strong { color: #e8e7ff; }
+      .variant-two .mail-body { color: #ecebfb; }
+      .variant-two .hero { padding: 34px 38px 30px; background: linear-gradient(145deg, #26225e, #6c5ce7); }
+      .variant-two .hero-label { margin-top: 43px; color: #c7c3ff; }
+      .variant-two .hero h3 { font-size: 40px; }
+      .variant-two .hero p { color: #dcd9ff; }
+      .variant-two .content { padding: 26px 38px 30px; }
+      .variant-two .sender-mark { background: #302b70; }
+      .variant-two .sender strong { color: #fff; }
+      .variant-two .sender span { color: #aaa9c9; }
+      .variant-two .sender a { color: #bdb8ff; }
+      .variant-two .lead { color: #d8d7ea; }
+      .variant-two .facts { border-color: #37375a; background: #202042; }
+      .variant-two .fact { border-color: #37375a; }
+      .variant-two .fact span { color: #9998b6; }
+      .variant-two .fact strong { color: #f4f3ff; }
+      .variant-two .fact strong.accent { color: #c4bfff; }
+      .variant-two .cta-row { padding: 0 38px 34px; }
+      .variant-two .cta { background: #fff; color: #5144c8; box-shadow: none; }
+      .variant-two .fallback { color: #9494b2; }
+      .variant-two .footer { border-color: #303050; color: #8585a5; }
+      .variant-two .footer a { color: #c0bbff; }
+
+      /* Variant 3: quiet, spacious, product-led. */
+      .variant-three .mail-frame { border-radius: 18px; }
+      .variant-three .mail-meta { padding: 14px 24px; }
+      .variant-three .hero { padding: 30px 42px 32px; color: var(--ink); background: #f8f7ff; }
+      .variant-three .hero .logo { color: var(--ink); }
+      .variant-three .hero .logo small { color: #9295a7; }
+      .variant-three .hero-label { margin-top: 37px; color: var(--brand-dark); opacity: 1; }
+      .variant-three .hero h3 { color: var(--ink); font-size: 34px; }
+      .variant-three .hero p { color: #777b8d; }
+      .variant-three .content { padding-top: 32px; }
+      .variant-three .sender-mark { width: 44px; height: 44px; border-radius: 50%; }
+      .variant-three .sender-mark svg { width: 28px; height: 28px; }
+      .variant-three .lead { margin-top: 22px; }
+      .variant-three .facts { border: 0; border-radius: 0; background: transparent; }
+      .variant-three .fact { padding: 12px 0; border-color: #eeeef4; }
+      .variant-three .cta-row { padding-top: 0; }
+      .variant-three .cta { min-width: 210px; }
+
+      /* Variant 4: a compact travel-pass direction with a clear route. */
+      .variant-four .mail-frame { border-radius: 16px; border-color: #d9d9e8; }
+      .variant-four .mail-meta { background: #fafaff; }
+      .variant-four .hero { padding: 34px 42px 30px; color: var(--ink); background: #fff; border-bottom: 1px solid var(--line); }
+      .variant-four .hero .logo { color: var(--ink); }
+      .variant-four .hero .logo small { color: #9295a7; }
+      .variant-four .hero-label { margin-top: 31px; color: var(--brand-dark); opacity: 1; }
+      .variant-four .hero h3 { color: var(--ink); font-size: 38px; }
+      .variant-four .hero p { color: #777b8d; }
+      .passport-route { position: relative; display: flex; justify-content: space-between; gap: 12px; margin: 26px 0 2px; padding-top: 18px; }
+      .passport-route::before { content: ""; position: absolute; top: 23px; left: 11px; right: 11px; height: 2px; background: #dcd9ff; }
+      .passport-stop { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 7px; color: #777b8d; font-size: 11px; font-weight: 750; }
+      .passport-stop::before { content: ""; display: block; width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 2px var(--brand); }
+      .passport-stop:last-child { align-items: flex-end; text-align: right; }
+      .passport-stop:last-child::before { background: #ff9b62; box-shadow: 0 0 0 2px #ff9b62; }
+      .variant-four .content { padding-top: 29px; }
+      .variant-four .sender-mark { border-radius: 12px; background: #171827; }
+      .variant-four .cta { border-radius: 9px; }
+      .variant-four .footer { background: #fafaff; }
+
+      /* Variant 5: a warmer postcard-like invitation. */
+      .variant-five .mail-frame { border-radius: 22px; border-color: #eadbce; background: #fffaf4; }
+      .variant-five .mail-meta { border-color: #eee1d6; background: #fffdf9; }
+      .variant-five .hero { position: relative; overflow: hidden; padding: 38px 42px 35px; color: var(--ink); background: linear-gradient(135deg, #fff0e4 0%, #f2eeff 100%); }
+      .variant-five .hero::after { content: ""; position: absolute; width: 180px; height: 180px; right: -68px; bottom: -94px; border: 22px solid #ffffff66; border-radius: 50%; }
+      .variant-five .hero .logo { position: relative; z-index: 1; color: var(--ink); }
+      .variant-five .hero .logo small { color: #817b8c; }
+      .variant-five .hero-label { position: relative; z-index: 1; margin-top: 34px; color: var(--brand-dark); opacity: 1; }
+      .variant-five .hero h3 { position: relative; z-index: 1; color: var(--ink); font-size: 36px; }
+      .variant-five .hero p { position: relative; z-index: 1; color: #6e6879; }
+      .postcard-stamp { position: absolute; z-index: 1; top: 35px; right: 37px; display: grid; width: 70px; height: 70px; place-items: center; border: 1px dashed #8b80db; border-radius: 50%; color: var(--brand-dark); background: #ffffff88; font-size: 8px; font-weight: 850; letter-spacing: .12em; line-height: 1.35; text-align: center; text-transform: uppercase; transform: rotate(8deg); }
+      .variant-five .content { padding-top: 31px; }
+      .variant-five .sender-mark { border: 1px solid #eadbce; background: #fff; }
+      .variant-five .facts { border-color: #eadfd5; background: #fffdf9; }
+      .variant-five .fact { border-color: #eadfd5; }
+      .variant-five .footer { border-color: #eadfd5; background: #fff7ee; }
+
+      /* Variant 6: wordmark-first, matching the supplied reference. */
+      .variant-six .mail-frame { border-radius: 30px; border-color: #dedcf2; }
+      .variant-six .hero { position: relative; overflow: hidden; padding: 62px 42px 42px; color: var(--ink); background: #f7f5ff; text-align: center; }
+      .variant-six .hero-logo-mark { display: block; width: 84px; height: 84px; margin: 0 auto; border-radius: 23px; }
+      .variant-six .hero .logo { display: inline-flex; flex-direction: column; gap: 0; margin-top: 15px; color: var(--ink); }
+      .variant-six .hero .logo strong { font-size: 29px; }
+      .variant-six .hero .logo small { margin-top: 7px; color: #9295a7; }
+      .variant-six .hero-label { margin-top: 39px; color: var(--brand-dark); opacity: 1; }
+      .variant-six .hero h3 { max-width: 470px; margin-left: auto; margin-right: auto; color: var(--ink); font-size: 34px; }
+      .variant-six .hero p { max-width: 430px; margin-left: auto; margin-right: auto; color: #777b8d; }
+      .variant-six .content { padding-top: 32px; }
+      .variant-six .sender { gap: 12px; padding: 14px 16px; border: 1px solid #e6e3f5; border-radius: 17px; background: #fbfaff; }
+      .variant-six .sender-mark { width: 42px; height: 42px; border-radius: 12px; }
+      .variant-six .sender-mark svg { width: 32px; height: 32px; }
+      .variant-six .lead { max-width: 510px; margin: 27px auto 24px; text-align: center; }
+      .variant-six .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; overflow: visible; border: 0; background: transparent; }
+      .variant-six .fact { display: block; padding: 16px 12px; border: 1px solid #e8e6f3; border-radius: 14px; background: #fff; }
+      .variant-six .fact strong { display: block; margin-top: 6px; text-align: left; }
+      .variant-six .cta { min-width: 220px; }
+
+      @media (max-width: 600px) {
+        .page { width: min(100% - 20px, 680px); padding-top: 24px; }
+        .mail-frame { border-radius: 18px; }
+        .hero, .content { padding-left: 24px; padding-right: 24px; }
+        .hero h3, .variant-two .hero h3 { font-size: 29px; }
+        .postcard-stamp { right: 21px; width: 58px; height: 58px; font-size: 7px; }
+        .variant-six .facts { grid-template-columns: 1fr; }
+        .cta-row { padding-left: 24px; padding-right: 24px; }
+        .footer { padding-left: 22px; padding-right: 22px; }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" width="0" height="0" style="position:absolute">
+      <symbol id="ramingo-mark" viewBox="0 0 108 108">
+        <rect width="108" height="108" rx="30" fill="#6C5CE7" />
+        <path fill="#FFFFFF" fill-rule="evenodd" d="M54 19a35 35 0 1 0 0 70 35 35 0 1 0 0-70Zm0 10a25 25 0 1 1 0 50 25 25 0 1 1 0-50Z" />
+        <path fill="#FFFFFF" d="m54 27 9 25-9 29-9-29 9-25Z" />
+        <circle cx="54" cy="54" r="9" fill="#6C5CE7" />
+      </symbol>
+    </svg>
+
+    <main class="page">
+      <section class="intro">
+        <p class="eyebrow">Ramingo · email lab</p>
+        <h1>Письмо-приглашение в поездку</h1>
+        <p>Шесть направлений с нашим фиолетовым цветом и настоящим логотипом-компасом. Переключай варианты сверху — пока это только превью, production не меняется.</p>
+      </section>
+
+      <nav class="tabs" aria-label="Варианты письма">
+        <button class="active" data-variant="variant-one">01 · Чистый Ramingo</button>
+        <button data-variant="variant-two">02 · Ночной маршрут</button>
+        <button data-variant="variant-three">03 · Минимализм</button>
+        <button data-variant="variant-four">04 · Паспорт</button>
+        <button data-variant="variant-five">05 · Открытка</button>
+        <button data-variant="variant-six">06 · Лого-first</button>
+      </nav>
+
+      <section class="variant active" id="variant-one">
+        <div class="variant-heading"><h2>Чистый Ramingo</h2><span>яркий, дружелюбный, понятный</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Наташа приглашает вас в «Италия с семьёй»</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <a class="logo" href="#"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">ПРИГЛАШЕНИЕ В ПОЕЗДКУ</div>
+              <h3>Вас приглашают в «Италия с семьёй»</h3>
+              <p>12–19 сентября 2026 · Рим · Флоренция · Венеция</p>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Наташа</strong><span>приглашает вас присоединиться к поездке · <a href="#">natasha@example.com</a></span></div></div>
+              <p class="lead">Здравствуйте, Тимур! Давайте спланируем поездку вместе — добавим места, жильё и общий бюджет.</p>
+              <div class="facts"><div class="fact"><span>Даты</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Маршрут</span><strong>Рим · Флоренция · Венеция</strong></div><div class="fact"><span>Ваша роль</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Открыть поездку</a><p class="fallback">Если кнопка не открывается, перейдите по ссылке из письма вручную.</p></div>
+            <div class="footer">Письмо отправлено сервисом Ramingo.<br><a href="#">support@ramingo.online</a> · поддержка</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="variant variant-two" id="variant-two">
+        <div class="variant-heading"><h2>Ночной маршрут</h2><span>более премиальный, атмосферный</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Наташа приглашает вас в «Италия с семьёй»</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <a class="logo" href="#"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">YOUR NEXT ESCAPE</div>
+              <h3>Италия с семьёй</h3>
+              <p>12–19 сентября 2026 &nbsp;·&nbsp; 8 дней &nbsp;·&nbsp; 3 города</p>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Наташа приглашает вас</strong><span>Вы присоединяетесь к общей поездке · <a href="#">natasha@example.com</a></span></div></div>
+              <p class="lead">Маршрут уже ждёт. Откройте поездку, чтобы посмотреть детали и начать планировать вместе.</p>
+              <div class="facts"><div class="fact"><span>Маршрут</span><strong>Рим → Флоренция → Венеция</strong></div><div class="fact"><span>Даты</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Доступ</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Перейти к маршруту</a><p class="fallback">Ссылка действует только для получателя этого письма.</p></div>
+            <div class="footer">Ramingo · совместное планирование путешествий<br><a href="#">support@ramingo.online</a></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="variant variant-three" id="variant-three">
+        <div class="variant-heading"><h2>Минимализм</h2><span>спокойный, лёгкий, продуктовый</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Наташа приглашает вас в «Италия с семьёй»</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <a class="logo" href="#"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">ПРИГЛАШЕНИЕ В ПОЕЗДКУ</div>
+              <h3>Спланируем Италию вместе?</h3>
+              <p>Наташа добавила вас в поездку «Италия с семьёй».</p>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Наташа</strong><span>пригласила вас в совместную поездку</span></div></div>
+              <p class="lead">Вам доступен общий маршрут, заметки и план поездки. Откройте Ramingo, чтобы присоединиться.</p>
+              <div class="facts"><div class="fact"><span>Поездка</span><strong>Италия с семьёй</strong></div><div class="fact"><span>Когда</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Роль</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Присоединиться</a><p class="fallback">Нажмите кнопку, чтобы открыть поездку в Ramingo.</p></div>
+            <div class="footer">Ramingo · Travel planner<br><a href="#">support@ramingo.online</a></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="variant variant-four" id="variant-four">
+        <div class="variant-heading"><h2>Паспорт поездки</h2><span>структурный, собранный, с акцентом на маршрут</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Наташа приглашает вас в «Италия с семьёй»</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <a class="logo" href="#"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">TRIP PASS · 2026</div>
+              <h3>Италия с семьёй</h3>
+              <p>12–19 сентября 2026 · 8 дней путешествия</p>
+              <div class="passport-route"><div class="passport-stop">Рим</div><div class="passport-stop">Флоренция</div><div class="passport-stop">Венеция</div></div>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Наташа приглашает вас</strong><span>Присоединяйтесь к поездке · <a href="#">natasha@example.com</a></span></div></div>
+              <p class="lead">Маршрут уже собран. Откройте поездку, чтобы посмотреть детали и вместе добавить новые места.</p>
+              <div class="facts"><div class="fact"><span>Даты</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Города</span><strong>Рим · Флоренция · Венеция</strong></div><div class="fact"><span>Ваша роль</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Открыть паспорт поездки</a><p class="fallback">Если кнопка не открывается, перейдите по ссылке из этого письма вручную.</p></div>
+            <div class="footer">Письмо отправлено сервисом Ramingo.<br><a href="#">support@ramingo.online</a> · поддержка</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="variant variant-five" id="variant-five">
+        <div class="variant-heading"><h2>Открытка</h2><span>тёплый, эмоциональный, с настроением путешествия</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Наташа зовёт вас в Италию</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <div class="postcard-stamp">Travel<br>with<br>Ramingo</div>
+              <a class="logo" href="#"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">ПРИГЛАШЕНИЕ В ПУТЕШЕСТВИЕ</div>
+              <h3>Поехали в Италию?</h3>
+              <p>12–19 сентября 2026 · Рим · Флоренция · Венеция</p>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Это приглашение от Наташи</strong><span>Она хочет спланировать поездку вместе с вами</span></div></div>
+              <p class="lead">Здравствуйте, Тимур! Давайте соберём красивое путешествие вместе — с местами, жильём и общими планами в одном маршруте.</p>
+              <div class="facts"><div class="fact"><span>Поездка</span><strong>Италия с семьёй</strong></div><div class="fact"><span>Когда</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Доступ</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Принять приглашение</a><p class="fallback">Ссылка ведёт прямо в общую поездку Ramingo.</p></div>
+            <div class="footer">Ramingo · планируйте путешествия вместе<br><a href="#">support@ramingo.online</a></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="variant variant-six" id="variant-six">
+        <div class="variant-heading"><h2>Лого-first</h2><span>просторный, узнаваемый, с фокусом на бренд</span></div>
+        <article class="mail-frame">
+          <div class="mail-meta">
+            <div class="mail-meta-row"><span>От</span><strong>Ramingo &lt;no-reply@ramingo.online&gt;</strong></div>
+            <div class="mail-meta-row"><span>Ответить</span><strong>Наташа &lt;natasha@example.com&gt;</strong></div>
+            <div class="mail-meta-row"><span>Тема</span><strong>Вас пригласили в поездку «Италия с семьёй»</strong></div>
+          </div>
+          <div class="mail-body">
+            <div class="hero">
+              <img class="hero-logo-mark" src="assets/ramingo-mark.png" alt="" />
+              <a class="logo" href="#"><span><strong>Ramingo</strong><small>Travel planner</small></span></a>
+              <div class="hero-label">ВАШ НОВЫЙ МАРШРУТ</div>
+              <h3>Наташа добавила вас в поездку</h3>
+              <p>«Италия с семьёй» · 12–19 сентября 2026</p>
+            </div>
+            <div class="content">
+              <div class="sender"><div class="sender-mark"><svg aria-hidden="true"><use href="#ramingo-mark" /></svg></div><div><strong>Наташа</strong><span>приглашает вас присоединиться к поездке</span></div></div>
+              <p class="lead">Откройте Ramingo, чтобы увидеть общий маршрут, заметки и планы путешествия.</p>
+              <div class="facts"><div class="fact"><span>Поездка</span><strong>Италия с семьёй</strong></div><div class="fact"><span>Даты</span><strong>12–19 сентября 2026</strong></div><div class="fact"><span>Роль</span><strong class="accent">Редактор</strong></div></div>
+            </div>
+            <div class="cta-row"><a class="cta" href="#">Присоединиться к поездке</a><p class="fallback">Нажмите кнопку, чтобы открыть поездку в Ramingo.</p></div>
+            <div class="footer">Ramingo · Travel planner<br><a href="#">support@ramingo.online</a></div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const buttons = [...document.querySelectorAll("[data-variant]")];
+      const variants = [...document.querySelectorAll(".variant")];
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const id = button.dataset.variant;
+          buttons.forEach((item) => item.classList.toggle("active", item === button));
+          variants.forEach((variant) => variant.classList.toggle("active", variant.id === id));
+        });
+      });
+    </script>
+  </body>
+</html>
