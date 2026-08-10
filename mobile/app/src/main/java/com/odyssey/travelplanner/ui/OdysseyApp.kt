@@ -4002,10 +4002,6 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 10.dp, top = 7.dp)) {
                             Text(localizedTripTitle(overview?.title.orEmpty()), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(localizedTripDateText(overview?.dates.orEmpty(), language, multilineDuration = true), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).background(secondarySurfaceColor(), CircleShape).clickable { sectionMenuOpen = false }) {
-                            Icon(Icons.Filled.Close, contentDescription = localized("Закрыть меню", "Close menu", "Cerrar menú", "Menü schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder))
