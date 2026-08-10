@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Редактирование путешествия — варианты</title>
+  <style>
+    :root {
+      --bg: #e9e9ee;
+      --screen: #f4f4f7;
+      --surface: #ffffff;
+      --surface-2: #f5f5f8;
+      --text: #141419;
+      --label: #3a3a42;
+      --muted: #8a8a95;
+      --border: #e6e6ec;
+      --purple: #6c5ce7;
+      --purple-2: #806ff0;
+      --tint: #f1eefe;
+      --danger: #d9534f;
+      --green: #22b07d;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background: var(--bg);
+      font-family: Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .page { min-height: 100vh; padding: 30px 24px 54px; }
+    .page-header { max-width: 1220px; margin: 0 auto 26px; text-align: center; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 10px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--purple), #8e7bf5);
+      font-size: 17px;
+      font-weight: 800;
+    }
+    h1 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+    .variant-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(300px, 390px));
+      justify-content: center;
+      gap: 22px;
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+    .variant { min-width: 0; }
+    .variant-heading { display: flex; align-items: baseline; gap: 9px; margin: 0 0 10px 6px; }
+    .variant-number {
+      display: grid;
+      width: 23px;
+      height: 23px;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--purple);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .variant-heading h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+    .variant-heading span { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .phone-frame {
+      width: 390px;
+      max-width: 100%;
+      padding: 11px;
+      border-radius: 42px;
+      background: #0c0c10;
+      box-shadow: 0 25px 55px rgba(20, 20, 40, .24), inset 0 0 0 2px #26262c;
+    }
+    .phone {
+      position: relative;
+      width: 368px;
+      max-width: 100%;
+      height: 800px;
+      overflow: hidden;
+      border-radius: 32px;
+      background: var(--screen);
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 34px;
+      padding: 6px 20px 0;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .status-icons { display: flex; align-items: center; gap: 7px; }
+    .signal { display: inline-flex; align-items: end; gap: 2px; height: 12px; }
+    .signal i { display: block; width: 3px; border-radius: 1px; background: currentColor; }
+    .signal i:nth-child(1) { height: 5px; }
+    .signal i:nth-child(2) { height: 7px; }
+    .signal i:nth-child(3) { height: 9px; }
+    .signal i:nth-child(4) { height: 12px; }
+    .wifi { width: 16px; height: 11px; border: 2px solid currentColor; border-top-color: transparent; border-left-color: transparent; border-radius: 50%; transform: rotate(45deg); }
+    .battery { position: relative; width: 24px; height: 11px; border: 1.5px solid currentColor; border-radius: 3px; }
+    .battery::after { position: absolute; top: 3px; right: -3px; width: 2px; height: 4px; border-radius: 1px; background: currentColor; content: ""; }
+    .battery::before { position: absolute; inset: 2px 4px 2px 2px; border-radius: 1px; background: currentColor; content: ""; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 54px;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .hamburger { width: 40px; height: 40px; padding: 8px; border: 0; background: transparent; }
+    .hamburger::before, .hamburger::after, .hamburger span { display: block; height: 2px; margin: 5px 0; border-radius: 2px; background: var(--text); content: ""; }
+    .mini-brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; }
+    .mini-mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; color: #fff; background: linear-gradient(135deg, var(--purple), #8e7bf5); font-size: 13px; }
+    .topbar-spacer { width: 40px; }
+    .home-content { padding: 18px; }
+    .home-content h3 { margin: 2px 0 16px; font-size: 31px; line-height: 1.04; letter-spacing: -.04em; }
+    .pills { display: flex; gap: 8px; overflow: hidden; margin: 0 -18px 18px; padding: 0 18px 3px; }
+    .pill { flex: 0 0 auto; padding: 9px 14px; border: 0; border-radius: 19px; color: var(--muted); background: var(--surface); font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .pill.active { color: #fff; background: var(--purple); box-shadow: 0 5px 12px rgba(108,92,231,.22); }
+    .trip-card { overflow: hidden; border-radius: 22px; background: var(--surface); box-shadow: 0 8px 26px rgba(20,20,40,.07); }
+    .trip-cover { position: relative; height: 170px; background: linear-gradient(135deg, #e7a86d 0%, #c66d62 44%, #4c517b 100%); }
+    .trip-cover::after { position: absolute; right: 22px; bottom: 20px; width: 100px; height: 95px; border-radius: 60% 40% 0 0; background: rgba(255,244,214,.6); content: ""; transform: rotate(-12deg); }
+    .trip-badge { position: absolute; top: 13px; left: 13px; z-index: 1; padding: 6px 10px; border-radius: 18px; color: #fff; background: rgba(25,25,40,.58); font-size: 11px; font-weight: 800; }
+    .trip-info { padding: 15px 16px 18px; }
+    .trip-info strong { display: block; font-size: 17px; }
+    .trip-info span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .backdrop { position: absolute; inset: 0; z-index: 4; background: rgba(15,15,25,.46); }
+    .modal { position: absolute; z-index: 5; color: var(--text); background: var(--surface); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+    .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 19px 19px 15px; border-bottom: 1px solid var(--border); }
+    .modal-kicker { margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .modal-title { font-size: 20px; font-weight: 800; line-height: 1.1; letter-spacing: -.025em; }
+    .close { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 10px; color: var(--muted); background: var(--surface-2); font-size: 22px; line-height: 1; }
+    .form { display: flex; flex-direction: column; gap: 13px; padding: 17px 19px 19px; }
+    .field { min-width: 0; }
+    .field label { display: block; margin: 0 0 7px; color: var(--label); font-size: 12px; font-weight: 800; }
+    .input { width: 100%; height: 45px; padding: 0 13px; border: 1.5px solid var(--border); border-radius: 13px; outline: 0; color: var(--text); background: var(--surface); font-size: 14px; font-weight: 700; }
+    .input.focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(108,92,231,.12); }
+    .date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hint { margin: -3px 0 0; color: var(--muted); font-size: 11px; font-weight: 600; }
+    .cover { position: relative; height: 102px; overflow: hidden; border-radius: 15px; background: linear-gradient(135deg, #e7a86d 0%, #c66d62 44%, #4c517b 100%); }
+    .cover::before { position: absolute; right: 18px; bottom: -7px; width: 75px; height: 75px; border-radius: 60% 40% 0 0; background: rgba(255,244,214,.62); content: ""; transform: rotate(-12deg); }
+    .cover::after { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(21,25,46,.2), transparent 60%); content: ""; }
+    .cover-button { position: absolute; top: 50%; left: 50%; z-index: 1; transform: translate(-50%,-50%); padding: 9px 12px; border: 0; border-radius: 11px; color: var(--text); background: rgba(255,255,255,.94); font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .actions { display: flex; gap: 9px; justify-content: flex-end; padding-top: 2px; }
+    .button { height: 43px; padding: 0 16px; border: 0; border-radius: 12px; color: var(--label); background: var(--surface-2); font-size: 13px; font-weight: 800; }
+    .button.primary { color: #fff; background: linear-gradient(135deg, var(--purple), var(--purple-2)); box-shadow: 0 7px 15px rgba(108,92,231,.23); }
+    .danger-link { display: flex; align-items: center; justify-content: center; gap: 7px; height: 39px; margin-top: 1px; border: 0; border-top: 1px solid var(--border); color: var(--danger); background: transparent; font-size: 12px; font-weight: 800; }
+    .trash { width: 14px; height: 14px; border: 1.8px solid currentColor; border-top: 0; border-radius: 0 0 3px 3px; position: relative; }
+    .trash::before { position: absolute; top: -4px; left: -2px; width: 14px; height: 2px; border-radius: 2px; background: currentColor; content: ""; }
+    .trash::after { position: absolute; top: -7px; left: 3px; width: 5px; height: 3px; border: 1.5px solid currentColor; border-bottom: 0; border-radius: 2px 2px 0 0; content: ""; }
+
+    /* Variant 1: faithful centered card. */
+    .variant-one .modal { top: 108px; right: 20px; bottom: 47px; left: 20px; overflow: auto; border-radius: 24px; }
+    .variant-one .form { gap: 13px; }
+
+    /* Variant 2: sheet with a calmer, thumb-friendly action area. */
+    .variant-two .modal { right: 0; bottom: 0; left: 0; max-height: 78%; overflow: auto; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 42px rgba(0,0,0,.2); }
+    .sheet-handle { width: 40px; height: 4px; margin: 10px auto -2px; border-radius: 4px; background: #dedee6; }
+    .variant-two .modal-header { border-bottom: 0; padding-top: 14px; }
+    .variant-two .modal-title { font-size: 23px; }
+    .variant-two .form { padding-top: 1px; }
+    .status-label { margin: 1px 0 -4px; color: var(--label); font-size: 12px; font-weight: 800; }
+    .status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; padding: 4px; border-radius: 13px; background: var(--surface-2); }
+    .status { height: 34px; padding: 0 3px; border: 0; border-radius: 9px; color: var(--muted); background: transparent; font-size: 10px; font-weight: 800; }
+    .status.selected { color: var(--text); background: var(--surface); box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+    .variant-two .actions { position: sticky; bottom: 0; margin: 0 -19px -19px; padding: 12px 19px 19px; background: linear-gradient(180deg, rgba(255,255,255,.84), #fff 26%); }
+    .variant-two .actions .button { flex: 1; }
+    .variant-two .danger-link { margin-top: 2px; }
+
+    /* Variant 3: information-first compact editor. */
+    .variant-three .modal { top: 125px; right: 18px; bottom: 52px; left: 18px; overflow: auto; border-radius: 22px; }
+    .variant-three .modal-header { padding: 17px 17px 14px; }
+    .variant-three .modal-title { font-size: 18px; }
+    .summary-card { display: flex; align-items: center; gap: 11px; padding: 12px; border-radius: 15px; background: var(--tint); }
+    .summary-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #fff; background: var(--purple); font-size: 17px; font-weight: 800; }
+    .summary-card strong { display: block; font-size: 13px; }
+    .summary-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 700; }
+    .compact-row { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 14px; }
+    .row-icon { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--purple); background: var(--tint); font-size: 14px; font-weight: 800; }
+    .compact-row span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; }
+    .compact-row strong { display: block; margin-top: 2px; font-size: 13px; }
+    .compact-row .chevron { margin-left: auto; color: #b0b0ba; font-size: 19px; }
+    .section-label { margin: -1px 0 -5px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .variant-three .form { gap: 11px; padding: 15px 17px 17px; }
+    .variant-three .actions { margin-top: 2px; }
+    .variant-three .button { flex: 1; }
+    .delete-card { display: flex; align-items: center; gap: 9px; padding: 11px; border: 1px solid #f1d0cf; border-radius: 14px; color: var(--danger); background: #fff8f7; font-size: 11px; font-weight: 800; }
+    .delete-card small { display: block; margin-top: 2px; color: #b78380; font-size: 9px; font-weight: 600; }
+
+    .notes { max-width: 1240px; margin: 18px auto 0; color: var(--muted); font-size: 12px; font-weight: 600; text-align: center; }
+    @media (max-width: 1050px) {
+      .variant-grid { grid-template-columns: repeat(2, minmax(300px, 390px)); }
+    }
+    @media (max-width: 700px) {
+      .page { padding: 22px 14px 36px; }
+      .variant-grid { grid-template-columns: minmax(290px, 390px); }
+      .phone-frame { margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div class="brand"><div class="brand-mark">R</div><h1>Редактирование путешествия</h1></div>
+      <p class="subtitle">Три варианта для Android · Италия с семьёй · выбери тот, который оставляем</p>
+    </header>
+
+    <section class="variant-grid">
+      <article class="variant variant-one">
+        <div class="variant-heading"><div class="variant-number">1</div><h2>Карточка</h2><span>ближе всего к прототипу</span></div>
+        <div class="phone-frame"><div class="phone">
+          <div class="status-bar"><span>22:05</span><div class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span class="wifi"></span><span class="battery"></span></div></div>
+          <div class="topbar"><button class="hamburger"><span></span></button><div class="mini-brand"><div class="mini-mark">R</div>Одиссея</div><div class="topbar-spacer"></div></div>
+          <div class="home-content"><h3>Мои путешествия</h3><div class="pills"><span class="pill active">Все · 2</span><span class="pill">Предстоящие · 1</span><span class="pill">Черновики · 1</span></div><div class="trip-card"><div class="trip-cover"><span class="trip-badge">Предстоящие</span></div><div class="trip-info"><strong>Италия с семьёй</strong><span>25 сен 2026 – 12 окт 2026 · 18 дней</span></div></div></div>
+          <div class="backdrop"></div>
+          <div class="modal"><div class="modal-header"><div><div class="modal-kicker">Путешествие</div><div class="modal-title">Редактирование<br>путешествия</div></div><button class="close">×</button></div><div class="form"><div class="field"><label>Название путешествия</label><input class="input focus" value="Италия с семьёй" readonly></div><div class="date-row"><div class="field"><label>Дата начала</label><input class="input" value="25 сен 2026" readonly></div><div class="field"><label>Дата окончания</label><input class="input" value="12 окт 2026" readonly></div></div><div class="hint">18 дней · текущие даты сохранены</div><div class="cover"><button class="cover-button">⌑&nbsp; Изменить обложку</button></div><div class="actions"><button class="button">Отмена</button><button class="button primary">Сохранить</button></div><button class="danger-link"><span class="trash"></span>Удалить путешествие</button></div></div>
+        </div></div>
+      </article>
+
+      <article class="variant variant-two">
+        <div class="variant-heading"><div class="variant-number">2</div><h2>Нижний лист</h2><span>удобнее одной рукой</span></div>
+        <div class="phone-frame"><div class="phone">
+          <div class="status-bar"><span>22:05</span><div class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span class="wifi"></span><span class="battery"></span></div></div>
+          <div class="topbar"><button class="hamburger"><span></span></button><div class="mini-brand"><div class="mini-mark">R</div>Одиссея</div><div class="topbar-spacer"></div></div>
+          <div class="home-content"><h3>Мои путешествия</h3><div class="pills"><span class="pill active">Все · 2</span><span class="pill">Предстоящие · 1</span><span class="pill">Черновики · 1</span></div><div class="trip-card"><div class="trip-cover"><span class="trip-badge">Предстоящие</span></div><div class="trip-info"><strong>Италия с семьёй</strong><span>25 сен 2026 – 12 окт 2026 · 18 дней</span></div></div></div>
+          <div class="backdrop"></div>
+          <div class="modal"><div class="sheet-handle"></div><div class="modal-header"><div><div class="modal-kicker">Изменить</div><div class="modal-title">Италия с семьёй</div></div><button class="close">×</button></div><div class="form"><div class="field"><label>Название путешествия</label><input class="input" value="Италия с семьёй" readonly></div><div class="field"><label>Города</label><input class="input" value="Зальцбург · Верона · Рим · Пиза" readonly></div><div class="date-row"><div class="field"><label>Начало</label><input class="input" value="25 сен" readonly></div><div class="field"><label>Окончание</label><input class="input" value="12 окт" readonly></div></div><div class="status-label">Статус путешествия</div><div class="status-row"><button class="status selected">Предстоящее</button><button class="status">Черновик</button><button class="status">Прошедшее</button></div><div class="actions"><button class="button">Отмена</button><button class="button primary">Сохранить</button></div><button class="danger-link"><span class="trash"></span>Удалить путешествие</button></div></div>
+        </div></div>
+      </article>
+
+      <article class="variant variant-three">
+        <div class="variant-heading"><div class="variant-number">3</div><h2>Компактный</h2><span>самый спокойный экран</span></div>
+        <div class="phone-frame"><div class="phone">
+          <div class="status-bar"><span>22:05</span><div class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span class="wifi"></span><span class="battery"></span></div></div>
+          <div class="topbar"><button class="hamburger"><span></span></button><div class="mini-brand"><div class="mini-mark">R</div>Одиссея</div><div class="topbar-spacer"></div></div>
+          <div class="home-content"><h3>Мои путешествия</h3><div class="pills"><span class="pill active">Все · 2</span><span class="pill">Предстоящие · 1</span><span class="pill">Черновики · 1</span></div><div class="trip-card"><div class="trip-cover"><span class="trip-badge">Предстоящие</span></div><div class="trip-info"><strong>Италия с семьёй</strong><span>25 сен 2026 – 12 окт 2026 · 18 дней</span></div></div></div>
+          <div class="backdrop"></div>
+          <div class="modal"><div class="modal-header"><div><div class="modal-kicker">Настройки поездки</div><div class="modal-title">Италия с семьёй</div></div><button class="close">×</button></div><div class="form"><div class="summary-card"><div class="summary-icon">R</div><div><strong>Предстоящее путешествие</strong><span>18 дней · 5 городов</span></div></div><div class="section-label">Основное</div><div class="field"><label>Название путешествия</label><input class="input" value="Италия с семьёй" readonly></div><div class="compact-row"><div class="row-icon">⌖</div><div><span>Маршрут</span><strong>Зальцбург · Верона · Рим · Пиза</strong></div><span class="chevron">›</span></div><div class="compact-row"><div class="row-icon">◷</div><div><span>Даты поездки</span><strong>25 сен – 12 окт 2026</strong></div><span class="chevron">›</span></div><div class="status-label">Статус</div><div class="status-row"><button class="status selected">Предстоящее</button><button class="status">Черновик</button><button class="status">Прошедшее</button></div><div class="actions"><button class="button">Отмена</button><button class="button primary">Сохранить</button></div><button class="delete-card"><span class="trash"></span><span>Удалить путешествие<small>Удаление нельзя отменить</small></span></button></div></div>
+        </div></div>
+      </article>
+    </section>
+    <p class="notes">Все варианты сохраняют один и тот же функционал. Отличается только подача: размер карточки, порядок полей и способ показать удаление.</p>
+  </main>
+</body>
+</html>

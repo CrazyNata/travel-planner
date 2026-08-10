@@ -204,10 +204,28 @@ data class ExpenseInput(
     val date: String = "",
 )
 
+private fun collectTripPhotoPaths(payload: JsonObject): Set<String> {
+    val paths = linkedSetOf<String>()
+
+    fun visit(element: JsonElement) {
+        when (element) {
+            is JsonObject -> element.values.forEach(::visit)
+            is kotlinx.serialization.json.JsonArray -> element.forEach(::visit)
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                tripPhotoPath(element.contentOrNull)?.let { paths += it }
+            }
+        }
+    }
+
+    visit(payload)
+    return paths
+}
+
 interface TripRepository {
     suspend fun loadTrips(): List<TripCard>
     suspend fun loadTripOverview(id: String): TripOverview?
     suspend fun createTrip(title: String, startDate: String, endDate: String, cities: String): TripCard
+    suspend fun deleteTrip(id: String)
     suspend fun updateTripSection(id: String, key: String, value: JsonElement)
     suspend fun addRouteLeg(
         id: String,
@@ -535,6 +553,25 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
         client.from("trips").insert(listOf(TripInsert(id, ownerId, payload)))
         return TripCard(id, resolvedTitle, dates, "Черновик", 0, cities.trim(), null)
+    }
+
+    override suspend fun deleteTrip(id: String) {
+        val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
+            ?: error("Необходимо войти в аккаунт")
+        val current = loadTripRow(id)
+        check(current.ownerId == currentUserId) {
+            "Только владелец путешествия может его удалить"
+        }
+
+        collectTripPhotoPaths(current.payload).forEach { path ->
+            client.storage.from("trip-photos").delete(path)
+        }
+        client.from("trips").delete {
+            filter {
+                eq("id", id)
+                eq("owner_id", currentUserId)
+            }
+        }
     }
 
     private suspend fun loadTripRow(id: String): TripRow =

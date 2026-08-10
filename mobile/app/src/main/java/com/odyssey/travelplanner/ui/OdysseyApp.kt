@@ -95,6 +95,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Hotel
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
@@ -211,6 +212,7 @@ import java.net.URL
 import java.net.URLEncoder
 import java.util.Calendar
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 
@@ -295,7 +297,7 @@ private fun localizedDatePickerContext(context: Context, language: String): Cont
         else -> Locale.forLanguageTag("ru")
     }
     val configuration = Configuration(context.resources.configuration).apply { setLocale(locale) }
-    return ContextThemeWrapper(context, context.theme).apply {
+    return ContextThemeWrapper(context, R.style.Theme_Ramingo_DatePicker).apply {
         applyOverrideConfiguration(configuration)
     }
 }
@@ -1979,16 +1981,24 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 24.dp)
-                            .heightIn(max = 700.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 18.dp)
+                            .heightIn(max = 740.dp)
+                            .clip(RoundedCornerShape(22.dp))
                             .background(cardSurfaceColor())
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        EditTripPanel(editingTrip!!, onClose = { editingTrip = null }, onSaved = { updated ->
-                            trips = trips.map { if (it.id == updated.id) updated else it }
-                            editingTrip = null
-                        })
+                        EditTripPanel(
+                            editingTrip!!,
+                            onClose = { editingTrip = null },
+                            onSaved = { updated ->
+                                trips = trips.map { if (it.id == updated.id) updated else it }
+                                editingTrip = null
+                            },
+                            onDeleted = { deletedId ->
+                                trips = trips.filterNot { it.id == deletedId }
+                                editingTrip = null
+                            },
+                        )
                     }
                 }
             }
@@ -2718,7 +2728,382 @@ private fun AccountMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVecto
 }
 
 @Composable
-private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCard) -> Unit) {
+private fun CompactTripEditField(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onValueChange: (String) -> Unit,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val surface = cardSurfaceColor()
+    val border = if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            label,
+            color = if (darkTheme) Color(0xFFF5F6FA) else Color(0xFF3A3A42),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 12.sp,
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            leadingIcon = icon?.let { iconValue ->
+                {
+                    Icon(iconValue, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(18.dp))
+                }
+            },
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 14.sp,
+            ),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = OdysseyPurple,
+                unfocusedBorderColor = border,
+                focusedContainerColor = surface,
+                unfocusedContainerColor = surface,
+                cursorColor = OdysseyPurple,
+            ),
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        )
+    }
+}
+
+@Composable
+private fun CompactTripDateField(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val surface = cardSurfaceColor()
+    val border = if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            label,
+            color = if (darkTheme) Color(0xFFF5F6FA) else Color(0xFF3A3A42),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 12.sp,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.5.dp, border, RoundedCornerShape(14.dp))
+                .background(surface)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+        ) {
+            Icon(
+                Icons.Outlined.DateRange,
+                contentDescription = localized("Открыть календарь", "Open calendar", "Abrir calendario", "Kalender öffnen"),
+                tint = OdysseyPurple,
+                modifier = Modifier.size(19.dp),
+            )
+            Text(
+                value,
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
+    val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value)
+        .mapNotNull { match -> runCatching { LocalDate.parse(match.value) }.getOrNull() }
+        .toList()
+    if (isoDates.isNotEmpty()) {
+        val start = isoDates.first()
+        return start to isoDates.getOrElse(1) { start }
+    }
+
+    val humanDates = Regex("""(\d{1,2})\s+([A-Za-zА-Яа-яЁёÄÖÜäöüß]+)\s+(\d{4})""").findAll(value)
+        .mapNotNull { match ->
+            val month = when (match.groupValues[2].lowercase(Locale.ROOT).take(4)) {
+                "янва", "janu", "jan", "ene" -> 1
+                "февр", "febr", "feb" -> 2
+                "мар", "mär", "mar", "march" -> 3
+                "апре", "apr" -> 4
+                "мая", "май", "may", "mai" -> 5
+                "июн", "june", "jun" -> 6
+                "июл", "july", "jul" -> 7
+                "авгу", "aug", "ago" -> 8
+                "сент", "сен", "sept", "sep" -> 9
+                "октя", "окт", "oct", "okt" -> 10
+                "нояб", "nov" -> 11
+                "дека", "дек", "dec", "dez" -> 12
+                else -> null
+            } ?: return@mapNotNull null
+            runCatching { LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt()) }.getOrNull()
+        }
+        .toList()
+    val start = humanDates.firstOrNull() ?: return null
+    return start to humanDates.getOrElse(1) { start }
+}
+
+private fun calendarForTripDate(date: LocalDate): Calendar = Calendar.getInstance().apply {
+    set(date.year, date.monthValue - 1, date.dayOfMonth, 0, 0, 0)
+    set(Calendar.MILLISECOND, 0)
+}
+
+private fun tripCalendarMonthLabel(month: YearMonth, language: String): String {
+    val names = when (normalizeLanguage(language)) {
+        "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+        "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+        "DE" -> listOf("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
+        else -> listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+    }
+    return "${names[month.monthValue - 1]} ${month.year}"
+}
+
+private fun tripCalendarWeekdays(language: String): List<String> = when (normalizeLanguage(language)) {
+    "EN" -> listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+    "ES" -> listOf("Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do")
+    "DE" -> listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+    else -> listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+}
+
+@Composable
+private fun TripCalendarRangeChip(
+    label: String,
+    date: LocalDate?,
+    selected: Boolean,
+    language: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (selected) tintedSurfaceColor() else secondarySurfaceColor())
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+    ) {
+        Text(label, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
+        Text(
+            date?.let { localizedTripDateText(it.toString(), language) }
+                ?: localized("Выбрать", "Choose", "Elegir", "Auswählen"),
+            color = if (date == null) secondaryTextColor() else contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun TripDateCalendarDialog(
+    language: String,
+    month: YearMonth,
+    startDate: LocalDate?,
+    endDate: LocalDate?,
+    selectingEnd: Boolean,
+    onMonthChange: (YearMonth) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    onStartClick: () -> Unit,
+    onEndClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val calendarDays = buildList<LocalDate?> {
+        repeat(month.atDay(1).dayOfWeek.value - 1) { add(null) }
+        for (day in 1..month.lengthOfMonth()) add(month.atDay(day))
+    }
+    val weekdays = tripCalendarWeekdays(language)
+    val canConfirm = startDate != null && endDate != null && !endDate.isBefore(startDate)
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x660F0F19)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 22.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cardSurfaceColor())
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            localized("ДАТЫ ПОЕЗДКИ", "TRIP DATES", "FECHAS DEL VIAJE", "REISEDATEN"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.8.sp,
+                        )
+                        Text(
+                            localized("Выбрать даты", "Choose dates", "Elegir fechas", "Daten auswählen"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 21.sp,
+                            lineHeight = 24.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(secondarySurfaceColor())
+                            .clickable(onClick = onDismiss),
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(17.dp))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    TripCalendarRangeChip(
+                        label = localized("Начало", "Start", "Inicio", "Beginn"),
+                        date = startDate,
+                        selected = !selectingEnd,
+                        language = language,
+                        modifier = Modifier.weight(1f),
+                        onClick = onStartClick,
+                    )
+                    TripCalendarRangeChip(
+                        label = localized("Окончание", "End", "Fin", "Ende"),
+                        date = endDate,
+                        selected = selectingEnd,
+                        language = language,
+                        modifier = Modifier.weight(1f),
+                        onClick = onEndClick,
+                    )
+                }
+                Text(
+                    if (selectingEnd) localized("Теперь выберите дату окончания", "Now choose the end date", "Ahora elija la fecha de fin", "Wählen Sie jetzt das Ende")
+                    else localized("Выберите дату начала поездки", "Choose the start date", "Elija la fecha de inicio", "Wählen Sie den Beginn"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 12.sp,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(secondarySurfaceColor())
+                            .clickable { onMonthChange(month.minusMonths(1)) },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущий месяц", "Previous month", "Mes anterior", "Vorheriger Monat"), tint = contentTextColor(), modifier = Modifier.size(20.dp))
+                    }
+                    Text(tripCalendarMonthLabel(month, language), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(secondarySurfaceColor())
+                            .clickable { onMonthChange(month.plusMonths(1)) },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Следующий месяц", "Next month", "Mes siguiente", "Nächster Monat"), tint = contentTextColor(), modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = 180f))
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    weekdays.forEach { weekday ->
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(24.dp)) {
+                            Text(weekday, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
+                        }
+                    }
+                }
+                calendarDays.chunked(7).forEach { week ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        week.forEach { date ->
+                            val isStart = date != null && date == startDate
+                            val isEnd = date != null && date == endDate
+                            val inRange = date != null && startDate != null && endDate != null && date.isAfter(startDate) && date.isBefore(endDate)
+                            val enabled = date != null && (!selectingEnd || startDate == null || !date.isBefore(startDate))
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        when {
+                                            isStart || isEnd -> OdysseyPurple
+                                            inRange -> tintedSurfaceColor()
+                                            else -> Color.Transparent
+                                        },
+                                    )
+                                    .clickable(enabled = enabled) { date?.let(onDateSelected) },
+                            ) {
+                                date?.let {
+                                    Text(
+                                        it.dayOfMonth.toString(),
+                                        color = when {
+                                            isStart || isEnd -> Color.White
+                                            !enabled -> secondaryTextColor().copy(alpha = 0.35f)
+                                            else -> contentTextColor()
+                                        },
+                                        fontFamily = Manrope,
+                                        fontWeight = if (isStart || isEnd) FontWeight.W800 else FontWeight.W700,
+                                        fontSize = 14.sp,
+                                    )
+                                }
+                            }
+                        }
+                        repeat(7 - week.size) {
+                            Spacer(Modifier.weight(1f).height(42.dp))
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(46.dp),
+                    ) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
+                    Button(
+                        onClick = onConfirm,
+                        enabled = canConfirm,
+                        colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple, contentColor = Color.White, disabledContainerColor = secondarySurfaceColor(), disabledContentColor = secondaryTextColor()),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(46.dp),
+                    ) { Text(localized("Готово", "Done", "Listo", "Fertig"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditTripPanel(
+    trip: TripCard,
+    onClose: () -> Unit,
+    onSaved: (TripCard) -> Unit,
+    onDeleted: (String) -> Unit,
+) {
     val language = LocalLanguage.current
     val displayedTitle = localizedTripTitle(trip.title)
     val displayedCities = localizedCityList(trip.cities, language)
@@ -2728,15 +3113,168 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
     var dates by remember(trip.id, language) { mutableStateOf(displayedDates) }
     var status by remember(trip.id) { mutableStateOf(trip.status) }
     var saving by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var deleteDialogOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor()).padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(localized("Редактировать путешествие", "Edit trip", "Editar viaje", "Reise bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp)
-        AuthField(localized("Название", "Title", "Nombre", "Name"), localized("Название", "Title", "Nombre", "Name"), title) { title = it }
-        AuthField(localized("Города", "Cities", "Ciudades", "Städte"), localized("Города", "Cities", "Ciudades", "Städte"), cities) { cities = it }
-        AuthField(localized("Даты", "Dates", "Fechas", "Daten"), localized("Например, 12–15 сентября", "For example, Sep 12–15", "Por ejemplo, 12–15 de septiembre", "Zum Beispiel 12.–15. September"), dates) { dates = it }
-        Text(localized("Статус путешествия", "Trip status", "Estado del viaje", "Reisestatus"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+    var tripCalendarOpen by remember { mutableStateOf(false) }
+    var tripCalendarStep by remember { mutableStateOf("start") }
+    var tripCalendarMonth by remember { mutableStateOf(YearMonth.now()) }
+    var tripCalendarStart by remember { mutableStateOf<LocalDate?>(null) }
+    var tripCalendarEnd by remember { mutableStateOf<LocalDate?>(null) }
+
+    fun openTripDatePicker() {
+        val fallbackStart = LocalDate.now()
+        val currentRange = parseTripDateRange(dates) ?: parseTripDateRange(trip.dates)
+        val currentStart = currentRange?.first ?: fallbackStart
+        tripCalendarStart = currentStart
+        tripCalendarEnd = currentRange?.second ?: currentStart.plusDays(1)
+        tripCalendarMonth = YearMonth.from(currentStart)
+        tripCalendarStep = "start"
+        tripCalendarOpen = true
+    }
+
+    fun deleteTrip() {
+        deleteDialogOpen = false
+        scope.launch {
+            deleting = true
+            message = null
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTrip(trip.id)
+            }
+                .onSuccess { onDeleted(trip.id) }
+                .onFailure {
+                    message = it.message ?: localized(
+                        language,
+                        "Не удалось удалить путешествие",
+                        "Could not delete trip",
+                        "No se pudo eliminar el viaje",
+                        "Reise konnte nicht gelöscht werden",
+                    )
+                }
+            deleting = false
+        }
+    }
+
+    val summaryTitle = when {
+        status.contains("чернов", ignoreCase = true) || status.equals("draft", ignoreCase = true) -> localized("Черновик путешествия", "Draft trip", "Borrador de viaje", "Reiseentwurf")
+        status.contains("прошед", ignoreCase = true) || status.contains("заверш", ignoreCase = true) || status.equals("past", ignoreCase = true) || status.equals("completed", ignoreCase = true) -> localized("Завершённое путешествие", "Completed trip", "Viaje completado", "Abgeschlossene Reise")
+        else -> localized("Предстоящее путешествие", "Upcoming trip", "Próximo viaje", "Bevorstehende Reise")
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(cardSurfaceColor())
+            .padding(15.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("НАСТРОЙКИ ПОЕЗДКИ", "TRIP SETTINGS", "AJUSTES DEL VIAJE", "REISEEINSTELLUNGEN"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 10.sp,
+                    letterSpacing = 0.8.sp,
+                )
+                Text(
+                    displayedTitle,
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 21.sp,
+                    lineHeight = 24.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(secondarySurfaceColor())
+                    .clickable(onClick = onClose),
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                    tint = secondaryTextColor(),
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+        }
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(contentBorderColor()))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(15.dp))
+                .background(tintedSurfaceColor())
+                .padding(12.dp),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(OdysseyPurple),
+            ) {
+                Text("R", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(summaryTitle, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(localizedTripDateText(dates, language), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            }
+        }
+        Text(
+            localized("ОСНОВНОЕ", "MAIN DETAILS", "DATOS PRINCIPALES", "GRUNDDATEN"),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 11.sp,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(top = 1.dp),
+        )
+        CompactTripEditField(
+            localized("Название путешествия", "Trip name", "Nombre del viaje", "Name der Reise"),
+            title,
+        ) { title = it }
+        CompactTripEditField(
+            localized("Маршрут", "Route", "Ruta", "Route"),
+            cities,
+            Icons.Outlined.LocationOn,
+        ) { cities = it }
+        CompactTripDateField(
+            localized("Даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"),
+            localizedTripDateText(dates, language),
+            ::openTripDatePicker,
+        )
+        Text(
+            localized("Статус", "Status", "Estado", "Status"),
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 1.dp),
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(13.dp))
+                .background(secondarySurfaceColor())
+                .padding(4.dp),
+        ) {
             listOf(
                 "Предстоящее" to localized("Предстоящие", "Upcoming", "Próximos", "Bevorstehend"),
                 "Черновик" to localized("Черновики", "Drafts", "Borradores", "Entwürfe"),
@@ -2747,14 +3285,22 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
                     "Черновик" -> status.contains("чернов", ignoreCase = true) || status.equals("draft", ignoreCase = true)
                     else -> status.contains("прошед", ignoreCase = true) || status.contains("заверш", ignoreCase = true) || status.equals("past", ignoreCase = true) || status.equals("completed", ignoreCase = true)
                 }
-                Button(onClick = { status = value }, colors = ButtonDefaults.buttonColors(containerColor = if (selected) OdysseyPurple else secondarySurfaceColor(), contentColor = if (selected) Color.White else contentTextColor()), shape = RoundedCornerShape(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 8.dp), modifier = Modifier.weight(1f)) {
-                    Text(label, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, maxLines = 1)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (selected) cardSurfaceColor() else Color.Transparent)
+                        .clickable { status = value },
+                ) {
+                    Text(label, color = if (selected) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
             Button(onClick = {
                 scope.launch {
                     saving = true
@@ -2770,8 +3316,109 @@ private fun EditTripPanel(trip: TripCard, onClose: () -> Unit, onSaved: (TripCar
                         .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
                     saving = false
                 }
-            }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+            }, enabled = !saving && !deleting, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
         }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, Color(0xFFF1D0CF), RoundedCornerShape(14.dp))
+                .background(Color(0xFFFFF8F7))
+                .clickable(enabled = !saving && !deleting) { deleteDialogOpen = true }
+                .padding(11.dp),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color(0xFFFFE9E7)),
+            ) {
+                Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color(0xFFD9534F), modifier = Modifier.size(17.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(localized("Удалить путешествие", "Delete trip", "Eliminar viaje", "Reise löschen"), color = Color(0xFFD9534F), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                Text(localized("Удаление нельзя отменить", "This cannot be undone", "No se puede deshacer", "Das kann nicht rückgängig gemacht werden"), color = Color(0xFFB78380), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+    if (tripCalendarOpen) {
+        TripDateCalendarDialog(
+            language = language,
+            month = tripCalendarMonth,
+            startDate = tripCalendarStart,
+            endDate = tripCalendarEnd,
+            selectingEnd = tripCalendarStep == "end",
+            onMonthChange = { tripCalendarMonth = it },
+            onDateSelected = { selectedDate ->
+                if (tripCalendarStep == "start") {
+                    tripCalendarStart = selectedDate
+                    tripCalendarEnd = tripCalendarEnd?.takeIf { !it.isBefore(selectedDate) }
+                    tripCalendarMonth = YearMonth.from(tripCalendarEnd ?: selectedDate)
+                    tripCalendarStep = "end"
+                } else if (tripCalendarStart == null || !selectedDate.isBefore(tripCalendarStart)) {
+                    tripCalendarEnd = selectedDate
+                }
+            },
+            onStartClick = {
+                tripCalendarStep = "start"
+                tripCalendarStart?.let { tripCalendarMonth = YearMonth.from(it) }
+            },
+            onEndClick = {
+                tripCalendarStep = "end"
+                tripCalendarEnd?.let { tripCalendarMonth = YearMonth.from(it) }
+            },
+            onDismiss = { tripCalendarOpen = false },
+            onConfirm = {
+                val selectedStart = tripCalendarStart
+                val selectedEnd = tripCalendarEnd
+                if (selectedStart != null && selectedEnd != null && !selectedEnd.isBefore(selectedStart)) {
+                    dates = "$selectedStart — $selectedEnd"
+                    tripCalendarOpen = false
+                }
+            },
+        )
+    }
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) deleteDialogOpen = false },
+            title = {
+                Text(localized("Удалить путешествие?", "Delete trip?", "¿Eliminar viaje?", "Reise löschen?"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+            },
+            text = {
+                Text(
+                    localized(
+                        "Путешествие, его фотографии и данные будут удалены без возможности восстановления.",
+                        "This trip, its photos, and all of its data will be permanently deleted.",
+                        "Este viaje, sus fotos y todos sus datos se eliminarán de forma permanente.",
+                        "Diese Reise, ihre Fotos und alle Daten werden dauerhaft gelöscht.",
+                    ),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }, enabled = !deleting) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = ::deleteTrip,
+                    enabled = !deleting,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(
+                        if (deleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
+                        else localized("Удалить", "Delete", "Eliminar", "Löschen"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
+            },
+        )
     }
 }
 
