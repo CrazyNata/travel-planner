@@ -1,0 +1,1980 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · варианты навигации</title>
+  <style>
+    :root {
+      --bg: #f2f1f6;
+      --phone: #f9f8fb;
+      --surface: #ffffff;
+      --surface-soft: #f0eef7;
+      --text: #17171d;
+      --muted: #8d8d98;
+      --line: #e7e5eb;
+      --purple: #6c5ce7;
+      --purple-soft: #eeeafd;
+      --green: #22a975;
+      --shadow: 0 18px 55px rgba(33, 31, 53, .16);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 0%, #ffffff 0, transparent 33%),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .page {
+      width: min(1160px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 34px 0 54px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 auto 26px;
+      width: fit-content;
+      color: #696874;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      color: white;
+      background: linear-gradient(135deg, #6c5ce7, #886ff0);
+      box-shadow: 0 8px 18px rgba(108, 92, 231, .28);
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .intro {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .intro h1 {
+      margin: 0;
+      font-size: clamp(25px, 4vw, 40px);
+      letter-spacing: -.04em;
+    }
+
+    .intro p {
+      max-width: 670px;
+      margin: 10px auto 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .variant-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 auto 32px;
+    }
+
+    .solo-control {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      margin: 0 auto 14px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .78);
+    }
+
+    .solo-control strong { display: block; font-size: 12px; }
+    .solo-control small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+    .solo-control button {
+      flex: 0 0 auto;
+      min-width: 64px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .solo-control button.off { color: var(--muted); background: #f0eff4; }
+
+    body.solo-view {
+      display: grid;
+      min-height: 100vh;
+      padding: 24px;
+      place-items: center;
+    }
+
+    body.solo-view .page {
+      width: min(100%, 400px);
+      padding: 0;
+    }
+
+    body.solo-view .brand,
+    body.solo-view .intro,
+    body.solo-view .variant-grid,
+    body.solo-view .notes,
+    body.solo-view .hint {
+      display: none;
+    }
+
+    body.solo-view .solo-control { display: flex; }
+    body.solo-view .solo-control:empty { display: none; }
+
+    body.solo-view .workspace {
+      display: block;
+      width: fit-content;
+      margin: 0 auto;
+    }
+
+    body.solo-view .phone-wrap {
+      margin: 0;
+      max-height: calc(100vh - 28px);
+      box-shadow: 0 24px 60px rgba(24, 21, 41, .2), inset 0 0 0 2px #2c2c33;
+    }
+
+    body.solo-view .phone {
+      height: min(790px, calc(100vh - 52px));
+    }
+
+    body.solo-view .menu-item {
+      min-height: 44px;
+      transition: background .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    body.solo-view .menu-item:active {
+      transform: scale(.985);
+    }
+
+    body.solo-view .menu-footer {
+      margin-bottom: 3px;
+      border-radius: 12px;
+      color: var(--text);
+      background: var(--surface-soft);
+    }
+
+    body.solo-view .menu-settings .menu-item {
+      border: 1px solid var(--line);
+      background: #faf9fd;
+    }
+
+    .variant-card {
+      min-height: 102px;
+      padding: 14px;
+      text-align: left;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .76);
+      transition: .2s ease;
+    }
+
+    .variant-card:hover { transform: translateY(-2px); }
+    .variant-card.active {
+      border-color: var(--purple);
+      background: var(--surface);
+      box-shadow: 0 8px 22px rgba(108, 92, 231, .15);
+    }
+
+    .variant-card .number {
+      display: inline-grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .variant-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .variant-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 400px;
+      gap: 58px;
+      align-items: start;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .notes {
+      padding-top: 28px;
+    }
+
+    .notes h2 {
+      margin: 0 0 16px;
+      font-size: 22px;
+      letter-spacing: -.025em;
+    }
+
+    .notes .lead {
+      margin: 0 0 24px;
+      color: #5f5e68;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .note-list {
+      display: grid;
+      gap: 11px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .note-list li {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 11px;
+      align-items: start;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(255, 255, 255, .63);
+    }
+
+    .note-list b {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-size: 12px;
+    }
+
+    .note-list strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 14px;
+    }
+
+    .note-list span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .phone-wrap {
+      position: relative;
+      width: 400px;
+      padding: 12px 10px;
+      border-radius: 47px;
+      background: #111116;
+      box-shadow: var(--shadow), inset 0 0 0 2px #2c2c33;
+    }
+
+    .phone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 380px;
+      height: 790px;
+      overflow: hidden;
+      border-radius: 37px;
+      background: var(--phone);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 0 0 34px;
+      padding: 6px 23px 0;
+      color: #2a2930;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .topbar {
+      position: relative;
+      display: flex;
+      align-items: center;
+      flex: 0 0 57px;
+      padding: 0 13px;
+      border-bottom: 1px solid rgba(0, 0, 0, .06);
+      background: var(--phone);
+      z-index: 5;
+    }
+
+    .back {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      margin-left: -5px;
+      border-radius: 14px;
+      background: transparent;
+      font-size: 26px;
+      font-weight: 400;
+    }
+
+    .back:hover { background: var(--surface-soft); }
+
+    .title-trigger {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 8px;
+      text-align: center;
+      border-radius: 12px;
+      background: transparent;
+    }
+
+    .title-trigger:hover { background: var(--surface-soft); }
+    .title-trigger small {
+      display: block;
+      overflow: hidden;
+      color: #a0a0aa;
+      font-size: 9px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .title-trigger strong {
+      display: block;
+      margin-top: 1px;
+      font-size: 15px;
+    }
+
+    .title-trigger .chevron {
+      display: inline-block;
+      margin-left: 3px;
+      color: var(--purple);
+      transition: .2s ease;
+    }
+
+    .title-trigger.open .chevron { transform: rotate(180deg); }
+    .topbar-spacer { width: 42px; }
+
+    .content {
+      position: relative;
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px 25px;
+      scrollbar-width: none;
+    }
+
+    .content::-webkit-scrollbar { display: none; }
+
+    .section-kicker {
+      margin: 3px 0 7px;
+      color: var(--purple);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+
+    .content h2 {
+      margin: 0 0 5px;
+      font-size: 25px;
+      letter-spacing: -.04em;
+    }
+
+    .subtext {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .hero {
+      position: relative;
+      height: 205px;
+      overflow: hidden;
+      margin: 0 0 12px;
+      padding: 17px;
+      border-radius: 21px;
+      color: white;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, .02) 20%, rgba(7, 22, 38, .74) 100%),
+        linear-gradient(140deg, #c8dbe0 0%, #8aacc0 42%, #1c405e 100%);
+    }
+
+    .hero:before {
+      position: absolute;
+      content: "";
+      right: -20px;
+      top: 25px;
+      width: 210px;
+      height: 170px;
+      border-radius: 50% 50% 0 0;
+      background: linear-gradient(160deg, transparent 10%, rgba(24, 61, 91, .8) 11% 28%, transparent 29% 36%, rgba(18, 57, 86, .83) 37% 60%, transparent 61%);
+      transform: rotate(-12deg);
+    }
+
+    .hero b {
+      position: absolute;
+      left: 17px;
+      bottom: 16px;
+      font-size: 24px;
+      letter-spacing: -.03em;
+    }
+
+    .dots {
+      position: absolute;
+      right: 16px;
+      top: 17px;
+      color: #fff;
+      font-size: 13px;
+      letter-spacing: 4px;
+    }
+
+    .map-card {
+      height: 168px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #d4eee6 0%, #b3d7e6 53%, #8fb6d0 100%);
+    }
+
+    .map-card .map-lines {
+      position: relative;
+      width: 100%;
+      height: 128px;
+      background:
+        linear-gradient(28deg, transparent 47%, rgba(108, 92, 231, .88) 48% 51%, transparent 52%),
+        linear-gradient(154deg, transparent 43%, rgba(108, 92, 231, .88) 44% 47%, transparent 48%),
+        linear-gradient(8deg, transparent 61%, rgba(108, 92, 231, .88) 62% 65%, transparent 66%);
+    }
+
+    .map-card .map-lines:after {
+      position: absolute;
+      content: "4  ·  7  ·  3  ·  5  ·  9";
+      left: 55px;
+      top: 42px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 8px;
+      text-shadow: 0 0 0 #fff;
+    }
+
+    .map-caption {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 15px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .77);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .map-caption strong { color: var(--text); }
+
+    .panel {
+      padding: 15px;
+      margin-bottom: 11px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--surface);
+      box-shadow: 0 3px 12px rgba(38, 35, 57, .04);
+    }
+
+    .panel-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-row + .panel-row { margin-top: 12px; }
+    .panel strong { font-size: 14px; }
+    .panel small { display: block; color: var(--muted); font-size: 11px; }
+    .panel .value { color: var(--purple); font-size: 14px; font-weight: 900; }
+
+    .settings-list { display: grid; gap: 10px; }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--surface);
+      box-shadow: 0 3px 12px rgba(38, 35, 57, .04);
+    }
+
+    .settings-row strong { display: block; font-size: 13px; }
+    .settings-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .settings-row .settings-arrow { margin-left: auto; color: var(--muted); font-size: 21px; }
+
+    .catalog-card {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      text-align: left;
+      background: var(--surface);
+      box-shadow: 0 3px 12px rgba(38, 35, 57, .04);
+    }
+
+    .catalog-card:hover { border-color: #c5bdf5; background: var(--purple-soft); }
+    .catalog-card strong { display: block; font-size: 14px; }
+    .catalog-card span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .catalog-card .catalog-meta { margin-top: 11px; color: var(--purple); font-size: 10px; font-weight: 850; }
+
+    .progress {
+      height: 7px;
+      margin-top: 11px;
+      overflow: hidden;
+      border-radius: 9px;
+      background: #e9e7ef;
+    }
+
+    .progress i {
+      display: block;
+      width: 62%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #6c5ce7, #947df0);
+    }
+
+    .day-pills {
+      display: flex;
+      gap: 7px;
+      overflow: auto;
+      margin: 0 -2px 14px;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+
+    .day-pills::-webkit-scrollbar { display: none; }
+    .day-pill {
+      flex: 0 0 auto;
+      padding: 9px 12px;
+      border-radius: 11px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .day-pill.active {
+      color: #fff;
+      background: var(--purple);
+      box-shadow: 0 6px 14px rgba(108, 92, 231, .22);
+    }
+
+    .place-row {
+      display: flex;
+      gap: 11px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .place-row:last-child { border-bottom: 0; }
+    .place-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 31px;
+      width: 31px;
+      height: 31px;
+      border-radius: 10px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-size: 13px;
+    }
+
+    .place-row strong { display: block; font-size: 13px; }
+    .place-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .check {
+      margin-left: auto;
+      color: var(--green);
+      font-size: 17px;
+    }
+
+    .section-menu {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      width: 310px;
+      padding: 20px 14px 18px;
+      overflow: auto;
+      background: var(--surface);
+      box-shadow: 13px 0 36px rgba(24, 21, 41, .18);
+      border-radius: 0 22px 22px 0;
+      transform: translateX(-105%);
+      transition: transform .25s ease;
+    }
+
+    .section-menu.open { transform: translateX(0); }
+
+    .menu-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 5px 18px;
+    }
+
+    .menu-brand .brand-mark { width: 35px; height: 35px; border-radius: 11px; font-size: 17px; }
+    .menu-brand strong { display: block; font-size: 14px; }
+    .menu-brand small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+
+    .menu-label {
+      margin: 10px 6px 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+
+    .menu-divider {
+      height: 1px;
+      margin: 12px 6px 4px;
+      background: var(--line);
+    }
+
+    .menu-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      scrollbar-width: none;
+    }
+
+    .menu-scroll::-webkit-scrollbar { display: none; }
+
+    .menu-bottom {
+      flex: 0 0 auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .menu-settings { margin: 0; padding: 0; border: 0; }
+    .menu-settings .menu-label { margin-top: 0; }
+    .menu-bottom .menu-footer {
+      margin-top: 0;
+      border-top: 0;
+      padding: 11px;
+      border-radius: 13px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-weight: 850;
+    }
+
+    .menu-bottom .menu-footer:hover { color: var(--purple); background: var(--purple-soft); }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      padding: 12px 11px;
+      margin-bottom: 2px;
+      border-radius: 13px;
+      text-align: left;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .menu-item:hover, .menu-item.active { color: var(--purple); background: var(--purple-soft); }
+    .menu-icon { width: 22px; text-align: center; font-size: 16px; }
+
+    .hamburger-button {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      margin-left: -5px;
+      border-radius: 13px;
+      color: var(--text);
+      background: transparent;
+      font-size: 21px;
+      line-height: 1;
+    }
+
+    .hamburger-button:hover { background: var(--surface-soft); }
+
+    .root-settings-button {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 17px;
+    }
+
+    .root-settings-button:hover { color: var(--purple); background: var(--surface-soft); }
+
+    .hamburger-title {
+      flex: 1;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .hamburger-title small {
+      display: block;
+      overflow: hidden;
+      color: #a0a0aa;
+      font-size: 9px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hamburger-title strong {
+      display: block;
+      margin-top: 1px;
+      font-size: 15px;
+    }
+
+    .menu-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      margin-top: auto;
+      padding: 12px 11px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .menu-footer:hover { color: var(--purple); }
+
+    .menu-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 25;
+      background: rgba(14, 12, 22, .42);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+    }
+
+    .menu-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .tabs-strip {
+      display: flex;
+      gap: 18px;
+      overflow: auto;
+      flex: 0 0 47px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--phone);
+      scrollbar-width: none;
+    }
+
+    .tabs-strip::-webkit-scrollbar { display: none; }
+    .strip-item {
+      position: relative;
+      flex: 0 0 auto;
+      padding: 15px 1px 11px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .strip-item.active { color: var(--text); }
+    .strip-item.active:after {
+      position: absolute;
+      content: "";
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+      background: var(--purple);
+    }
+
+    .bottom-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      flex: 0 0 68px;
+      padding: 7px 7px 10px;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 255, 255, .95);
+    }
+
+    .bottom-item {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 3px;
+      border-radius: 13px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .bottom-item .bottom-icon { font-size: 18px; line-height: 19px; }
+    .bottom-item.active { color: var(--purple); background: var(--purple-soft); }
+
+    .group-sheet {
+      position: absolute;
+      right: 10px;
+      bottom: 77px;
+      left: 10px;
+      z-index: 26;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: 0 12px 30px rgba(33, 31, 53, .2);
+    }
+
+    .group-sheet h3 {
+      margin: 2px 3px 9px;
+      font-size: 12px;
+    }
+
+    .group-sheet-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 9px;
+      padding: 10px 9px;
+      border-radius: 11px;
+      text-align: left;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .group-sheet-item:hover, .group-sheet-item.active { color: var(--purple); background: var(--purple-soft); }
+
+    .grid-menu {
+      position: absolute;
+      inset: 0;
+      z-index: 28;
+      padding: 17px 15px;
+      overflow: auto;
+      background: rgba(249, 248, 251, .98);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-10px);
+      transition: .23s ease;
+    }
+
+    .grid-menu.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .grid-menu-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .grid-menu-header strong { font-size: 18px; }
+    .grid-menu-close { width: 32px; height: 32px; border-radius: 10px; background: var(--surface-soft); font-size: 18px; }
+    .grid-menu p { margin: 0 0 14px; color: var(--muted); font-size: 11px; }
+    .grid-menu-list { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .grid-menu-item {
+      min-height: 94px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      text-align: left;
+      background: var(--surface);
+    }
+    .grid-menu-item:hover, .grid-menu-item.active { border-color: var(--purple); background: var(--purple-soft); }
+    .grid-menu-item .menu-icon { display: block; margin-bottom: 10px; }
+    .grid-menu-item strong { display: block; font-size: 12px; }
+
+    .date-strip {
+      display: flex;
+      gap: 7px;
+      overflow: auto;
+      margin: 0 -2px 15px;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+
+    .date-strip::-webkit-scrollbar { display: none; }
+
+    .date-cell {
+      display: grid;
+      flex: 0 0 48px;
+      place-items: center;
+      gap: 2px;
+      min-height: 58px;
+      border-radius: 14px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .date-cell strong { color: inherit; font-size: 16px; }
+    .date-cell.active { color: #fff; background: var(--purple); box-shadow: 0 6px 14px rgba(108, 92, 231, .22); }
+
+    .timeline {
+      position: relative;
+      padding-left: 12px;
+    }
+
+    .timeline:before {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 27px;
+      width: 2px;
+      content: "";
+      background: #ded9f5;
+    }
+
+    .timeline-item {
+      position: relative;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding-bottom: 13px;
+    }
+
+    .timeline-dot {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      flex: 0 0 32px;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 4px solid var(--phone);
+      border-radius: 50%;
+      color: #fff;
+      background: var(--purple);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .timeline-card {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+
+    .timeline-card small { display: block; margin-bottom: 3px; color: var(--purple); font-size: 10px; font-weight: 900; }
+    .timeline-card strong { display: block; font-size: 12px; }
+    .timeline-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+
+    .view-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      margin-bottom: 12px;
+      border-radius: 12px;
+      background: var(--surface-soft);
+    }
+
+    .view-switch button {
+      padding: 9px 6px;
+      border-radius: 9px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .view-switch button.active {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .08);
+    }
+
+    .category-chips {
+      display: flex;
+      gap: 6px;
+      overflow: auto;
+      margin: 0 -2px 13px;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+
+    .category-chips::-webkit-scrollbar { display: none; }
+
+    .category-chip {
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .category-chip.active { color: var(--purple); border-color: #c5bdf5; background: var(--purple-soft); }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .dashboard-card {
+      min-height: 104px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      text-align: left;
+      background: var(--surface);
+      box-shadow: 0 3px 12px rgba(38, 35, 57, .04);
+    }
+
+    .dashboard-card:hover, .dashboard-card.active { border-color: var(--purple); background: var(--purple-soft); }
+    .dashboard-card .menu-icon { display: block; margin-bottom: 12px; }
+    .dashboard-card strong { display: block; font-size: 12px; }
+    .dashboard-card span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+
+    .trip-filters {
+      display: flex;
+      gap: 8px;
+      overflow: auto;
+      margin: 0 -2px 14px;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+
+    .trip-filters::-webkit-scrollbar { display: none; }
+
+    .trip-filter {
+      flex: 0 0 auto;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .trip-filter.active { color: #fff; border-color: var(--purple); background: var(--purple); }
+
+    .trip-card {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 13px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: 0 4px 14px rgba(38, 35, 57, .05);
+    }
+
+    .trip-card-cover {
+      position: relative;
+      height: 156px;
+      padding: 13px;
+      color: #fff;
+      background:
+        linear-gradient(180deg, rgba(30, 23, 66, .04), rgba(30, 23, 66, .48)),
+        linear-gradient(135deg, #d9c6e5, #aaa2cf 50%, #7568ae);
+    }
+
+    .trip-card-cover:after {
+      position: absolute;
+      right: -30px;
+      bottom: -50px;
+      width: 190px;
+      height: 150px;
+      content: "";
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .2);
+      transform: rotate(-18deg);
+    }
+
+    .trip-status {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 10px;
+      border-radius: 12px;
+      color: #524d67;
+      background: rgba(255, 255, 255, .88);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .trip-status:before { width: 6px; height: 6px; content: ""; border-radius: 50%; background: #e0a52d; }
+    .trip-card-cover b { position: absolute; bottom: 14px; left: 15px; z-index: 1; font-size: 24px; letter-spacing: -.04em; }
+    .trip-card-body { padding: 14px 15px 15px; }
+    .trip-card-body h3 { margin: 0 0 5px; font-size: 18px; letter-spacing: -.025em; }
+    .trip-card-body p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .trip-card-body .progress { margin-top: 13px; }
+    .trip-card-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 10px; font-weight: 750; }
+
+    .trips-add {
+      display: grid;
+      place-items: center;
+      min-height: 122px;
+      border: 1.5px dashed #d9d5e2;
+      border-radius: 19px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .34);
+      text-align: center;
+    }
+
+    .trips-add strong { display: block; margin-top: 8px; color: var(--text); font-size: 15px; }
+    .trips-add small { display: block; margin-top: 3px; font-size: 11px; }
+    .trips-add .add-icon { display: grid; place-items: center; width: 38px; height: 38px; margin: 0 auto; border-radius: 13px; color: var(--purple); background: var(--purple-soft); font-size: 25px; }
+
+    .hub-sheet {
+      position: absolute;
+      right: 10px;
+      bottom: 77px;
+      left: 10px;
+      z-index: 27;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .98);
+      box-shadow: 0 12px 30px rgba(33, 31, 53, .2);
+    }
+
+    .hub-sheet h3 { margin: 2px 3px 9px; font-size: 12px; }
+    .hub-sheet-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    .hub-sheet-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 8px;
+      border-radius: 11px;
+      text-align: left;
+      background: var(--surface-soft);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .hub-sheet-item:hover { color: var(--purple); background: var(--purple-soft); }
+
+    .domain-tabs {
+      display: flex;
+      gap: 5px;
+      flex: 0 0 49px;
+      padding: 5px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--phone);
+    }
+
+    .domain-tab {
+      flex: 1;
+      padding: 8px 4px;
+      border-radius: 10px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .domain-tab.active { color: var(--purple); background: var(--purple-soft); }
+
+    .domain-subtabs {
+      display: flex;
+      gap: 8px;
+      overflow: auto;
+      margin: 0 -2px 14px;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+
+    .domain-subtabs::-webkit-scrollbar { display: none; }
+
+    .domain-subtab {
+      flex: 0 0 auto;
+      padding: 8px 11px;
+      border-radius: 10px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .domain-subtab.active { color: #fff; background: var(--purple); }
+
+    .quick-sheet {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 31;
+      max-height: 86%;
+      padding: 16px 15px 22px;
+      overflow: auto;
+      border-radius: 25px 25px 0 0;
+      background: var(--surface);
+      box-shadow: 0 -12px 34px rgba(33, 31, 53, .2);
+    }
+
+    .quick-sheet:before {
+      display: block;
+      width: 38px;
+      height: 4px;
+      margin: -3px auto 14px;
+      border-radius: 5px;
+      content: "";
+      background: #d8d6df;
+    }
+
+    .quick-sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .quick-sheet-head strong { font-size: 18px; letter-spacing: -.025em; }
+    .quick-close { width: 32px; height: 32px; border-radius: 10px; background: var(--surface-soft); font-size: 18px; }
+
+    .quick-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 11px;
+    }
+
+    .quick-search b { color: var(--text); font-size: 12px; font-weight: 650; }
+    .quick-group-label { margin: 10px 3px 7px; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+
+    .quick-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 9px;
+      border-radius: 12px;
+      text-align: left;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .quick-row:hover, .quick-row.active { color: var(--purple); background: var(--purple-soft); }
+    .quick-row small { margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 650; }
+
+    .quick-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      background: rgba(14, 12, 22, .38);
+    }
+
+    .android-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      flex: 0 0 28px;
+      color: #2b2a30;
+      background: var(--phone);
+      font-size: 18px;
+    }
+
+    .android-bar span:nth-child(2) { font-size: 21px; }
+    .hint {
+      position: absolute;
+      right: 0;
+      bottom: -33px;
+      left: 0;
+      color: #96949e;
+      text-align: center;
+      font-size: 11px;
+    }
+
+    @media (max-width: 930px) {
+      .workspace { grid-template-columns: 1fr; justify-items: center; gap: 38px; }
+      .notes { max-width: 620px; padding-top: 0; grid-row: 2; }
+      .phone-wrap { grid-row: 1; }
+      .variant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 500px) {
+      .page { width: min(100% - 22px, 400px); padding-top: 23px; }
+      .variant-grid { gap: 7px; }
+      .variant-card { min-height: 113px; padding: 11px; }
+      .variant-card span { font-size: 11px; }
+      .phone-wrap { width: min(100vw - 22px, 400px); padding: 8px; border-radius: 39px; }
+      .phone { width: 100%; height: min(790px, calc(100vh - 95px)); border-radius: 31px; }
+      .hint { bottom: -27px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark">R</span><span>Ramingo · браузерная песочница</span></div>
+    <section class="intro">
+      <h1>Варианты навигации поездки</h1>
+      <p>Android-приложение не изменяется. Здесь сравниваем только способ перехода между уже существующими разделами поездки.</p>
+    </section>
+
+    <div class="variant-grid" id="variantGrid"></div>
+
+    <div class="solo-control" id="soloControl"></div>
+
+    <section class="workspace">
+      <aside class="notes" id="notes"></aside>
+
+      <div class="phone-wrap">
+        <div class="phone" id="phone"></div>
+        <div class="hint">Кликайте по заголовку, разделам и кнопкам внутри телефона</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const sections = [
+      { id: "overview", icon: "⌂", label: "Главная", group: "Обзор" },
+      { id: "route", icon: "⌁", label: "Маршрут", group: "План" },
+      { id: "sights", icon: "⌖", label: "Достопримечательности", group: "План" },
+      { id: "restaurants", icon: "♨", label: "Рестораны", group: "Брони" },
+      { id: "accommodation", icon: "⌂", label: "Жильё", group: "Брони" },
+      { id: "budget", icon: "₽", label: "Бюджет", group: "Ещё" },
+      { id: "members", icon: "●", label: "Участники", group: "Ещё" },
+      { id: "photos", icon: "▣", label: "Фото", group: "Ещё" }
+    ];
+
+    const variants = {
+      baseline: {
+        number: "1",
+        title: "Текущий drawer",
+        description: "Все разделы в боковом меню",
+        noteTitle: "Сохранить текущую механику",
+        noteLead: "Это контрольный вариант: экран остаётся чистым, а полный список разделов открывается из заголовка.",
+        notes: [
+          ["Понятно", "Все 8 разделов собраны в одном месте, порядок легко сохранить как сейчас."],
+          ["Риск", "Неочевидно, что заголовок «Главная» — это кнопка навигации; меню закрывает часть экрана."],
+          ["Подходит", "Если важнее всего не менять привычный сценарий и проверить только back/close поведение."]
+        ]
+      },
+      strip: {
+        number: "2",
+        title: "Полоса разделов",
+        description: "Прямой доступ и активная вкладка",
+        noteTitle: "Вариант с горизонтальными вкладками",
+        noteLead: "Разделы постоянно видны под шапкой. Пользователь сразу понимает, где находится, и переключается одним тапом.",
+        notes: [
+          ["Плюс", "Исчезает скрытое меню: активный раздел и соседние разделы видны постоянно."],
+          ["Риск", "Длинные названия не помещаются; понадобится горизонтальный скролл и короткие подписи."],
+          ["Подходит", "Если внутри поездки часто переходят между «Маршрутом», местами и ресторанами."]
+        ]
+      },
+      groups: {
+        number: "3",
+        title: "4 группы снизу",
+        description: "Обзор · План · Брони · Ещё",
+        noteTitle: "Вариант с нижней навигацией",
+        noteLead: "Частые действия получают постоянные места снизу, а редкие разделы открываются внутри небольшой панели группы.",
+        notes: [
+          ["Плюс", "Большие зоны на нижней панели удобны для большого пальца и не занимают место в контенте."],
+          ["Риск", "Появляется дополнительный уровень: сначала группа, затем конкретный раздел."],
+          ["Подходит", "Если нужно сократить визуальный шум и выделить сценарии «План» и «Брони»."]
+        ]
+      },
+      grid: {
+        number: "4",
+        title: "Панель разделов",
+        description: "Сетка открывается из шапки",
+        noteTitle: "Вариант с явной панелью",
+        noteLead: "Нажатие на текущий раздел открывает полноэкранную панель с 8 плитками — без догадок, куда попал пользователь.",
+        notes: [
+          ["Плюс", "Все разделы и их иконки видны одновременно; длинные названия можно прочитать целиком."],
+          ["Риск", "Для перехода нужен дополнительный тап по заголовку, зато панель легко закрыть назад."],
+          ["Подходит", "Если хочется оставить минималистичную шапку и сделать навигацию максимально очевидной."]
+        ]
+      },
+      timeline: {
+        number: "5",
+        title: "Лента по дням · Tripsy",
+        description: "День и остановки — главный экран",
+        noteTitle: "Вариант «сначала день»",
+        noteLead: "Tripsy и Sidetrip строят навигацию вокруг календаря и последовательности остановок. Разделы поездки становятся деталями внутри общего плана.",
+        notes: [
+          ["Плюс", "Для реального путешествия сразу видно, что делать сегодня, что дальше и где находится следующий переезд."],
+          ["Риск", "Бюджет, фото и участники перестают быть равноправными вкладками и уходят в меню разделов."],
+          ["Подходит", "Если основной сценарий — пользоваться поездкой по дням, а не редактировать отдельные сущности."]
+        ]
+      },
+      map: {
+        number: "6",
+        title: "Список + карта · Wanderlog",
+        description: "Один рабочий экран для маршрута",
+        noteTitle: "Вариант «план как рабочая область»",
+        noteLead: "Wanderlog держит список мест и карту рядом, а категории использует как фильтры. Это навигация не между страницами, а внутри плана дня.",
+        notes: [
+          ["Плюс", "Места, расстояния и карта связаны в одном контексте; меньше прыжков между «Маршрутом» и «Достопримечательностями»."],
+          ["Риск", "Экран становится плотнее, а фильтры и режимы надо сделать очень заметными."],
+          ["Подходит", "Если для нас важнее всего построение маршрута и порядок остановок."]
+        ]
+      },
+      dashboard: {
+        number: "7",
+        title: "Сводка-карточки · Tripsy",
+        description: "Разделы видны как состояние поездки",
+        noteTitle: "Вариант «панель поездки»",
+        noteLead: "Вместо скрытого списка — сводка с карточками: маршрут, жильё, бюджет, фото и участники видны сразу, а тап по карточке открывает раздел.",
+        notes: [
+          ["Плюс", "Пользователь видит не только названия, но и состояние: сколько дней, броней, расходов и фото уже заполнено."],
+          ["Риск", "Главный экран становится длиннее; карточки нужно не перегрузить второстепенными цифрами."],
+          ["Подходит", "Если хочется сделать навигацию объясняющей и снизить зависимость от меню."]
+        ]
+      },
+      hub: {
+        number: "8",
+        title: "Режимы поездки",
+        description: "Сегодня · План · Брони · Ещё",
+        noteTitle: "Вариант «режим вместо раздела»",
+        noteLead: "Навигация отвечает не на вопрос «какой объект открыть?», а на вопрос «что я сейчас делаю?». Сегодня показывает ленту, План — маршрут, Брони — подтверждения.",
+        notes: [
+          ["Плюс", "Одна и та же навигация подходит и для планирования, и для самой поездки: меняется главный контекст, а не весь интерфейс."],
+          ["Риск", "Нужно аккуратно решить, где живут бюджет, фото и участники; они попадают в «Ещё»."],
+          ["Подходит", "Если приложение будут открывать в дороге чаще, чем для редактирования отдельных разделов."]
+        ]
+      },
+      nested: {
+        number: "9",
+        title: "Три рабочие области",
+        description: "План · Организация · Команда",
+        noteTitle: "Вариант «три области + подуровень»",
+        noteLead: "Восемь разделов группируются по смыслу. Сначала выбирается рабочая область, затем короткая строка подтабов — без длинного плоского списка.",
+        notes: [
+          ["Плюс", "Названия групп объясняют структуру: маршрут и места рядом, рестораны и жильё рядом, совместная работа отдельно."],
+          ["Риск", "Переход между подтабами добавляет один уровень, зато список становится обозримым."],
+          ["Подходит", "Если Ramingo в первую очередь редактор путешествия, а не только справочник во время поездки."]
+        ]
+      },
+      quick: {
+        number: "10",
+        title: "Быстрый переход",
+        description: "Явная кнопка «Разделы» + поиск",
+        noteTitle: "Вариант «без угадывания»",
+        noteLead: "Вместо клика по непонятному заголовку появляется явная кнопка «Разделы». Она открывает нижнюю панель с группами, поиском и текущим разделом.",
+        notes: [
+          ["Плюс", "Минимальная перестройка текущего экрана: контент остаётся чистым, а точка входа в навигацию становится очевидной."],
+          ["Плюс", "Поиск масштабируется, когда в поездке появятся документы, заметки, задачи или новые типы данных."],
+          ["Подходит", "Если сейчас нужен самый безопасный UX-эксперимент без перехода к новой информационной архитектуре."]
+        ]
+      },
+      hamburger: {
+        number: "11",
+        title: "Гамбургер-панель",
+        description: "Явная кнопка · группы · активный раздел",
+        noteTitle: "Вариант «всё через гамбургер»",
+        noteLead: "Панель становится единой точкой навигации: слева всегда видна кнопка ☰, внутри — три смысловые группы и активный раздел. Контент остаётся чистым.",
+        notes: [
+          ["Плюс", "Пользователь не должен угадывать, что заголовок «Главная» открывает меню; точка входа выглядит как навигация."],
+          ["Плюс", "Группы «План», «Организация» и «Команда» сокращают длинный плоский список из восьми пунктов."],
+          ["Важно", "Android-кнопка «Назад» сначала закрывает панель, а выбранный раздел подсвечивается и панель закрывается автоматически."]
+        ]
+      }
+    };
+
+    const soloMode = true;
+    const tripOnlyPrototype = true;
+    let activeVariant = soloMode ? "hamburger" : "baseline";
+    let activeSection = "overview";
+    let menuOpen = false;
+    let groupOpen = null;
+    let gridOpen = false;
+    let mapMode = "list";
+    let hubRoot = "today";
+    let hubSheetOpen = false;
+    let domain = "plan";
+    let quickOpen = false;
+    let hamburgerOpen = false;
+    let hamburgerScreen = "trips";
+    let showGlobalNav = false;
+    let settingsOrigin = "trips";
+
+    const section = () => sections.find(item => item.id === activeSection) || sections[0];
+    const groupItems = group => sections.filter(item => item.group === group);
+
+    function sectionContent() {
+      const current = section();
+      const commonHead = '<div class="section-kicker">' + current.group.toUpperCase() + '</div><h2>' + current.label + '</h2>';
+      if (current.id === "overview") {
+        return commonHead +
+          '<p class="subtext">Рождественская Италия · 19 дек 2026 — 3 янв 2027 · 16 дней</p>' +
+          '<div class="hero"><span class="dots">● • • •</span><b>Мюнхен</b></div>' +
+          '<div class="map-card"><div class="map-lines"></div><div class="map-caption"><span>Общий маршрут</span><strong>9 дней · 3 395 км · 37 ч</strong></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Готовность маршрута</small><strong>План заполнен на 62%</strong></div><span class="value">62%</span></div><div class="progress"><i></i></div></div>';
+      }
+      if (current.id === "route") {
+        return commonHead +
+          '<p class="subtext">Выбирайте день, чтобы открыть его места и переезд.</p>' +
+          '<div class="day-pills"><span class="day-pill active">День 1</span><span class="day-pill">День 2</span><span class="day-pill">День 3</span><span class="day-pill">День 4</span></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>19 декабря · Мюнхен</small><strong>Рождественский рынок</strong></div><span class="value">5 мест</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Переезд</small><strong>Мюнхен → Верона</strong></div><span class="value">280 км</span></div><div class="panel-row"><small>В пути · заселение до 21:00</small><strong>~3 ч</strong></div></div>' +
+          '<div class="map-card"><div class="map-lines"></div><div class="map-caption"><span>Карта дня</span><strong>Открыть маршрут</strong></div></div>';
+      }
+      if (current.id === "sights") {
+        return commonHead +
+          '<p class="subtext">Места разложены по дням маршрута.</p>' +
+          '<div class="day-pills"><span class="day-pill active">Мюнхен · 1</span><span class="day-pill">Верона · 2</span><span class="day-pill">Рим · 3</span></div>' +
+          '<div class="panel">' +
+          '<div class="place-row"><span class="place-icon">⌖</span><div><strong>Marienplatz</strong><small>Площадь · рождественский рынок</small></div><span class="check">✓</span></div>' +
+          '<div class="place-row"><span class="place-icon">⌖</span><div><strong>Собор Фрауэнкирхе</strong><small>Собор · 45 минут</small></div><span class="check">✓</span></div>' +
+          '<div class="place-row"><span class="place-icon">⌖</span><div><strong>Английский сад</strong><small>Парк · прогулка</small></div></div>' +
+          '</div>';
+      }
+      if (current.id === "restaurants") {
+        return commonHead +
+          '<p class="subtext">Рестораны и кафе по городам поездки.</p>' +
+          '<div class="panel"><div class="panel-row"><div><small>Мюнхен · бронь</small><strong>Augustiner-Keller</strong></div><span class="value">€€</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Верона · хочу</small><strong>Trattoria al Pompiere</strong></div><span class="value">€€€</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Рим · приоритет</small><strong>Roscioli Salumeria</strong></div><span class="value">4.8 ★</span></div></div>';
+      }
+      if (current.id === "accommodation") {
+        return commonHead +
+          '<p class="subtext">Жильё, даты проживания и статусы бронирования.</p>' +
+          '<div class="panel"><div class="panel-row"><div><small>Рим · 27–30 сентября</small><strong>La mia casa al Pigneto</strong></div><span class="value">бронь</span></div><div class="progress"><i style="width: 82%"></i></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Флоренция · 30 сентября – 2 октября</small><strong>B&B Fiori</strong></div><span class="value">хочу</span></div></div>';
+      }
+      if (current.id === "budget") {
+        return commonHead +
+          '<p class="subtext">Расходы поездки · валюта EUR.</p>' +
+          '<div class="panel"><div class="panel-row"><div><small>Общий бюджет</small><strong>2 450 €</strong></div><span class="value">62%</span></div><div class="progress"><i style="width: 62%"></i></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Жильё</small><strong>1 120 €</strong></div><span class="value">46%</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Транспорт</small><strong>680 €</strong></div><span class="value">28%</span></div></div>';
+      }
+      if (current.id === "members") {
+        return commonHead +
+          '<p class="subtext">Кто участвует в планировании и просмотре.</p>' +
+          '<div class="panel"><div class="panel-row"><div><small>Владелец</small><strong>Наташа</strong></div><span class="value">●</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Редактор</small><strong>Тимур</strong></div><span class="value">●</span></div></div>' +
+          '<div class="panel"><div class="panel-row"><div><small>Приглашение</small><strong>Добавить участника</strong></div><span class="value">＋</span></div></div>';
+      }
+      return commonHead +
+        '<p class="subtext">Фотографии поездки сгруппированы по городам.</p>' +
+        '<div class="hero" style="height: 155px; background: linear-gradient(145deg, #e2c19e, #765a69 57%, #273a52);"><b>Рим · 24 фото</b></div>' +
+        '<div class="panel"><div class="panel-row"><div><small>Милан · 12 фото</small><strong>3–5 октября</strong></div><span class="value">›</span></div></div>' +
+        '<div class="panel"><div class="panel-row"><div><small>Венеция · 18 фото</small><strong>6–9 октября</strong></div><span class="value">›</span></div></div>';
+    }
+
+    function timelineContent() {
+      return '<div class="section-kicker">ПЛАН ПО ДНЯМ</div><h2>Дни поездки</h2>' +
+        '<p class="subtext">Рождественская Италия · 16 дней · сегодня — День 1</p>' +
+        '<div class="date-strip"><span class="date-cell active"><small>ДЕК</small><strong>19</strong><small>ПТ</small></span><span class="date-cell"><small>ДЕК</small><strong>20</strong><small>СБ</small></span><span class="date-cell"><small>ДЕК</small><strong>21</strong><small>ВС</small></span><span class="date-cell"><small>ДЕК</small><strong>22</strong><small>ПН</small></span><span class="date-cell"><small>ДЕК</small><strong>23</strong><small>ВТ</small></span></div>' +
+        '<div class="panel"><div class="panel-row"><div><small>ДЕНЬ 1 · МЮНХЕН</small><strong>5 остановок · 4,8 км</strong></div><span class="value">Сегодня</span></div></div>' +
+        '<div class="timeline">' +
+          '<div class="timeline-item"><span class="timeline-dot">⌖</span><div class="timeline-card"><small>10:00 · МЕСТО</small><strong>Marienplatz</strong><span>Рождественский рынок · 45 мин</span></div></div>' +
+          '<div class="timeline-item"><span class="timeline-dot">♨</span><div class="timeline-card"><small>12:30 · ЕДА</small><strong>Augustiner-Keller</strong><span>Обед · бронь подтверждена</span></div></div>' +
+          '<div class="timeline-item"><span class="timeline-dot">⌖</span><div class="timeline-card"><small>14:00 · МЕСТО</small><strong>Собор Фрауэнкирхе</strong><span>Пешком 8 минут от ресторана</span></div></div>' +
+          '<div class="timeline-item"><span class="timeline-dot">→</span><div class="timeline-card"><small>ЗАВТРА · ПЕРЕЕЗД</small><strong>Мюнхен → Верона</strong><span>280 км · около 3 часов</span></div></div>' +
+        '</div>';
+    }
+
+    function mapListContent() {
+      const mapActive = mapMode === "map";
+      return '<div class="section-kicker">ПЛАН ДНЯ</div><h2>Маршрут</h2>' +
+        '<p class="subtext">Мюнхен · День 1 · 5 мест · 4,8 км</p>' +
+        '<div class="view-switch"><button class="' + (!mapActive ? "active" : "") + '" data-mode="list">☷ Список</button><button class="' + (mapActive ? "active" : "") + '" data-mode="map">⌖ Карта</button></div>' +
+        '<div class="category-chips"><span class="category-chip active">Все · 5</span><span class="category-chip">Места · 3</span><span class="category-chip">Еда · 1</span><span class="category-chip">Переезды · 1</span></div>' +
+        (mapActive
+          ? '<div class="map-card" style="height: 285px"><div class="map-lines" style="height: 238px"></div><div class="map-caption"><span>Маршрут дня</span><strong>4,8 км · 1 ч 10 мин</strong></div></div>'
+          : '<div class="panel"><div class="place-row"><span class="place-icon">⌖</span><div><strong>Marienplatz</strong><small>10:00 · рынок</small></div><span class="value">›</span></div><div class="place-row"><span class="place-icon">♨</span><div><strong>Augustiner-Keller</strong><small>12:30 · бронь</small></div><span class="value">›</span></div><div class="place-row"><span class="place-icon">⌖</span><div><strong>Собор Фрауэнкирхе</strong><small>14:00 · 45 минут</small></div><span class="value">›</span></div><div class="place-row"><span class="place-icon">→</span><div><strong>Мюнхен → Верона</strong><small>завтра · 280 км</small></div><span class="value">›</span></div></div>');
+    }
+
+    function dashboardContent() {
+      return '<div class="section-kicker">ОБЗОР ПОЕЗДКИ</div><h2>Рождественская Италия</h2>' +
+        '<p class="subtext">19 дек 2026 — 3 янв 2027 · план заполнен на 62%</p>' +
+        '<div class="hero" style="height: 138px; margin-bottom: 13px;"><b>9 дней маршрута</b></div>' +
+        '<div class="dashboard-grid">' +
+          '<button class="dashboard-card" data-section="route"><span class="menu-icon">⌁</span><strong>Маршрут</strong><span>9 дней · 3 395 км</span></button>' +
+          '<button class="dashboard-card" data-section="sights"><span class="menu-icon">⌖</span><strong>Места</strong><span>18 достопримечательностей</span></button>' +
+          '<button class="dashboard-card" data-section="restaurants"><span class="menu-icon">♨</span><strong>Рестораны</strong><span>7 сохранено · 2 брони</span></button>' +
+          '<button class="dashboard-card" data-section="accommodation"><span class="menu-icon">⌂</span><strong>Жильё</strong><span>3 объекта · 1 бронь</span></button>' +
+          '<button class="dashboard-card" data-section="budget"><span class="menu-icon">₽</span><strong>Бюджет</strong><span>1 520 € из 2 450 €</span></button>' +
+          '<button class="dashboard-card" data-section="photos"><span class="menu-icon">▣</span><strong>Фото</strong><span>54 фото · 3 города</span></button>' +
+          '<button class="dashboard-card" data-section="members"><span class="menu-icon">●</span><strong>Участники</strong><span>2 редактора</span></button>' +
+          '<button class="dashboard-card" data-section="overview"><span class="menu-icon">＋</span><strong>Добавить</strong><span>место, бронь или расход</span></button>' +
+        '</div>';
+    }
+
+    function tripsContent() {
+      return '<div class="trip-filters"><span class="trip-filter active">Все · 1</span><span class="trip-filter">Предстоящие · 0</span><span class="trip-filter">Черновики · 1</span></div>' +
+        '<button class="trip-card" data-action="open-trip">' +
+          '<div class="trip-card-cover"><span class="trip-status">Черновик</span><b>Рождественская Италия</b></div>' +
+          '<div class="trip-card-body"><h3>Рождественская Италия</h3><p>2 марта 2026 — 25 марта 2026</p><div class="progress"><i style="width: 8%"></i></div><div class="trip-card-meta"><span>Маршрут заполнен на 8%</span><span>3 города</span></div></div>' +
+        '</button>' +
+        '<div class="trips-add"><div><span class="add-icon">＋</span><strong>Новое путешествие</strong><small>С нуля или из шаблона</small></div></div>';
+    }
+
+    function settingsContent() {
+      return '<div class="section-kicker">АККАУНТ</div><h2>Настройки</h2>' +
+        '<p class="subtext">Параметры профиля и приложения доступны даже до создания первой поездки.</p>' +
+        '<div class="settings-list">' +
+          '<div class="settings-row"><span class="menu-icon">●</span><div><strong>Профиль</strong><small>Имя и адрес электронной почты</small></div><span class="settings-arrow">›</span></div>' +
+          '<div class="settings-row"><span class="menu-icon">♧</span><div><strong>Уведомления</strong><small>Напоминания о поездках и изменениях</small></div><span class="settings-arrow">›</span></div>' +
+          '<div class="settings-row"><span class="menu-icon">◐</span><div><strong>Оформление</strong><small>Тема и язык приложения</small></div><span class="settings-arrow">›</span></div>' +
+          '<div class="settings-row"><span class="menu-icon">⌁</span><div><strong>Безопасность</strong><small>Пароль и управление аккаунтом</small></div><span class="settings-arrow">›</span></div>' +
+        '</div>';
+    }
+
+    function catalogContent() {
+      return '<div class="section-kicker">ИДЕИ ДЛЯ ПУТЕШЕСТВИЙ</div><h2>Каталог маршрутов</h2>' +
+        '<p class="subtext">Готовые идеи, которые можно сохранить в свои путешествия и доработать под себя.</p>' +
+        '<button class="catalog-card"><strong>Рождественская Европа</strong><span>Прага · Вена · Мюнхен · 10 дней</span><span class="catalog-meta">3 города · 24 места</span></button>' +
+        '<button class="catalog-card"><strong>Италия за 7 дней</strong><span>Рим · Флоренция · Венеция</span><span class="catalog-meta">3 города · 18 мест</span></button>' +
+        '<button class="catalog-card"><strong>Северное побережье</strong><span>Копенгаген · Осло · Стокгольм</span><span class="catalog-meta">3 города · 16 мест</span></button>';
+    }
+
+    function bookingsContent() {
+      return '<div class="section-kicker">БРОНИ И ПОДТВЕРЖДЕНИЯ</div><h2>Брони</h2>' +
+        '<p class="subtext">Всё, что понадобится показать или открыть в дороге.</p>' +
+        '<div class="panel"><div class="panel-row"><div><small>СЕГОДНЯ · 12:30</small><strong>Augustiner-Keller</strong></div><span class="value">Бронь</span></div><div class="panel-row"><small>Мюнхен · столик на 2</small><strong>Показать</strong></div></div>' +
+        '<div class="panel"><div class="panel-row"><div><small>27 СЕНТЯБРЯ — 30 СЕНТЯБРЯ</small><strong>La mia casa al Pigneto</strong></div><span class="value">Жильё</span></div><div class="panel-row"><small>Рим · check-in до 21:00</small><strong>Открыть</strong></div></div>' +
+        '<div class="panel"><div class="panel-row"><div><small>30 СЕНТЯБРЯ — 2 ОКТЯБРЯ</small><strong>B&B Fiori</strong></div><span class="value">Хочу</span></div><div class="panel-row"><small>Флоренция · ссылка сохранена</small><strong>Открыть</strong></div></div>';
+    }
+
+    function hubContent() {
+      if (hubRoot === "today") return timelineContent();
+      if (hubRoot === "plan") return mapListContent();
+      if (hubRoot === "bookings") return bookingsContent();
+      return activeSection === "overview" ? dashboardContent() : sectionContent();
+    }
+
+    function hubMarkup() {
+      const roots = [
+        ["today", "◷", "Сегодня"],
+        ["plan", "⌁", "План"],
+        ["bookings", "▣", "Брони"],
+        ["more", "•••", "Ещё"]
+      ];
+      const sheet = hubSheetOpen
+        ? '<div class="hub-sheet"><h3>Все разделы поездки</h3><div class="hub-sheet-list">' +
+          sections.filter(item => item.id !== "overview").map(item =>
+            '<button class="hub-sheet-item" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span>' + item.label + '</button>'
+          ).join("") +
+          '</div></div>'
+        : "";
+      return sheet + '<nav class="bottom-nav">' + roots.map(item =>
+        '<button class="bottom-item ' + (hubRoot === item[0] ? "active" : "") + '" data-hub="' + item[0] + '"><span class="bottom-icon">' + item[1] + '</span><span>' + item[2] + '</span></button>'
+      ).join("") + '</nav>';
+    }
+
+    function nestedTabsMarkup() {
+      const domains = [
+        ["plan", "План"],
+        ["organize", "Организация"],
+        ["team", "Команда"]
+      ];
+      return '<div class="domain-tabs">' + domains.map(item =>
+        '<button class="domain-tab ' + (domain === item[0] ? "active" : "") + '" data-domain="' + item[0] + '">' + item[1] + '</button>'
+      ).join("") + '</div>';
+    }
+
+    function nestedContent() {
+      const subtabs = domain === "plan"
+        ? [["overview", "Обзор"], ["route", "Маршрут"], ["sights", "Места"]]
+        : domain === "organize"
+          ? [["restaurants", "Рестораны"], ["accommodation", "Жильё"], ["budget", "Бюджет"]]
+          : [["members", "Участники"], ["photos", "Фото"]];
+      const content = domain === "plan" && activeSection === "overview" ? timelineContent() : sectionContent();
+      return '<div class="domain-subtabs">' + subtabs.map(item =>
+        '<button class="domain-subtab ' + (activeSection === item[0] ? "active" : "") + '" data-section="' + item[0] + '">' + item[1] + '</button>'
+      ).join("") + '</div>' + content;
+    }
+
+    function quickMarkup() {
+      if (!quickOpen) return "";
+      const groups = ["Обзор", "План", "Брони", "Ещё"];
+      return '<div class="quick-backdrop" data-action="close-quick"></div><div class="quick-sheet">' +
+        '<div class="quick-sheet-head"><strong>Разделы поездки</strong><button class="quick-close" data-action="close-quick">×</button></div>' +
+        '<div class="quick-search"><span>⌕</span><b>Найти раздел или место</b></div>' +
+        groups.map(group => '<div class="quick-group-label">' + group.toUpperCase() + '</div>' +
+          groupItems(group).map(item => '<button class="quick-row ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span><span>' + item.label + '</span><small>' + (item.id === "overview" ? "старт" : "открыть") + '</small></button>').join("")
+        ).join("") +
+        '</div>';
+    }
+
+    function menuMarkup() {
+      return '<div class="menu-backdrop ' + (menuOpen ? "open" : "") + '" data-action="close-menu"></div>' +
+        '<aside class="section-menu ' + (menuOpen ? "open" : "") + '">' +
+          '<div class="menu-brand"><span class="brand-mark">R</span><div><strong>Рождественская Италия</strong><small>19 дек — 3 янв · 16 дней</small></div></div>' +
+          '<div class="menu-label">РАЗДЕЛЫ ПОЕЗДКИ</div>' +
+          sections.map(item => '<button class="menu-item ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span>' + item.label + '</button>').join("") +
+        '</aside>';
+    }
+
+    function hamburgerMarkup() {
+      const isRoot = hamburgerScreen === "trips";
+      const isCatalog = hamburgerScreen === "catalog";
+      const groups = [
+        ["ПЛАН", ["overview", "route", "sights"]],
+        ["ОРГАНИЗАЦИЯ", ["restaurants", "accommodation", "budget"]],
+        ["КОМАНДА", ["members", "photos"]]
+      ];
+      const globalMenu = '<div class="menu-label">НАВИГАЦИЯ</div>' +
+        '<button class="menu-item ' + (isRoot ? "active" : "") + '" data-action="open-trips"><span class="menu-icon">⌂</span><span>Мои путешествия</span></button>';
+      const tripItems = groups.reduce((items, group) => items.concat(group[1]), []);
+      const tripTabs = tripItems.map(id => {
+          const item = sections.find(sectionItem => sectionItem.id === id);
+          return '<button class="menu-item ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span><span>' + item.label + '</span></button>';
+        }).join("");
+      const tripMenu = '<div class="menu-divider"></div>' + tripTabs;
+      const menuBody = isRoot || isCatalog ? globalMenu : showGlobalNav ? globalMenu + tripMenu : tripTabs;
+      const menuTitle = isRoot ? "Мои путешествия" : isCatalog ? "Каталог маршрутов" : "Рождественская Италия";
+      const menuSubtitle = isRoot ? "Все поездки и черновики" : isCatalog ? "Готовые идеи для поездок" : "19 дек — 3 янв · 16 дней";
+      const menuFooter = tripOnlyPrototype
+        ? '<button class="menu-footer" data-action="open-trips">↩ Мои путешествия</button>'
+        : (isRoot
+          ? '<button class="menu-footer" data-action="close-hamburger">Закрыть меню</button>'
+          : '<button class="menu-footer" data-action="open-trips">↩ Мои путешествия</button>');
+      return '<div class="menu-backdrop ' + (hamburgerOpen ? "open" : "") + '" data-action="close-hamburger"></div>' +
+        '<aside class="section-menu ' + (hamburgerOpen ? "open" : "") + '">' +
+          '<div class="menu-brand"><span class="brand-mark">R</span><div><strong>' + menuTitle + '</strong><small>' + menuSubtitle + '</small></div></div>' +
+          '<div class="menu-scroll">' + menuBody + '</div>' +
+          '<div class="menu-bottom">' + menuFooter + '<div class="menu-settings"><div class="menu-label">АККАУНТ</div><button class="menu-item" data-action="open-settings"><span class="menu-icon">⚙</span><span>Настройки</span></button></div>' +
+          '</div>' +
+        '</aside>';
+    }
+
+    function stripMarkup() {
+      return '<div class="tabs-strip">' + sections.map(item =>
+        '<button class="strip-item ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '">' + item.label + '</button>'
+      ).join("") + '</div>';
+    }
+
+    function groupedMarkup() {
+      const activeGroup = section().group;
+      const groups = ["Обзор", "План", "Брони", "Ещё"];
+      const sheet = groupOpen ? '<div class="group-sheet"><h3>' + groupOpen + '</h3>' +
+        groupItems(groupOpen).map(item => '<button class="group-sheet-item ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span>' + item.label + '</button>').join("") +
+        '</div>' : "";
+      return sheet + '<nav class="bottom-nav">' + groups.map(group => {
+        const icon = group === "Обзор" ? "⌂" : group === "План" ? "⌁" : group === "Брони" ? "♨" : "•••";
+        return '<button class="bottom-item ' + (activeGroup === group ? "active" : "") + '" data-group="' + group + '"><span class="bottom-icon">' + icon + '</span><span>' + group + '</span></button>';
+      }).join("") + '</nav>';
+    }
+
+    function gridMarkup() {
+      return '<div class="grid-menu ' + (gridOpen ? "open" : "") + '"><div class="grid-menu-header"><strong>Разделы поездки</strong><button class="grid-menu-close" data-action="close-grid">×</button></div><p>Выберите, что открыть в путешествии.</p><div class="grid-menu-list">' +
+        sections.map(item => '<button class="grid-menu-item ' + (item.id === activeSection ? "active" : "") + '" data-section="' + item.id + '"><span class="menu-icon">' + item.icon + '</span><strong>' + item.label + '</strong></button>').join("") +
+        '</div></div>';
+    }
+
+    function phoneMarkup() {
+      const isStrip = activeVariant === "strip";
+      const isGroups = activeVariant === "groups";
+      const isGrid = activeVariant === "grid";
+      const isTimeline = activeVariant === "timeline";
+      const isMap = activeVariant === "map";
+      const isDashboard = activeVariant === "dashboard";
+      const isHub = activeVariant === "hub";
+      const isNested = activeVariant === "nested";
+      const isQuick = activeVariant === "quick";
+      const isHamburger = activeVariant === "hamburger";
+      const showsGrid = isGrid || isTimeline || isMap || isDashboard;
+      const mainContent = isHamburger
+        ? (hamburgerScreen === "trips" ? tripsContent() : hamburgerScreen === "settings" ? settingsContent() : hamburgerScreen === "catalog" ? catalogContent() : sectionContent())
+        : isHub
+        ? hubContent()
+        : isNested
+          ? nestedContent()
+          : isTimeline && activeSection === "overview"
+        ? timelineContent()
+        : isMap && activeSection === "overview"
+          ? mapListContent()
+          : isDashboard && activeSection === "overview"
+            ? dashboardContent()
+            : sectionContent();
+      const navLabel = isHamburger
+        ? (hamburgerScreen === "trips" ? "Мои путешествия" : hamburgerScreen === "settings" ? "Настройки" : hamburgerScreen === "catalog" ? "Каталог маршрутов" : section().label)
+        : isHub
+        ? (hubRoot === "today" ? "Сегодня" : hubRoot === "plan" ? "План" : hubRoot === "bookings" ? "Брони" : "Ещё")
+        : isTimeline && activeSection === "overview"
+          ? "Дни поездки"
+        : isMap && activeSection === "overview"
+          ? "План дня"
+          : isDashboard && activeSection === "overview"
+            ? "Сводка"
+            : section().label;
+      const topbar = isHamburger
+        ? (hamburgerScreen === "settings"
+          ? '<header class="topbar"><button class="back" data-action="back-settings" aria-label="Назад">‹</button><div class="hamburger-title"><small>Ramingo</small><strong>Настройки</strong></div><span class="topbar-spacer"></span></header>'
+          : tripOnlyPrototype && hamburgerScreen === "trips"
+            ? '<header class="topbar"><span class="topbar-spacer"></span><div class="hamburger-title"><small>Ramingo</small><strong>Мои путешествия</strong></div><button class="root-settings-button" data-action="open-settings" aria-label="Открыть настройки">⚙</button></header>'
+            : '<header class="topbar"><button class="hamburger-button" data-action="open-hamburger" aria-label="Открыть меню">☰</button><div class="hamburger-title"><small>Рождественская Италия</small><strong>' + navLabel + '</strong></div><span class="topbar-spacer"></span></header>')
+        : '<header class="topbar"><button class="back" data-action="back">‹</button><button class="title-trigger ' + ((menuOpen || gridOpen || quickOpen) ? "open" : "") + '" data-action="open-menu"><small>Рождественская Италия</small><strong>' + navLabel + '<span class="chevron">⌄</span></strong></button><span class="topbar-spacer"></span></header>';
+      return '<div class="status"><span>9:41</span><span>▰ ◔ ▰</span></div>' +
+        topbar +
+        (isNested ? nestedTabsMarkup() : isStrip ? stripMarkup() : "") +
+        '<main class="content">' + mainContent + '</main>' +
+        (isHub ? hubMarkup() : isGroups ? groupedMarkup() : '<div class="android-bar"><span>‹</span><span>○</span><span>□</span></div>') +
+        (activeVariant === "baseline" ? menuMarkup() : "") +
+        (showsGrid ? gridMarkup() : "") +
+        (isQuick ? quickMarkup() : "") +
+        (isHamburger && (!tripOnlyPrototype || hamburgerScreen === "detail") ? hamburgerMarkup() : "");
+    }
+
+    function wire() {
+      document.querySelectorAll("[data-section]").forEach(button => button.addEventListener("click", () => {
+        activeSection = button.dataset.section;
+        menuOpen = false;
+        gridOpen = false;
+        groupOpen = null;
+        hubSheetOpen = false;
+        quickOpen = false;
+        hamburgerOpen = false;
+        render();
+      }));
+      document.querySelectorAll("[data-action='open-menu']").forEach(button => button.addEventListener("click", () => {
+        if (activeVariant === "baseline") menuOpen = !menuOpen;
+        if (["grid", "timeline", "map", "dashboard"].includes(activeVariant)) gridOpen = !gridOpen;
+        if (activeVariant === "quick") quickOpen = !quickOpen;
+        render();
+      }));
+      document.querySelectorAll("[data-action='close-menu']").forEach(button => button.addEventListener("click", () => { menuOpen = false; render(); }));
+      document.querySelectorAll("[data-action='close-grid']").forEach(button => button.addEventListener("click", () => { gridOpen = false; render(); }));
+      document.querySelectorAll("[data-action='close-quick']").forEach(button => button.addEventListener("click", () => { quickOpen = false; render(); }));
+      document.querySelectorAll("[data-action='open-hamburger']").forEach(button => button.addEventListener("click", () => { hamburgerOpen = !hamburgerOpen; render(); }));
+      document.querySelectorAll("[data-action='close-hamburger']").forEach(button => button.addEventListener("click", () => { hamburgerOpen = false; render(); }));
+      document.querySelectorAll("[data-action='open-settings']").forEach(button => button.addEventListener("click", () => {
+        settingsOrigin = hamburgerScreen;
+        hamburgerScreen = "settings";
+        hamburgerOpen = false;
+        render();
+      }));
+      document.querySelectorAll("[data-action='back-settings']").forEach(button => button.addEventListener("click", () => {
+        hamburgerScreen = settingsOrigin;
+        hamburgerOpen = false;
+        render();
+      }));
+      document.querySelectorAll("[data-action='toggle-global-nav']").forEach(button => button.addEventListener("click", () => { showGlobalNav = !showGlobalNav; render(); }));
+      document.querySelectorAll("[data-action='open-trip']").forEach(button => button.addEventListener("click", () => {
+        hamburgerScreen = "detail";
+        activeSection = "overview";
+        hamburgerOpen = tripOnlyPrototype;
+        render();
+      }));
+      document.querySelectorAll("[data-action='open-trips']").forEach(button => button.addEventListener("click", () => {
+        hamburgerScreen = "trips";
+        activeSection = "overview";
+        hamburgerOpen = false;
+        render();
+      }));
+      document.querySelectorAll("[data-action='open-catalog']").forEach(button => button.addEventListener("click", () => {
+        hamburgerScreen = "catalog";
+        hamburgerOpen = false;
+        render();
+      }));
+      document.querySelectorAll("[data-group]").forEach(button => button.addEventListener("click", () => {
+        groupOpen = groupOpen === button.dataset.group ? null : button.dataset.group;
+        render();
+      }));
+      document.querySelectorAll("[data-action='back']").forEach(button => button.addEventListener("click", () => {
+        activeSection = "overview";
+        menuOpen = false;
+        gridOpen = false;
+        groupOpen = null;
+        mapMode = "list";
+        hubRoot = "today";
+        hubSheetOpen = false;
+        domain = "plan";
+        quickOpen = false;
+        hamburgerOpen = false;
+        hamburgerScreen = "trips";
+        render();
+      }));
+      document.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => {
+        mapMode = button.dataset.mode;
+        render();
+      }));
+      document.querySelectorAll("[data-hub]").forEach(button => button.addEventListener("click", () => {
+        hubRoot = button.dataset.hub;
+        hubSheetOpen = hubRoot === "more";
+        activeSection = "overview";
+        render();
+      }));
+      document.querySelectorAll("[data-domain]").forEach(button => button.addEventListener("click", () => {
+        domain = button.dataset.domain;
+        activeSection = domain === "plan" ? "overview" : domain === "organize" ? "restaurants" : "members";
+        render();
+      }));
+      document.querySelectorAll("[data-variant]").forEach(button => button.addEventListener("click", () => {
+        activeVariant = button.dataset.variant;
+        activeSection = "overview";
+        menuOpen = false;
+        gridOpen = false;
+        groupOpen = null;
+        hubRoot = "today";
+        hubSheetOpen = false;
+        domain = "plan";
+        quickOpen = false;
+        hamburgerOpen = false;
+        render();
+      }));
+    }
+
+    function render() {
+      const variant = variants[activeVariant];
+      document.getElementById("variantGrid").innerHTML = Object.entries(variants).map(([id, item]) =>
+        '<button class="variant-card ' + (id === activeVariant ? "active" : "") + '" data-variant="' + id + '">' +
+          '<span class="number">' + item.number + '</span><strong>' + item.title + '</strong><span>' + item.description + '</span>' +
+        '</button>'
+      ).join("");
+      document.getElementById("notes").innerHTML =
+        '<h2>' + variant.noteTitle + '</h2><p class="lead">' + variant.noteLead + '</p><ul class="note-list">' +
+        variant.notes.map((item, index) => '<li><b>' + (index + 1) + '</b><div><strong>' + item[0] + '</strong><span>' + item[1] + '</span></div></li>').join("") +
+        '</ul>';
+      document.getElementById("soloControl").innerHTML = soloMode && !tripOnlyPrototype
+        ? '<div><strong>Общая навигация внутри поездки</strong><small>Показывать «Мои путешествия»</small></div><button class="' + (showGlobalNav ? "" : "off") + '" data-action="toggle-global-nav">' + (showGlobalNav ? "Вкл" : "Выкл") + '</button>'
+        : "";
+      document.getElementById("phone").innerHTML = phoneMarkup();
+      wire();
+    }
+
+    if (soloMode) {
+      document.body.classList.add("solo-view");
+      document.title = "Ramingo · hamburger-концепция";
+    }
+    render();
+  </script>
+</body>
+</html>
