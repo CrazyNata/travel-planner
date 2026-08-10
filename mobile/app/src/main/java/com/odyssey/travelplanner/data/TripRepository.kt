@@ -526,30 +526,48 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("progress", 0)
             put("isDraft", true)
             put("tone", "purple")
+            // Keep the initial payload compatible with every trip section.
+            put("overviewMapPoints", buildJsonArray {
+                cityList.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+            })
+            put("budgetCurrency", "EUR")
+            put("budgetManualRates", buildJsonObject { })
+            put("budgetSplit", buildJsonObject {
+                put("groups", buildJsonArray { })
+            })
             put("coverPhotos", buildJsonArray { })
             put("sights", buildJsonArray { })
             put("restaurants", buildJsonArray { })
             put("accommodations", buildJsonArray { })
             put("budgetExpenses", buildJsonArray { })
             put("members", buildJsonArray { })
-            if (cityList.size > 1) {
-                put("days", buildJsonArray {
-                    cityList.zipWithNext().forEachIndexed { index, (from, to) ->
-                        add(buildJsonObject {
-                            put("id", UUID.randomUUID().toString())
-                            put("city", to)
-                            put("date", "")
-                            put("places", buildJsonArray { })
-                            put("roadLeg", buildJsonObject {
-                                put("from", from)
-                                put("to", to)
-                                put("completed", buildJsonArray { })
-                            })
-                            put("dayNumber", index + 1)
+            put("days", buildJsonArray {
+                cityList.zipWithNext().forEachIndexed { index, (from, to) ->
+                    add(buildJsonObject {
+                        put("id", UUID.randomUUID().toString())
+                        put("city", to)
+                        put("date", "")
+                        put("places", buildJsonArray { })
+                        put("roadLeg", buildJsonObject {
+                            put("from", from)
+                            put("to", to)
+                            put("checkInFrom", "")
+                            put("checkInTo", "")
+                            put("checkOutFrom", "")
+                            put("checkOutTo", "")
+                            put("notes", "")
+                            put("mapsUrl", "")
+                            put("dateDay", "")
+                            put("dateMonth", "")
+                            put("weekday", "")
+                            put("distance", "")
+                            put("travelTime", "")
+                            put("completed", buildJsonArray { })
                         })
-                    }
-                })
-            }
+                        put("dayNumber", index + 1)
+                    })
+                }
+            })
         }
         client.from("trips").insert(listOf(TripInsert(id, ownerId, payload)))
         return TripCard(id, resolvedTitle, dates, "Черновик", 0, cities.trim(), null)

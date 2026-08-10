@@ -1304,9 +1304,9 @@ fun OdysseyApp(
                 composable("create-trip") {
                     CreateTripScreen(
                         onBack = { navController.popBackStack() },
-                        onCreated = {
-                            navController.navigate("trips") {
-                                popUpTo("trips") { inclusive = true }
+                        onCreated = { created ->
+                            navController.navigate("trip/${created.id}") {
+                                popUpTo("trips") { inclusive = false }
                             }
                         },
                     )
@@ -1315,7 +1315,11 @@ fun OdysseyApp(
                     CreateTripScreen(
                         template = entry.arguments?.getString("template"),
                         onBack = { navController.popBackStack() },
-                        onCreated = { navController.navigate("trips") { popUpTo("trips") { inclusive = true } } },
+                        onCreated = { created ->
+                            navController.navigate("trip/${created.id}") {
+                                popUpTo("trips") { inclusive = false }
+                            }
+                        },
                     )
                 }
                 composable("reset-password") {
@@ -3423,7 +3427,7 @@ private fun EditTripPanel(
 }
 
 @Composable
-private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template: String? = null) {
+private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, template: String? = null) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
     val templateData = when (template) {
@@ -3434,11 +3438,12 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
         else -> "" to ""
     }
     var title by remember(template) { mutableStateOf(templateData.first) }
-    var startDate by remember { mutableStateOf("") }
-    var endDate by remember { mutableStateOf("") }
+    var startDate by remember(template) { mutableStateOf("") }
+    var endDate by remember(template) { mutableStateOf("") }
     var cities by remember(template) { mutableStateOf(templateData.second) }
     var creationMode by remember(template) { mutableStateOf(if (template.isNullOrBlank()) "blank" else "template") }
     var cityDialogOpen by remember { mutableStateOf(false) }
+    var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var cityDraft by remember { mutableStateOf("") }
     val cityList = remember(cities) {
         cities.split(",").map(String::trim).filter(String::isNotBlank)
@@ -3448,11 +3453,14 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
     val scope = rememberCoroutineScope()
 
     fun save() {
-        if (title.isBlank()) {
-            message = localized(language, "Укажите название путешествия", "Enter a trip name", "Indique un nombre para el viaje", "Geben Sie einen Reisenamen ein")
-            return
-        }
-        if (startDate.isNotBlank() && endDate.isNotBlank() && startDate > endDate) {
+        if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
+        if (
+            startDate.isNotBlank() &&
+            endDate.isNotBlank() &&
+            parseRouteDate(startDate)?.let { start ->
+                parseRouteDate(endDate)?.let { end -> end.timeInMillis < start.timeInMillis }
+            } == true
+        ) {
             message = localized(language, "Дата окончания не может быть раньше даты начала", "The end date cannot be before the start date", "La fecha de finalización no puede ser anterior a la de inicio", "Das Enddatum darf nicht vor dem Startdatum liegen")
             return
         }
@@ -3461,7 +3469,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
             message = null
             runCatching {
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).createTrip(title, startDate, endDate, cities)
-            }.onSuccess { onCreated() }.onFailure {
+            }.onSuccess { onCreated(it) }.onFailure {
                 message = it.message ?: localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden")
             }
             saving = false
@@ -3549,18 +3557,18 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
                     onValueChange = { title = it },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    TripCreateField(
+                    TripCreateDateField(
                         label = localized("Начало", "Start", "Inicio", "Beginn"),
                         placeholder = "15.04.2027",
                         value = startDate,
-                        onValueChange = { startDate = it },
+                        onClick = { datePickerTarget = "start" },
                         modifier = Modifier.weight(1f),
                     )
-                    TripCreateField(
+                    TripCreateDateField(
                         label = localized("Конец", "End", "Fin", "Ende"),
                         placeholder = "28.04.2027",
                         value = endDate,
-                        onValueChange = { endDate = it },
+                        onClick = { datePickerTarget = "end" },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -3643,6 +3651,19 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: () -> Unit, template
             dismissButton = { TextButton(onClick = { cityDialogOpen = false }) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope) } },
         )
     }
+    datePickerTarget?.let { target ->
+        val pickingStart = target == "start"
+        TripCreationCalendarDialog(
+            title = localized("Выберите дату", "Choose date", "Elige una fecha", "Datum auswählen"),
+            initialValue = if (pickingStart) startDate else endDate.ifBlank { startDate },
+            minimumDate = if (pickingStart) null else parseRouteDate(startDate),
+            onDismiss = { datePickerTarget = null },
+            onConfirm = { selectedDate ->
+                if (pickingStart) startDate = selectedDate else endDate = selectedDate
+                datePickerTarget = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -3668,6 +3689,312 @@ private fun TripCreationModeSegment(
             fontSize = 14.sp,
             lineHeight = 19.sp,
         )
+    }
+}
+
+@Composable
+private fun TripCreateDateField(
+    label: String,
+    placeholder: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val shape = RoundedCornerShape(13.dp)
+    Column(modifier = modifier) {
+        Text(
+            label,
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W700,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(bottom = 7.dp),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(47.dp)
+                .clip(shape)
+                .background(cardSurfaceColor())
+                .border(1.5.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, shape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = value.ifBlank { placeholder },
+                color = if (value.isBlank()) Color(0xFFB6B6BE) else contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(start = 14.dp, end = 42.dp),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp),
+            ) {
+                OdysseyCalendarIcon(16.dp, if (value.isBlank()) secondaryTextColor() else OdysseyPurple)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripCreationCalendarDialog(
+    title: String,
+    initialValue: String,
+    minimumDate: Calendar?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val language = normalizeLanguage(LocalLanguage.current)
+    val minimumMillis = minimumDate?.timeInMillis
+    val initial = remember(initialValue, minimumMillis) {
+        val candidate = parseRouteDate(initialValue) ?: minimumDate ?: Calendar.getInstance()
+        if (minimumDate != null && candidate.timeInMillis < minimumDate.timeInMillis) {
+            Calendar.getInstance().apply { timeInMillis = minimumDate.timeInMillis }
+        } else {
+            candidate
+        }
+    }
+    var displayedYear by remember(initialValue, minimumMillis) { mutableStateOf(initial.get(Calendar.YEAR)) }
+    var displayedMonth by remember(initialValue, minimumMillis) { mutableStateOf(initial.get(Calendar.MONTH)) }
+    var selectedYear by remember(initialValue, minimumMillis) { mutableStateOf(initial.get(Calendar.YEAR)) }
+    var selectedMonth by remember(initialValue, minimumMillis) { mutableStateOf(initial.get(Calendar.MONTH)) }
+    var selectedDay by remember(initialValue, minimumMillis) { mutableStateOf(initial.get(Calendar.DAY_OF_MONTH)) }
+
+    val monthNames = when (language) {
+        "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+        "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+        "DE" -> listOf("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
+        else -> listOf("январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь")
+    }
+    val weekDays = when (language) {
+        "EN" -> listOf("M", "T", "W", "T", "F", "S", "S")
+        "ES" -> listOf("L", "M", "X", "J", "V", "S", "D")
+        "DE" -> listOf("M", "D", "M", "D", "F", "S", "S")
+        else -> listOf("П", "В", "С", "Ч", "П", "С", "В")
+    }
+    val daysInMonth = Calendar.getInstance().apply {
+        clear()
+        set(displayedYear, displayedMonth + 1, 0)
+    }.get(Calendar.DAY_OF_MONTH)
+    val firstDay = Calendar.getInstance().apply {
+        clear()
+        set(displayedYear, displayedMonth, 1)
+    }.get(Calendar.DAY_OF_WEEK)
+    val leadingEmpty = (firstDay - Calendar.MONDAY + 7) % 7
+    val displayedMonthIndex = displayedYear * 12 + displayedMonth
+    val minimumMonthIndex = minimumDate?.let { it.get(Calendar.YEAR) * 12 + it.get(Calendar.MONTH) }
+    val canGoPrevious = minimumMonthIndex == null || displayedMonthIndex > minimumMonthIndex
+
+    fun dateCalendar(day: Int): Calendar = Calendar.getInstance().apply {
+        clear()
+        set(displayedYear, displayedMonth, day)
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x660F0F19))
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(352.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color.White)
+                    .border(1.dp, Color(0xFFE7E6EE), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 18.dp, vertical = 17.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            title,
+                            color = Color(0xFF141419),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 19.sp,
+                            lineHeight = 24.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                        Text(
+                            text = "${selectedDay.toString().padStart(2, '0')}.${(selectedMonth + 1).toString().padStart(2, '0')}.$selectedYear",
+                            color = Color(0xFF8A8A95),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF3F1FD))
+                            .clickable(onClick = onDismiss),
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = Color(0xFF6C5CE7), modifier = Modifier.size(17.dp))
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (canGoPrevious) Color(0xFFF5F4FA) else Color(0xFFF8F8FA))
+                            .clickable(enabled = canGoPrevious) {
+                                if (displayedMonth == 0) {
+                                    displayedMonth = 11
+                                    displayedYear -= 1
+                                } else {
+                                    displayedMonth -= 1
+                                }
+                            },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущий месяц", "Previous month", "Mes anterior", "Vorheriger Monat"), tint = if (canGoPrevious) Color(0xFF6C5CE7) else Color(0xFFC7C6CF), modifier = Modifier.size(18.dp))
+                    }
+                    Text(
+                        text = "${monthNames[displayedMonth].replaceFirstChar { it.uppercase() }} $displayedYear",
+                        color = Color(0xFF141419),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF5F4FA))
+                            .clickable {
+                                if (displayedMonth == 11) {
+                                    displayedMonth = 0
+                                    displayedYear += 1
+                                } else {
+                                    displayedMonth += 1
+                                }
+                            },
+                    ) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Следующий месяц", "Next month", "Mes siguiente", "Nächster Monat"), tint = Color(0xFF6C5CE7), modifier = Modifier.size(18.dp).graphicsLayer { rotationY = 180f })
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(modifier = Modifier.fillMaxWidth().height(22.dp)) {
+                    weekDays.forEach { day ->
+                        Text(
+                            text = day,
+                            color = Color(0xFF9B9AA5),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f),
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(7.dp))
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    (0 until 6).forEach { week ->
+                        Row(modifier = Modifier.fillMaxWidth().height(43.dp)) {
+                            (0 until 7).forEach { weekday ->
+                                val dayIndex = week * 7 + weekday - leadingEmpty + 1
+                                val validDay = dayIndex in 1..daysInMonth
+                                val selectable = validDay && (minimumDate == null || dateCalendar(dayIndex).timeInMillis >= minimumDate.timeInMillis)
+                                val selected = dayIndex == selectedDay && displayedYear == selectedYear && displayedMonth == selectedMonth
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                ) {
+                                    if (validDay) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(if (selected) Color(0xFF6C5CE7) else Color.Transparent)
+                                                .clickable(enabled = selectable) {
+                                                    selectedYear = displayedYear
+                                                    selectedMonth = displayedMonth
+                                                    selectedDay = dayIndex
+                                                },
+                                        ) {
+                                            Text(
+                                                text = dayIndex.toString(),
+                                                color = when {
+                                                    selected -> Color.White
+                                                    selectable -> Color(0xFF26252D)
+                                                    else -> Color(0xFFD0CFD6)
+                                                },
+                                                fontFamily = Manrope,
+                                                fontWeight = if (selected) FontWeight.W800 else FontWeight.W600,
+                                                fontSize = 14.sp,
+                                                lineHeight = 18.sp,
+                                                textAlign = TextAlign.Center,
+                                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(Color.White)
+                            .border(1.dp, Color(0xFFE3E2EA), RoundedCornerShape(15.dp))
+                            .clickable(onClick = onDismiss),
+                    ) {
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = Color(0xFF45434E), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1.25f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xFF6C5CE7), Color(0xFF8E7BF5))))
+                            .clickable {
+                                onConfirm(String.format(Locale.US, "%02d.%02d.%04d", selectedDay, selectedMonth + 1, selectedYear))
+                            },
+                    ) {
+                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -4097,8 +4424,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val language = LocalLanguage.current
     val sights = overview.sights.sortedWith(compareBy<com.odyssey.travelplanner.data.Sight> { sightRouteDay(it.walkDay) }.thenBy { it.walkOrder })
-    val initialRouteCity = sights.firstOrNull()?.city?.ifBlank { null }
-        ?: overview.routeLegs.firstOrNull()?.to.orEmpty()
+    val initialRouteCity = listOf(
+        sights.firstOrNull()?.city,
+        overview.routeLegs.firstOrNull()?.to,
+        overview.cities.firstOrNull(),
+        overview.overviewMapPoints.firstOrNull(),
+    ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
     var routeDay by remember(tripId) { mutableStateOf(sights.firstOrNull()?.walkDay?.let(::sightRouteDay) ?: 1) }
     var dayMenuOpen by remember { mutableStateOf(false) }
     var creatingDay by remember { mutableStateOf(false) }
