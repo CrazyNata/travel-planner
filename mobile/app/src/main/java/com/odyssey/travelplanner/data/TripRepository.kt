@@ -95,7 +95,21 @@ data class BudgetExpense(
 )
 data class BudgetGroup(val name: String, val people: Int)
 data class TripMember(val id: String, val name: String, val email: String, val role: String, val initials: String, val tone: String)
-data class Sight(val id: String, val name: String, val city: String, val photo: String, val category: String, val done: Boolean, val walkDay: Int, val walkOrder: Int, val description: String, val longitude: Double?, val latitude: Double?, val rating: Double? = null)
+data class Sight(
+    val id: String,
+    val name: String,
+    val city: String,
+    val photo: String,
+    val category: String,
+    val done: Boolean,
+    val walkDay: Int,
+    val walkOrder: Int,
+    val description: String,
+    val longitude: Double?,
+    val latitude: Double?,
+    val rating: Double? = null,
+    val link: String = "",
+)
 
 private fun jsonText(element: JsonElement?): String =
     runCatching { element?.jsonPrimitive?.contentOrNull?.trim().orEmpty() }.getOrDefault("")
@@ -293,6 +307,7 @@ interface TripRepository {
         walkDay: Int,
         longitude: Double? = null,
         latitude: Double? = null,
+        link: String = "",
     ): String
     suspend fun updateSightDetailsRich(
         id: String,
@@ -305,6 +320,7 @@ interface TripRepository {
         longitude: Double? = null,
         latitude: Double? = null,
         locationChanged: Boolean = false,
+        link: String = "",
     )
     suspend fun reorderSights(id: String, orderedSightIds: List<String>)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
@@ -446,6 +462,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 longitude = lngLat.getOrNull(0)?.jsonPrimitive?.doubleOrNull,
                 latitude = lngLat.getOrNull(1)?.jsonPrimitive?.doubleOrNull,
                 rating = sight["rating"]?.jsonPrimitive?.doubleOrNull ?: sight["googleRating"]?.jsonPrimitive?.doubleOrNull,
+                link = sightText("link").ifBlank { sightText("url") },
             )
         }
         val restaurants = row.payload["restaurants"]?.jsonArray.orEmpty().mapNotNull { item ->
@@ -1244,6 +1261,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         walkDay: Int,
         longitude: Double?,
         latitude: Double?,
+        link: String,
     ): String {
         require(name.isNotBlank()) { "Укажите название места" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
@@ -1268,6 +1286,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("walkDay", normalizedWalkDay)
             put("walkOrder", nextWalkOrder)
             put("done", false)
+            if (link.isNotBlank()) put("link", link.trim())
             if (longitude != null && latitude != null) {
                 put("lnglat", buildJsonArray {
                     add(kotlinx.serialization.json.JsonPrimitive(longitude))
@@ -1290,6 +1309,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         longitude: Double?,
         latitude: Double?,
         locationChanged: Boolean,
+        link: String,
     ) {
         require(name.isNotBlank()) { "Укажите название места" }
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
@@ -1301,6 +1321,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("subcategory", kotlinx.serialization.json.JsonPrimitive(category.trim()))
                 put("description", kotlinx.serialization.json.JsonPrimitive(description.trim()))
                 put("walkDay", kotlinx.serialization.json.JsonPrimitive(walkDay.coerceAtLeast(0)))
+                if (link.isBlank()) {
+                    remove("link")
+                } else {
+                    put("link", kotlinx.serialization.json.JsonPrimitive(link.trim()))
+                }
                 if (locationChanged) {
                     if (longitude != null && latitude != null) {
                         put("lnglat", buildJsonArray {

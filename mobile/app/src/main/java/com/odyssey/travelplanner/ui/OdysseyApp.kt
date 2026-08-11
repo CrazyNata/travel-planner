@@ -109,6 +109,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
@@ -191,6 +192,8 @@ import com.odyssey.travelplanner.data.localizedCityCatalogName
 import com.odyssey.travelplanner.data.cityCatalogEntry
 import com.odyssey.travelplanner.data.cityFlag
 import com.odyssey.travelplanner.data.resolveTripPhotoReference
+import com.odyssey.travelplanner.data.parseSightLinkCoordinates
+import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -4719,6 +4722,11 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
 
 private fun sightRouteDay(walkDay: Int): Int = walkDay.coerceAtLeast(1)
 
+private fun sightLinkPoint(link: String): Point? =
+    parseSightLinkCoordinates(link)?.let { coordinates ->
+        Point.fromLngLat(coordinates.longitude, coordinates.latitude)
+    }
+
 private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
@@ -4961,7 +4969,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
                     repository.addRouteLeg(tripId, city, city)
                     val namesToAdd = placeNames + placeName.trim().takeIf { it.isNotBlank() }.orEmpty()
                     namesToAdd.forEach { sightName ->
-                        repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day)
+                        repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day, link = "")
                     }
                 }.onSuccess { onSaved(); onClose() }.onFailure {
                     message = it.message ?: localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden")
@@ -5032,6 +5040,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var link by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedPoint by remember { mutableStateOf<Point?>(null) }
     var locationPickerOpen by remember { mutableStateOf(false) }
@@ -5065,6 +5074,31 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                 }
             }
         }
+        RouteEditorField(
+            label = localized("Ссылка на достопримечательность", "Sight link", "Enlace del lugar", "Link zur Sehenswürdigkeit"),
+            value = link,
+            onValueChange = { value ->
+                link = value
+                sightLinkPoint(value)?.let { selectedPoint = it }
+                if (value.isBlank()) selectedPoint = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = "https://maps.app.goo.gl/...",
+        )
+        if (link.isNotBlank()) {
+            Text(
+                text = if (sightLinkPoint(link) != null) {
+                    localized("Точка будет взята из ссылки", "The map point will be taken from the link", "El punto se tomará del enlace", "Der Kartenpunkt wird aus dem Link übernommen")
+                } else {
+                    localized("Если точка не определится автоматически, выберите её на карте ниже", "If the point cannot be detected automatically, choose it on the map below", "Si no se detecta el punto, selecciónelo en el mapa", "Wenn der Punkt nicht erkannt wird, wählen Sie ihn auf der Karte aus")
+                },
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+            )
+        }
         SightLocationField(
             point = selectedPoint,
             onClick = { locationPickerOpen = true },
@@ -5077,6 +5111,12 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                     saving = true
                     runCatching {
                         val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                        var savedPoint = selectedPoint
+                        if (link.isNotBlank() && savedPoint == null) {
+                            savedPoint = resolveSightLinkCoordinates(link)?.let { coordinates ->
+                                Point.fromLngLat(coordinates.longitude, coordinates.latitude)
+                            } ?: error(localized(language, "Не удалось определить точку по ссылке. Выберите точку на карте.", "Could not find a map point in this link. Choose a point on the map.", "No se pudo encontrar el punto en el enlace. Elija un punto en el mapa.", "Im Link wurde kein Kartenpunkt gefunden. Wählen Sie einen Punkt auf der Karte."))
+                        }
                         val sightId = repository.addSightDetails(
                             id = tripId,
                             name = name,
@@ -5084,8 +5124,9 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                             category = "достопримечательности",
                             description = description,
                             walkDay = day,
-                            longitude = selectedPoint?.longitude(),
-                            latitude = selectedPoint?.latitude(),
+                            longitude = savedPoint?.longitude(),
+                            latitude = savedPoint?.latitude(),
+                            link = link.trim(),
                         )
                         photoUri?.let { uri ->
                             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -5436,6 +5477,7 @@ private fun SightCard(
     onEdit: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
+    val uriHandler = LocalUriHandler.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -5502,6 +5544,25 @@ private fun SightCard(
                     )
                 }
             }
+            if (sight.link.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clickable { uriHandler.openUri(sight.link) },
+                ) {
+                    Icon(Icons.Outlined.OpenInNew, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(13.dp))
+                    Text(
+                        localized("Открыть ссылку", "Open link", "Abrir enlace", "Link öffnen"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
         Box(
             modifier = Modifier
@@ -5532,6 +5593,7 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
     var city by remember(sight.id, language) { mutableStateOf(displayedCity) }
     var category by remember(sight.id, language) { mutableStateOf(displayedCategory) }
     var description by remember(sight.id, language) { mutableStateOf(displayedDescription) }
+    var link by remember(sight.id, language) { mutableStateOf(sight.link) }
     var walkDay by remember(sight.id) { mutableStateOf(sight.walkDay.toString()) }
     var selectedPoint by remember(sight.id) {
         mutableStateOf(
@@ -5556,6 +5618,20 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
         )
         AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
         AuthField(localized("Описание", "Description", "Descripción", "Beschreibung"), localized("Что важно увидеть", "What is important to see", "Qué es importante ver", "Was sehenswert ist"), description) { description = it }
+        RouteEditorField(
+            label = localized("Ссылка на достопримечательность", "Sight link", "Enlace del lugar", "Link zur Sehenswürdigkeit"),
+            value = link,
+            onValueChange = { value ->
+                link = value
+                sightLinkPoint(value)?.let {
+                    selectedPoint = it
+                    locationChanged = true
+                }
+                if (value.isBlank() && sight.link.isBlank()) selectedPoint = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = "https://maps.app.goo.gl/...",
+        )
         AuthField(localized("День маршрута", "Route day", "Día de ruta", "Reisetag"), localized("Например, 1", "For example, 1", "Por ejemplo, 1", "Zum Beispiel 1"), walkDay) { walkDay = it.filter(Char::isDigit) }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -5567,6 +5643,15 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
                     val savedCity = city.trim().takeUnless { it == displayedCity } ?: sight.city.trim()
                     val savedCategory = category.trim().takeUnless { it == displayedCategory } ?: sight.category.trim()
                     val savedDescription = description.trim().takeUnless { it == displayedDescription } ?: sight.description.trim()
+                    val savedLink = link.trim()
+                    val linkChanged = savedLink != sight.link.trim()
+                    var savedPoint = selectedPoint
+                    if (linkChanged && savedLink.isNotBlank()) {
+                        savedPoint = resolveSightLinkCoordinates(savedLink)?.let { coordinates ->
+                            Point.fromLngLat(coordinates.longitude, coordinates.latitude)
+                        } ?: error(localized(language, "Не удалось определить точку по ссылке. Выберите точку на карте.", "Could not find a map point in this link. Choose a point on the map.", "No se pudo encontrar el punto en el enlace. Elija un punto en el mapa.", "Im Link wurde kein Kartenpunkt gefunden. Wählen Sie einen Punkt auf der Karte."))
+                        locationChanged = true
+                    }
                     runCatching {
                         SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightDetailsRich(
                             id = tripId,
@@ -5576,9 +5661,10 @@ private fun EditSightPanel(sight: com.odyssey.travelplanner.data.Sight, tripId: 
                             category = savedCategory,
                             description = savedDescription,
                             walkDay = walkDay.toIntOrNull() ?: sight.walkDay,
-                            longitude = selectedPoint?.longitude(),
-                            latitude = selectedPoint?.latitude(),
+                            longitude = savedPoint?.longitude(),
+                            latitude = savedPoint?.latitude(),
                             locationChanged = locationChanged,
+                            link = savedLink,
                         )
                     }
                         .onSuccess { onSaved() }
@@ -5623,7 +5709,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var status by remember { mutableStateOf("хочу") }
     var priority by remember { mutableStateOf(false) }
     var price by remember { mutableStateOf("€€") }
-    var newRestaurantPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var newRestaurantPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
@@ -5686,17 +5772,20 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         priceFilter.isNotBlank(),
         ratingFilter.isNotBlank(),
     ).count { it } + appliedFeatureFilters.size
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         val restaurantId = uploadingRestaurantId ?: return@rememberLauncherForActivityResult
-        if (uri == null) {
+        if (uris.isEmpty()) {
             uploadingRestaurantId = null
             return@rememberLauncherForActivityResult
         }
         scope.launch {
             runCatching {
+                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                uris.forEach { uri ->
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: error("Не удалось прочитать изображение")
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addRestaurantPhoto(tripId, restaurantId, bytes)
+                repository.addRestaurantPhoto(tripId, restaurantId, bytes)
+                }
             }.onSuccess {
                 actionMessage = null
                 onRestaurantAdded()
@@ -5706,8 +5795,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             uploadingRestaurantId = null
         }
     }
-    val newRestaurantPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        newRestaurantPhotoUri = uri
+    val newRestaurantPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) {
+            newRestaurantPhotoUris = (newRestaurantPhotoUris + uris).distinctBy(Uri::toString)
+        }
     }
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -5972,7 +6063,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 address = address,
                 status = status,
                 priority = priority,
-                photoUri = newRestaurantPhotoUri,
+                photoUris = newRestaurantPhotoUris,
                 saving = saving,
                 message = message,
                 onNameChange = { name = it },
@@ -6016,7 +6107,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                                 ),
                                 tripId,
                             )
-                            newRestaurantPhotoUri?.let { uri ->
+                            newRestaurantPhotoUris.forEach { uri ->
                                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                     ?: error("Не удалось прочитать изображение")
                                 repository.addRestaurantPhoto(tripId, restaurantId, bytes)
@@ -6033,7 +6124,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                             address = ""
                             status = "хочу"
                             priority = false
-                            newRestaurantPhotoUri = null
+                            newRestaurantPhotoUris = emptyList()
                             onRestaurantAdded()
                         }.onFailure {
                             message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
@@ -6177,7 +6268,7 @@ private fun RestaurantAddSheet(
     address: String,
     status: String,
     priority: Boolean,
-    photoUri: Uri?,
+    photoUris: List<Uri>,
     saving: Boolean,
     message: String?,
     onNameChange: (String) -> Unit,
@@ -6271,7 +6362,7 @@ private fun RestaurantAddSheet(
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(d(10f)),
-                        modifier = Modifier.width(d(674f)).height(d(168f)),
+                        modifier = Modifier.height(d(168f)),
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
@@ -6318,9 +6409,9 @@ private fun RestaurantAddSheet(
                                 .clip(RoundedCornerShape(d(14f)))
                                 .background(Color(0xFFE9E7F4)),
                         ) {
-                            if (photoUri != null) {
+                            photoUris.firstOrNull()?.let { uri ->
                                 AsyncImage(
-                                    model = photoUri,
+                                    model = uri,
                                     contentDescription = localized("Обложка ресторана", "Restaurant cover", "Portada del restaurante", "Restaurant-Titelbild"),
                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize(),
@@ -6342,13 +6433,36 @@ private fun RestaurantAddSheet(
                             )
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .width(d(128f))
-                                .height(d(168f))
-                                .clip(RoundedCornerShape(d(14f)))
-                                .background(Color(0xFFE9E7F4)),
-                        )
+                        photoUris.drop(1).forEachIndexed { index, uri ->
+                            Box(
+                                modifier = Modifier
+                                    .width(d(128f))
+                                    .height(d(168f))
+                                    .clip(RoundedCornerShape(d(14f)))
+                                    .background(Color(0xFFE9E7F4)),
+                            ) {
+                                AsyncImage(
+                                    model = uri,
+                                    contentDescription = localized("Фото ресторана ${index + 2}", "Restaurant photo ${index + 2}", "Foto del restaurante ${index + 2}", "Restaurantfoto ${index + 2}"),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                Text(
+                                    text = "${index + 2}",
+                                    color = Color.White,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W800,
+                                    fontSize = s(10f),
+                                    lineHeight = s(14f),
+                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(start = d(8f), top = d(8f))
+                                        .background(Color(0x8C141419), RoundedCornerShape(d(20f)))
+                                        .padding(horizontal = d(7f), vertical = d(3f)),
+                                )
+                            }
+                        }
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
@@ -6742,15 +6856,18 @@ private fun RestaurantEditSheet(
     var deleting by remember(restaurant.id) { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
             uploadingPhoto = true
             message = null
             runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435")
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addRestaurantPhoto(tripId, restaurant.id, bytes)
+                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                uris.forEach { uri ->
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435")
+                    repository.addRestaurantPhoto(tripId, restaurant.id, bytes)
+                }
             }.onSuccess {
                 uploadingPhoto = false
                 onSaved()
