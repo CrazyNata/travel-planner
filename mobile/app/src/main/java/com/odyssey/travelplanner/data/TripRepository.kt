@@ -528,7 +528,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
 
     override suspend fun createTrip(title: String, startDate: String, endDate: String, cities: String): TripCard {
         val id = UUID.randomUUID().toString()
-        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val owner = client.auth.currentUserOrNull() ?: error("Необходимо войти в аккаунт")
+        val ownerId = owner.id.toString()
+        val ownerEmail = owner.email.orEmpty()
+        val ownerName = ownerEmail.substringBefore('@').ifBlank { "Владелец" }
         val resolvedTitle = title.trim().ifBlank { "Без названия" }
         val dates = listOf(startDate, endDate).filter(String::isNotBlank).joinToString(" — ")
         val cityList = cities.split(",").map(String::trim).filter(String::isNotBlank)
@@ -557,7 +560,16 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("restaurants", buildJsonArray { })
             put("accommodations", buildJsonArray { })
             put("budgetExpenses", buildJsonArray { })
-            put("members", buildJsonArray { })
+            put("members", buildJsonArray {
+                add(buildJsonObject {
+                    put("id", ownerId)
+                    put("name", ownerName)
+                    put("email", ownerEmail)
+                    put("role", "Владелец")
+                    put("initials", ownerName.take(2).uppercase())
+                    put("tone", "purple")
+                })
+            })
             put("days", buildJsonArray {
                 cityList.zipWithNext().forEachIndexed { index, (from, to) ->
                     add(buildJsonObject {

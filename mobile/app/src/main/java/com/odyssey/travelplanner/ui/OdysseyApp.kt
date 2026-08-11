@@ -895,34 +895,10 @@ private fun photoCityKey(city: String): String = city.substringBefore(',').trim(
 private fun samePhotoCity(left: String, right: String): Boolean = photoCityKey(left) == photoCityKey(right)
 
 private fun parsePhotoDateRange(value: String): PhotoDateRange? {
-    val dates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value).mapNotNull { match ->
-        runCatching { LocalDate.parse(match.value) }.getOrNull()
-    }.toList()
-    val start = dates.firstOrNull() ?: return null
-    return PhotoDateRange(start, dates.getOrElse(1) { start })
+    return parseTripDateRange(value)?.let { (start, end) -> PhotoDateRange(start, end) }
 }
 
-private fun parsePhotoTripStart(value: String): LocalDate? {
-    val iso = Regex("""\d{4}-\d{2}-\d{2}""").find(value)?.value
-    if (iso != null) return runCatching { LocalDate.parse(iso) }.getOrNull()
-    val match = Regex("""(\d{1,2})\s+([A-Za-zА-Яа-яЁё]+)\s+(\d{4})""").find(value) ?: return null
-    val month = when (match.groupValues[2].lowercase(Locale.ROOT).take(4)) {
-        "янва" -> 1
-        "февр" -> 2
-        "март" -> 3
-        "апре" -> 4
-        "мая", "май" -> 5
-        "июн" -> 6
-        "июл" -> 7
-        "авгу" -> 8
-        "сент" -> 9
-        "октя" -> 10
-        "нояб" -> 11
-        "дека" -> 12
-        else -> return null
-    }
-    return runCatching { LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt()) }.getOrNull()
-}
+private fun parsePhotoTripStart(value: String): LocalDate? = parseTripDateRange(value)?.first
 
 private fun photoGroupDay(city: String, overview: TripOverview, fallback: Int): Int {
     val route = overview.routeLegs.withIndex().firstOrNull { (_, leg) ->
@@ -1881,6 +1857,28 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 .padding(WindowInsets.statusBars.asPaddingValues()),
         ) {
         Box(modifier = Modifier.fillMaxWidth().height(54.dp)) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 4.dp)
+                    .size(48.dp)
+                    .semantics {
+                        contentDescription = localized(language, "Открыть меню", "Open menu", "Abrir menú", "Menü öffnen")
+                        role = Role.Button
+                    }
+                    .clickable {
+                        accountMenuOpen = false
+                        menuOpen = true
+                    },
+            ) {
+                Icon(
+                    Icons.Outlined.Menu,
+                    contentDescription = null,
+                    tint = contentTextColor(),
+                    modifier = Modifier.size(23.dp),
+                )
+            }
             RamingoBrand(modifier = Modifier.align(Alignment.Center))
             Box(
                 contentAlignment = Alignment.Center,
@@ -2830,6 +2828,17 @@ private fun CompactTripDateField(
 }
 
 private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
+    val dottedDates = Regex("""\d{1,2}\.\d{1,2}\.\d{4}""").findAll(value)
+        .mapNotNull { match ->
+            val parts = match.value.split('.')
+            runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
+        }
+        .toList()
+    if (dottedDates.isNotEmpty()) {
+        val start = dottedDates.first()
+        return start to dottedDates.getOrElse(1) { start }
+    }
+
     val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value)
         .mapNotNull { match -> runCatching { LocalDate.parse(match.value) }.getOrNull() }
         .toList()
@@ -3455,8 +3464,38 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
+    fun selectCreationMode(mode: String) {
+        if (mode == creationMode) return
+        creationMode = mode
+        message = null
+        cityDraft = ""
+        datePickerTarget = null
+        if (mode == "blank") {
+            title = ""
+            startDate = ""
+            endDate = ""
+            cities = ""
+        } else if (templateData.first.isNotBlank()) {
+            title = templateData.first
+            startDate = ""
+            endDate = ""
+            cities = templateData.second
+        }
+    }
+
     fun save() {
         if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
+        val unsupportedCity = cityList.firstOrNull { cityCatalogEntry(it) == null }
+        if (unsupportedCity != null) {
+            message = localized(
+                language,
+                "Город «$unsupportedCity» пока нельзя добавить: выберите город из каталога",
+                "The city “$unsupportedCity” is not supported yet; choose a city from the catalog",
+                "La ciudad «$unsupportedCity» aún no es compatible; elija una ciudad del catálogo",
+                "Die Stadt „$unsupportedCity“ wird noch nicht unterstützt; wählen Sie eine Stadt aus dem Katalog",
+            )
+            return
+        }
         if (
             startDate.isNotBlank() &&
             endDate.isNotBlank() &&
@@ -3538,13 +3577,13 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
                 TripCreationModeSegment(
                     label = localized("С нуля", "From scratch", "Desde cero", "Von Grund auf"),
                     selected = creationMode == "blank",
-                    onClick = { creationMode = "blank" },
+                    onClick = { selectCreationMode("blank") },
                     modifier = Modifier.weight(1f),
                 )
                 TripCreationModeSegment(
                     label = localized("Из шаблона", "From template", "Desde una plantilla", "Aus Vorlage"),
                     selected = creationMode == "template",
-                    onClick = { creationMode = "template" },
+                    onClick = { selectCreationMode("template") },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -3705,6 +3744,7 @@ private fun TripCreateDateField(
 ) {
     val darkTheme = LocalDarkTheme.current
     val shape = RoundedCornerShape(13.dp)
+    val displayedValue = displayTripCreationDate(value)
     Column(modifier = modifier) {
         Text(
             label,
@@ -3726,8 +3766,8 @@ private fun TripCreateDateField(
             contentAlignment = Alignment.CenterStart,
         ) {
             Text(
-                text = value.ifBlank { placeholder },
-                color = if (value.isBlank()) Color(0xFFB6B6BE) else contentTextColor(),
+                text = displayedValue.ifBlank { placeholder },
+                color = if (displayedValue.isBlank()) Color(0xFFB6B6BE) else contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
                 fontSize = 15.sp,
@@ -3739,10 +3779,15 @@ private fun TripCreateDateField(
                     .align(Alignment.CenterEnd)
                     .padding(end = 12.dp),
             ) {
-                OdysseyCalendarIcon(16.dp, if (value.isBlank()) secondaryTextColor() else OdysseyPurple)
+                OdysseyCalendarIcon(16.dp, if (displayedValue.isBlank()) secondaryTextColor() else OdysseyPurple)
             }
         }
     }
+}
+
+private fun displayTripCreationDate(value: String): String {
+    val match = Regex("(\\d{4})-(\\d{2})-(\\d{2})").matchEntire(value.trim()) ?: return value
+    return "${match.groupValues[3]}.${match.groupValues[2]}.${match.groupValues[1]}"
 }
 
 @Composable
@@ -3990,7 +4035,7 @@ private fun TripCreationCalendarDialog(
                             .clip(RoundedCornerShape(15.dp))
                             .background(Brush.linearGradient(listOf(Color(0xFF6C5CE7), Color(0xFF8E7BF5))))
                             .clickable {
-                                onConfirm(String.format(Locale.US, "%02d.%02d.%04d", selectedDay, selectedMonth + 1, selectedYear))
+                                onConfirm(String.format(Locale.US, "%04d-%02d-%02d", selectedYear, selectedMonth + 1, selectedDay))
                             },
                     ) {
                         Text(localized("Готово", "Done", "Listo", "Fertig"), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
@@ -4715,7 +4760,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     }
     if (creatingDay) {
         ModalBottomSheet(onDismissRequest = { creatingDay = false }, containerColor = cardSurfaceColor()) {
-            CreateDaySheet(tripId = tripId, city = selectedDayCity, day = routeDay + 1, sights = visibleSights, onClose = { creatingDay = false }, onSaved = onSightUpdated)
+            val nextDayNumber = maxOf(
+                routeDay,
+                overview.routeDayCount,
+                sights.maxOfOrNull { sightRouteDay(it.walkDay) } ?: 0,
+            ) + 1
+            CreateDaySheet(tripId = tripId, city = selectedDayCity, day = nextDayNumber, onClose = { creatingDay = false }, onSaved = onSightUpdated)
         }
     }
 }
@@ -4731,6 +4781,42 @@ private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
 private val sightPhotoDownloadGate = Semaphore(6)
+private const val MaxSightBitmapDimension = 2048
+
+private fun openSightPhotoConnection(photoUrl: String): HttpURLConnection =
+    (URL(photoUrl).openConnection() as HttpURLConnection).apply {
+        connectTimeout = 8_000
+        readTimeout = 8_000
+        requestMethod = "GET"
+        setRequestProperty("Accept", "image/*")
+        setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
+    }
+
+private fun decodeSightBitmap(photoUrl: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    val boundsConnection = openSightPhotoConnection(photoUrl)
+    try {
+        boundsConnection.inputStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+    } finally {
+        boundsConnection.disconnect()
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var sampleSize = 1
+    while (bounds.outWidth / sampleSize > MaxSightBitmapDimension || bounds.outHeight / sampleSize > MaxSightBitmapDimension) {
+        sampleSize *= 2
+    }
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = sampleSize
+        inPreferredConfig = Bitmap.Config.RGB_565
+    }
+    val imageConnection = openSightPhotoConnection(photoUrl)
+    return try {
+        imageConnection.inputStream.use { BitmapFactory.decodeStream(it, null, options) }
+    } finally {
+        imageConnection.disconnect()
+    }
+}
 
 private fun knownSightPhotoUrl(sight: com.odyssey.travelplanner.data.Sight): String? {
     if (sight.city.trim().lowercase(Locale.ROOT) != "верона" || sight.walkDay != 2) return null
@@ -4822,16 +4908,7 @@ private suspend fun cachedSightBitmap(photoUrl: String): Bitmap? {
     sightBitmapCache[photoUrl]?.let { return it }
     val bitmap = withContext(Dispatchers.IO) {
         sightPhotoDownloadGate.withPermit {
-        runCatching {
-            (URL(photoUrl).openConnection() as HttpURLConnection).run {
-                connectTimeout = 8_000
-                readTimeout = 8_000
-                requestMethod = "GET"
-                setRequestProperty("Accept", "image/*")
-                setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
-                inputStream.use { BitmapFactory.decodeStream(it) }
-            }
-        }.getOrNull()
+            runCatching { decodeSightBitmap(photoUrl) }.getOrNull()
         }
     }
     if (bitmap != null) sightBitmapCache[photoUrl] = bitmap
@@ -4887,15 +4964,22 @@ private fun routeLegDayNumber(
     legs: List<com.odyssey.travelplanner.data.RouteLeg>,
 ): Int = leg.dayNumber.takeIf { it > 0 } ?: (legs.indexOf(leg) + 1)
 
+internal fun daySightNamesToSave(placeNames: List<String>, draftName: String): List<String> = buildList {
+    placeNames
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .forEach { add(it) }
+    draftName.trim().takeIf { it.isNotBlank() }?.let { add(it) }
+}
+
 @Composable
-private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
+private fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () -> Unit, onSaved: () -> Unit) {
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     var dayNumber by remember { mutableStateOf(day.toString()) }
     var placeName by remember { mutableStateOf("") }
     var placeNames by remember { mutableStateOf(emptyList<String>()) }
-    var previewSights by remember(sights) { mutableStateOf(sights.take(3)) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -4904,7 +4988,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
             Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp)) }
         }
         RouteEditorField(localized("День", "Day", "Día", "Tag"), dayNumber, { dayNumber = it }, Modifier.fillMaxWidth())
-        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${sights.size + placeNames.size}", "SIGHTS · ${sights.size + placeNames.size}", "LUGARES · ${sights.size + placeNames.size}", "ORTE · ${sights.size + placeNames.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
+        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ · ${placeNames.size}", "SIGHTS · ${placeNames.size}", "LUGARES · ${placeNames.size}", "ORTE · ${placeNames.size}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
                 value = placeName,
@@ -4917,30 +5001,9 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
             )
             Button(onClick = { if (placeName.isNotBlank()) { placeNames = placeNames + placeName.trim(); placeName = "" } }, modifier = Modifier.height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp)) { Text(localized("＋ Добавить", "＋ Add", "＋ Añadir", "＋ Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp) }
         }
-        Text(localized("МАРШРУТ ДНЯ · порядок задаёт путь", "DAY ROUTE · order defines route", "RUTA DEL DÍA · el orden define la ruta", "TAGESROUTE · Reihenfolge bestimmt den Weg"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp)
-        previewSights.forEachIndexed { index, sight ->
-            Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(secondarySurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text((index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
-                Text(localizedSightName(sight.name), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RouteOrderButton(Icons.Outlined.KeyboardArrowUp, index > 0, localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben")) {
-                        val reordered = previewSights.toMutableList()
-                        val moved = reordered.removeAt(index)
-                        reordered.add(index - 1, moved)
-                        previewSights = reordered
-                    }
-                    RouteOrderButton(Icons.Outlined.KeyboardArrowDown, index < previewSights.lastIndex, localized("Переместить вниз", "Move down", "Mover abajo", "Nach unten")) {
-                        val reordered = previewSights.toMutableList()
-                        val moved = reordered.removeAt(index)
-                        reordered.add(index + 1, moved)
-                        previewSights = reordered
-                    }
-                }
-            }
-        }
         placeNames.forEachIndexed { index, pendingName ->
             Row(modifier = Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(13.dp)).background(tintedSurfaceColor()).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text((sights.take(3).size + index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
+                Text((index + 1).toString(), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.size(34.dp).clip(CircleShape).border(2.dp, Color(0xFFCFC6FF), CircleShape).padding(start = 11.dp, top = 5.dp))
                 Text(pendingName, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     RouteOrderButton(Icons.Outlined.KeyboardArrowUp, index > 0, localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben")) {
@@ -4965,11 +5028,13 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, sights: List<
                 saving = true
                 runCatching {
                     val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                    repository.reorderSights(tripId, previewSights.map { it.id })
-                    repository.addRouteLeg(tripId, city, city)
-                    val namesToAdd = placeNames + placeName.trim().takeIf { it.isNotBlank() }.orEmpty()
+                    val namesToAdd = daySightNamesToSave(placeNames, placeName)
+                    require(namesToAdd.isNotEmpty()) {
+                        localized(language, "Добавьте хотя бы одну достопримечательность", "Add at least one sight", "Añada al menos un lugar", "Fügen Sie mindestens einen Ort hinzu")
+                    }
+                    val targetDay = dayNumber.toIntOrNull()?.takeIf { it > 0 } ?: day
                     namesToAdd.forEach { sightName ->
-                        repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", dayNumber.toIntOrNull() ?: day, link = "")
+                        repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", targetDay, link = "")
                     }
                 }.onSuccess { onSaved(); onClose() }.onFailure {
                     message = it.message ?: localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden")
@@ -5002,7 +5067,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
         if (message != null) {
             Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
-        sights.take(3).forEach { sight ->
+        sights.forEach { sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(secondarySurfaceColor()).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
@@ -5729,6 +5794,26 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var draftPriceFilter by remember { mutableStateOf("") }
     var draftRatingFilter by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    fun resetRestaurantForm() {
+        name = ""
+        city = ""
+        cuisine = ""
+        dateTime = ""
+        address = ""
+        status = "хочу"
+        priority = false
+        price = "€€"
+        newRestaurantPhotoUris = emptyList()
+        message = null
+        cityPickerOpen = false
+    }
+
+    fun closeRestaurantForm() {
+        adding = false
+        resetRestaurantForm()
+    }
+
     val tripCityOptions = (
         overview.cities +
             overview.routeLegs.flatMap { listOf(it.from, it.to) } +
@@ -5905,7 +5990,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                             ),
                         )
                     }
-                    .clickable { adding = true; message = null; actionMessage = null },
+                    .clickable { resetRestaurantForm(); adding = true; actionMessage = null },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
@@ -6046,7 +6131,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     }
     if (adding) {
         ModalBottomSheet(
-            onDismissRequest = { adding = false; message = null; cityPickerOpen = false },
+            onDismissRequest = ::closeRestaurantForm,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
@@ -6088,7 +6173,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onStatusChange = { status = it },
                 onPriorityChange = { priority = !priority },
                 onPickPhoto = { newRestaurantPhotoPicker.launch("image/*") },
-                onClose = { adding = false; message = null; cityPickerOpen = false },
+                onClose = ::closeRestaurantForm,
                 onSave = {
                     scope.launch {
                         saving = true
@@ -6113,18 +6198,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                                 repository.addRestaurantPhoto(tripId, restaurantId, bytes)
                             }
                         }.onSuccess {
-                            adding = false
-                            message = null
-                            cityPickerOpen = false
-                            name = ""
-                            city = ""
-                            cuisine = ""
-                            dateTime = ""
-                            price = "€€"
-                            address = ""
-                            status = "хочу"
-                            priority = false
-                            newRestaurantPhotoUris = emptyList()
+                            closeRestaurantForm()
                             onRestaurantAdded()
                         }.onFailure {
                             message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
@@ -6851,6 +6925,7 @@ private fun RestaurantEditSheet(
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
     var whenBooked by remember(restaurant.id) { mutableStateOf(restaurant.date) }
+    var link by remember(restaurant.id) { mutableStateOf(restaurant.link) }
     var saving by remember { mutableStateOf(false) }
     var uploadingPhoto by remember(restaurant.id) { mutableStateOf(false) }
     var deleting by remember(restaurant.id) { mutableStateOf(false) }
@@ -6890,7 +6965,7 @@ private fun RestaurantEditSheet(
         fun s(value: Float) = (value * scale).sp
         val booked = status == "бронь"
         val busy = saving || uploadingPhoto || deleting
-        val sheetHeight = if (booked) 563f else 470f
+        val sheetHeight = if (booked) 656f else 563f
 
         Box(
             modifier = Modifier
@@ -7010,6 +7085,17 @@ private fun RestaurantEditSheet(
                 )
             }
             RestaurantAddField(
+                label = localized("Адрес или ссылка", "Address or link", "Dirección o enlace", "Adresse oder Link"),
+                value = link,
+                placeholder = "https://maps.app.goo.gl/...",
+                scale = scale,
+                valueWeight = FontWeight.W600,
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(if (booked) 391f else 298f))
+                    .width(d(336f)),
+                onValueChange = { link = it },
+            )
+            RestaurantAddField(
                 label = localized("\u0424\u043e\u0442\u043e", "Photos", "Fotos", "Fotos"),
                 value = if (restaurant.photos.isEmpty()) {
                     ""
@@ -7026,7 +7112,7 @@ private fun RestaurantEditSheet(
                 trailingChevron = true,
                 readOnly = true,
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(if (booked) 391f else 298f))
+                    .offset(x = d(16f), y = d(if (booked) 484f else 391f))
                     .width(d(336f)),
                 onClick = { if (!busy) photoPicker.launch("image/*") },
                 onValueChange = {},
@@ -7035,7 +7121,7 @@ private fun RestaurantEditSheet(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(11f)),
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(if (booked) 492f else 399f))
+                    .offset(x = d(16f), y = d(if (booked) 585f else 492f))
                     .width(d(336f))
                     .height(d(53f)),
             ) {
@@ -7123,7 +7209,7 @@ private fun RestaurantEditSheet(
                                             status = status,
                                             note = restaurant.note,
                                             price = restaurant.price,
-                                            link = restaurant.link,
+                                            link = link,
                                             date = whenBooked,
                                             priority = restaurant.priority,
                                         ),
@@ -7158,8 +7244,8 @@ private fun RestaurantEditSheet(
                     fontSize = s(11f),
                     lineHeight = s(15f),
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    modifier = Modifier
-                        .offset(x = d(16f), y = d(if (booked) 548f else 455f))
+                        modifier = Modifier
+                        .offset(x = d(16f), y = d(if (booked) 641f else 548f))
                         .width(d(336f)),
                 )
             }
@@ -7729,6 +7815,7 @@ private fun RestaurantCard(
     modifier: Modifier = Modifier,
     onStatusChange: (String) -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     val photos = restaurant.photos
     var photoIndex by remember(restaurant.id, photos) { mutableStateOf(0) }
     var fullScreenPhotoIndex by remember(restaurant.id, photos) { mutableStateOf<Int?>(null) }
@@ -7847,7 +7934,15 @@ private fun RestaurantCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    OdysseyExternalLinkIcon(17.dp, OdysseyPurple, modifier = Modifier.padding(top = 2.dp))
+                    restaurantLinkUri(restaurant.link)?.let { link ->
+                        OdysseyExternalLinkIcon(
+                            17.dp,
+                            OdysseyPurple,
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .clickable { runCatching { uriHandler.openUri(link) } },
+                        )
+                    }
                 }
                 Text(
                     restaurant.city.takeIf(String::isNotBlank)?.let { localizedCityName(it) }
@@ -8814,6 +8909,7 @@ private fun BudgetContent(
             BudgetExpenseSheet(
                 title = if (editingExpense == null) localized("Новая трата", "New expense", "Nuevo gasto", "Neue Ausgabe") else localized("Редактировать трату", "Edit expense", "Editar gasto", "Ausgabe bearbeiten"),
                 currencySymbol = currencySymbol,
+                name = name,
                 amount = amountInput,
                 payer = paidBy,
                 date = date,
@@ -8822,6 +8918,7 @@ private fun BudgetContent(
                 editing = editingExpense != null,
                 saving = saving,
                 message = message,
+                onNameChange = { name = it },
                 onAmountChange = { amountInput = it },
                 onPayerChange = { paidBy = it },
                 onDateClick = { datePickerOpen = true },
@@ -8972,6 +9069,9 @@ private fun budgetScopeValue(value: String): String = when (value.trim().lowerca
 }
 
 private fun budgetTripDayCount(value: String): Int {
+    parseTripDateRange(value)?.let { (start, end) ->
+        return (ChronoUnit.DAYS.between(start, end).toInt() + 1).coerceAtLeast(1)
+    }
     val match = Regex("""(\d+)\s*(?:дн\w*|day\w*|día\w*|tag\w*)""", RegexOption.IGNORE_CASE).find(value)
     return match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
 }
@@ -9583,6 +9683,7 @@ private fun BudgetChoiceChip(
 private fun BudgetExpenseSheet(
     title: String,
     currencySymbol: String,
+    name: String,
     amount: String,
     payer: String,
     date: String,
@@ -9591,6 +9692,7 @@ private fun BudgetExpenseSheet(
     editing: Boolean,
     saving: Boolean,
     message: String?,
+    onNameChange: (String) -> Unit,
     onAmountChange: (String) -> Unit,
     onPayerChange: (String) -> Unit,
     onDateClick: () -> Unit,
@@ -9611,7 +9713,7 @@ private fun BudgetExpenseSheet(
             lineHeight = s(18f),
             platformStyle = OdysseyNoFontPadding,
         )
-        Box(modifier = Modifier.fillMaxWidth().height(d(605f))) {
+        Box(modifier = Modifier.fillMaxWidth().height(d(700f))) {
             Box(
                 modifier = Modifier
                     .offset(x = d(164f), y = d(12f))
@@ -9643,9 +9745,19 @@ private fun BudgetExpenseSheet(
                     Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = OdysseySubtext, modifier = Modifier.size(d(16f)))
                 }
             }
+            AccommodationEditTextField(
+                label = localized("Название", "Name", "Nombre", "Name"),
+                value = name,
+                placeholder = localized("Например, билеты", "E.g. tickets", "P. ej. billetes", "Z. B. Tickets"),
+                valueWeight = FontWeight.W600,
+                valueColor = OdysseyText,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(78f)).width(d(336f)),
+                onValueChange = onNameChange,
+            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(12f)),
-                modifier = Modifier.offset(x = d(16f), y = d(86f)).width(d(336f)).height(d(77f)),
+                modifier = Modifier.offset(x = d(16f), y = d(165f)).width(d(336f)).height(d(77f)),
             ) {
                 AccommodationEditTextField(
                     label = localized("Сумма, $currencySymbol", "Amount, $currencySymbol", "Importe, $currencySymbol", "Betrag, $currencySymbol"),
@@ -9672,15 +9784,15 @@ private fun BudgetExpenseSheet(
                 label = localized("Дата", "Date", "Fecha", "Datum"),
                 value = date,
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(179f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(258f)).width(d(336f)),
                 onClick = onDateClick,
             )
             Text(
                 text = localized("Категория", "Category", "Categoría", "Kategorie"),
                 style = labelStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(272f)).width(d(336f)).height(d(18f)),
+                modifier = Modifier.offset(x = d(16f), y = d(351f)).width(d(336f)).height(d(18f)),
             )
-            Column(modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(336f))) {
+            Column(modifier = Modifier.offset(x = d(16f), y = d(377f)).width(d(336f))) {
                 Row(horizontalArrangement = Arrangement.spacedBy(d(9f))) {
                     BudgetChoiceChip(localized("Жильё", "Lodging", "Alojamiento", "Unterkunft"), category == "Жильё", 79.2f, scale) { onCategoryChange("Жильё") }
                     BudgetChoiceChip(localized("Транспорт", "Transport", "Transporte", "Transport"), category == "Транспорт", 106.8f, scale) { onCategoryChange("Транспорт") }
@@ -9696,11 +9808,11 @@ private fun BudgetExpenseSheet(
             Text(
                 text = localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"),
                 style = labelStyle,
-                modifier = Modifier.offset(x = d(16f), y = d(452f)).width(d(336f)).height(d(18f)),
+                modifier = Modifier.offset(x = d(16f), y = d(531f)).width(d(336f)).height(d(18f)),
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(9f)),
-                modifier = Modifier.offset(x = d(16f), y = d(478f)).height(d(40f)),
+                modifier = Modifier.offset(x = d(16f), y = d(557f)).height(d(40f)),
             ) {
                 BudgetChoiceChip(localized("Общий", "Shared", "Común", "Gemeinsam"), scopeName == "общий", 79.8f, scale) { onScopeChange("общий") }
                 BudgetChoiceChip(localized("Семья", "Family", "Familia", "Familie"), scopeName == "семья", 77.9f, scale) { onScopeChange("семья") }
@@ -9715,14 +9827,14 @@ private fun BudgetExpenseSheet(
                     fontSize = s(11f),
                     lineHeight = s(15f),
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    modifier = Modifier.offset(x = d(16f), y = d(512f)).width(d(336f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(591f)).width(d(336f)),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(11f)),
-                modifier = Modifier.offset(x = d(16f), y = d(534f)).width(d(336f)).height(d(53f)),
+                modifier = Modifier.offset(x = d(16f), y = d(613f)).width(d(336f)).height(d(53f)),
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -10034,6 +10146,28 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
     var editingAccommodation by remember { mutableStateOf<com.odyssey.travelplanner.data.Accommodation?>(null) }
     var uploadingAccommodationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun resetAccommodationForm() {
+        name = ""
+        city = ""
+        dates = ""
+        checkIn = ""
+        checkOut = ""
+        deadline = ""
+        price = ""
+        status = "хочу"
+        bookingUrl = ""
+        details = ""
+        newAccommodationPhotoUri = null
+        message = null
+        datePickerTarget = null
+    }
+
+    fun closeAccommodationForm() {
+        adding = false
+        resetAccommodationForm()
+    }
+
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val accommodationId = uploadingAccommodationId ?: return@rememberLauncherForActivityResult
         if (uri == null) {
@@ -10122,7 +10256,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color.White.copy(alpha = 0.4f))
                     .border(androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFD3D3DB)), RoundedCornerShape(18.dp))
-                    .clickable { adding = true; message = null },
+                    .clickable { resetAccommodationForm(); adding = true },
             ) {
                 OdysseyPlusIcon(18.dp, OdysseyPurple)
                 Text(localized("Добавить жильё", "Add lodging", "Añadir alojamiento", "Unterkunft hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 18.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.padding(start = 8.dp))
@@ -10160,7 +10294,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
     }
     if (adding) {
         ModalBottomSheet(
-            onDismissRequest = { adding = false; message = null },
+            onDismissRequest = ::closeAccommodationForm,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
@@ -10191,7 +10325,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                 onDetailsChange = { details = it },
                 onStatusChange = { status = it },
                 onPickPhoto = { newAccommodationPhotoPicker.launch("image/*") },
-                onClose = { adding = false; message = null },
+                onClose = ::closeAccommodationForm,
                 onSave = {
                     scope.launch {
                         saving = true
@@ -10215,20 +10349,9 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                                     ?: error("Не удалось прочитать изображение")
                                 repository.addAccommodationPhoto(tripId, accommodationId, bytes)
                             }
-                        }
+                            }
                             .onSuccess {
-                                adding = false
-                                message = null
-                                name = ""
-                                city = ""
-                                dates = ""
-                                checkIn = ""
-                                checkOut = ""
-                                deadline = ""
-                                price = ""
-                                bookingUrl = ""
-                                details = ""
-                                newAccommodationPhotoUri = null
+                                closeAccommodationForm()
                                 onStatusUpdated()
                             }
                             .onFailure { message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden") }
@@ -10735,6 +10858,7 @@ private fun AccommodationEditSheet(
     val language = LocalLanguage.current
     val initialDates = remember(accommodation.id) { accommodationDateParts(accommodation.dates) }
     var name by remember(accommodation.id) { mutableStateOf(accommodation.name) }
+    var status by remember(accommodation.id) { mutableStateOf(normalizeAccommodationStatus(accommodation.status)) }
     var checkIn by remember(accommodation.id) { mutableStateOf(initialDates.first) }
     var checkOut by remember(accommodation.id) { mutableStateOf(initialDates.second) }
     var deadline by remember(accommodation.id) { mutableStateOf(accommodation.deadline) }
@@ -10791,7 +10915,7 @@ private fun AccommodationEditSheet(
                         city = accommodation.city,
                         dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
                         price = price,
-                        status = accommodation.status,
+                        status = status,
                         details = accommodation.details,
                         bookingUrl = bookingUrl,
                         deadline = deadline,
@@ -10853,7 +10977,7 @@ private fun AccommodationEditSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(d(900f)),
+                        .height(d(1000f)),
                 ) {
                     Box(
                         modifier = Modifier
@@ -10948,8 +11072,60 @@ private fun AccommodationEditSheet(
                 },
                 modifier = Modifier
                     .offset(x = d(16f), y = d(108f))
-                    .width(d(321f))
-                    .height(d(172f)),
+                .width(d(321f))
+                .height(d(172f)),
+            )
+            Text(
+                text = localized("Статус", "Status", "Estado", "Status"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = s(13f),
+                lineHeight = s(18f),
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(298f))
+                    .width(d(336f))
+                    .height(d(18f)),
+            )
+            @Composable
+            fun EditStatusChip(label: String, value: String, width: Float, modifier: Modifier = Modifier) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = modifier
+                        .width(d(width))
+                        .height(d(41f))
+                        .clip(RoundedCornerShape(d(12f)))
+                        .background(if (status == value) OdysseyPurple else cardSurfaceColor())
+                        .border(d(1f), if (status == value) OdysseyPurple else contentBorderColor(), RoundedCornerShape(d(12f)))
+                        .clickable { status = value },
+                ) {
+                    Text(
+                        text = label,
+                        color = if (status == value) Color.White else secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(12f),
+                        lineHeight = s(16f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(9f)),
+                modifier = Modifier
+                    .offset(x = d(16f), y = d(324f))
+                    .height(d(41f)),
+            ) {
+                EditStatusChip(localized("хочу", "want", "quiero", "möchte"), "хочу", 70.6f)
+                EditStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "бронь", 81f)
+                EditStatusChip(localized("оплачено", "paid", "pagado", "bezahlt"), "оплачено", 106.6f)
+            }
+            EditStatusChip(
+                localized("пожили", "stayed", "alojado", "übernachtet"),
+                "пожили",
+                92.2f,
+                Modifier.offset(x = d(16f), y = d(374f)),
             )
             AccommodationEditTextField(
                 label = localized("Название жилья", "Accommodation name", "Nombre del alojamiento", "Name der Unterkunft"),
@@ -10958,13 +11134,13 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W700,
                 valueColor = contentTextColor(),
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(298f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(431f)).width(d(336f)),
                 onValueChange = { name = it },
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(12f)),
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(391f))
+                    .offset(x = d(16f), y = d(524f))
                     .width(d(336f))
                     .height(d(77f)),
             ) {
@@ -10990,14 +11166,14 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W700,
                 valueColor = contentTextColor(),
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(577f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(710f)).width(d(336f)),
                 onValueChange = { price = it },
             )
             AccommodationEditDateField(
                 label = localized("Бесплатная отмена до", "Free cancellation until", "Cancelación gratuita hasta", "Kostenlose Stornierung bis"),
                 value = deadline,
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(484f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(617f)).width(d(336f)),
                 onClick = { datePickerTarget = "deadline" },
             )
             AccommodationEditTextField(
@@ -11007,7 +11183,7 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W600,
                 valueColor = OdysseyPurple,
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(670f)).width(d(336f)),
+                modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(336f)),
                 onValueChange = { bookingUrl = it },
             )
 
@@ -11066,7 +11242,7 @@ private fun AccommodationEditSheet(
                                             city = accommodation.city,
                                             dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
                                             price = price,
-                                            status = accommodation.status,
+                                            status = status,
                                             details = accommodation.details,
                                             bookingUrl = bookingUrl,
                                             deadline = deadline,
@@ -12182,6 +12358,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 to = to,
                 date = selectedDateIso,
                 checkIn = checkIn,
+                checkOut = checkOut,
                 mapsUrl = mapsUrl,
                 saving = saving,
                 message = message,
@@ -12189,6 +12366,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 onToChange = { to = it },
                 onDateClick = { datePickerOpen = true },
                 onCheckInChange = { checkIn = it },
+                onCheckOutChange = { checkOut = it },
                 onMapsUrlChange = { mapsUrl = it },
                 onCancel = { adding = false; editingLeg = null; message = null },
                 canDelete = editingLeg != null,
@@ -12265,6 +12443,7 @@ private fun RouteLegEditorSheet(
     to: String,
     date: String,
     checkIn: String,
+    checkOut: String,
     mapsUrl: String,
     saving: Boolean,
     message: String?,
@@ -12272,6 +12451,7 @@ private fun RouteLegEditorSheet(
     onToChange: (String) -> Unit,
     onDateClick: () -> Unit,
     onCheckInChange: (String) -> Unit,
+    onCheckOutChange: (String) -> Unit,
     onMapsUrlChange: (String) -> Unit,
     onCancel: () -> Unit,
     canDelete: Boolean,
@@ -12309,6 +12489,7 @@ private fun RouteLegEditorSheet(
             modifier = Modifier.fillMaxWidth(),
         )
         RouteEditorField(localized("Заселение до", "Check-in by", "Entrada antes de", "Check-in bis"), checkIn, onCheckInChange, Modifier.fillMaxWidth(), placeholder = "—")
+        RouteEditorField(localized("Выселение до", "Check-out by", "Salida antes de", "Check-out bis"), checkOut, onCheckOutChange, Modifier.fillMaxWidth(), placeholder = "—")
         RouteEditorField(
             localized("Ссылка на карту", "Map link", "Enlace al mapa", "Kartenlink"),
             mapsUrl,
@@ -12380,10 +12561,28 @@ private fun RouteEditorField(
     }
 }
 
+internal data class RouteTiming(val isCheckOut: Boolean, val value: String)
+
+internal fun routeTiming(checkIn: String, checkOut: String): RouteTiming {
+    val normalizedCheckIn = checkIn.trim()
+    val normalizedCheckOut = checkOut.trim()
+    return when {
+        normalizedCheckIn.isNotBlank() -> RouteTiming(isCheckOut = false, value = normalizedCheckIn)
+        normalizedCheckOut.isNotBlank() -> RouteTiming(isCheckOut = true, value = normalizedCheckOut)
+        else -> RouteTiming(isCheckOut = false, value = "—")
+    }
+}
+
 @Composable
 private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex: Int, tripDates: String, onEdit: () -> Unit, onChecklistChange: (String, Boolean) -> Unit) {
     val language = LocalLanguage.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val timing = routeTiming(leg.checkIn, leg.checkOut)
+    val timingLabel = if (timing.isCheckOut) {
+        localized("Выселение", "Check-out", "Salida", "Check-out")
+    } else {
+        localized("Заселение", "Check-in", "Entrada", "Check-in")
+    }
     val mapsUrl = leg.mapsUrl.ifBlank {
         "https://www.google.com/maps/dir/?api=1&origin=${Uri.encode(leg.from)}&destination=${Uri.encode(leg.to)}"
     }
@@ -12432,9 +12631,9 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Outlined.Key, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(16.dp))
-            Text(localized("Заселение", "Check-in", "Entrada", "Check-in"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
+            Text(timingLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp))
             Spacer(Modifier.weight(1f))
-            Text((leg.checkIn.ifBlank { leg.checkOut }).ifBlank { "—" }, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+            Text(timing.value, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
         }
     }
 }
@@ -12559,6 +12758,8 @@ private fun routeDateParts(date: String, tripDates: String, dayIndex: Int, langu
     }
     val russianMonths = mapOf("января" to 0, "январь" to 0, "февраля" to 1, "февраль" to 1, "марта" to 2, "март" to 2, "апреля" to 3, "апрель" to 3, "мая" to 4, "май" to 4, "июня" to 5, "июнь" to 5, "июля" to 6, "июль" to 6, "августа" to 7, "август" to 7, "сентября" to 8, "сентябрь" to 8, "октября" to 9, "октябрь" to 9, "ноября" to 10, "ноябрь" to 10, "декабря" to 11, "декабрь" to 11)
     fun parse(source: String): Calendar? {
+        val parsed = parseTripDateRange(source)?.first
+        if (parsed != null) return calendarForTripDate(parsed)
         val iso = Regex("(\\d{4})-(\\d{2})-(\\d{2})").find(source)
         val russian = Regex("(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})", RegexOption.IGNORE_CASE).find(source)
         return when {
@@ -12574,6 +12775,9 @@ private fun routeDateParts(date: String, tripDates: String, dayIndex: Int, langu
 }
 
 private fun routeDurationDays(dates: String): Int? {
+    parseTripDateRange(dates)?.let { (start, end) ->
+        return (ChronoUnit.DAYS.between(start, end).toInt() + 1).takeIf { it > 0 }
+    }
     val matches = Regex("(\\d{4})-(\\d{2})-(\\d{2})").findAll(dates).toList()
     if (matches.size < 2) {
         return Regex("·\\s*(\\d+)\\s+дн", RegexOption.IGNORE_CASE).find(dates)?.groupValues?.get(1)?.toIntOrNull()
@@ -12658,6 +12862,14 @@ private fun formatAccommodationPrice(value: String): String {
     val raw = value.trim()
     if (raw.isBlank()) return ""
     return if (raw.firstOrNull() in listOf('€', '$', '£', '₽') || raw.lastOrNull() in listOf('€', '$', '£', '₽')) raw else "€$raw"
+}
+
+internal fun normalizeAccommodationStatus(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
+    "want", "хочу" -> "хочу"
+    "reserve", "reserved", "бронь" -> "бронь"
+    "paid", "оплачено" -> "оплачено"
+    "stayed", "пожили" -> "пожили"
+    else -> value.trim().ifBlank { "хочу" }
 }
 
 private fun accommodationDateCalendar(value: String): Calendar {
@@ -13035,6 +13247,16 @@ private fun RouteEditorDateField(
 
 private fun mapCoordinate(city: String): Point? = cityCatalogEntry(city)?.let { entry ->
     Point.fromLngLat(entry.longitude, entry.latitude)
+}
+
+private fun restaurantLinkUri(value: String): String? {
+    val raw = value.trim()
+    if (raw.isBlank()) return null
+    return if (raw.startsWith("http://", ignoreCase = true) || raw.startsWith("https://", ignoreCase = true)) {
+        raw
+    } else {
+        "https://www.google.com/maps/search/?api=1&query=${Uri.encode(raw)}"
+    }
 }
 
 private fun formatSightCoordinate(point: Point): String =

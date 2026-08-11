@@ -118,6 +118,12 @@ class WeatherRepository {
 }
 
 private fun tripDateFrom(value: String): LocalDate? {
+    val dotted = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").find(value)?.value
+    if (dotted != null) {
+        val parts = dotted.split('.')
+        return runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
+    }
+
     val iso = Regex("\\d{4}-\\d{2}-\\d{2}").find(value)?.value
     if (iso != null) return runCatching { LocalDate.parse(iso) }.getOrNull()
 
