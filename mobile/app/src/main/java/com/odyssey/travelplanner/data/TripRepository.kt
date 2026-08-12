@@ -114,6 +114,20 @@ data class Sight(
 private fun jsonText(element: JsonElement?): String =
     runCatching { element?.jsonPrimitive?.contentOrNull?.trim().orEmpty() }.getOrDefault("")
 
+private fun photoReferences(element: JsonElement?): List<String> = when (element) {
+    is JsonObject -> listOf("url", "image", "photo", "imageUrl", "photoUrl", "src", "path")
+        .flatMap { key -> photoReferences(element[key]) }
+        .distinct()
+    is kotlinx.serialization.json.JsonArray -> element.flatMap(::photoReferences).distinct()
+    is kotlinx.serialization.json.JsonPrimitive -> listOfNotNull(element.contentOrNull?.trim()?.takeIf(String::isNotBlank))
+    else -> emptyList()
+}
+
+private fun accommodationPhotoReferences(accommodation: JsonObject): List<String> =
+    listOf("photos", "photo", "image", "imageUrl", "photoUrl")
+        .flatMap { key -> photoReferences(accommodation[key]) }
+        .distinct()
+
 private fun sightPhotoUrl(sight: JsonObject): String {
     listOf("photo", "image", "photoUrl", "imageUrl").forEach { key ->
         jsonText(sight[key]).takeIf { it.isNotBlank() }?.let { return it }
@@ -405,7 +419,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 price = accommodationText("price"),
                 status = accommodationText("status"),
                 details = accommodationText("details"),
-                photos = accommodation["photos"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
+                photos = accommodationPhotoReferences(accommodation),
                 bookingUrl = accommodationText("bookingUrl"),
                 deadline = accommodationText("deadline"),
                 rating = accommodation["rating"]?.jsonPrimitive?.doubleOrNull
