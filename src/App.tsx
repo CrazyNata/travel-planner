@@ -8829,34 +8829,33 @@ function DayEditor({
 }) {
   const [places, setPlaces] = useState<DayPlaceDraft[]>([]);
   const [place, setPlace] = useState("");
-  const [placeCategory, setPlaceCategory] = useState("Достопримечательность");
   const [placeDescription, setPlaceDescription] = useState("");
   const [placePhoto, setPlacePhoto] = useState<string>();
   const [placePhotoFile, setPlacePhotoFile] = useState<File | null>(null);
   const [placePhotoPosition, setPlacePhotoPosition] = useState(50);
   const [draggingPlacePhoto, setDraggingPlacePhoto] = useState(false);
   const placePhotoDrag = useRef<{ y: number; position: number } | null>(null);
-  const [uploadingFeaturedPhoto, setUploadingFeaturedPhoto] = useState(false);
+  const [uploadingPlacePhoto, setUploadingPlacePhoto] = useState(false);
   const addPlace = async () => {
     const value = place.trim();
     if (!value) return;
     const uploadedPhoto = placePhotoFile
-      ? await uploadFeaturedPhoto(placePhotoFile)
+      ? await uploadPlacePhoto(placePhotoFile)
       : placePhoto;
     if (placePhotoFile && !uploadedPhoto) return;
-    setPlaces((current) => [...current, { name: value, subcategory: placeCategory, description: placeDescription.trim() || undefined, photo: uploadedPhoto || undefined, photoPosition: placePhotoPosition }]);
+    setPlaces((current) => [...current, { name: value, description: placeDescription.trim() || undefined, photo: uploadedPhoto || undefined, photoPosition: placePhotoPosition }]);
     setPlace("");
     setPlaceDescription("");
     setPlacePhoto(undefined);
     setPlacePhotoFile(null);
     setPlacePhotoPosition(50);
   };
-  const uploadFeaturedPhoto = async (file: File) => {
+  const uploadPlacePhoto = async (file: File) => {
     if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
       window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
       return;
     }
-    setUploadingFeaturedPhoto(true);
+    setUploadingPlacePhoto(true);
     try {
       const {
         data: { session },
@@ -8875,7 +8874,7 @@ function DayEditor({
       window.alert("Не удалось загрузить фото. Попробуйте ещё раз.");
       return null;
     } finally {
-      setUploadingFeaturedPhoto(false);
+      setUploadingPlacePhoto(false);
     }
   };
   return (
@@ -8931,7 +8930,6 @@ function DayEditor({
             </button>
           </div>
           <div className="day-place-details">
-            <select value={placeCategory} onChange={(event) => setPlaceCategory(event.target.value)}><option>Достопримечательность</option></select>
             <input value={placeDescription} onChange={(event) => setPlaceDescription(event.target.value)} placeholder="Короткое описание" />
             <label className="day-place-photo-upload">
               <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0] || null; setPlacePhotoFile(file); setPlacePhoto(file ? URL.createObjectURL(file) : undefined); }} />
@@ -8963,7 +8961,7 @@ function DayEditor({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="accent" disabled={uploadingFeaturedPhoto}>Сохранить день</button>
+          <button className="accent" disabled={uploadingPlacePhoto}>Сохранить день</button>
         </footer>
       </form>
     </div>
