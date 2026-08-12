@@ -8551,7 +8551,7 @@ function SightsRouteMap({
         <svg className="sights-route-line" viewBox="0 0 380 410" preserveAspectRatio="none" aria-hidden="true">
           <polyline points={routeLine} fill="none" />
         </svg>
-        {points.map((point, index) => (
+        {points.map((point) => (
           <button
             type="button"
             className={
@@ -8569,9 +8569,7 @@ function SightsRouteMap({
             }
             aria-label={`Показать ${point.sight.name}`}
             key={point.sight.id}
-          >
-            {index + 1}
-          </button>
+          />
         ))}
       </div>
       <footer>
