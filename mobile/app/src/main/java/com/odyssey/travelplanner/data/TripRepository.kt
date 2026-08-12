@@ -360,8 +360,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val rows = client.from("trips").select().decodeList<TripRow>()
         return supervisorScope {
             rows.map { row ->
-
-            fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+                async {
+                    fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             TripCard(
                 id = row.id,
                 title = text("title").ifBlank { "Путешествие" },
@@ -371,6 +371,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 cities = text("cities"),
                 coverImage = client.resolveTripPhotoReference(text("coverImage")),
             )
+                }
             }.awaitAll()
         }
     }
