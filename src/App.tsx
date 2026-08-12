@@ -8490,7 +8490,6 @@ function Sights({
   days,
   defaultCity,
   onToggle,
-  onAdd,
   onAddDay,
   onCreateDay,
   onRenameDay,
@@ -8499,7 +8498,6 @@ function Sights({
   days: { id: string; title: string; photo?: string; photoPosition?: number }[];
   defaultCity?: string;
   onToggle: (id: string) => void;
-  onAdd: (sight: StoredSight) => void;
   onAddDay: (title: string) => void;
   onCreateDay: (
     dayIndex: number,
@@ -8511,7 +8509,6 @@ function Sights({
   ) => void;
   onRenameDay: (id: string, title: string) => void;
 }) {
-  const [adding, setAdding] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
   const [routeCopied, setRouteCopied] = useState(false);
@@ -8535,15 +8532,9 @@ function Sights({
   const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
   if (!cities.length && defaultCity) cities.push(defaultCity);
   const [city, setCity] = useState(cities[0] || "");
-  const citySights = sights.filter((sight) => sight.city === city);
-  const walkDays = Array.from(
-    new Set(citySights.map((sight) => sight.walkDay || 1)),
-  ).sort((a, b) => a - b);
-  const [walkDay, setWalkDay] = useState(walkDays[0] || 1);
   useEffect(() => {
     const dayCity = days[selectedDay]?.title;
     if (dayCity) setCity(dayCity);
-    setWalkDay(selectedDay + 1);
   }, [selectedDay, days]);
   const routeSights = sights
     .filter((sight) => (sight.walkDay || 1) === selectedDay + 1)
@@ -8572,23 +8563,6 @@ function Sights({
   const [statusFilter, setStatusFilter] = useState("Все");
   const categories = ["Все", ...Array.from(new Set(routeSights.map((sight) => sight.subcategory || sight.group || "Достопримечательность")))];
   const visibleSights = routeSights.filter((sight) => (categoryFilter === "Все" || (sight.subcategory || sight.group || "Достопримечательность") === categoryFilter) && (statusFilter === "Все" || (statusFilter === "Посещено" ? sight.done : !sight.done)));
-  const addSight = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") || "").trim();
-    const placeCity = String(form.get("city") || city).trim();
-    const category = String(form.get("category") || "Достопримечательность").trim();
-    if (!name || !placeCity) return;
-    onAdd({
-      id: crypto.randomUUID(),
-      name,
-      city: placeCity,
-      subcategory: category,
-      walkDay,
-      walkOrder: routeSights.length,
-    });
-    setAdding(false);
-  };
   const categoryFor = (sight: StoredSight) =>
     sight.subcategory || sight.group || "Достопримечательность";
   const markerToneFor = (sight: StoredSight) => {
@@ -8611,7 +8585,7 @@ function Sights({
             <button
               type="button"
               className="sights-add-trigger"
-              onClick={() => setAdding((value) => !value)}
+              onClick={() => setDayEditorOpen(true)}
             >
               ＋ Добавить
             </button>
@@ -8638,7 +8612,6 @@ function Sights({
                       onClick={() => {
                         setSelectedDay(index);
                         setCity(day.title);
-                        setWalkDay(index + 1);
                         setActiveSightId(null);
                         setExpandedSightId(null);
                       }}
@@ -8695,45 +8668,6 @@ function Sights({
               <h1>День {selectedDay + 1} · {activeDayTitle}</h1>
               <p>{routeSights.length} мест</p>
             </header>
-            {adding && (
-              <form className="sights-add-form" onSubmit={addSight}>
-                <div>
-                  <input
-                    name="name"
-                    placeholder="Название места"
-                    autoFocus
-                    required
-                  />
-                  <input
-                    name="city"
-                    placeholder="Город"
-                    defaultValue={city}
-                    required
-                  />
-                  <select name="category" defaultValue="Достопримечательность">
-                    <option>Достопримечательность</option>
-                  </select>
-                </div>
-                <button type="submit" className="accent">Добавить</button>
-                <button
-                  type="button"
-                  className="sights-add-cancel"
-                  onClick={() => {
-                    setAdding(false);
-                    setDayEditorOpen(true);
-                  }}
-                >
-                  Расширенный редактор
-                </button>
-                <button
-                  type="button"
-                  className="sights-add-cancel"
-                  onClick={() => setAdding(false)}
-                >
-                  Отмена
-                </button>
-              </form>
-            )}
             {visibleSights.length ? (
               <div className="sights-timeline">
                 {visibleSights.map((sight) => {
@@ -8814,15 +8748,13 @@ function Sights({
               <div className="sights-redesigned-empty">
                 <b>День пока свободен</b>
                 <p>Добавьте места, которые хотите посетить.</p>
-                {!adding && (
-                  <button
-                    type="button"
-                    className="accent"
-                    onClick={() => setAdding(true)}
-                  >
-                    ＋ Добавить место
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="accent"
+                  onClick={() => setDayEditorOpen(true)}
+                >
+                  ＋ Добавить место
+                </button>
               </div>
             )}
             <div className="sights-timeline-filters">
@@ -9510,9 +9442,6 @@ function Workspace({
                   "noopener,noreferrer",
                 );
               }}
-              onAdd={(sight) =>
-                onUpdateTrip({ ...trip, sights: [...tripSights, sight] })
-              }
               onAddDay={(title) =>
                 onUpdateTrip({
                   ...trip,
