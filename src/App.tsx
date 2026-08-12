@@ -8666,6 +8666,7 @@ function Sights({
                 {visibleSights.map((sight) => {
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
+                  const photoUrl = sight.photo || `https://picsum.photos/seed/${encodeURIComponent(sight.id)}/320/240`;
                   return (
                     <article
                       className={
@@ -8678,57 +8679,51 @@ function Sights({
                       <span className={`sights-timeline-marker ${tone}`} aria-hidden="true">
                         {sightNumber}
                       </span>
-                      <div className="sights-timeline-card">
-                        <div className="sights-event-top">
-                          <button
-                            type="button"
-                            className="sights-event-name"
-                            onClick={() => {
-                              focusSight(sight);
-                              onToggle(sight.id);
-                            }}
-                          >
-                            {sight.name}
-                          </button>
-                          <button
-                            type="button"
-                            className="sights-event-more"
-                            onClick={() => {
-                              focusSight(sight);
-                              setExpandedSightId((current) =>
-                                current === sight.id ? null : sight.id,
-                              );
-                            }}
-                            aria-label={`${expandedSightId === sight.id ? "Скрыть" : "Показать"} детали ${sight.name}`}
-                          >
-                            ···
-                          </button>
-                        </div>
-                        <div className="sights-event-meta">
-                          {sight.duration && <span>{sight.duration}</span>}
-                          {sight.city !== city && <span>· {sight.city}</span>}
-                          {sight.description && expandedSightId === sight.id && (
-                            <span
-                              className="sights-event-description"
+                      <div className="sights-timeline-card has-photo">
+                        <img className="sights-event-thumb" src={photoUrl} alt="" loading="lazy" />
+                        <div className="sights-timeline-card-content">
+                          <div className="sights-event-top">
+                            <button
+                              type="button"
+                              className="sights-event-name"
+                              onClick={() => {
+                                focusSight(sight);
+                                onToggle(sight.id);
+                              }}
                             >
-                              · {sight.description}
-                            </span>
-                          )}
-                          {sight.photo && expandedSightId === sight.id && (
-                            <img
-                              className="sights-event-photo"
-                              src={sight.photo}
-                              alt=""
-                            />
-                          )}
-                          <label className="sights-event-check">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(sight.done)}
-                              onChange={() => onToggle(sight.id)}
-                            />
-                            {sight.done ? "Посещено" : "Отметить"}
-                          </label>
+                              {sight.name}
+                            </button>
+                            <button
+                              type="button"
+                              className="sights-event-more"
+                              onClick={() => {
+                                focusSight(sight);
+                                setExpandedSightId((current) =>
+                                  current === sight.id ? null : sight.id,
+                                );
+                              }}
+                              aria-label={`${expandedSightId === sight.id ? "Скрыть" : "Показать"} детали ${sight.name}`}
+                            >
+                              ···
+                            </button>
+                          </div>
+                          <div className="sights-event-meta">
+                            {sight.duration && <span>{sight.duration}</span>}
+                            {sight.city !== city && <span>· {sight.city}</span>}
+                            {sight.description && expandedSightId === sight.id && (
+                              <span className="sights-event-description">
+                                · {sight.description}
+                              </span>
+                            )}
+                            <label className="sights-event-check">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(sight.done)}
+                                onChange={() => onToggle(sight.id)}
+                              />
+                              {sight.done ? "Посещено" : "Отметить"}
+                            </label>
+                          </div>
                         </div>
                       </div>
                     </article>

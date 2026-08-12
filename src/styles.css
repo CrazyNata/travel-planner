@@ -5341,6 +5341,27 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   box-shadow: 0 5px 13px #49402c08;
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
+.sights-timeline-card.has-photo {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 104px;
+  overflow: hidden;
+  padding: 0;
+}
+.sights-event-thumb {
+  grid-column: 1;
+  grid-row: 1;
+  width: 104px;
+  height: 100%;
+  min-height: 104px;
+  object-fit: cover;
+}
+.sights-timeline-card-content {
+  grid-column: 2;
+  min-width: 0;
+  padding: 13px 15px 11px 14px;
+  align-self: center;
+}
 .sights-timeline-card:hover {
   border-color: #b9b0e7;
   box-shadow: 0 8px 18px #4c46d619;
@@ -5594,6 +5615,16 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   }
   .sights-event-description {
     max-height: 4.2em;
+  }
+  .sights-timeline-card.has-photo {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+  .sights-event-thumb {
+    width: 88px;
+    min-height: 88px;
+  }
+  .sights-timeline-card-content {
+    padding: 11px 12px;
   }
   .sights-route-panel .walking-map {
     height: 390px;
