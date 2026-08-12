@@ -9,6 +9,9 @@ import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.functions.functions
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -174,6 +177,13 @@ data class TripOverview(
     val restaurants: List<Restaurant>,
     val cities: List<String> = emptyList(),
     val routeDayCount: Int = 0,
+)
+
+private data class ResolvedTripOverviewPhotos(
+    val covers: List<CoverPhoto>,
+    val accommodations: List<Accommodation>,
+    val sights: List<Sight>,
+    val restaurants: List<Restaurant>,
 )
 
 enum class TripSection {
@@ -348,7 +358,9 @@ interface TripRepository {
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
     override suspend fun loadTrips(): List<TripCard> {
         val rows = client.from("trips").select().decodeList<TripRow>()
-        return rows.map { row ->
+        return supervisorScope {
+            rows.map { row ->
+
             fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             TripCard(
                 id = row.id,
@@ -359,6 +371,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 cities = text("cities"),
                 coverImage = client.resolveTripPhotoReference(text("coverImage")),
             )
+            }.awaitAll()
         }
     }
 
@@ -498,20 +511,45 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
-        val resolvedCovers = (covers.ifEmpty {
+        val rawCovers = (covers.ifEmpty {
             text("coverImage").takeIf(String::isNotBlank)?.let { listOf(CoverPhoto("legacy", it, "")) }.orEmpty()
-        }).map { photo ->
-            photo.copy(imageUrl = client.resolveTripPhotoReference(photo.imageUrl) ?: photo.imageUrl)
+        })
+        val resolvedPhotos = supervisorScope {
+            val coverUrls = async {
+                client.resolveTripPhotoReferences(rawCovers.map(CoverPhoto::imageUrl))
+            }
+            val accommodationValues = async {
+                accommodations.map { accommodation ->
+                    async {
+                        accommodation.copy(photos = client.resolveTripPhotoReferences(accommodation.photos))
+                    }
+                }.awaitAll()
+            }
+            val sightValues = async {
+                sights.map { sight ->
+                    async {
+                        sight.copy(photo = client.resolveTripPhotoReference(sight.photo) ?: sight.photo)
+                    }
+                }.awaitAll()
+            }
+            val restaurantValues = async {
+                restaurants.map { restaurant ->
+                    async {
+                        restaurant.copy(photos = client.resolveTripPhotoReferences(restaurant.photos))
+                    }
+                }.awaitAll()
+            }
+            ResolvedTripOverviewPhotos(
+                covers = rawCovers.zip(coverUrls.await()).map { (photo, url) -> photo.copy(imageUrl = url) },
+                accommodations = accommodationValues.await(),
+                sights = sightValues.await(),
+                restaurants = restaurantValues.await(),
+            )
         }
-        val resolvedAccommodations = accommodations.map { accommodation ->
-            accommodation.copy(photos = accommodation.photos.map { client.resolveTripPhotoReference(it) ?: it })
-        }
-        val resolvedSights = sights.map { sight ->
-            sight.copy(photo = client.resolveTripPhotoReference(sight.photo) ?: sight.photo)
-        }
-        val resolvedRestaurants = restaurants.map { restaurant ->
-            restaurant.copy(photos = restaurant.photos.map { client.resolveTripPhotoReference(it) ?: it })
-        }
+        val resolvedCovers = resolvedPhotos.covers
+        val resolvedAccommodations = resolvedPhotos.accommodations
+        val resolvedSights = resolvedPhotos.sights
+        val resolvedRestaurants = resolvedPhotos.restaurants
         val budgetManualRates = row.payload["budgetManualRates"]?.jsonObject.orEmpty()
             .mapNotNull { (code, value) ->
                 value.jsonPrimitive.doubleOrNull
