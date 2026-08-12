@@ -356,16 +356,6 @@ internal fun localizedLegsAndCitiesSummary(legsCount: Int, cityCount: Int, langu
     "$legsCount ${localizedCountWord(legsCount, language, "переезд", "переезда", "переездов", "leg", "legs", "trayecto", "trayectos", "Etappe", "Etappen")} · " +
         "$cityCount ${localizedCountWord(cityCount, language, "город", "города", "городов", "city", "cities", "ciudad", "ciudades", "Stadt", "Städte")}"
 
-private val tripTemplateKeys = listOf("italy", "czech", "alps", "tuscany")
-
-private fun tripTemplateData(key: String?, language: String): Pair<String, String> = when (key) {
-    "italy" -> localized(language, "Классическая Италия", "Classic Italy", "Italia clásica", "Klassisches Italien") to localized(language, "Рим, Флоренция, Пиза, Венеция, Милан", "Rome, Florence, Pisa, Venice, Milan", "Roma, Florencia, Pisa, Venecia, Milán", "Rom, Florenz, Pisa, Venedig, Mailand")
-    "czech" -> localized(language, "Рождественская Европа", "Christmas Europe", "Europa navideña", "Weihnachtliches Europa") to localized(language, "Прага, Мюнхен, Верона, Милан, Венеция, Рим", "Prague, Munich, Verona, Milan, Venice, Rome", "Praga, Múnich, Verona, Milán, Venecia, Roma", "Prag, München, Verona, Mailand, Venedig, Rom")
-    "alps" -> localized(language, "Австрия и Альпы", "Austria and the Alps", "Austria y los Alpes", "Österreich und die Alpen") to localized(language, "Вена, Зальцбург, Инсбрук, Грац", "Vienna, Salzburg, Innsbruck, Graz", "Viena, Salzburgo, Innsbruck, Graz", "Wien, Salzburg, Innsbruck, Graz")
-    "tuscany" -> localized(language, "Тоскана на машине", "Tuscany by car", "Toscana en coche", "Toskana mit dem Auto") to localized(language, "Флоренция, Сиена, Сан-Джиминьяно, Лукка", "Florence, Siena, San Gimignano, Lucca", "Florencia, Siena, San Gimignano, Lucca", "Florenz, Siena, San Gimignano, Lucca")
-    else -> "" to ""
-}
-
 @Composable
 private fun localizedBudgetCategory(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
     "жильё", "жилье", "проживание" -> localized("Жильё", "Lodging", "Alojamiento", "Unterkunft")
@@ -1334,17 +1324,6 @@ fun OdysseyApp(
                 }
                 composable("create-trip") {
                     CreateTripScreen(
-                        onBack = { navController.popBackStack() },
-                        onCreated = { created ->
-                            navController.navigate("trip/${created.id}") {
-                                popUpTo("trips") { inclusive = false }
-                            }
-                        },
-                    )
-                }
-                composable("create-trip/{template}") { entry ->
-                    CreateTripScreen(
-                        template = entry.arguments?.getString("template"),
                         onBack = { navController.popBackStack() },
                         onCreated = { created ->
                             navController.navigate("trip/${created.id}") {
@@ -3328,17 +3307,13 @@ private fun EditTripPanel(
 }
 
 @Composable
-private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, template: String? = null) {
+private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
-    val initialTemplate = template?.takeIf { it in tripTemplateKeys }
-    val initialTemplateData = tripTemplateData(initialTemplate, language)
-    var selectedTemplate by remember(template) { mutableStateOf(initialTemplate) }
-    var title by remember(template) { mutableStateOf(initialTemplateData.first) }
-    var startDate by remember(template) { mutableStateOf("") }
-    var endDate by remember(template) { mutableStateOf("") }
-    var cities by remember(template) { mutableStateOf(initialTemplateData.second) }
-    var creationMode by remember(template) { mutableStateOf(if (initialTemplate == null) "blank" else "template") }
+    var title by remember { mutableStateOf("") }
+    var startDate by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var cities by remember { mutableStateOf("") }
     var cityDialogOpen by remember { mutableStateOf(false) }
     var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var cityDraft by remember { mutableStateOf("") }
@@ -3348,35 +3323,6 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-
-    fun applyTemplate(key: String) {
-        selectedTemplate = key
-        val data = tripTemplateData(key, language)
-        title = data.first
-        startDate = ""
-        endDate = ""
-        cities = data.second
-        message = null
-        cityDraft = ""
-        datePickerTarget = null
-    }
-
-    fun selectCreationMode(mode: String) {
-        if (mode == creationMode) return
-        creationMode = mode
-        message = null
-        cityDraft = ""
-        datePickerTarget = null
-        if (mode == "blank") {
-            selectedTemplate = null
-            title = ""
-            startDate = ""
-            endDate = ""
-            cities = ""
-        } else {
-            applyTemplate(selectedTemplate ?: tripTemplateKeys.first())
-        }
-    }
 
     fun save() {
         if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
@@ -3452,7 +3398,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                localized("Начните с нуля или выберите шаблон", "Start from scratch or choose a template", "Empiece desde cero o elija una plantilla", "Beginnen Sie neu oder wählen Sie eine Vorlage"),
+                localized("Заполните данные путешествия", "Fill in your trip details", "Complete los datos del viaje", "Füllen Sie die Reisedaten aus"),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W500,
@@ -3460,79 +3406,6 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
                 lineHeight = 18.sp,
                 modifier = Modifier.padding(top = 8.dp),
             )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 20.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFFEEEEF2))
-                    .padding(4.dp),
-            ) {
-                TripCreationModeSegment(
-                    label = localized("С нуля", "From scratch", "Desde cero", "Von Grund auf"),
-                    selected = creationMode == "blank",
-                    onClick = { selectCreationMode("blank") },
-                    modifier = Modifier.weight(1f),
-                )
-                TripCreationModeSegment(
-                    label = localized("Из шаблона", "From template", "Desde una plantilla", "Aus Vorlage"),
-                    selected = creationMode == "template",
-                    onClick = { selectCreationMode("template") },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            if (creationMode == "template") {
-                Column(modifier = Modifier.padding(top = 18.dp)) {
-                    Text(
-                        localized("Выберите шаблон", "Choose a template", "Elige una plantilla", "Vorlage auswählen"),
-                        color = secondaryTextColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W700,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    ) {
-                        tripTemplateKeys.forEach { key ->
-                            val data = tripTemplateData(key, language)
-                            Column(
-                                modifier = Modifier
-                                    .width(190.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(if (key == selectedTemplate) tintedSurfaceColor() else cardSurfaceColor())
-                                    .border(1.dp, if (key == selectedTemplate) OdysseyPurple else OdysseyBorder, RoundedCornerShape(14.dp))
-                                    .clickable { applyTemplate(key) }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                            ) {
-                                Text(
-                                    data.first,
-                                    color = if (key == selectedTemplate) OdysseyPurple else contentTextColor(),
-                                    fontFamily = Manrope,
-                                    fontWeight = FontWeight.W800,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    data.second,
-                                    color = secondaryTextColor(),
-                                    fontFamily = Manrope,
-                                    fontWeight = FontWeight.W600,
-                                    fontSize = 10.5.sp,
-                                    lineHeight = 14.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -3650,32 +3523,6 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit, 
                 if (pickingStart) startDate = selectedDate else endDate = selectedDate
                 datePickerTarget = null
             },
-        )
-    }
-}
-
-@Composable
-private fun TripCreationModeSegment(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .clip(RoundedCornerShape(11.dp))
-            .background(if (selected) cardSurfaceColor() else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 11.dp),
-    ) {
-        Text(
-            label,
-            color = if (selected) contentTextColor() else secondaryTextColor(),
-            fontFamily = Manrope,
-            fontWeight = FontWeight.W800,
-            fontSize = 14.sp,
-            lineHeight = 19.sp,
         )
     }
 }
