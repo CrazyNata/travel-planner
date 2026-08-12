@@ -10442,7 +10442,10 @@ private fun FullScreenPhotoViewer(
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = { onDismiss(photoIndex) },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
         Box(
             modifier = Modifier
@@ -10452,7 +10455,7 @@ private fun FullScreenPhotoViewer(
             AsyncImage(
                 model = photos[photoIndex],
                 contentDescription = accommodationName,
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
             Box(
@@ -10506,7 +10509,7 @@ private fun FullScreenPhotoViewer(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 22.dp)
+                        .padding(bottom = 22.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                         .background(Color(0xAA0F0F19), RoundedCornerShape(16.dp))
                         .padding(horizontal = 11.dp, vertical = 6.dp),
                 )
