@@ -12869,23 +12869,22 @@ private fun OverviewMapCard(
 
     LaunchedEffect(mapStyleReady, coordinates) {
         if (mapStyleReady && coordinates.isNotEmpty()) {
-            val camera = if (routePoints.isNotEmpty()) {
-                mapView.mapboxMap.cameraForCoordinates(
-                    coordinates,
-                    EdgeInsets(34.0, 34.0, 34.0, 34.0),
-                    null,
-                    null,
-                )
-            } else {
-                val center = coordinates.fold(Pair(0.0, 0.0)) { sum, point ->
-                    Pair(sum.first + point.longitude(), sum.second + point.latitude())
+            mapView.post {
+                val camera = if (coordinates.size > 1) {
+                    mapView.mapboxMap.cameraForCoordinates(
+                        coordinates,
+                        EdgeInsets(34.0, 34.0, 34.0, 34.0),
+                        null,
+                        null,
+                    )
+                } else {
+                    CameraOptions.Builder()
+                        .center(coordinates.first())
+                        .zoom(9.0)
+                        .build()
                 }
-                CameraOptions.Builder()
-                    .center(Point.fromLngLat(center.first / coordinates.size, center.second / coordinates.size))
-                    .zoom(if (coordinates.size == 1) 9.0 else 3.7)
-                    .build()
+                mapView.mapboxMap.setCamera(camera)
             }
-            mapView.mapboxMap.setCamera(camera)
         }
     }
 
