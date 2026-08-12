@@ -8712,10 +8712,6 @@ function Sights({
                   />
                   <select name="category" defaultValue="Достопримечательность">
                     <option>Достопримечательность</option>
-                    <option>Смотровая</option>
-                    <option>Музей</option>
-                    <option>Прогулка</option>
-                    <option>Еда</option>
                   </select>
                 </div>
                 <button type="submit" className="accent">Добавить</button>
@@ -9030,7 +9026,7 @@ function DayEditor({
             </button>
           </div>
           <div className="day-place-details">
-            <select value={placeCategory} onChange={(event) => setPlaceCategory(event.target.value)}><option>Достопримечательность</option><option>Музей</option><option>Ресторан</option><option>Прогулка</option><option>Покупки</option></select>
+            <select value={placeCategory} onChange={(event) => setPlaceCategory(event.target.value)}><option>Достопримечательность</option></select>
             <input value={placeDescription} onChange={(event) => setPlaceDescription(event.target.value)} placeholder="Короткое описание" />
             <label className="day-place-photo-upload">
               <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0] || null; setPlacePhotoFile(file); setPlacePhoto(file ? URL.createObjectURL(file) : undefined); }} />
