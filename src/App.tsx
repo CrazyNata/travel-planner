@@ -8385,10 +8385,11 @@ function WalkingMap({
         new mapboxgl.NavigationControl({ showCompass: false }),
         "top-right",
       );
-      sights.forEach((sight) => {
+      sights.forEach((sight, index) => {
         if (!sight.lnglat) return;
         const marker = document.createElement("span");
         marker.className = "sight-map-marker";
+        marker.textContent = String(index + 1);
         markerElements.current.set(sight.id, marker);
         new mapboxgl.Marker({ element: marker })
           .setLngLat(sight.lnglat)
@@ -8742,6 +8743,7 @@ function Sights({
                 {visibleSights.map((sight) => {
                   const category = categoryFor(sight);
                   const tone = markerToneFor(sight);
+                  const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
                   return (
                     <article
                       className={
@@ -8751,7 +8753,9 @@ function Sights({
                       }
                       key={sight.id}
                     >
-                      <span className={`sights-timeline-marker ${tone}`} aria-hidden="true" />
+                      <span className={`sights-timeline-marker ${tone}`} aria-hidden="true">
+                        {sightNumber}
+                      </span>
                       <div className="sights-timeline-card">
                         <div className="sights-event-top">
                           <button

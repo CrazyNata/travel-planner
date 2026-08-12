@@ -5309,11 +5309,17 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   top: 15px;
   left: -36px;
   z-index: 1;
+  display: grid;
   width: 16px;
   height: 16px;
+  place-items: center;
   border: 3px solid #fff;
   border-radius: 50%;
   background: #7351b5;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
   box-shadow: 0 0 0 1px #7351b5, 0 3px 8px #37319c32;
 }
 .sights-timeline-marker.food {
