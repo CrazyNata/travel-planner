@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.2 seconds
+Output:
 # Android release checklist
 
 The Android application is published as a signed Android App Bundle (AAB). Do not commit the keystore, `supabase.properties`, or any service-role key.
@@ -27,7 +30,8 @@ The build fails deliberately when release signing is not configured. The bundle 
 ## GitHub Actions
 
 Run `.github/workflows/android-release.yml` manually from `main` and provide the
-public version name (for example `0.2.0`). GitHub Pages protects production
+public version name (for example `0.2.0`) and a new monotonically increasing
+version code (for example `10012`). GitHub Pages protects production
 deployments from tag refs, so tags are release markers rather than workflow
 triggers. Configure these repository secrets first:
 
@@ -76,3 +80,4 @@ legal-page defaults with the publisher's official details:
 - Mapbox, email invites, photos, localization, dark theme, system bars, and offline/error states have been checked on the target Android versions.
 - Privacy policy URL, support contact, account deletion URL, screenshots, app icon, description, age/content rating, Data safety, and release notes are filled in in Play Console.
 - The production Supabase security advisor has been reviewed; currently it reports that leaked-password protection is disabled, which should be enabled before release.
+
