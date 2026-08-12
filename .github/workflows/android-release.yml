@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.2 seconds
+Output:
 name: Android release
 
 on:
@@ -5,6 +8,10 @@ on:
     inputs:
       version_name:
         description: Public Android version name, for example 0.2.0
+        required: true
+        type: string
+      version_code:
+        description: Monotonically increasing Android version code, for example 10012
         required: true
         type: string
 
@@ -26,8 +33,8 @@ jobs:
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE }}
-      ANDROID_VERSION_NAME: ${{ inputs.version_name || vars.ANDROID_VERSION_NAME }}
+      ANDROID_VERSION_CODE: ${{ inputs.version_code }}
+      ANDROID_VERSION_NAME: ${{ inputs.version_name }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
@@ -204,3 +211,4 @@ jobs:
       - name: Deploy public APK and website
         id: deployment
         uses: actions/deploy-pages@v4
+
