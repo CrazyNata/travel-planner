@@ -4845,6 +4845,158 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background: #f0f1f4;
 }
 
+/* Final alignment with the reference travel-day layout. */
+@media (min-width: 1121px) {
+  .sights-redesigned {
+    width: 100%;
+    margin-left: -22px;
+  }
+  .sights-redesigned .sights-redesigned-toolbar {
+    padding-right: 28px;
+  }
+  .sights-redesigned-grid {
+    grid-template-columns: 210px minmax(0, 1fr) 379px;
+    gap: 24px;
+  }
+  .sights-timeline {
+    padding-left: 109px;
+  }
+  .sights-timeline::before {
+    left: 83px;
+  }
+}
+.sights-event-description {
+  flex-basis: 100%;
+  overflow: hidden;
+  max-height: none;
+  color: #918b82;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.sights-route-panel {
+  position: sticky;
+  top: 16px;
+  overflow: hidden;
+  border: 1px solid #ddd8d0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 9px 22px #3d382a0d;
+}
+.sights-route-map-wrap {
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+}
+.sights-route-map {
+  position: relative;
+  height: 410px;
+  overflow: hidden;
+  background-color: #fcfbf8;
+  background-image: linear-gradient(#e8e4dd 1px, transparent 1px), linear-gradient(90deg, #e8e4dd 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+.sights-route-map::after {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 48% 46%, transparent 15%, #ffffff0b 48%, #e8e0d533 100%);
+  content: "";
+  pointer-events: none;
+}
+.sights-route-map-label {
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  z-index: 2;
+  border: 1px solid #ece7df;
+  border-radius: 9px;
+  background: #fffdfaa8;
+  padding: 6px 9px;
+  color: #777269;
+  font-size: 10px;
+  font-weight: 800;
+}
+.sights-route-line {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+.sights-route-line polyline {
+  stroke: #8066b9;
+  stroke-width: 1.25;
+  stroke-dasharray: 2 4;
+  opacity: .72;
+}
+.sights-route-node {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #7351b5;
+  padding: 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 9px #312c3d47;
+  transform: translate(-50%, -50%);
+}
+.sights-route-node:hover,
+.sights-route-node.active {
+  background: #ef7655;
+  transform: translate(-50%, -50%) scale(1.16);
+}
+.sights-route-map-wrap footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #ece8e1;
+  padding: 13px 15px;
+  color: #908a80;
+  font-size: 11px;
+}
+.sights-route-map-wrap footer b {
+  color: #332f43;
+  font-size: 11px;
+}
+.sights-route-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.sights-route-footer-actions button {
+  border: 1px solid #e4e0f2;
+  border-radius: 8px;
+  background: #f8f7ff;
+  padding: 6px 8px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+.sights-route-footer-actions button:disabled {
+  cursor: default;
+  opacity: .45;
+}
+@media (max-width: 900px) {
+  .sights-route-panel {
+    position: static;
+  }
+  .sights-route-map {
+    height: 350px;
+  }
+}
+@media (max-width: 760px) {
+  .sights-route-map {
+    height: 390px;
+  }
+}
+
 /* Web sights workspace: day rail, route timeline and map stay together. */
 .sights-redesigned {
   padding-bottom: 8px;
@@ -5741,8 +5893,29 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .cover-gallery-meta input {
     width: 100%;
   }
-  .cover-photo-caption {
+.cover-photo-caption {
     width: 100%;
     padding: 20px 18px;
+  }
+}
+
+/* Keep the reference proportions after the legacy responsive rules. */
+@media (min-width: 1121px) {
+  .sights-redesigned {
+    width: 100%;
+    margin-left: -22px;
+  }
+  .sights-redesigned .sights-redesigned-toolbar {
+    padding-right: 28px;
+  }
+  .sights-redesigned-grid {
+    grid-template-columns: 210px minmax(0, 1fr) 379px;
+    gap: 24px;
+  }
+  .sights-timeline {
+    padding-left: 109px;
+  }
+  .sights-timeline::before {
+    left: 83px;
   }
 }
