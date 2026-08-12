@@ -2527,14 +2527,14 @@ button {
 }
 .sight-map-marker {
   display: grid;
-  width: 27px;
-  height: 27px;
+  width: 31px;
+  height: 31px;
   place-items: center;
   border: 2px solid #fff;
   border-radius: 50%;
   background: #e8764b;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   box-shadow: 0 2px 8px #0004;
 }
@@ -2824,10 +2824,11 @@ html[data-empty-sight-day="true"] .sight-feature {
   font-size: 12px;
 }
 .sight-map-marker {
-  width: 29px;
-  height: 29px;
+  width: 32px;
+  height: 32px;
   background: #5751dc;
   color: #fff;
+  font-size: 13px;
   box-shadow: 0 3px 10px #38327055;
 }
 .sight-map-marker.bounce {
@@ -5306,18 +5307,18 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 }
 .sights-timeline-marker {
   position: absolute;
-  top: 15px;
-  left: -36px;
+  top: 13px;
+  left: -38px;
   z-index: 1;
   display: grid;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   border: 3px solid #fff;
   border-radius: 50%;
   background: #7351b5;
   color: #fff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
   box-shadow: 0 0 0 1px #7351b5, 0 3px 8px #37319c32;
@@ -5550,7 +5551,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
     left: 60px;
   }
   .sights-timeline-marker {
-    left: -34px;
+    left: -36px;
   }
   .sights-timeline-event > time {
     left: -79px;
@@ -5606,7 +5607,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
     left: 48px;
   }
   .sights-timeline-marker {
-    left: -30px;
+    left: -32px;
   }
   .sights-timeline-event > time {
     left: -65px;
