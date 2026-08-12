@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.2 seconds
+Output:
 package com.odyssey.travelplanner.ui
 
 import kotlin.test.Test
@@ -31,4 +34,33 @@ class UiLogicTest {
         assertEquals("оплачено", normalizeAccommodationStatus("paid"))
         assertEquals("хочу", normalizeAccommodationStatus(""))
     }
+
+    @Test
+    fun russianCountWordsUseCorrectForms() {
+        fun cityWord(count: Int) = localizedCountWord(
+            count,
+            "RU",
+            "город",
+            "города",
+            "городов",
+            "city",
+            "cities",
+            "ciudad",
+            "ciudades",
+            "Stadt",
+            "Städte",
+        )
+
+        assertEquals("город", cityWord(1))
+        assertEquals("города", cityWord(2))
+        assertEquals("городов", cityWord(5))
+        assertEquals("городов", cityWord(11))
+    }
+
+    @Test
+    fun routeSummaryOmitsUnknownTripDays() {
+        assertEquals("1 ГОРОД", localizedRouteSummary(null, 1, "RU"))
+        assertEquals("2 ДНЯ · 3 ГОРОДА", localizedRouteSummary(2, 3, "RU"))
+    }
 }
+
