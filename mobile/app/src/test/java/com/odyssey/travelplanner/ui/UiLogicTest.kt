@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.2 seconds
-Output:
 package com.odyssey.travelplanner.ui
 
 import kotlin.test.Test
@@ -63,4 +60,3 @@ class UiLogicTest {
         assertEquals("2 ДНЯ · 3 ГОРОДА", localizedRouteSummary(2, 3, "RU"))
     }
 }
-
