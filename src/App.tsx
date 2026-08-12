@@ -8569,6 +8569,53 @@ function Sights({
     if (category.includes("переезд") || category.includes("прогул")) return "walk";
     return "sight";
   };
+  const shortDescriptionFor = (sight: StoredSight) => {
+    if (sight.description?.trim()) return sight.description.trim();
+    const label = `${sight.name} ${sight.city}`.toLowerCase();
+    if (/площад|piazza|square/.test(label)) {
+      return "Историческая площадь с красивой архитектурой и атмосферой старого города.";
+    }
+    if (/собор|церк|базилик|kirche|duomo|basilica|church/.test(label)) {
+      return "Исторический храм с выразительным фасадом и красивыми интерьерами.";
+    }
+    if (/ярмарк|рынок|market|christkindlmarkt|елк|подсветк|lights/.test(label)) {
+      return "Праздничная локация с огнями, ярмарочными домиками и угощениями.";
+    }
+    if (/улиц|via |corso|straß|strasse|street|квартал/.test(label)) {
+      return "Прогулочная улица с историческими фасадами, магазинами и кафе.";
+    }
+    if (/мост|ponte|bridge/.test(label)) {
+      return "Живописная точка с видами на воду и старый город.";
+    }
+    if (/замок|дворец|palazzo|residenz|castle|palace/.test(label)) {
+      return "Исторический комплекс с красивыми дворами и архитектурными деталями.";
+    }
+    if (/фонтан|fontan/.test(label)) {
+      return "Знаковая городская достопримечательность и популярное место для фото.";
+    }
+    if (/парк|сад|garden|parco|hofgarten/.test(label)) {
+      return "Спокойное место для прогулки среди зелени и городской архитектуры.";
+    }
+    if (/набереж|реки|канал|canal|tiber|arno|lagoon|берег/.test(label)) {
+      return "Живописная прогулка вдоль воды с видами на город.";
+    }
+    if (/башн|tower|torre/.test(label)) {
+      return "Историческая башня с характерным силуэтом и видом на город.";
+    }
+    if (/смотров|панорам|вид|view|panorama/.test(label)) {
+      return "Смотровая точка с красивой панорамой города.";
+    }
+    if (/музе|museum/.test(label)) {
+      return "Место для знакомства с историей, искусством и культурой города.";
+    }
+    if (/театр|теат|scala/.test(label)) {
+      return "Знаковое культурное место с богатой историей и красивым фасадом.";
+    }
+    if (/монумент|стату|statue|monument/.test(label)) {
+      return "Памятник, который помогает лучше почувствовать историю города.";
+    }
+    return `Интересная точка маршрута в городе ${sight.city}.`;
+  };
   const focusSight = (sight: StoredSight) => {
     setActiveSightId(sight.id);
     window.dispatchEvent(new CustomEvent("ramingo-focus-sight", { detail: sight.id }));
@@ -8672,6 +8719,7 @@ function Sights({
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
                   const photoUrl = sight.photo || defaultSightPhotos[(sightNumber - 1) % defaultSightPhotos.length];
+                  const description = shortDescriptionFor(sight);
                   return (
                     <article
                       className={
@@ -8712,14 +8760,14 @@ function Sights({
                               ···
                             </button>
                           </div>
+                          <p className={`sights-event-description${expandedSightId === sight.id ? " expanded" : ""}`}>
+                            {expandedSightId === sight.id && sight.description?.trim()
+                              ? sight.description.trim()
+                              : description}
+                          </p>
                           <div className="sights-event-meta">
                             {sight.duration && <span>{sight.duration}</span>}
                             {sight.city !== city && <span>· {sight.city}</span>}
-                            {sight.description && expandedSightId === sight.id && (
-                              <span className="sights-event-description">
-                                · {sight.description}
-                              </span>
-                            )}
                             <label className="sights-event-check">
                               <input
                                 type="checkbox"

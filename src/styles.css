@@ -5425,12 +5425,17 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   color: #3f856f;
 }
 .sights-event-description {
-  flex-basis: 100%;
+  display: -webkit-box;
   overflow: hidden;
-  max-height: 2.8em;
+  margin: 6px 0 0;
   color: #918b82;
   line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   text-overflow: ellipsis;
+}
+.sights-event-description.expanded {
+  -webkit-line-clamp: 3;
 }
 .sights-event-check {
   display: inline-flex;
