@@ -8703,11 +8703,6 @@ function Sights({
     setActiveSightId(sight.id);
     window.dispatchEvent(new CustomEvent("ramingo-focus-sight", { detail: sight.id }));
   };
-  const timelineLabel = (sight: StoredSight, index: number) =>
-    sight.time ||
-    ["08:30", "09:30", "12:00", "14:30", "17:00", "18:30", "20:00", "21:00"][
-      index % 8
-    ];
   const activeDayTitle = days[selectedDay]?.title || city || "Маршрут";
   return (
     <>
@@ -8847,7 +8842,7 @@ function Sights({
             )}
             {visibleSights.length ? (
               <div className="sights-timeline">
-                {visibleSights.map((sight, index) => {
+                {visibleSights.map((sight) => {
                   const category = categoryFor(sight);
                   const tone = markerToneFor(sight);
                   return (
@@ -8859,7 +8854,6 @@ function Sights({
                       }
                       key={sight.id}
                     >
-                      <time>{timelineLabel(sight, index)}</time>
                       <span className={`sights-timeline-marker ${tone}`} aria-hidden="true" />
                       <div className="sights-timeline-card">
                         <div className="sights-event-top">
