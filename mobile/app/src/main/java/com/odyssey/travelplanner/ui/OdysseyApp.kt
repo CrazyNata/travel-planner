@@ -152,6 +152,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -10447,6 +10448,31 @@ private fun FullScreenPhotoViewer(
             decorFitsSystemWindows = false,
         ),
     ) {
+        val dialogWindow = (LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        DisposableEffect(dialogWindow) {
+            if (dialogWindow == null) {
+                return@DisposableEffect onDispose { }
+            }
+            val previousStatusBarColor = dialogWindow.statusBarColor
+            val previousNavigationBarColor = dialogWindow.navigationBarColor
+            val insetsController = WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView)
+            val previousLightStatusBars = insetsController.isAppearanceLightStatusBars
+            val previousLightNavigationBars = insetsController.isAppearanceLightNavigationBars
+
+            dialogWindow.statusBarColor = android.graphics.Color.BLACK
+            dialogWindow.navigationBarColor = android.graphics.Color.BLACK
+            WindowCompat.setDecorFitsSystemWindows(dialogWindow, false)
+            insetsController.isAppearanceLightStatusBars = false
+            insetsController.isAppearanceLightNavigationBars = false
+
+            onDispose {
+                dialogWindow.statusBarColor = previousStatusBarColor
+                dialogWindow.navigationBarColor = previousNavigationBarColor
+                WindowCompat.setDecorFitsSystemWindows(dialogWindow, true)
+                insetsController.isAppearanceLightStatusBars = previousLightStatusBars
+                insetsController.isAppearanceLightNavigationBars = previousLightNavigationBars
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -10455,7 +10481,7 @@ private fun FullScreenPhotoViewer(
             AsyncImage(
                 model = photos[photoIndex],
                 contentDescription = accommodationName,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
             Box(
