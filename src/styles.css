@@ -5429,6 +5429,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   overflow: hidden;
   margin: 6px 0 0;
   color: #918b82;
+  font-size: 10px;
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
