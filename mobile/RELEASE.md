@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.2 seconds
-Output:
 # Android release checklist
 
 The Android application is published as a signed Android App Bundle (AAB). Do not commit the keystore, `supabase.properties`, or any service-role key.
@@ -80,4 +77,3 @@ legal-page defaults with the publisher's official details:
 - Mapbox, email invites, photos, localization, dark theme, system bars, and offline/error states have been checked on the target Android versions.
 - Privacy policy URL, support contact, account deletion URL, screenshots, app icon, description, age/content rating, Data safety, and release notes are filled in in Play Console.
 - The production Supabase security advisor has been reviewed; currently it reports that leaked-password protection is disabled, which should be enabled before release.
-
