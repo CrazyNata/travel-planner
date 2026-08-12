@@ -8664,7 +8664,6 @@ function Sights({
             {visibleSights.length ? (
               <div className="sights-timeline">
                 {visibleSights.map((sight) => {
-                  const category = categoryFor(sight);
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
                   return (
@@ -8706,8 +8705,7 @@ function Sights({
                           </button>
                         </div>
                         <div className="sights-event-meta">
-                          <span className={`sights-event-tag ${tone}`}>{category}</span>
-                          {sight.duration && <span>· {sight.duration}</span>}
+                          {sight.duration && <span>{sight.duration}</span>}
                           {sight.city !== city && <span>· {sight.city}</span>}
                           {sight.description && expandedSightId === sight.id && (
                             <span
