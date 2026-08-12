@@ -8499,14 +8499,7 @@ function Sights({
   defaultCity?: string;
   onToggle: (id: string) => void;
   onAddDay: (title: string) => void;
-  onCreateDay: (
-    dayIndex: number,
-    city: string,
-    featured: { name: string; description?: string; photo?: string },
-    places: DayPlaceDraft[],
-    photo?: string,
-    photoPosition?: number,
-  ) => void;
+  onCreateDay: (dayIndex: number, city: string, places: DayPlaceDraft[]) => void;
   onRenameDay: (id: string, title: string) => void;
 }) {
   const [addingDay, setAddingDay] = useState(false);
@@ -8813,8 +8806,8 @@ function Sights({
           dayNumber={selectedDay + 1}
           defaultCity={days[selectedDay]?.title || city}
           onClose={() => setDayEditorOpen(false)}
-          onSave={(nextCity, featuredPlace, places, photo, photoPosition) => {
-            onCreateDay(selectedDay, nextCity, featuredPlace, places, photo, photoPosition);
+          onSave={(nextCity, places) => {
+            onCreateDay(selectedDay, nextCity, places);
             setDayEditorOpen(false);
           }}
         />
@@ -8832,7 +8825,7 @@ function DayEditor({
   dayNumber: number;
   defaultCity: string;
   onClose: () => void;
-  onSave: (city: string, featured: DayPlaceDraft, places: DayPlaceDraft[], photo?: string, photoPosition?: number) => void;
+  onSave: (city: string, places: DayPlaceDraft[]) => void;
 }) {
   const [places, setPlaces] = useState<DayPlaceDraft[]>([]);
   const [place, setPlace] = useState("");
@@ -8843,9 +8836,7 @@ function DayEditor({
   const [placePhotoPosition, setPlacePhotoPosition] = useState(50);
   const [draggingPlacePhoto, setDraggingPlacePhoto] = useState(false);
   const placePhotoDrag = useRef<{ y: number; position: number } | null>(null);
-  const [featuredPhoto, setFeaturedPhoto] = useState<string>();
   const [uploadingFeaturedPhoto, setUploadingFeaturedPhoto] = useState(false);
-  const [photoPosition, setPhotoPosition] = useState(50);
   const addPlace = async () => {
     const value = place.trim();
     if (!value) return;
@@ -8897,20 +8888,7 @@ function DayEditor({
           const data = new FormData(event.currentTarget);
           const city = String(data.get("city") || "").trim();
           if (!city) return;
-          const selectedPhoto = data.get("featuredPhoto");
-          const featuredPhotoFile =
-            selectedPhoto instanceof File && selectedPhoto.size > 0
-              ? selectedPhoto
-              : null;
-          // The place-photo preview is also the day cover when no separate
-          // feature photo was picked above.
-          const dayPhotoFile = featuredPhotoFile || placePhotoFile;
-          const uploadedPhoto = dayPhotoFile
-            ? await uploadFeaturedPhoto(dayPhotoFile)
-            : featuredPhoto;
-          if (dayPhotoFile && !uploadedPhoto) return;
-          const featured = { name: String(data.get("featured") || "").trim(), description: String(data.get("featuredDescription") || "").trim() || undefined, photo: uploadedPhoto || undefined };
-          onSave(city, featured, places, uploadedPhoto || undefined, photoPosition);
+          onSave(city, places);
         }}
       >
         <header>
@@ -8931,11 +8909,6 @@ function DayEditor({
             autoFocus
           />
         </label>
-        <label>
-          Главная достопримечательность
-          <input name="featured" placeholder="Напр. Две башни" />
-        </label>
-        <div className="featured-place-details"><textarea name="featuredDescription" placeholder="Описание объекта: что важно увидеть, время посещения, заметки..." /><label className="featured-photo-upload">{uploadingFeaturedPhoto ? "Загружаем фото..." : "Фото объекта"}<input name="featuredPhoto" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingFeaturedPhoto} onChange={(event) => { const file = event.target.files?.[0]; setFeaturedPhoto(file ? URL.createObjectURL(file) : undefined); }} />{featuredPhoto && <img src={featuredPhoto} alt="Фото объекта" />}</label></div>
         <section>
           <div>
             <b>Список мест</b>
@@ -9449,18 +9422,9 @@ function Workspace({
                   sightDays: [...sightDays, { id: crypto.randomUUID(), title }],
                 })
               }
-              onCreateDay={(dayIndex, city, featured, places, photo, photoPosition) => {
+              onCreateDay={(dayIndex, city, places) => {
                 const dayNumber = dayIndex + 1;
-                const currentDaySights = tripSights.filter(
-                  (sight) => (sight.walkDay || 1) === dayNumber,
-                );
-                const currentFeatured =
-                  currentDaySights.find(
-                    (sight) =>
-                      sight.id === "munich-christkindlmarkt" ||
-                      sight.id === "verona-signori",
-                  ) || currentDaySights[0];
-                const newSights = [{ ...featured, subcategory: "Главная достопримечательность" }, ...places]
+                const newSights = places
                   .filter((place) => place.name)
                   .map((place, index) => ({
                     id: crypto.randomUUID(),
@@ -9469,23 +9433,13 @@ function Workspace({
                     walkDay: dayNumber,
                     walkOrder: index,
                   }));
-                const updatedSights =
-                  photo && currentFeatured
-                    ? [
-                        ...(trip.sights || []).filter(
-                          (sight) => sight.id !== currentFeatured.id,
-                        ),
-                        { ...currentFeatured, photo },
-                        ...newSights,
-                      ]
-                    : [...trip.sights || [], ...newSights];
                 onUpdateTrip({
                   ...trip,
                   sightDaysVersion: 1,
                   sightDays: sightDays.map((day, index) =>
-                    index === dayIndex ? { ...day, title: city, ...(photo ? { photo, photoPosition } : {}) } : day,
+                    index === dayIndex ? { ...day, title: city } : day,
                   ),
-                  sights: updatedSights,
+                  sights: [...trip.sights || [], ...newSights],
                 });
               }}
               onRenameDay={(id, title) =>
