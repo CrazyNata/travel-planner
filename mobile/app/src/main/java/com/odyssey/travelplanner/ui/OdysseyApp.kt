@@ -1255,7 +1255,6 @@ fun OdysseyApp(
                                 popUpTo(0) { inclusive = true }
                             }
                         },
-                        onCatalog = { navController.navigate("catalog") },
                         darkTheme = darkTheme,
                         onThemeToggle = { darkTheme = !darkTheme },
                         onThemeSet = { darkTheme = it },
@@ -1279,7 +1278,6 @@ fun OdysseyApp(
                         onLanguageChange = { language = normalizeLanguage(it) },
                     )
                 }
-                composable("catalog") { RouteCatalogScreen(onBack = { navController.popBackStack() }, onUseTemplate = { navController.navigate("create-trip/$it") }) }
                 composable("create-trip") {
                     CreateTripScreen(
                         onBack = { navController.popBackStack() },
@@ -1758,13 +1756,12 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, onCatalog: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
     var loadFailed by remember { mutableStateOf(false) }
     var editingTrip by remember { mutableStateOf<TripCard?>(null) }
-    var menuOpen by remember { mutableStateOf(false) }
     var accountMenuOpen by remember { mutableStateOf(false) }
     var profileEmail by remember { mutableStateOf("") }
     var profileAvatarUrl by remember { mutableStateOf<String?>(null) }
@@ -1857,28 +1854,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 .padding(WindowInsets.statusBars.asPaddingValues()),
         ) {
         Box(modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 4.dp)
-                    .size(48.dp)
-                    .semantics {
-                        contentDescription = localized(language, "Открыть меню", "Open menu", "Abrir menú", "Menü öffnen")
-                        role = Role.Button
-                    }
-                    .clickable {
-                        accountMenuOpen = false
-                        menuOpen = true
-                    },
-            ) {
-                Icon(
-                    Icons.Outlined.Menu,
-                    contentDescription = null,
-                    tint = contentTextColor(),
-                    modifier = Modifier.size(23.dp),
-                )
-            }
             RamingoBrand(modifier = Modifier.align(Alignment.Center))
             Box(
                 contentAlignment = Alignment.Center,
@@ -2009,153 +1984,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
             }
         }
 
-        val closeDrawerDescription = localized("Закрыть меню", "Close menu", "Cerrar menú", "Menü schließen")
-        if (menuOpen) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0x66000000))
-                        .semantics {
-                            contentDescription = closeDrawerDescription
-                            role = Role.Button
-                        }
-                        .clickable { menuOpen = false },
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(312.dp)
-                        .background(cardSurfaceColor())
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(start = 2.dp, top = 20.dp, end = 16.dp, bottom = 68.dp),
-                ) {
-                    RamingoBrand(modifier = Modifier.padding(start = 8.dp))
-                    Button(
-                        onClick = { menuOpen = false; onNewTrip() },
-                        colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().padding(top = 22.dp).height(52.dp),
-                    ) {
-                        Text("+  " + localized("Новое путешествие", "New trip", "Nuevo viaje", "Neue Reise"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
-                    }
-                    Text(localized("НАВИГАЦИЯ", "NAVIGATION", "NAVEGACIÓN", "NAVIGATION"), color = Color(0xFFA4A4AF), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.5.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 28.dp, start = 6.dp, bottom = 12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().background(tintedSurfaceColor(), RoundedCornerShape(12.dp)).clickable { accountMenuOpen = false; menuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp),
-                    ) {
-                        Text("◇", color = OdysseyPurple, fontSize = 22.sp)
-                        Text(localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.5.sp, modifier = Modifier.padding(start = 12.dp))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { menuOpen = false; onCatalog() }.padding(horizontal = 14.dp, vertical = 13.dp),
-                    ) {
-                        Text("+", color = Color(0xFF8B8B96), fontSize = 22.sp)
-                        Text(localized("Каталог маршрутов", "Route catalog", "Catálogo de rutas", "Routenkatalog"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.5.sp, modifier = Modifier.padding(start = 12.dp))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (accountMenuOpen) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).shadow(8.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x18000000), spotColor = Color(0x18000000)).border(1.dp, OdysseyBorder, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp),
-                        ) {
-                            Text(localized("ЯЗЫК ИНТЕРФЕЙСА", "INTERFACE LANGUAGE", "IDIOMA DE LA INTERFAZ", "SPRACHE DER OBERFLÄCHE"), color = Color(0xFFA4A4AF), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, letterSpacing = 0.7.sp)
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                modifier = Modifier.fillMaxWidth().height(42.dp).background(secondarySurfaceColor(), RoundedCornerShape(11.dp)).padding(4.dp),
-                            ) {
-                                listOf("RU", "EN", "ES", "DE").forEach { code ->
-                                    val selected = language == code
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.weight(1f).fillMaxHeight().background(if (selected) OdysseyPurple else Color.Transparent, RoundedCornerShape(8.dp)).clickable {
-                                            onLanguageChange(code)
-                                            scope.launch {
-                                                runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(profileAvatarUrl, notificationsEnabled, language = code, darkTheme = darkTheme) }
-                                                    .onFailure { accountMessage = it.message }
-                                            }
-                                        },
-                                    ) {
-                                        Text(code, color = if (selected) Color.White else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                    }
-                                }
-                            }
-                            AccountMenuItem(Icons.Outlined.Image, localized("Сменить фото профиля", "Change profile photo", "Cambiar foto de perfil", "Profilbild ändern")) { photoPicker.launch("image/*") }
-                            AccountMenuItem(Icons.Outlined.Lock, localized("Сменить пароль", "Change password", "Cambiar contraseña", "Passwort ändern")) { passwordEditorOpen = !passwordEditorOpen; accountMessage = null }
-                            if (passwordEditorOpen) {
-                                AuthField(localized("Новый пароль", "New password", "Nueva contraseña", "Neues Passwort"), "••••••••", newPassword, password = true) { newPassword = it }
-                                Spacer(Modifier.height(8.dp))
-                                AuthField(localized("Повторите пароль", "Repeat password", "Repita la contraseña", "Passwort wiederholen"), "••••••••", repeatedNewPassword, password = true) { repeatedNewPassword = it }
-                                Button(onClick = {
-                                    if (newPassword != repeatedNewPassword) {
-                                        accountMessage = localized(language, "Пароли не совпадают", "Passwords do not match", "Las contraseñas no coinciden", "Passwörter stimmen nicht überein")
-                                    } else scope.launch {
-                                        runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).changePassword(newPassword) }
-                                            .onSuccess { newPassword = ""; repeatedNewPassword = ""; passwordEditorOpen = false; accountMessage = localized(language, "Пароль обновлён", "Password updated", "Contraseña actualizada", "Passwort aktualisiert") }
-                                            .onFailure { accountMessage = it.message ?: localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden") }
-                                    }
-                                }, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                                    Text(localized("Сохранить пароль", "Save password", "Guardar contraseña", "Passwort speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
-                                }
-                            }
-                            Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder).padding(top = 8.dp))
-                            AccountMenuItem(Icons.Outlined.NotificationsNone, localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen")) {
-                                scope.launch {
-                                    val enabled = !notificationsEnabled
-                                    runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(profileAvatarUrl, enabled) }
-                                        .onSuccess { notificationsEnabled = enabled; accountMessage = localized(language, if (enabled) "Уведомления включены" else "Уведомления выключены", if (enabled) "Notifications enabled" else "Notifications disabled", if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas", if (enabled) "Benachrichtigungen aktiviert" else "Benachrichtigungen deaktiviert") }
-                                        .onFailure { accountMessage = it.message ?: localized(language, "Не удалось сохранить настройку", "Could not save setting", "No se pudo guardar el ajuste", "Einstellung konnte nicht gespeichert werden") }
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                                Icon(Icons.Outlined.DarkMode, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(21.dp))
-                                Text(localized("Тёмная тема", "Dark theme", "Tema oscuro", "Dunkles Thema"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 11.dp))
-                                Box(modifier = Modifier.width(43.dp).height(25.dp).background(if (darkTheme) OdysseyPurple else Color(0xFFD5D6DE), RoundedCornerShape(14.dp)).clickable {
-                                    val nextTheme = !darkTheme
-                                    onThemeToggle()
-                                    scope.launch {
-                                        runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(profileAvatarUrl, notificationsEnabled, language = language, darkTheme = nextTheme) }
-                                            .onFailure { accountMessage = it.message }
-                                    }
-                                }) {
-                                    Spacer(Modifier.align(if (darkTheme) Alignment.CenterEnd else Alignment.CenterStart).padding(horizontal = 3.dp).size(19.dp).background(Color.White, RoundedCornerShape(10.dp)))
-                                }
-                            }
-                            Spacer(Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder).padding(top = 8.dp))
-                            AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), Color(0xFFE85B56)) {
-                                accountMessage = null
-                                accountDeleteDialogOpen = true
-                            }
-                            AccountMenuItem(Icons.Outlined.Logout, localized("Выйти", "Sign out", "Cerrar sesión", "Abmelden"), Color(0xFFE85B56)) {
-                                scope.launch {
-                                    SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
-                                    onLogout()
-                                }
-                            }
-                            accountMessage?.let { Text(it, color = if (it.contains("Не удалось") || it.contains("не совпадают")) Color(0xFFE85B56) else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp)) }
-                        }
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(62.dp).background(secondarySurfaceColor(), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp),
-                    ) {
-                        if (profileAvatarUrl != null) {
-                            AsyncImage(model = profileAvatarUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
-                        } else Text(profileEmail.firstOrNull()?.uppercaseChar()?.toString() ?: "T", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.size(40.dp).background(Color(0xFFFF974C), RoundedCornerShape(10.dp)).padding(top = 9.dp))
-                        Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text(profileEmail.ifBlank { localized("Личный кабинет", "Account", "Cuenta", "Konto") }, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1)
-                            Text(localized("Личный кабинет", "Account", "Cuenta", "Konto") + " · $language", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, maxLines = 1)
-                        }
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clickable {
-                            accountMenuOpen = true
-                            menuOpen = false
-                        }) {
-                            Icon(Icons.Outlined.Settings, contentDescription = localized("Настройки аккаунта", "Account settings", "Ajustes de la cuenta", "Kontoeinstellungen"), tint = secondaryTextColor(), modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-        }
         if (accountMenuOpen) {
             AccountSettingsSheet(
                 profileEmail = profileEmail,
@@ -2272,7 +2100,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 }.onSuccess {
                                     accountDeleteDialogOpen = false
                                     accountMenuOpen = false
-                                    menuOpen = false
                                     onLogout()
                                 }.onFailure {
                                     accountMessage = it.message ?: localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden")
@@ -4108,101 +3935,6 @@ private fun TripCityChip(city: String, onRemove: () -> Unit) {
         Text(city, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, lineHeight = 17.sp)
         Text("×", color = OdysseyPurple.copy(alpha = 0.6f), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onRemove))
     }
-}
-
-@Composable
-private fun RouteCatalogScreen(onBack: () -> Unit, onUseTemplate: (String) -> Unit) {
-    val darkTheme = LocalDarkTheme.current
-    val templates = listOf(
-        listOf("italy", localized("Рождественская Европа", "Christmas Europe", "Europa navideña", "Weihnachtliches Europa"), localized("12 дней · 6 городов", "12 days · 6 cities", "12 días · 6 ciudades", "12 Tage · 6 Städte"), localized("Прага → Мюнхен → Верона → Милан → Венеция → Рим", "Prague → Munich → Verona → Milan → Venice → Rome", "Praga → Múnich → Verona → Milán → Venecia → Roma", "Prag → München → Verona → Mailand → Venedig → Rom"), "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85"),
-        listOf("czech", localized("Классическая Италия", "Classic Italy", "Italia clásica", "Klassisches Italien"), localized("10 дней · 5 городов", "10 days · 5 cities", "10 días · 5 ciudades", "10 Tage · 5 Städte"), localized("Рим → Флоренция → Пиза → Венеция → Милан", "Rome → Florence → Pisa → Venice → Milan", "Roma → Florencia → Pisa → Venecia → Milán", "Rom → Florenz → Pisa → Venedig → Mailand"), "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=85"),
-        listOf("alps", localized("Австрия и Альпы", "Austria and the Alps", "Austria y los Alpes", "Österreich und die Alpen"), localized("7 дней · 4 города", "7 days · 4 cities", "7 días · 4 ciudades", "7 Tage · 4 Städte"), localized("Вена → Зальцбург → Инсбрук → Грац", "Vienna → Salzburg → Innsbruck → Graz", "Viena → Salzburgo → Innsbruck → Graz", "Wien → Salzburg → Innsbruck → Graz"), "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85"),
-        listOf("tuscany", localized("Тоскана на машине", "Tuscany by car", "Toscana en coche", "Toskana mit dem Auto"), localized("8 дней · авто", "8 days · road trip", "8 días · en coche", "8 Tage · mit dem Auto"), localized("Флоренция → Сиена → Сан-Джиминьяно → Лукка", "Florence → Siena → San Gimignano → Lucca", "Florencia → Siena → San Gimignano → Lucca", "Florenz → Siena → San Gimignano → Lucca"), "https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=1200&q=85"),
-    )
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(if (darkTheme) Color(0xFF141416) else OdysseyBackground).padding(WindowInsets.statusBars.asPaddingValues()),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 18.dp,
-            top = 18.dp,
-            end = 18.dp,
-            bottom = 30.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            Box(modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Назад", "Back", "Atrás", "Zurück"), tint = contentTextColor(), modifier = Modifier.align(Alignment.CenterStart).size(24.dp).clickable { onBack() })
-                RamingoBrand(modifier = Modifier.align(Alignment.Center))
-            }
-        }
-        item {
-            Text(localized("Каталог\nмаршрутов", "Route\ncatalog", "Catálogo de\nrutas", "Routen\nkatalog"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 29.sp, lineHeight = 31.sp, modifier = Modifier.padding(top = 8.dp))
-            Text(localized("Готовые маршруты — используйте как основу для своей поездки", "Ready routes to use as a starting point for your trip", "Rutas listas para usar como base de su viaje", "Fertige Routen als Grundlage für Ihre Reise"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
-        }
-        itemsIndexed(templates, key = { _, template -> template[0] }) { index, template ->
-            val (id, title, duration, route, image) = template
-            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor())) {
-                CatalogCover(imageUrl = image, index = index, darkTheme = darkTheme, duration = duration)
-                Column(modifier = Modifier.padding(15.dp)) {
-                    Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    Text(route, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp))
-                    Button(onClick = { onUseTemplate(id) }, colors = ButtonDefaults.buttonColors(containerColor = tintedSurfaceColor(), contentColor = OdysseyPurple), shape = RoundedCornerShape(11.dp), modifier = Modifier.fillMaxWidth().height(42.dp).padding(top = 10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues()) {
-                        Text(localized("Использовать шаблон", "Use template", "Usar plantilla", "Vorlage verwenden"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
-
-    }
-}
-
-@Composable
-private fun CatalogCover(imageUrl: String, index: Int, darkTheme: Boolean, duration: String) {
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(130.dp)
-            .background(catalogCoverBrush(index, darkTheme)),
-    ) {
-        if (!imageFailed) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                onError = { imageFailed = true },
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Outlined.Explore,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.42f),
-                modifier = Modifier.align(Alignment.Center).size(48.dp),
-            )
-        }
-        Text(duration, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart).padding(12.dp).background(Color(0xAA26343D), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
-    }
-}
-
-private fun catalogCoverBrush(index: Int, darkTheme: Boolean): Brush {
-    val palettes = if (darkTheme) {
-        listOf(
-            listOf(Color(0xFF694A3B), Color(0xFF273A43)),
-            listOf(Color(0xFF49385F), Color(0xFF25263A)),
-            listOf(Color(0xFF315D73), Color(0xFF263E4D)),
-            listOf(Color(0xFF6A4E37), Color(0xFF3F3042)),
-        )
-    } else {
-        listOf(
-            listOf(Color(0xFFE8B18C), Color(0xFF667A78)),
-            listOf(Color(0xFF8872AA), Color(0xFF33354C)),
-            listOf(Color(0xFF91B7C8), Color(0xFF557D82)),
-            listOf(Color(0xFFE1B77D), Color(0xFF8C6170)),
-        )
-    }
-    return Brush.linearGradient(palettes[index.coerceIn(palettes.indices)])
 }
 
 @Composable
