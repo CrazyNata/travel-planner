@@ -1815,6 +1815,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
     var loadFailed by remember { mutableStateOf(false) }
+    var lastTripsReloadAt by remember { mutableStateOf(0L) }
     var editingTrip by remember { mutableStateOf<TripCard?>(null) }
     var accountMenuOpen by remember { mutableStateOf(false) }
     var profileEmail by remember { mutableStateOf("") }
@@ -1830,7 +1831,10 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    fun reloadTrips() {
+    fun reloadTrips(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && (loading || now - lastTripsReloadAt < 1_500L)) return
+        lastTripsReloadAt = now
         scope.launch {
             loading = true
             loadFailed = false
@@ -1867,7 +1871,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         }
     }
 
-    LaunchedEffect(Unit) { reloadTrips() }
+    LaunchedEffect(Unit) { reloadTrips(force = true) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -1981,7 +1985,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         title = localized("Не удалось загрузить путешествия", "Could not load trips", "No se pudieron cargar los viajes", "Reisen konnten nicht geladen werden"),
                         body = localized("Проверьте соединение и попробуйте ещё раз", "Check your connection and try again", "Compruebe la conexión e inténtelo de nuevo", "Prüfen Sie die Verbindung und versuchen Sie es erneut"),
                         action = localized("Повторить", "Retry", "Reintentar", "Erneut versuchen"),
-                        onAction = ::reloadTrips,
+                        onAction = { reloadTrips(force = true) },
                     )
                 }
             } else if (visibleTrips.isEmpty()) {
