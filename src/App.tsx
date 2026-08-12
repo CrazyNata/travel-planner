@@ -8473,11 +8473,11 @@ function WalkingMap({
     <div className="walking-map-wrap">
       <div className="walking-map" ref={container} />
       <footer>
-        <span>{travelMode === "driving" ? "Маршрут на машине" : "Пеший маршрут"}</span>
+        <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
         <b>
           {stats
             ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин`
-            : "Добавьте минимум 2 точки"}
+            : `${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}
         </b>
       </footer>
     </div>
@@ -8515,6 +8515,7 @@ function Sights({
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
   const [routeCopied, setRouteCopied] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
+  const [activeSightId, setActiveSightId] = useState<string | null>(null);
   useEffect(() => {
     if (selectedDay >= days.length) {
       setSelectedDay(0);
@@ -8571,238 +8572,298 @@ function Sights({
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") || "").trim();
     const placeCity = String(form.get("city") || city).trim();
+    const category = String(form.get("category") || "Достопримечательность").trim();
     if (!name || !placeCity) return;
     onAdd({
       id: crypto.randomUUID(),
       name,
       city: placeCity,
+      subcategory: category,
       walkDay,
       walkOrder: routeSights.length,
     });
     setAdding(false);
   };
-  const featuredSource =
-    routeSights.find(
-      (sight) =>
-        sight.id === "munich-christkindlmarkt" || sight.id === "verona-signori",
-    ) || routeSights[0];
-  const featured =
-    featuredSource?.id === "munich-christkindlmarkt"
-      ? { ...featuredSource, name: "Marienplatz (Christkindlmarkt)" }
-      : featuredSource;
-  useEffect(() => {
-    document.documentElement.dataset.emptySightDay = featured
-      ? "false"
-      : "true";
-    document.documentElement.dataset.sightCity = city;
-    document.documentElement.dataset.sightDay = String(selectedDay + 1);
-    return () => {
-      delete document.documentElement.dataset.emptySightDay;
-      delete document.documentElement.dataset.sightCity;
-      delete document.documentElement.dataset.sightDay;
-    };
-  }, [Boolean(featured), city, selectedDay]);
+  const categoryFor = (sight: StoredSight) =>
+    sight.subcategory || sight.group || "Достопримечательность";
+  const markerToneFor = (sight: StoredSight) => {
+    const category = categoryFor(sight).toLowerCase();
+    if (category.includes("еда") || category.includes("ресторан")) return "food";
+    if (category.includes("переезд") || category.includes("прогул")) return "walk";
+    return "sight";
+  };
+  const focusSight = (sight: StoredSight) => {
+    setActiveSightId(sight.id);
+    window.dispatchEvent(new CustomEvent("ramingo-focus-sight", { detail: sight.id }));
+  };
+  const timelineLabel = (sight: StoredSight, index: number) =>
+    sight.duration || `Точка ${String(index + 1).padStart(2, "0")}`;
+  const activeDayTitle = days[selectedDay]?.title || city || "Маршрут";
   return (
     <>
-      <section className="sights-page">
-        <header className="sights-heading">
+      <section className="sights-page sights-redesigned">
+        <div className="sights-redesigned-toolbar">
+          <span aria-hidden="true" />
           <div>
-            <p className="eyebrow">
-              {city || "Путешествие"} · День {selectedDay + 1}
-            </p>
-            <h2>Места дня</h2>
-          </div>
-          <div className="sights-view">
-            <button className="active">Журнал</button>
-            <button>Карта</button>
-          </div>
-        </header>
-        <div className="sight-day-tabs">
-          {days.map((day, index) => (
-            <div
-              className={
-                selectedDay === index ? "sight-day active" : "sight-day"
-              }
-              key={day.id}
-            >
-              <button
-                onClick={() => {
-                  setSelectedDay(index);
-                  setCity(day.title);
-                  setWalkDay(index + 1);
-                }}
-              >
-                <small>День {index + 1}</small>
-                <b>{day.title}</b>
-              </button>
-              <button
-                className="rename-day"
-                onClick={() => {
-                  const title = window
-                    .prompt("Название дня", day.title)
-                    ?.trim();
-                  if (title) onRenameDay(day.id, title);
-                }}
-              >
-                ✎
-              </button>
-            </div>
-          ))}
-          {addingDay ? (
-            <form
-              className="add-sight-day"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const title = String(
-                  new FormData(event.currentTarget).get("title") || "",
-                ).trim();
-                if (!title) return;
-                onAddDay(title);
-                setAddingDay(false);
-              }}
-            >
-              <input name="title" placeholder="Например, Рим" autoFocus />
-              <button className="accent">Добавить</button>
-            </form>
-          ) : (
             <button
-              className="add-sight-day"
-              onClick={() => setAddingDay(true)}
+              type="button"
+              className="sights-add-trigger"
+              onClick={() => setAdding((value) => !value)}
             >
-              ＋ День
-            </button>
-          )}
-        </div>
-        <section className="sight-feature" style={days[selectedDay]?.photo ? { backgroundImage: `linear-gradient(90deg, #090a13dc 0%, #1113218c 45%, transparent 72%), url("${days[selectedDay].photo}")`, backgroundPosition: `center ${days[selectedDay].photoPosition ?? 50}%` } : undefined}>
-          <span>★ Место дня</span>
-          <div>
-            <p>{featured ? featured.city : "Ваш маршрут"}</p>
-            <h3>{featured ? featured.name : "Добавьте первое место"}</h3>
-            <small>
-              {featured
-                ? "Откройте карточку, чтобы добавить детали и время посещения."
-                : "Соберите собственный список достопримечательностей для этого дня."}
-            </small>
-            <button className="accent" onClick={() => setDayEditorOpen(true)}>
-              ＋ Добавить в маршрут
+              ＋ Добавить
             </button>
           </div>
-        </section>
-        <section className="walking-planner">
-          <header>
-            <div>
-              <b>Карта прогулки</b>
-              <p>Точки дня и их порядок будут показаны на карте.</p>
+        </div>
+        <div className="sights-redesigned-grid">
+          <aside className="sights-days-rail" aria-label="Дни маршрута">
+            <div className="sights-day-list">
+              {days.map((day, index) => {
+                const count = sights.filter(
+                  (sight) => (sight.walkDay || 1) === index + 1,
+                ).length;
+                return (
+                  <div
+                    className={
+                      selectedDay === index
+                        ? "sights-day-card active"
+                        : "sights-day-card"
+                    }
+                    key={day.id}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(index);
+                        setCity(day.title);
+                        setWalkDay(index + 1);
+                        setActiveSightId(null);
+                      }}
+                    >
+                      <small>День {index + 1}</small>
+                      <b>{day.title}</b>
+                      <span>{count} мест</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="sights-day-rename"
+                      onClick={() => {
+                        const title = window
+                          .prompt("Название дня", day.title)
+                          ?.trim();
+                        if (title) onRenameDay(day.id, title);
+                      }}
+                      aria-label={`Переименовать день ${index + 1}`}
+                    >
+                      ✎
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-            <div className="walking-actions">
-              <span>{routeSights.length} мест</span>
+            {addingDay ? (
+              <form
+                className="sights-add-day-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const title = String(
+                    new FormData(event.currentTarget).get("title") || "",
+                  ).trim();
+                  if (!title) return;
+                  onAddDay(title);
+                  setAddingDay(false);
+                }}
+              >
+                <input name="title" placeholder="Например, Рим" autoFocus />
+                <button type="submit" className="accent">Добавить</button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="sights-add-day"
+                onClick={() => setAddingDay(true)}
+              >
+                ＋ Добавить день
+              </button>
+            )}
+          </aside>
+          <main className="sights-timeline-column">
+            <header className="sights-timeline-heading">
+              <h1>День {selectedDay + 1} · {activeDayTitle}</h1>
+              <p>{routeSights.length} мест</p>
+            </header>
+            {adding && (
+              <form className="sights-add-form" onSubmit={addSight}>
+                <div>
+                  <input
+                    name="name"
+                    placeholder="Название места"
+                    autoFocus
+                    required
+                  />
+                  <input
+                    name="city"
+                    placeholder="Город"
+                    defaultValue={city}
+                    required
+                  />
+                  <select name="category" defaultValue="Достопримечательность">
+                    <option>Достопримечательность</option>
+                    <option>Смотровая</option>
+                    <option>Музей</option>
+                    <option>Прогулка</option>
+                    <option>Еда</option>
+                  </select>
+                </div>
+                <button type="submit" className="accent">Добавить</button>
+                <button
+                  type="button"
+                  className="sights-add-cancel"
+                  onClick={() => {
+                    setAdding(false);
+                    setDayEditorOpen(true);
+                  }}
+                >
+                  Расширенный редактор
+                </button>
+                <button
+                  type="button"
+                  className="sights-add-cancel"
+                  onClick={() => setAdding(false)}
+                >
+                  Отмена
+                </button>
+              </form>
+            )}
+            {visibleSights.length ? (
+              <div className="sights-timeline">
+                {visibleSights.map((sight, index) => {
+                  const category = categoryFor(sight);
+                  const tone = markerToneFor(sight);
+                  return (
+                    <article
+                      className={
+                        sight.done
+                          ? "sights-timeline-event done"
+                          : "sights-timeline-event"
+                      }
+                      key={sight.id}
+                    >
+                      <time>{timelineLabel(sight, index)}</time>
+                      <span className={`sights-timeline-marker ${tone}`} aria-hidden="true" />
+                      <div className="sights-timeline-card">
+                        <div className="sights-event-top">
+                          <button
+                            type="button"
+                            className="sights-event-name"
+                            onClick={() => {
+                              focusSight(sight);
+                              onToggle(sight.id);
+                            }}
+                          >
+                            {sight.name}
+                          </button>
+                          <button
+                            type="button"
+                            className="sights-event-more"
+                            onClick={() => focusSight(sight)}
+                            aria-label={`Показать ${sight.name} на карте`}
+                          >
+                            ···
+                          </button>
+                        </div>
+                        <div className="sights-event-meta">
+                          <span className={`sights-event-tag ${tone}`}>{category}</span>
+                          {sight.duration && <span>· {sight.duration}</span>}
+                          {sight.city !== city && <span>· {sight.city}</span>}
+                          {sight.description && (
+                            <span className="sights-event-description">· {sight.description}</span>
+                          )}
+                          {sight.photo && (
+                            <img
+                              className="sights-event-photo"
+                              src={sight.photo}
+                              alt=""
+                            />
+                          )}
+                          <label className="sights-event-check">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(sight.done)}
+                              onChange={() => onToggle(sight.id)}
+                            />
+                            {sight.done ? "Посещено" : "Отметить"}
+                          </label>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="sights-redesigned-empty">
+                <b>День пока свободен</b>
+                <p>Добавьте места, которые хотите посетить.</p>
+                {!adding && (
+                  <button
+                    type="button"
+                    className="accent"
+                    onClick={() => setAdding(true)}
+                  >
+                    ＋ Добавить место
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="sights-timeline-filters">
+              <div className="sights-filter-group" aria-label="Категория">
+                {categories.map((category) => (
+                  <button
+                    type="button"
+                    className={categoryFilter === category ? "active" : ""}
+                    onClick={() => setCategoryFilter(category)}
+                    key={category}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+              <div className="sights-filter-group sights-status-filters" aria-label="Статус посещения">
+                {(["Все", "Не посещено", "Посещено"] as const).map((status) => (
+                  <button
+                    type="button"
+                    className={statusFilter === status ? "active" : ""}
+                    onClick={() => setStatusFilter(status)}
+                    key={status}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </main>
+          <aside className="sights-route-panel">
+            <div className="sights-route-panel-head">
+              <span>{city || "Маршрут"} · маршрут дня</span>
               <button
                 type="button"
                 onClick={() => void copyRoute()}
                 disabled={routeSights.length < 2}
               >
-                {routeCopied ? "Скопировано" : "Копировать маршрут"}
+                {routeCopied ? "Скопировано" : "Копировать"}
               </button>
             </div>
-          </header>
-          <div className="walking-layout">
             <WalkingMap
               sights={routeSights}
               city={city}
+              activeSightId={activeSightId || undefined}
               travelMode={
                 routeSights.some((sight) => sight.id.startsWith("stelvio_"))
                   ? "driving"
                   : "walking"
               }
             />
-            <div className="walking-points">
-              <h3>Список мест</h3>
-              <ol className="walking-list">
-                {routeSights.length ? (
-                  routeSights.map((sight, index) => (
-                    <li key={sight.id}>
-                      <button
-                        onClick={() => onToggle(sight.id)}
-                        className={sight.done ? "done" : ""}
-                      >
-                        <b>{index + 1}</b>
-                        <span>{sight.name}</span>
-                        <small>{sight.done ? "Посещено" : "Отметить"}</small>
-                      </button>
-                    </li>
-                  ))
-                ) : (
-                  <li className="walking-empty">
-                    {adding ? (
-                      <form onSubmit={addSight}>
-                        <input
-                          name="name"
-                          placeholder="Название места"
-                          autoFocus
-                        />
-                        <input
-                          name="city"
-                          placeholder="Город"
-                          defaultValue={city}
-                        />
-                        <button className="accent">Добавить</button>
-                      </form>
-                    ) : (
-                      <button onClick={() => setAdding(true)}>
-                        <b>＋</b>
-                        <span>Добавить первую точку</span>
-                      </button>
-                    )}
-                  </li>
-                )}
-              </ol>
-            </div>
-          </div>
-        </section>
-        <section className="sights-collection">
-          <header>
-            <div>
-              <p className="eyebrow">Ещё рядом</p>
-              <h2>Места дня</h2>
-            </div>
-            <span>{routeSights.length} точек</span>
-          </header>
-          <div className="sight-filters"><div>{categories.map((category) => <button type="button" className={categoryFilter === category ? "active" : ""} onClick={() => setCategoryFilter(category)} key={category}>{category}</button>)}</div><div><button type="button" className={statusFilter === "Все" ? "active" : ""} onClick={() => setStatusFilter("Все")}>Все</button><button type="button" className={statusFilter === "Не посещено" ? "active" : ""} onClick={() => setStatusFilter("Не посещено")}>Не посещено</button><button type="button" className={statusFilter === "Посещено" ? "active" : ""} onClick={() => setStatusFilter("Посещено")}>Посещено</button></div></div>
-          {visibleSights.length ? (
-            <div className="sights-grid">
-              {visibleSights.map((sight, index) => (
-                <article
-                  className={sight.done ? "sight-card visited" : "sight-card"}
-                  key={sight.id}
-                >
-                  <SightCardImage sight={sight} />
-                  <div>
-                    <b className="sight-number">{index + 1}</b>
-                    <p>
-                      {sight.subcategory ||
-                        sight.group ||
-                        "Достопримечательность"}
-                    </p>
-                    <h3>{sight.name}</h3>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={sight.done || false}
-                        onChange={() => onToggle(sight.id)}
-                      />
-                      {sight.done ? "Посещено" : "Отметить посещение"}
-                    </label>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="sights-empty">
-              <b>День пока свободен</b>
-              <p>Добавьте места, которые хотите посетить.</p>
-            </div>
-          )}
-        </section>
+          </aside>
+        </div>
       </section>
       {dayEditorOpen && (
         <DayEditor
