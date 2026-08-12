@@ -51,6 +51,11 @@ type CoverPhoto = {
   textColor?: string;
 };
 let weatherCoverPhotos: CoverPhoto[] = [];
+const defaultSightPhotos = [
+  "/sight-photos/munich-square.png",
+  "/sight-photos/munich-street.png",
+  "/sight-photos/munich-gate.png",
+];
 type TripMember = {
   id: string;
   initials: string;
@@ -8666,7 +8671,7 @@ function Sights({
                 {visibleSights.map((sight) => {
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
-                  const photoUrl = sight.photo || `https://picsum.photos/seed/${encodeURIComponent(sight.id)}/320/240`;
+                  const photoUrl = sight.photo || defaultSightPhotos[(sightNumber - 1) % defaultSightPhotos.length];
                   return (
                     <article
                       className={
