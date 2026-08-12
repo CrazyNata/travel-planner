@@ -2,6 +2,8 @@ package com.odyssey.travelplanner.ui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class UiLogicTest {
     @Test
@@ -58,5 +60,12 @@ class UiLogicTest {
     fun routeSummaryOmitsUnknownTripDays() {
         assertEquals("1 ГОРОД", localizedRouteSummary(null, 1, "RU"))
         assertEquals("2 ДНЯ · 3 ГОРОДА", localizedRouteSummary(2, 3, "RU"))
+    }
+
+    @Test
+    fun alreadyRegisteredAuthErrorsAreRecognizedThroughCauseChain() {
+        assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("User already registered")))
+        assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("request failed", IllegalArgumentException("user_already_exists"))))
+        assertFalse(isAlreadyRegisteredAuthError(IllegalStateException("invalid login credentials")))
     }
 }

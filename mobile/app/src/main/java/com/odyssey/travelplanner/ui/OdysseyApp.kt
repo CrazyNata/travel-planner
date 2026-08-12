@@ -1413,8 +1413,12 @@ private fun AuthScreen(
                 } else {
                     onAuthenticated()
                 }
-            }.onFailure {
-                message = messageText("Не удалось выполнить запрос", "Could not complete the request", "No se pudo completar la solicitud", "Anfrage konnte nicht ausgeführt werden")
+            }.onFailure { error ->
+                message = if (isRegistration && isAlreadyRegisteredAuthError(error)) {
+                    messageText("Этот e-mail уже зарегистрирован. Войдите в аккаунт.", "This e-mail is already registered. Sign in instead.", "Este e-mail ya está registrado. Inicie sesión.", "Diese E-Mail ist bereits registriert. Melden Sie sich stattdessen an.")
+                } else {
+                    messageText("Не удалось выполнить запрос", "Could not complete the request", "No se pudo completar la solicitud", "Anfrage konnte nicht ausgeführt werden")
+                }
             }
             isLoading = false
         }
@@ -1646,6 +1650,9 @@ private fun AuthScreen(
                 fontSize = 14.sp,
                 modifier = Modifier.clickable {
                     isRegistration = !isRegistration
+                    name = ""
+                    password = ""
+                    repeatPassword = ""
                     message = null
                 },
             )
@@ -4669,6 +4676,14 @@ internal fun daySightNamesToSave(placeNames: List<String>, draftName: String): L
         .forEach { add(it) }
     draftName.trim().takeIf { it.isNotBlank() }?.let { add(it) }
 }
+
+internal fun isAlreadyRegisteredAuthError(error: Throwable): Boolean =
+    generateSequence(error) { it.cause }.any { candidate ->
+        val message = candidate.message?.lowercase().orEmpty()
+        message.contains("already registered") ||
+            message.contains("user_already_exists") ||
+            message.contains("already exists")
+    }
 
 @Composable
 private fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () -> Unit, onSaved: () -> Unit) {
