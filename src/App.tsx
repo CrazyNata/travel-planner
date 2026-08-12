@@ -8385,11 +8385,10 @@ function WalkingMap({
         new mapboxgl.NavigationControl({ showCompass: false }),
         "top-right",
       );
-      sights.forEach((sight, index) => {
+      sights.forEach((sight) => {
         if (!sight.lnglat) return;
         const marker = document.createElement("span");
         marker.className = "sight-map-marker";
-        marker.textContent = String(index + 1);
         markerElements.current.set(sight.id, marker);
         new mapboxgl.Marker({ element: marker })
           .setLngLat(sight.lnglat)
@@ -8480,108 +8479,6 @@ function WalkingMap({
             ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин`
             : `${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}
         </b>
-      </footer>
-    </div>
-  );
-}
-
-function SightsRouteMap({
-  sights,
-  city,
-  activeSightId,
-  onCopy,
-  copyLabel = "Копировать",
-}: {
-  sights: StoredSight[];
-  city?: string;
-  activeSightId?: string;
-  onCopy?: () => void;
-  copyLabel?: string;
-}) {
-  const coordinates = sights
-    .map((sight) => sight.lnglat)
-    .filter((coordinate): coordinate is [number, number] => Boolean(coordinate));
-  const lngs = coordinates.map(([lng]) => lng);
-  const lats = coordinates.map(([, lat]) => lat);
-  const minLng = lngs.length ? Math.min(...lngs) : 0;
-  const maxLng = lngs.length ? Math.max(...lngs) : 1;
-  const minLat = lats.length ? Math.min(...lats) : 0;
-  const maxLat = lats.length ? Math.max(...lats) : 1;
-  const lngRange = Math.max(maxLng - minLng, 0.001);
-  const latRange = Math.max(maxLat - minLat, 0.001);
-  const points = sights.map((sight, index) => {
-    if (!sight.lnglat) {
-      return {
-        sight,
-        left: 20 + ((index * 29) % 62),
-        top: 22 + ((index * 37) % 55),
-      };
-    }
-    const [lng, lat] = sight.lnglat;
-    return {
-      sight,
-      left: 16 + ((lng - minLng) / lngRange) * 68,
-      top: 18 + (1 - (lat - minLat) / latRange) * 67,
-    };
-  });
-  const routeLine = points
-    .map((point) => `${point.left * 3.8},${point.top * 4.1}`)
-    .join(" ");
-  const distanceKm = coordinates.slice(1).reduce((total, coordinate, index) => {
-    const previous = coordinates[index];
-    const [lng1, lat1] = previous;
-    const [lng2, lat2] = coordinate;
-    const earthRadius = 6371;
-    const latDelta = ((lat2 - lat1) * Math.PI) / 180;
-    const lngDelta = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(latDelta / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(lngDelta / 2) ** 2;
-    return total + earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }, 0);
-  const routeLabel = distanceKm
-    ? `≈ ${distanceKm.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${sights.length} точек`
-    : `${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`;
-  return (
-    <div className="sights-route-map-wrap">
-      <div className="sights-route-map">
-        <span className="sights-route-map-label">{city || "Маршрут"} · маршрут дня</span>
-        <svg className="sights-route-line" viewBox="0 0 380 410" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points={routeLine} fill="none" />
-        </svg>
-        {points.map((point) => (
-          <button
-            type="button"
-            className={
-              activeSightId === point.sight.id
-                ? "sights-route-node active"
-                : "sights-route-node"
-            }
-            style={{ left: `${point.left}%`, top: `${point.top}%` }}
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("ramingo-focus-sight", {
-                  detail: point.sight.id,
-                }),
-              )
-            }
-            aria-label={`Показать ${point.sight.name}`}
-            key={point.sight.id}
-          />
-        ))}
-      </div>
-      <footer>
-        <span>Маршрут дня</span>
-        <div className="sights-route-footer-actions">
-          {onCopy && (
-            <button type="button" onClick={onCopy} disabled={sights.length < 2}>
-              {copyLabel}
-            </button>
-          )}
-          <b>{routeLabel}</b>
-        </div>
       </footer>
     </div>
   );
@@ -8956,12 +8853,25 @@ function Sights({
             </div>
           </main>
           <aside className="sights-route-panel">
-            <SightsRouteMap
+            <div className="sights-route-panel-head">
+              <span>{city || "Маршрут"} · маршрут дня</span>
+              <button
+                type="button"
+                onClick={() => void copyRoute()}
+                disabled={routeSights.length < 2}
+              >
+                {routeCopied ? "Скопировано" : "Копировать"}
+              </button>
+            </div>
+            <WalkingMap
               sights={routeSights}
               city={city}
               activeSightId={activeSightId || undefined}
-              onCopy={() => void copyRoute()}
-              copyLabel={routeCopied ? "Скопировано" : "Копировать"}
+              travelMode={
+                routeSights.some((sight) => sight.id.startsWith("stelvio_"))
+                  ? "driving"
+                  : "walking"
+              }
             />
           </aside>
         </div>
