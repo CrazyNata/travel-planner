@@ -42,8 +42,8 @@ val missingReleaseProperties = requiredReleaseProperties.filter {
 if (releaseTasksRequested && missingReleaseProperties.isNotEmpty()) {
     error("Release configuration is incomplete. Missing: ${missingReleaseProperties.joinToString()}. Set these values in mobile/supabase.properties or CI secrets.")
 }
-val versionCodeFromEnvironment = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toIntOrNull() ?: 10019
-val versionNameFromEnvironment = providers.environmentVariable("ANDROID_VERSION_NAME").orNull ?: "0.2.9"
+val versionCodeFromEnvironment = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toIntOrNull() ?: 10020
+val versionNameFromEnvironment = providers.environmentVariable("ANDROID_VERSION_NAME").orNull ?: "0.2.10"
 
 android {
     namespace = "com.odyssey.travelplanner"

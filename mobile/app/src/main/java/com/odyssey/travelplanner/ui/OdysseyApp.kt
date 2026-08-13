@@ -191,6 +191,8 @@ import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.ExchangeRateRepository
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
+import com.odyssey.travelplanner.data.CityCatalogEntry
+import com.odyssey.travelplanner.data.cityCatalog
 import com.odyssey.travelplanner.data.localizedCityCatalogName
 import com.odyssey.travelplanner.data.cityCatalogEntry
 import com.odyssey.travelplanner.data.cityFlag
@@ -3405,6 +3407,7 @@ private fun EditTripPanel(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
@@ -3414,13 +3417,37 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     var cities by remember { mutableStateOf("") }
     var cityDialogOpen by remember { mutableStateOf(false) }
     var datePickerTarget by remember { mutableStateOf<String?>(null) }
-    var cityDraft by remember { mutableStateOf("") }
+    var citySearch by remember { mutableStateOf("") }
     val cityList = remember(cities) {
         cities.split(",").map(String::trim).filter(String::isNotBlank)
+    }
+    val selectedCityKeys = remember(cityList) {
+        cityList.mapNotNull { cityCatalogEntry(it)?.key }.toSet()
+    }
+    val normalizedCitySearch = citySearch
+        .trim()
+        .lowercase(Locale.ROOT)
+        .replace('ё', 'е')
+    val filteredCatalogCities = remember(normalizedCitySearch, selectedCityKeys, language) {
+        cityCatalog
+            .filter { entry ->
+                normalizedCitySearch.isBlank() || entry.aliases.any { alias -> alias.contains(normalizedCitySearch) }
+            }
+            .sortedByDescending { entry -> entry.key in selectedCityKeys }
     }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun toggleCatalogCity(entry: CityCatalogEntry) {
+        val existingCity = cityList.firstOrNull { cityCatalogEntry(it)?.key == entry.key }
+        cities = if (existingCity != null) {
+            cityList.filterNot { cityCatalogEntry(it)?.key == entry.key }.joinToString(", ")
+        } else {
+            (cityList + entry.localized(language)).joinToString(", ")
+        }
+        message = null
+    }
 
     fun save() {
         if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
@@ -3562,7 +3589,11 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W600,
                             fontSize = 14.sp,
-                            modifier = Modifier.clickable { cityDialogOpen = true },
+                            modifier = Modifier.clickable {
+                                citySearch = ""
+                                message = null
+                                cityDialogOpen = true
+                            },
                         )
                     }
                 }
@@ -3585,30 +3616,168 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     }
 
     if (cityDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { cityDialogOpen = false },
-            title = { Text(localized("Добавить город", "Add city", "Añadir ciudad", "Stadt hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
-            text = {
-                OutlinedTextField(
-                    value = cityDraft,
-                    onValueChange = { cityDraft = it },
-                    singleLine = true,
-                    placeholder = { Text(localized("Например, Рим", "For example, Rome", "Por ejemplo, Roma", "Zum Beispiel Rom"), fontFamily = Manrope) },
-                    shape = RoundedCornerShape(13.dp),
+        ModalBottomSheet(
+            onDismissRequest = {
+                cityDialogOpen = false
+                citySearch = ""
+            },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 12.dp)
+                        .width(43.dp)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (darkTheme) Color(0xFF8F899B) else Color(0xFF9996A5)),
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    val newCity = cityDraft.trim()
-                    if (newCity.isNotBlank()) {
-                        cities = (cityList + newCity).joinToString(", ")
-                        cityDraft = ""
-                        cityDialogOpen = false
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .imePadding()
+                    .padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            localized("Выберите города", "Choose cities", "Elige ciudades", "Städte auswählen"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 22.sp,
+                        )
+                        Text(
+                            localized("Добавьте один или несколько городов", "Add one or more cities", "Añade una o varias ciudades", "Fügen Sie eine oder mehrere Städte hinzu"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W500,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
                     }
-                }) { Text(localized("Добавить", "Add", "Añadir", "Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-            },
-            dismissButton = { TextButton(onClick = { cityDialogOpen = false }) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope) } },
-        )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (darkTheme) Color(0xFF3A3348) else Color(0xFFEEEDF4))
+                            .clickable {
+                                cityDialogOpen = false
+                                citySearch = ""
+                            },
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                            tint = secondaryTextColor(),
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = citySearch,
+                    onValueChange = { citySearch = it },
+                    singleLine = true,
+                    placeholder = {
+                        Text(
+                            localized("Поиск города", "Search city", "Buscar ciudad", "Stadt suchen"),
+                            color = OdysseySubtext,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W500,
+                        )
+                    },
+                    shape = RoundedCornerShape(13.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = OdysseyPurple,
+                        unfocusedBorderColor = OdysseyBorder,
+                        focusedContainerColor = cardSurfaceColor(),
+                        unfocusedContainerColor = cardSurfaceColor(),
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                )
+
+                if (filteredCatalogCities.isEmpty()) {
+                    Text(
+                        localized("Ничего не найдено", "No cities found", "No se encontraron ciudades", "Keine Städte gefunden"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 28.dp),
+                    )
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .padding(top = 14.dp),
+                    ) {
+                        items(filteredCatalogCities, key = { it.key }) { entry ->
+                            val selected = entry.key in selectedCityKeys
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(11.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(if (selected) tintedSurfaceColor() else cardSurfaceColor())
+                                    .border(1.dp, if (selected) OdysseyPurple.copy(alpha = 0.45f) else OdysseyBorder, RoundedCornerShape(13.dp))
+                                    .clickable { toggleCatalogCity(entry) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                Text(cityFlag(entry.russian), fontSize = 20.sp)
+                                Text(
+                                    entry.localized(language),
+                                    color = contentTextColor(),
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W700,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (selected) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(23.dp)
+                                            .clip(CircleShape)
+                                            .background(OdysseyPurple),
+                                    ) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                                    }
+                                } else {
+                                    Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        cityDialogOpen = false
+                        citySearch = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp),
+                ) {
+                    Text(
+                        localized("Готово", "Done", "Listo", "Fertig"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 15.sp,
+                    )
+                }
+            }
+        }
     }
     datePickerTarget?.let { target ->
         val pickingStart = target == "start"
