@@ -65,11 +65,16 @@ class WeatherRepository {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    suspend fun loadCurrent(cities: List<String>, tripDates: String = ""): Map<String, WeatherSnapshot> {
+    suspend fun loadCurrent(
+        cities: List<String>,
+        tripDates: String = "",
+        cityCoordinates: Map<String, CityLocation> = emptyMap(),
+    ): Map<String, WeatherSnapshot> {
         val targetDate = tripDateFrom(tripDates)
         return supervisorScope {
             cities.mapNotNull { city ->
-                val coordinates = cityCatalogEntry(city)?.let { it.latitude to it.longitude }
+                val coordinates = cityCoordinates[city]?.let { it.latitude to it.longitude }
+                    ?: cityCatalogEntry(city)?.let { it.latitude to it.longitude }
                     ?: return@mapNotNull null
                 async {
                     runCatching {

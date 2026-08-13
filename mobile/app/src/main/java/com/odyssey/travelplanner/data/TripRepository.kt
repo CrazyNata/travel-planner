@@ -176,6 +176,7 @@ data class TripOverview(
     val sights: List<Sight>,
     val restaurants: List<Restaurant>,
     val cities: List<String> = emptyList(),
+    val cityCoordinates: Map<String, CityLocation> = emptyMap(),
     val routeDayCount: Int = 0,
 )
 
@@ -262,7 +263,13 @@ private fun collectTripPhotoPaths(payload: JsonObject): Set<String> {
 interface TripRepository {
     suspend fun loadTrips(): List<TripCard>
     suspend fun loadTripOverview(id: String): TripOverview?
-    suspend fun createTrip(title: String, startDate: String, endDate: String, cities: String): TripCard
+    suspend fun createTrip(
+        title: String,
+        startDate: String,
+        endDate: String,
+        cities: String,
+        cityCoordinates: Map<String, CityLocation> = emptyMap(),
+    ): TripCard
     suspend fun deleteTrip(id: String)
     suspend fun updateTripSection(id: String, key: String, value: JsonElement)
     suspend fun addRouteLeg(
@@ -392,6 +399,12 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
         val mapPoints = row.payload["overviewMapPoints"]?.jsonArray.orEmpty()
             .mapNotNull { it.jsonPrimitive.contentOrNull }
+        val cityCoordinates = row.payload["cityCoordinates"]?.jsonObject.orEmpty().mapNotNull { (city, value) ->
+            val coordinates = value.jsonObject
+            val latitude = coordinates["latitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            val longitude = coordinates["longitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            city to CityLocation(latitude = latitude, longitude = longitude)
+        }.toMap()
         val days = row.payload["days"]?.jsonArray.orEmpty()
         val legs = days.mapIndexedNotNull { dayIndex, day ->
             val dayData = day.jsonObject
@@ -575,11 +588,18 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             sights = resolvedSights,
             restaurants = resolvedRestaurants,
             cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
+            cityCoordinates = cityCoordinates,
             routeDayCount = routeDayCount,
         )
     }
 
-    override suspend fun createTrip(title: String, startDate: String, endDate: String, cities: String): TripCard {
+    override suspend fun createTrip(
+        title: String,
+        startDate: String,
+        endDate: String,
+        cities: String,
+        cityCoordinates: Map<String, CityLocation>,
+    ): TripCard {
         val id = UUID.randomUUID().toString()
         val owner = client.auth.currentUserOrNull() ?: error("Необходимо войти в аккаунт")
         val ownerId = owner.id.toString()
@@ -602,6 +622,14 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             // Keep the initial payload compatible with every trip section.
             put("overviewMapPoints", buildJsonArray {
                 cityList.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+            })
+            put("cityCoordinates", buildJsonObject {
+                cityCoordinates.forEach { (city, coordinates) ->
+                    put(city, buildJsonObject {
+                        put("latitude", coordinates.latitude)
+                        put("longitude", coordinates.longitude)
+                    })
+                }
             })
             put("budgetCurrency", "EUR")
             put("budgetManualRates", buildJsonObject { })

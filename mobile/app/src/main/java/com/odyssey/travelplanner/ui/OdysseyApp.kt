@@ -192,10 +192,14 @@ import com.odyssey.travelplanner.data.ExchangeRateRepository
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.CityCatalogEntry
+import com.odyssey.travelplanner.data.CityCatalogRepository
+import com.odyssey.travelplanner.data.CityLocation
 import com.odyssey.travelplanner.data.cityCatalog
 import com.odyssey.travelplanner.data.localizedCityCatalogName
 import com.odyssey.travelplanner.data.cityCatalogEntry
 import com.odyssey.travelplanner.data.cityFlag
+import com.odyssey.travelplanner.data.countryFlag
+import com.odyssey.travelplanner.data.normalizeCityAlias
 import com.odyssey.travelplanner.data.resolveTripPhotoReference
 import com.odyssey.travelplanner.data.parseSightLinkCoordinates
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
@@ -205,6 +209,7 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
@@ -580,6 +585,11 @@ private fun localizedCityFilter(value: String): String = if (value.trim().equals
 }
 
 private fun localizedCityName(value: String, language: String): String {
+    val selectionParts = value.trim().split(" — ", limit = 2)
+    if (selectionParts.size == 2) {
+        val city = localizedCityCatalogName(selectionParts[0], language) ?: selectionParts[0]
+        return "$city — ${selectionParts[1].trim()}"
+    }
     val parts = value.trim().split(Regex("\\s*,\\s*"), limit = 2)
     val cityValue = parts.firstOrNull().orEmpty()
     val city = localizedCityCatalogName(cityValue, language) ?: cityValue
@@ -3439,47 +3449,70 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     var cityDialogOpen by remember { mutableStateOf(false) }
     var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var citySearch by remember { mutableStateOf("") }
+    var citySearchResults by remember { mutableStateOf(cityCatalog) }
+    var citySearchLoading by remember { mutableStateOf(false) }
+    var selectedCatalogEntries by remember { mutableStateOf<Map<String, CityCatalogEntry>>(emptyMap()) }
+    val cityCatalogContext = LocalContext.current
+    val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
     val cityList = remember(cities) {
         cities.split(",").map(String::trim).filter(String::isNotBlank)
     }
-    val selectedCityKeys = remember(cityList) {
-        cityList.mapNotNull { cityCatalogEntry(it)?.key }.toSet()
+    val selectedCityKeys = remember(cityList, selectedCatalogEntries) {
+        (selectedCatalogEntries.keys + cityList.mapNotNull { cityCatalogEntry(it)?.key }).toSet()
     }
     val normalizedCitySearch = citySearch
         .trim()
         .lowercase(Locale.ROOT)
         .replace('ё', 'е')
-    val filteredCatalogCities = remember(normalizedCitySearch, selectedCityKeys, language) {
-        cityCatalog
-            .filter { entry ->
-                normalizedCitySearch.isBlank() || entry.aliases.any { alias -> alias.contains(normalizedCitySearch) }
-            }
-            .sortedByDescending { entry -> entry.key in selectedCityKeys }
+    val filteredCatalogCities = remember(citySearchResults, selectedCityKeys) {
+        citySearchResults.sortedByDescending { entry -> entry.key in selectedCityKeys }
     }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(cityDialogOpen, normalizedCitySearch, language) {
+        if (!cityDialogOpen) return@LaunchedEffect
+        delay(220)
+        citySearchLoading = true
+        citySearchResults = runCatching {
+            cityCatalogRepository.search(citySearch, language)
+        }.getOrDefault(emptyList())
+        citySearchLoading = false
+    }
+
+    fun storedValueFor(entry: CityCatalogEntry): String = entry.selectionValue(language)
+
+    fun entryForStoredCity(value: String): CityCatalogEntry? = selectedCatalogEntries.values.firstOrNull { entry ->
+        val cityPart = value.substringBefore(" — ").trim()
+        entry.aliases.contains(normalizeCityAlias(cityPart)) ||
+            listOf(entry.russian, entry.english, entry.spanish, entry.german).any { name ->
+                name.equals(cityPart, ignoreCase = true)
+            }
+    } ?: cityCatalogEntry(value)
+
     fun toggleCatalogCity(entry: CityCatalogEntry) {
-        val existingCity = cityList.firstOrNull { cityCatalogEntry(it)?.key == entry.key }
+        val existingCity = cityList.firstOrNull { entryForStoredCity(it)?.key == entry.key }
         cities = if (existingCity != null) {
-            cityList.filterNot { cityCatalogEntry(it)?.key == entry.key }.joinToString(", ")
+            selectedCatalogEntries = selectedCatalogEntries - entry.key
+            cityList.filterNot { entryForStoredCity(it)?.key == entry.key }.joinToString(", ")
         } else {
-            (cityList + entry.localized(language)).joinToString(", ")
+            selectedCatalogEntries = selectedCatalogEntries + (entry.key to entry)
+            (cityList + storedValueFor(entry)).joinToString(", ")
         }
         message = null
     }
 
     fun save() {
         if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
-        val unsupportedCity = cityList.firstOrNull { cityCatalogEntry(it) == null }
+        val unsupportedCity = cityList.firstOrNull { entryForStoredCity(it) == null }
         if (unsupportedCity != null) {
             message = localized(
                 language,
-                "Город «$unsupportedCity» пока нельзя добавить: выберите город из каталога",
-                "The city “$unsupportedCity” is not supported yet; choose a city from the catalog",
-                "La ciudad «$unsupportedCity» aún no es compatible; elija una ciudad del catálogo",
-                "Die Stadt „$unsupportedCity“ wird noch nicht unterstützt; wählen Sie eine Stadt aus dem Katalog",
+                "Выберите город из каталога",
+                "Choose a city from the catalog",
+                "Elija una ciudad del catálogo",
+                "Wählen Sie eine Stadt aus dem Katalog",
             )
             return
         }
@@ -3496,8 +3529,13 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
         scope.launch {
             saving = true
             message = null
+            val cityCoordinates = cityList.mapNotNull { city ->
+                entryForStoredCity(city)?.let { entry ->
+                    city to CityLocation(entry.latitude, entry.longitude)
+                }
+            }.toMap()
             runCatching {
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).createTrip(title, startDate, endDate, cities)
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).createTrip(title, startDate, endDate, cities, cityCoordinates)
             }.onSuccess { onCreated(it) }.onFailure {
                 message = it.message ?: localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden")
             }
@@ -3601,6 +3639,9 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                     ) {
                         cityList.forEach { city ->
                             TripCityChip(city) {
+                                entryForStoredCity(city)?.key?.let { key ->
+                                    selectedCatalogEntries = selectedCatalogEntries - key
+                                }
                                 cities = cityList.filterNot { it == city }.joinToString(", ")
                             }
                         }
@@ -3723,7 +3764,14 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 )
 
-                if (filteredCatalogCities.isEmpty()) {
+                if (citySearchLoading) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                    ) {
+                        CircularProgressIndicator(color = OdysseyPurple, strokeWidth = 2.5.dp)
+                    }
+                } else if (filteredCatalogCities.isEmpty()) {
                     Text(
                         localized("Ничего не найдено", "No cities found", "No se encontraron ciudades", "Keine Städte gefunden"),
                         color = secondaryTextColor(),
@@ -3753,15 +3801,27 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                                     .clickable { toggleCatalogCity(entry) }
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                             ) {
-                                Text(cityFlag(entry.russian), fontSize = 20.sp)
-                                Text(
-                                    entry.localized(language),
-                                    color = contentTextColor(),
-                                    fontFamily = Manrope,
-                                    fontWeight = FontWeight.W700,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Text(countryFlag(entry.countryCode) ?: cityFlag(entry.russian), fontSize = 20.sp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        entry.localized(language),
+                                        color = contentTextColor(),
+                                        fontFamily = Manrope,
+                                        fontWeight = FontWeight.W700,
+                                        fontSize = 14.sp,
+                                    )
+                                    if (entry.countryName.isNotBlank()) {
+                                        Text(
+                                            entry.countryName,
+                                            color = secondaryTextColor(),
+                                            fontFamily = Manrope,
+                                            fontWeight = FontWeight.W500,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
                                 if (selected) {
                                     Box(
                                         contentAlignment = Alignment.Center,
@@ -3797,6 +3857,14 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                         fontSize = 15.sp,
                     )
                 }
+                Text(
+                    "Данные городов: Countries States Cities Database · ODbL 1.0",
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W500,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
     }
@@ -4223,7 +4291,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
             val cities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
-            weather = WeatherRepository().loadCurrent(cities, trip.dates)
+            weather = WeatherRepository().loadCurrent(cities, trip.dates, trip.cityCoordinates)
         }
     }
 
@@ -4650,6 +4718,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                 OverviewMapCard(
                     legs = overview.routeLegs,
                     cities = mapCities,
+                    cityCoordinates = overview.cityCoordinates,
                     mapHeight = 220.dp,
                     cardShape = RoundedCornerShape(22.dp),
                     cardShadow = 10.dp,
@@ -6009,6 +6078,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         item {
             RestaurantMapCard(
                 restaurants = visibleRestaurants,
+                cityCoordinates = overview.cityCoordinates,
                 modifier = Modifier.padding(top = 11.dp),
             )
         }
@@ -8040,6 +8110,7 @@ private fun RestaurantCard(
 @Composable
 private fun RestaurantMapCard(
     restaurants: List<com.odyssey.travelplanner.data.Restaurant>,
+    cityCoordinates: Map<String, CityLocation> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -8047,7 +8118,7 @@ private fun RestaurantMapCard(
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val restaurantPoints = remember(restaurants) {
         restaurants
-            .mapNotNull { mapCoordinate(it.city) }
+            .mapNotNull { mapCoordinate(it.city, cityCoordinates) }
             .distinctBy { "${it.longitude()},${it.latitude()}" }
     }
     var mapStyleReady by remember { mutableStateOf(false) }
@@ -13020,7 +13091,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                 }
             }
         }
-        item { OverviewMapCard(overview.routeLegs, routeCities) }
+        item { OverviewMapCard(overview.routeLegs, routeCities, cityCoordinates = overview.cityCoordinates) }
         item {
             Text(
                 text = localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"),
@@ -13074,6 +13145,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
 private fun OverviewMapCard(
     legs: List<com.odyssey.travelplanner.data.RouteLeg>,
     cities: List<String>,
+    cityCoordinates: Map<String, CityLocation> = emptyMap(),
     mapHeight: Dp = 200.dp,
     footer: @Composable (() -> Unit)? = null,
     routePoints: List<Point> = emptyList(),
@@ -13085,7 +13157,7 @@ private fun OverviewMapCard(
     val language = LocalLanguage.current
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val cityCount = cities.distinctBy { cityFilterKey(it) }.size
-    val coordinates = routePoints.ifEmpty { cities.mapNotNull(::mapCoordinate) }
+    val coordinates = routePoints.ifEmpty { cities.mapNotNull { mapCoordinate(it, cityCoordinates) } }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context, attributionDescription) {
         MapView(
@@ -13229,7 +13301,7 @@ private fun cityFilterKey(city: String): String {
     return if (point != null) {
         "point:${String.format(Locale.US, "%.4f:%.4f", point.longitude(), point.latitude())}"
     } else {
-        city.substringBefore(",").trim().lowercase(Locale.ROOT)
+        city.substringBefore(",").substringBefore(" — ").trim().lowercase(Locale.ROOT)
     }
 }
 
@@ -13270,8 +13342,13 @@ private fun RouteEditorDateField(
     }
 }
 
-private fun mapCoordinate(city: String): Point? = cityCatalogEntry(city)?.let { entry ->
-    Point.fromLngLat(entry.longitude, entry.latitude)
+private fun mapCoordinate(city: String, cityCoordinates: Map<String, CityLocation> = emptyMap()): Point? {
+    cityCoordinates[city]?.let { return Point.fromLngLat(it.longitude, it.latitude) }
+    val cityPart = city.substringBefore(" — ").trim()
+    cityCatalogEntry(cityPart)?.let { entry ->
+        return Point.fromLngLat(entry.longitude, entry.latitude)
+    }
+    return null
 }
 
 private fun restaurantLinkUri(value: String): String? {

@@ -2,6 +2,11 @@ package com.odyssey.travelplanner.data
 
 import java.util.Locale
 
+data class CityLocation(
+    val latitude: Double,
+    val longitude: Double,
+)
+
 data class CityCatalogEntry(
     val key: String,
     val russian: String,
@@ -11,6 +16,9 @@ data class CityCatalogEntry(
     val latitude: Double,
     val longitude: Double,
     val aliases: Set<String> = emptySet(),
+    val countryName: String = "",
+    val countryCode: String = "",
+    val population: Long = 0L,
 ) {
     fun localized(language: String): String = when (language.trim().uppercase(Locale.ROOT).substringBefore('-')) {
         "EN" -> english
@@ -18,9 +26,14 @@ data class CityCatalogEntry(
         "DE" -> german
         else -> russian
     }
+
+    fun selectionValue(language: String): String {
+        val name = localized(language)
+        return if (countryName.isBlank()) name else "$name — $countryName"
+    }
 }
 
-private fun normalizeCityAlias(value: String): String = value
+internal fun normalizeCityAlias(value: String): String = value
     .trim()
     .lowercase(Locale.ROOT)
     .replace('ё', 'е')
@@ -179,7 +192,7 @@ private val catalogFlags = mapOf(
 )
 
 fun cityCatalogEntry(value: String): CityCatalogEntry? {
-    val cityPart = value.substringBefore(",")
+    val cityPart = value.substringBefore(",").substringBefore(" — ")
     val normalized = normalizeCityAlias(cityPart)
     return cityCatalog.firstOrNull { normalized == it.key || normalized in it.aliases }
 }
@@ -187,8 +200,12 @@ fun cityCatalogEntry(value: String): CityCatalogEntry? {
 fun localizedCityCatalogName(value: String, language: String): String? = cityCatalogEntry(value)?.localized(language)
 
 fun cityFlag(value: String): String {
-    val cityPart = value.substringBefore(",")
-    val countryPart = value.substringAfter(",", "")
+    val cityPart = value.substringBefore(",").substringBefore(" — ")
+    val countryPart = when {
+        value.contains(",") -> value.substringAfter(",", "")
+        value.contains(" — ") -> value.substringAfter(" — ", "")
+        else -> ""
+    }
     countryFlags[normalizeCityAlias(countryPart)]?.let { return it }
 
     val normalizedCity = normalizeCityAlias(cityPart)
@@ -196,4 +213,14 @@ fun cityFlag(value: String): String {
 
     val catalogKey = cityCatalogEntry(cityPart)?.key
     return catalogFlags[catalogKey] ?: "📍"
+}
+
+fun countryFlag(value: String): String? {
+    val normalizedCode = value.trim().uppercase(Locale.ROOT)
+    if (normalizedCode.length == 2 && normalizedCode.all { it in 'A'..'Z' }) {
+        return normalizedCode.map { letter ->
+            String(Character.toChars(0x1F1E6 + letter.code - 'A'.code))
+        }.joinToString("")
+    }
+    return countryFlags[normalizeCityAlias(value)]
 }
