@@ -1207,6 +1207,7 @@ fun OdysseyApp(
     val currentRoute = currentBackStackEntry?.destination?.route
     var darkTheme by remember { mutableStateOf(false) }
     var language by remember { mutableStateOf("RU") }
+    var languageSelectedBeforeAuth by remember { mutableStateOf<String?>(null) }
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
     var rememberSession by remember { mutableStateOf(false) }
@@ -1223,12 +1224,32 @@ fun OdysseyApp(
     LaunchedEffect(Unit) {
         hasSession = SupabaseProvider.restorePersistentSession()
         authReady = true
-        if (hasSession) {
-            runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
-                darkTheme = profile.darkTheme
+    }
+
+    LaunchedEffect(authReady, hasSession) {
+        if (!authReady || !hasSession) return@LaunchedEffect
+        val repository = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
+        runCatching { repository.loadProfile() }.getOrNull()?.let { profile ->
+            darkTheme = profile.darkTheme
+            val languageChosenBeforeAuth = languageSelectedBeforeAuth
+            if (languageChosenBeforeAuth != null) {
+                language = languageChosenBeforeAuth
+                if (normalizeLanguage(profile.language) != languageChosenBeforeAuth) {
+                    runCatching {
+                        repository.updateAppearance(languageChosenBeforeAuth, profile.darkTheme)
+                    }
+                }
+                languageSelectedBeforeAuth = null
+            } else {
                 language = normalizeLanguage(profile.language)
             }
         }
+    }
+
+    fun handleLanguageChange(value: String) {
+        val normalized = normalizeLanguage(value)
+        language = normalized
+        if (!hasSession) languageSelectedBeforeAuth = normalized
     }
 
     LaunchedEffect(authReady, hasSession, currentRoute) {
@@ -1286,7 +1307,7 @@ fun OdysseyApp(
                     AuthScreen(
                         rememberSession = rememberSession,
                         onRememberSessionChange = { rememberSession = it },
-                        onLanguageChange = { language = normalizeLanguage(it) },
+                        onLanguageChange = ::handleLanguageChange,
                         onAuthenticated = {
                         hasSession = true
                         navController.navigate("trips")
@@ -1307,7 +1328,7 @@ fun OdysseyApp(
                         onThemeToggle = { darkTheme = !darkTheme },
                         onThemeSet = { darkTheme = it },
                         language = language,
-                        onLanguageChange = { language = normalizeLanguage(it) },
+                        onLanguageChange = ::handleLanguageChange,
                     )
                 }
                 composable("settings") {
