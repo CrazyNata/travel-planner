@@ -3469,6 +3469,11 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(cityDialogOpen) {
+        if (!cityDialogOpen) return@LaunchedEffect
+        cityCatalogRepository.preload()
+    }
+
     LaunchedEffect(cityDialogOpen, normalizedCitySearch, language) {
         if (!cityDialogOpen) return@LaunchedEffect
         delay(220)
