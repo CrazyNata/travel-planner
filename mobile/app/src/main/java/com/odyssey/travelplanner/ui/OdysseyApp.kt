@@ -62,6 +62,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -1283,6 +1284,7 @@ fun OdysseyApp(
                     AuthScreen(
                         rememberSession = rememberSession,
                         onRememberSessionChange = { rememberSession = it },
+                        onLanguageChange = { language = normalizeLanguage(it) },
                         onAuthenticated = {
                         hasSession = true
                         navController.navigate("trips")
@@ -1359,6 +1361,7 @@ fun OdysseyApp(
 private fun AuthScreen(
     rememberSession: Boolean,
     onRememberSessionChange: (Boolean) -> Unit,
+    onLanguageChange: (String) -> Unit,
     onAuthenticated: () -> Unit,
 ) {
     val darkTheme = LocalDarkTheme.current
@@ -1371,7 +1374,15 @@ private fun AuthScreen(
     var repeatPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var languagePickerOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val languageCode = normalizeLanguage(language)
+    val languageOptions = listOf(
+        Triple("RU", "\uD83C\uDDF7\uD83C\uDDFA", "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+        Triple("EN", "\uD83C\uDDEC\uD83C\uDDE7", "English"),
+        Triple("ES", "\uD83C\uDDEA\uD83C\uDDF8", "Espa\u00F1ol"),
+        Triple("DE", "\uD83C\uDDE9\uD83C\uDDEA", "Deutsch"),
+    )
     fun messageText(ru: String, en: String, es: String, de: String) = localized(language, ru, en, es, de)
 
     fun submit() {
@@ -1464,28 +1475,108 @@ private fun AuthScreen(
             .imePadding()
             .padding(start = 24.dp, top = 40.dp, end = 24.dp, bottom = 28.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "R",
-                color = Color.White,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 19.sp,
-                modifier = Modifier
-                    .background(
-                        Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))),
-                        RoundedCornerShape(12.dp),
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 84.dp),
+            ) {
+                Text(
+                    text = "R",
+                    color = Color.White,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 19.sp,
+                    modifier = Modifier
+                        .background(
+                            Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF8E7BF5))),
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                )
+                Text(
+                    text = "Ramingo",
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(start = 11.dp),
+                )
+            }
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(tintedSurfaceColor())
+                        .border(1.dp, contentBorderColor(), RoundedCornerShape(10.dp))
+                        .clickable { languagePickerOpen = true }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Language,
+                        contentDescription = localized("\u042f\u0437\u044b\u043a", "Language", "Idioma", "Sprache"),
+                        tint = OdysseyPurple,
+                        modifier = Modifier.size(16.dp),
                     )
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-            )
-            Text(
-                text = "Ramingo",
-                color = contentTextColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(start = 11.dp),
-            )
+                    Text(
+                        text = languageCode,
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = secondaryTextColor(),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = languagePickerOpen,
+                    onDismissRequest = { languagePickerOpen = false },
+                    modifier = Modifier.width(178.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = cardSurfaceColor(),
+                    shadowElevation = 12.dp,
+                ) {
+                    languageOptions.forEach { (code, flag, label) ->
+                        val selected = languageCode == code
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                                ) {
+                                    Text(flag, fontSize = 17.sp)
+                                    Text(
+                                        text = label,
+                                        color = if (selected) OdysseyPurple else contentTextColor(),
+                                        fontFamily = Manrope,
+                                        fontWeight = if (selected) FontWeight.W800 else FontWeight.W700,
+                                        fontSize = 13.sp,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                languagePickerOpen = false
+                                onLanguageChange(code)
+                            },
+                            trailingIcon = {
+                                if (selected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = OdysseyPurple,
+                                        modifier = Modifier.size(17.dp),
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(34.dp))
