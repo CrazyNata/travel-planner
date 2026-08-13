@@ -1976,7 +1976,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
-            onLanguageChange(normalizeLanguage(profile.language))
             onThemeSet(profile.darkTheme)
         }
     }
@@ -2344,7 +2343,6 @@ private fun AccountSettingsScreen(
         runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
-            onLanguageChange(normalizeLanguage(profile.language))
             onThemeSet(profile.darkTheme)
         }
         trips = runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }.getOrDefault(emptyList())
