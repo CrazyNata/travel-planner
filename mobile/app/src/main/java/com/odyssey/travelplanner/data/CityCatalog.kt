@@ -148,6 +148,7 @@ private val cityFlags = mapOf(
     "генуя" to "🇮🇹", "genoa" to "🇮🇹", "genova" to "🇮🇹",
     "кёльн" to "🇩🇪", "кельн" to "🇩🇪", "cologne" to "🇩🇪", "köln" to "🇩🇪", "koln" to "🇩🇪",
     "дубай" to "🇦🇪", "dubai" to "🇦🇪",
+    "дрезден" to "🇩🇪", "dresden" to "🇩🇪", "dresde" to "🇩🇪",
     "хельсинки" to "🇫🇮", "helsinki" to "🇫🇮",
     "лондон" to "🇬🇧", "london" to "🇬🇧",
     "лиссабон" to "🇵🇹", "lisbon" to "🇵🇹", "lisboa" to "🇵🇹",

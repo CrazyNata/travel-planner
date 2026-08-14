@@ -188,6 +188,9 @@ import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.Sight
+import com.odyssey.travelplanner.data.SightCatalogEntry
+import com.odyssey.travelplanner.data.SightCatalogRepository
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.ExchangeRateRepository
@@ -206,6 +209,8 @@ import com.odyssey.travelplanner.data.normalizeCityAlias
 import com.odyssey.travelplanner.data.resolveTripPhotoReference
 import com.odyssey.travelplanner.data.parseSightLinkCoordinates
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
+import com.odyssey.travelplanner.data.catalogCityName
+import com.odyssey.travelplanner.data.normalizeCatalogText
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -3796,6 +3801,7 @@ private fun CreateTripScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .fillMaxHeight()
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .imePadding()
                     .padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
@@ -3881,7 +3887,7 @@ private fun CreateTripScreen(
                         verticalArrangement = Arrangement.spacedBy(7.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 360.dp)
+                            .weight(1f)
                             .padding(top = 14.dp),
                     ) {
                         items(filteredCatalogCities, key = { it.key }) { entry ->
@@ -5226,7 +5232,8 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     mapHeight = 220.dp,
                     cardShape = RoundedCornerShape(22.dp),
                     cardShadow = 10.dp,
-                    routePoints = sightMapPoints,
+                    routePoints = sightRoutePoints,
+                    markerPoints = sightMapPoints,
                     selectedPointIndex = selectedSightMapIndex,
                     footer = {
                         Row(modifier = Modifier.fillMaxWidth().height(62.dp).padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -5314,7 +5321,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     }
     if (editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
-            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSights, onClose = { editingDay = false }, onSaved = onSightUpdated)
+            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSights, sights, onClose = { editingDay = false }, onSaved = onSightUpdated)
         }
     }
     if (creatingDay) {
@@ -5629,8 +5636,9 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () -
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<com.odyssey.travelplanner.data.Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
+private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Sight>, allSights: List<Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
     var addingSight by remember { mutableStateOf(false) }
+    var catalogOpen by remember { mutableStateOf(false) }
     var deletingSightId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     val language = LocalLanguage.current
@@ -5669,12 +5677,256 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<co
                 }
             }
         }
-        Text(localized("＋  Добавить достопримечательность", "＋  Add sight", "＋  Añadir lugar", "＋  Ort hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { addingSight = true }.padding(top = 15.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                localized("＋  Из каталога", "＋  From catalog", "＋  Del catálogo", "＋  Aus Katalog"),
+                color = OdysseyPurple,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 12.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, OdysseyPurple.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                    .background(OdysseyPurple.copy(alpha = 0.08f))
+                    .clickable { catalogOpen = true }
+                    .padding(top = 15.dp),
+            )
+            Text(
+                localized("＋  Вручную", "＋  Manually", "＋  Manualmente", "＋  Manuell"),
+                color = OdysseyPurple,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 12.5.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp))
+                    .background(tintedSurfaceColor())
+                    .clickable { addingSight = true }
+                    .padding(top = 15.dp),
+            )
+        }
         Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(14.dp)) { Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+    }
+    if (catalogOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { catalogOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            dragHandle = null,
+        ) {
+            SightCatalogSheet(
+                tripId = tripId,
+                city = city,
+                day = day,
+                existingSights = allSights,
+                onClose = { catalogOpen = false },
+                onSaved = onSaved,
+            )
+        }
     }
     if (addingSight) {
         ModalBottomSheet(onDismissRequest = { addingSight = false }, containerColor = cardSurfaceColor()) {
             AddSightSheet(tripId, city, day, onClose = { addingSight = false }, onSaved = onSaved)
+        }
+    }
+}
+
+private fun catalogSightAlreadyAdded(
+    entry: SightCatalogEntry,
+    city: String,
+    existingSights: List<Sight>,
+): Boolean {
+    val cityKey = normalizeCatalogText(catalogCityName(city))
+    val entryNames = entry.allNames().map(::normalizeCatalogText).filter(String::isNotBlank).toSet()
+    return existingSights.any { sight ->
+        val sightCity = normalizeCatalogText(catalogCityName(sight.city))
+        val sightName = normalizeCatalogText(sight.name)
+        sightCity == cityKey && sightName in entryNames
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SightCatalogSheet(
+    tripId: String,
+    city: String,
+    day: Int,
+    existingSights: List<Sight>,
+    onClose: () -> Unit,
+    onSaved: () -> Unit,
+) {
+    val language = LocalLanguage.current
+    val scope = rememberCoroutineScope()
+    val catalogRepository = remember { SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow()) }
+    var query by remember { mutableStateOf("") }
+    var entries by remember { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var loading by remember { mutableStateOf(true) }
+    var saving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val selectedEntries = entries.filter { it.id in selectedIds && !catalogSightAlreadyAdded(it, city, existingSights) }
+
+    LaunchedEffect(city, query) {
+        loading = true
+        message = null
+        delay(180)
+        runCatching { catalogRepository.search(city = city, query = query) }
+            .onSuccess {
+                entries = it
+                selectedIds = selectedIds.intersect(it.map(SightCatalogEntry::id).toSet())
+            }
+            .onFailure { error ->
+                if (error is CancellationException) throw error
+                entries = emptyList()
+                message = error.message ?: localized(language, "Не удалось загрузить каталог", "Could not load the catalog", "No se pudo cargar el catálogo", "Katalog konnte nicht geladen werden")
+            }
+        loading = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.94f)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("Достопримечательности", "Sights", "Lugares", "Sehenswürdigkeiten"),
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 22.sp,
+                )
+                Text(
+                    localizedCityName(city),
+                    color = OdysseySubtext,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                )
+            }
+            Box(
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp))
+            }
+        }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            placeholder = { Text(localized("Поиск по названию", "Search by name", "Buscar por nombre", "Nach Namen suchen"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) },
+            leadingIcon = { Text("⌕", color = OdysseyPurple, fontSize = 23.sp) },
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OdysseyPurple, unfocusedBorderColor = contentBorderColor()),
+        )
+        if (message != null) {
+            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        }
+        if (loading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = OdysseyPurple, strokeWidth = 3.dp, modifier = Modifier.size(30.dp))
+            }
+        } else if (entries.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    localized("Для этого города пока нет мест в каталоге", "There are no catalog sights for this city yet", "Todavía no hay lugares para esta ciudad", "Für diese Stadt gibt es noch keine Orte"),
+                    color = OdysseySubtext,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 22.dp),
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(entries, key = { it.id }) { entry ->
+                    val alreadyAdded = catalogSightAlreadyAdded(entry, city, existingSights)
+                    val selected = entry.id in selectedIds
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) OdysseyPurple.copy(alpha = 0.08f) else secondarySurfaceColor())
+                            .border(1.dp, if (selected) OdysseyPurple.copy(alpha = 0.45f) else contentBorderColor(), RoundedCornerShape(14.dp))
+                            .clickable(enabled = !alreadyAdded && !saving) {
+                                selectedIds = if (selected) selectedIds - entry.id else selectedIds + entry.id
+                            }
+                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.name(language), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val details = listOf(entry.category, entry.description(language)).filter(String::isNotBlank).joinToString(" · ")
+                            if (details.isNotBlank()) Text(details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 10.dp)
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (alreadyAdded || selected) OdysseyPurple else tintedSurfaceColor()),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (alreadyAdded) {
+                                Icon(Icons.Filled.Check, contentDescription = localized("Уже добавлено", "Already added", "Ya añadido", "Bereits hinzugefügt"), tint = Color.White, modifier = Modifier.size(18.dp))
+                            } else {
+                                Text(if (selected) "✓" else "+", color = if (selected) Color.White else OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Button(
+            onClick = {
+                scope.launch {
+                    saving = true
+                    message = null
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addCatalogSights(
+                            id = tripId,
+                            city = city,
+                            language = language,
+                            walkDay = day,
+                            entries = selectedEntries,
+                        )
+                    }.onSuccess {
+                        onSaved()
+                        onClose()
+                    }.onFailure { error ->
+                        message = error.message ?: localized(language, "Не удалось добавить места", "Could not add sights", "No se pudieron añadir los lugares", "Orte konnten nicht hinzugefügt werden")
+                    }
+                    saving = false
+                }
+            },
+            enabled = selectedEntries.isNotEmpty() && !saving,
+            modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Text(
+                if (saving) localized("Добавляем…", "Adding…", "Añadiendo…", "Wird hinzugefügt…")
+                else localized("Добавить выбранные", "Add selected", "Añadir seleccionados", "Auswahl hinzufügen") + if (selectedEntries.isNotEmpty()) " (${selectedEntries.size})" else "",
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+            )
         }
     }
 }
@@ -6965,6 +7217,7 @@ private fun RestaurantAddSheet(
         )
         val scrollState = rememberScrollState()
         val photoScrollState = rememberScrollState()
+        var fullScreenPhotoIndex by remember(photoUris) { mutableStateOf<Int?>(null) }
 
         Box(
             modifier = Modifier
@@ -7065,7 +7318,8 @@ private fun RestaurantAddSheet(
                                 .width(d(128f))
                                 .height(d(168f))
                                 .clip(RoundedCornerShape(d(14f)))
-                                .background(Color(0xFFE9E7F4)),
+                                .background(Color(0xFFE9E7F4))
+                                .clickable(enabled = !saving && photoUris.isNotEmpty()) { fullScreenPhotoIndex = 0 },
                         ) {
                             photoUris.firstOrNull()?.let { uri ->
                                 AsyncImage(
@@ -7097,7 +7351,8 @@ private fun RestaurantAddSheet(
                                     .width(d(128f))
                                     .height(d(168f))
                                     .clip(RoundedCornerShape(d(14f)))
-                                    .background(Color(0xFFE9E7F4)),
+                                    .background(Color(0xFFE9E7F4))
+                                    .clickable(enabled = !saving) { fullScreenPhotoIndex = index + 1 },
                             ) {
                                 AsyncImage(
                                     model = uri,
@@ -7301,6 +7556,16 @@ private fun RestaurantAddSheet(
                         style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                     )
                 }
+            }
+        }
+        fullScreenPhotoIndex?.let { initialIndex ->
+            if (photoUris.isNotEmpty()) {
+                FullScreenPhotoViewer(
+                    photos = photoUris,
+                    initialIndex = initialIndex,
+                    accommodationName = name.ifBlank { localized("Ресторан", "Restaurant", "Restaurante", "Restaurant") },
+                    onDismiss = { fullScreenPhotoIndex = null },
+                )
             }
         }
     }
@@ -11172,7 +11437,7 @@ private fun FullScreenSightPhotoViewer(
 
 @Composable
 private fun FullScreenPhotoViewer(
-    photos: List<String>,
+    photos: List<Any>,
     initialIndex: Int,
     accommodationName: String,
     onDismiss: (Int) -> Unit,
@@ -12864,6 +13129,15 @@ private fun AccommodationCalendarDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdded: () -> Unit) {
     val language = LocalLanguage.current
+    val cityCatalogContext = LocalContext.current
+    val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
+    val routeCities = remember(overview.routeLegs) {
+        overview.routeLegs
+            .flatMap { listOf(it.from, it.to) }
+            .filter(String::isNotBlank)
+            .distinct()
+    }
+    var resolvedRouteFlags by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var adding by remember { mutableStateOf(false) }
     var from by remember { mutableStateOf("") }
     var to by remember { mutableStateOf("") }
@@ -12878,6 +13152,18 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
     var message by remember { mutableStateOf<String?>(null) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(routeCities) {
+        val unresolvedCities = routeCities.filter { cityFlag(it) == "📍" }
+        resolvedRouteFlags = if (unresolvedCities.isEmpty()) {
+            emptyMap()
+        } else {
+            cityCatalogRepository.findExact(unresolvedCities)
+                .mapValues { (_, entry) -> countryFlag(entry.countryCode) ?: cityFlag(entry.russian) }
+                .filterValues { it != "📍" }
+        }
+    }
+
     val cityCount = overview.overviewMapPoints
         .ifEmpty { overview.routeLegs.flatMap { listOf(it.from, it.to) } }
         .filter(String::isNotBlank)
@@ -12910,7 +13196,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
         } else {
             itemsIndexed(overview.routeLegs) { index, leg ->
                 val dayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1) ?: index
-                RouteLegCard(leg, dayIndex, overview.dates, onEdit = {
+                RouteLegCard(leg, dayIndex, overview.dates, resolvedRouteFlags, onEdit = {
                     editingLeg = leg
                     from = leg.from
                     to = leg.to
@@ -13085,6 +13371,8 @@ private fun RouteLegEditorSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .padding(bottom = navigationBarInset),
         verticalArrangement = Arrangement.spacedBy(11.dp),
@@ -13192,7 +13480,14 @@ internal fun routeTiming(checkIn: String, checkOut: String): RouteTiming {
 }
 
 @Composable
-private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex: Int, tripDates: String, onEdit: () -> Unit, onChecklistChange: (String, Boolean) -> Unit) {
+private fun RouteLegCard(
+    leg: com.odyssey.travelplanner.data.RouteLeg,
+    dayIndex: Int,
+    tripDates: String,
+    resolvedCityFlags: Map<String, String> = emptyMap(),
+    onEdit: () -> Unit,
+    onChecklistChange: (String, Boolean) -> Unit,
+) {
     val language = LocalLanguage.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val timing = routeTiming(leg.checkIn, leg.checkOut)
@@ -13226,9 +13521,9 @@ private fun RouteLegCard(leg: com.odyssey.travelplanner.data.RouteLeg, dayIndex:
             Text(dateParts.second, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp)
             }
             Column(modifier = Modifier.weight(1f)) {
-                RouteStop(leg.from, cityFlag(leg.from), isLast = false)
+                RouteStop(leg.from, resolvedCityFlags[leg.from] ?: cityFlag(leg.from), isLast = false)
                 Spacer(Modifier.height(5.dp))
-                RouteStop(leg.to, cityFlag(leg.to), isLast = true, compact = longDestination)
+                RouteStop(leg.to, resolvedCityFlags[leg.to] ?: cityFlag(leg.to), isLast = true, compact = longDestination)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { clipboard.setText(AnnotatedString(mapsUrl)) }, contentAlignment = Alignment.Center) {
@@ -13670,6 +13965,7 @@ private fun OverviewMapCard(
     mapHeight: Dp = 200.dp,
     footer: @Composable (() -> Unit)? = null,
     routePoints: List<Point> = emptyList(),
+    markerPoints: List<Point> = routePoints,
     selectedPointIndex: Int? = null,
     cardShape: RoundedCornerShape = RoundedCornerShape(20.dp),
     cardShadow: Dp? = null,
@@ -13678,7 +13974,10 @@ private fun OverviewMapCard(
     val language = LocalLanguage.current
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val cityCount = cities.distinctBy { cityFilterKey(it) }.size
-    val coordinates = routePoints.ifEmpty { cities.mapNotNull { mapCoordinate(it, cityCoordinates) } }
+    val cityMapCoordinates = cities.mapNotNull { mapCoordinate(it, cityCoordinates) }
+    val coordinates = (routePoints + markerPoints)
+        .ifEmpty { cityMapCoordinates }
+        .distinctBy { "${it.longitude()},${it.latitude()}" }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context, attributionDescription) {
         MapView(
@@ -13718,21 +14017,21 @@ private fun OverviewMapCard(
         if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
     }
 
-    LaunchedEffect(mapStyleReady, coordinates, selectedPointIndex) {
+    LaunchedEffect(mapStyleReady, coordinates, routePoints, markerPoints, selectedPointIndex) {
         if (mapStyleReady && coordinates.isNotEmpty()) {
             routeAnnotationManager.deleteAll()
             sightAnnotationManager.deleteAll()
             sightNumberAnnotationManager.deleteAll()
-            if (coordinates.size > 1) {
+            if (routePoints.size > 1) {
                 routeAnnotationManager.create(
                     PolylineAnnotationOptions()
-                        .withPoints(coordinates)
+                        .withPoints(routePoints)
                         .withLineColor("#6C5CE7")
                         .withLineWidth(5.0),
                 )
             }
-            if (routePoints.isNotEmpty()) {
-                routePoints.forEachIndexed { index, point ->
+            if (markerPoints.isNotEmpty()) {
+                markerPoints.forEachIndexed { index, point ->
                     val selected = index == selectedPointIndex
                     sightAnnotationManager.create(
                         CircleAnnotationOptions()
@@ -13776,9 +14075,9 @@ private fun OverviewMapCard(
         }
     }
 
-    LaunchedEffect(mapStyleReady, selectedPointIndex, routePoints) {
+    LaunchedEffect(mapStyleReady, selectedPointIndex, markerPoints) {
         if (mapStyleReady) {
-            routePoints.getOrNull(selectedPointIndex ?: -1)?.let { point ->
+            markerPoints.getOrNull(selectedPointIndex ?: -1)?.let { point ->
                 mapView.mapboxMap.setCamera(
                     CameraOptions.Builder()
                         .center(point)

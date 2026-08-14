@@ -340,6 +340,13 @@ interface TripRepository {
         latitude: Double? = null,
         link: String = "",
     ): String
+    suspend fun addCatalogSights(
+        id: String,
+        city: String,
+        language: String,
+        walkDay: Int,
+        entries: List<SightCatalogEntry>,
+    )
     suspend fun updateSightDetailsRich(
         id: String,
         sightId: String,
@@ -1392,6 +1399,83 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
         patchTripSectionFromPayload(id, "sights", TripPayloadCodec.append(current.payload, "sights", item), current.revision)
         return sightId
+    }
+
+    override suspend fun addCatalogSights(
+        id: String,
+        city: String,
+        language: String,
+        walkDay: Int,
+        entries: List<SightCatalogEntry>,
+    ) {
+        require(entries.isNotEmpty()) { "Выберите хотя бы одну достопримечательность" }
+        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
+            ?: error("Путешествие не найдено")
+        val existing = current.payload["sights"]?.jsonArray.orEmpty()
+        val nextItems = existing.toMutableList()
+        val normalizedCity = normalizeCatalogText(catalogCityName(city))
+        val selectedCatalogIds = existing.mapNotNull { item ->
+            item.jsonObject["catalogId"]?.jsonPrimitive?.contentOrNull
+        }.toMutableSet()
+        val normalizedExistingNames = existing.mapNotNull { item ->
+            val sight = item.jsonObject
+            val itemCity = normalizeCatalogText(catalogCityName(sight["city"]?.jsonPrimitive?.contentOrNull.orEmpty()))
+            val itemName = normalizeCatalogText(sight["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
+            if (itemCity.isBlank() || itemName.isBlank()) null else "$itemCity|$itemName"
+        }.toMutableSet()
+        var nextWalkOrder = existing.mapNotNull { item ->
+            val sight = item.jsonObject
+            val sightDay = sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0
+            if (sightDay.coerceAtLeast(1) == walkDay.coerceAtLeast(1)) sight["walkOrder"]?.jsonPrimitive?.intOrNull else null
+        }.maxOrNull()?.plus(1) ?: 0
+        val normalizedWalkDay = walkDay.coerceAtLeast(1)
+
+        entries.forEach { entry ->
+            val name = entry.name(language).trim()
+            if (name.isBlank()) return@forEach
+            val entryNames = entry.allNames().map(::normalizeCatalogText).filter(String::isNotBlank).toSet()
+            val duplicateKey = "$normalizedCity|${normalizeCatalogText(name)}"
+            val alreadyAdded = entry.id in selectedCatalogIds || duplicateKey in normalizedExistingNames || existing.any { item ->
+                val sight = item.jsonObject
+                val itemCity = normalizeCatalogText(catalogCityName(sight["city"]?.jsonPrimitive?.contentOrNull.orEmpty()))
+                val itemName = normalizeCatalogText(sight["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
+                itemCity == normalizedCity && itemName in entryNames
+            }
+            if (alreadyAdded) return@forEach
+
+            val mapUrl = entry.mapUrl.trim().ifBlank {
+                if (entry.latitude != null && entry.longitude != null) {
+                    "https://www.google.com/maps/search/?api=1&query=${entry.latitude},${entry.longitude}"
+                } else {
+                    ""
+                }
+            }
+            val item = buildJsonObject {
+                put("id", UUID.randomUUID().toString())
+                put("catalogId", entry.id)
+                put("name", name)
+                put("city", city.trim())
+                put("subcategory", entry.category.trim())
+                put("description", entry.description(language).trim())
+                put("walkDay", normalizedWalkDay)
+                put("walkOrder", nextWalkOrder)
+                put("done", false)
+                if (mapUrl.isNotBlank()) put("link", mapUrl)
+                if (entry.longitude != null && entry.latitude != null) {
+                    put("lnglat", buildJsonArray {
+                        add(kotlinx.serialization.json.JsonPrimitive(entry.longitude))
+                        add(kotlinx.serialization.json.JsonPrimitive(entry.latitude))
+                    })
+                }
+            }
+            nextItems += item
+            selectedCatalogIds += entry.id
+            normalizedExistingNames += duplicateKey
+            nextWalkOrder += 1
+        }
+
+        require(nextItems.size > existing.size) { "Выбранные достопримечательности уже добавлены" }
+        patchTripSectionFromPayload(id, "sights", TripPayloadCodec.withSection(current.payload, "sights", kotlinx.serialization.json.JsonArray(nextItems)), current.revision)
     }
 
     override suspend fun updateSightDetailsRich(

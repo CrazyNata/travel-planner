@@ -110,6 +110,59 @@ class CityCatalogRepository(private val assets: AssetManager) {
             .map { it.entry }
     }
 
+    /**
+     * Resolves already-entered city names against the full catalog in one pass.
+     * Route legs can contain legacy free-text values without a country suffix,
+     * so the UI uses this only as a fallback when the local flag lookup is unknown.
+     */
+    suspend fun findExact(values: Collection<String>): Map<String, CityCatalogEntry> = withContext(Dispatchers.IO) {
+        val requested = values
+            .filter(String::isNotBlank)
+            .groupBy(::cityLookupKey)
+            .filterKeys(String::isNotBlank)
+        if (requested.isEmpty()) return@withContext emptyMap()
+
+        val resolved = mutableMapOf<String, CityCatalogEntry>()
+
+        fun addIfBest(key: String, entry: CityCatalogEntry) {
+            val current = resolved[key]
+            if (current == null || entry.population > current.population) {
+                resolved[key] = entry
+            }
+        }
+
+        requested.keys.forEach { key ->
+            cityCatalog.firstOrNull { entry -> key in entry.aliases }?.let { entry -> addIfBest(key, entry) }
+        }
+
+        val unresolved = requested.keys - resolved.keys
+        if (unresolved.isNotEmpty()) {
+            val catalog = catalogText
+            var lineStart = 0
+            var lineIndex = 0
+
+            while (lineStart < catalog.length) {
+                if (lineIndex % SEARCH_CHECK_INTERVAL == 0) currentCoroutineContext().ensureActive()
+
+                var lineEnd = catalog.indexOf('\n', lineStart)
+                if (lineEnd < 0) lineEnd = catalog.length
+                if (lineEnd > lineStart && catalog[lineEnd - 1] == '\r') lineEnd--
+
+                exactRowQuery(catalog, lineStart, lineEnd, unresolved)?.let { key ->
+                    parse(catalog.substring(lineStart, lineEnd))?.let { entry -> addIfBest(key, entry) }
+                }
+
+                lineStart = if (lineEnd < catalog.length) lineEnd + 1 else catalog.length
+                lineIndex++
+            }
+        }
+
+        requested.flatMap { (key, originalValues) ->
+            val entry = resolved[key] ?: return@flatMap emptyList()
+            originalValues.map { it to entry }
+        }.toMap()
+    }
+
     private fun scoreRow(text: String, lineStart: Int, lineEnd: Int, query: String): Int? {
         var fieldStart = lineStart
         var fieldIndex = 0
@@ -134,6 +187,28 @@ class CityCatalogRepository(private val assets: AssetManager) {
             fieldIndex++
         }
         return bestScore
+    }
+
+    private fun exactRowQuery(text: String, lineStart: Int, lineEnd: Int, queries: Set<String>): String? {
+        var fieldStart = lineStart
+        var fieldIndex = 0
+
+        while (fieldStart <= lineEnd && fieldIndex <= 10) {
+            var fieldEnd = text.indexOf('\t', fieldStart)
+            if (fieldEnd < 0 || fieldEnd > lineEnd) fieldEnd = lineEnd
+
+            if (fieldIndex == 1 || fieldIndex in 6..10) {
+                val fieldLength = fieldEnd - fieldStart
+                queries.firstOrNull { query ->
+                    fieldLength == query.length && text.regionMatches(fieldStart, query, 0, query.length, ignoreCase = true)
+                }?.let { return it }
+            }
+
+            if (fieldEnd == lineEnd) break
+            fieldStart = fieldEnd + 1
+            fieldIndex++
+        }
+        return null
     }
 
     private fun parse(line: String): CityCatalogEntry? {
@@ -161,6 +236,10 @@ class CityCatalogRepository(private val assets: AssetManager) {
         )
     }
 }
+
+private fun cityLookupKey(value: String): String = normalizeCityAlias(
+    value.substringBefore(",").substringBefore(" — ").trim(),
+)
 
 private fun cityCatalogFieldScore(text: String, start: Int, end: Int, query: String): Int? {
     if (start >= end) return null

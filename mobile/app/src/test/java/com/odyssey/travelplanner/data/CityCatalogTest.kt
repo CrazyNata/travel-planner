@@ -3,6 +3,7 @@ package com.odyssey.travelplanner.data
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 
 class CityCatalogTest {
     @Test
@@ -36,6 +37,17 @@ class CityCatalogTest {
         assertEquals("🇮🇹", cityFlag("Венеция"))
         assertEquals("🇫🇮", cityFlag("Хельсинки"))
         assertEquals("🇫🇮", cityFlag("Helsinki, Finland"))
+        assertEquals("🇩🇪", cityFlag("Дрезден"))
+        assertEquals("🇩🇪", cityFlag("Dresden"))
         assertEquals("📍", cityFlag("test city"))
+    }
+
+    @Test
+    fun everyBundledCatalogCityHasAFlag() {
+        cityCatalog.forEach { entry ->
+            listOf(entry.russian, entry.english, entry.spanish, entry.german).forEach { name ->
+                assertNotEquals("📍", cityFlag(name), "Missing flag for $name")
+            }
+        }
     }
 }
