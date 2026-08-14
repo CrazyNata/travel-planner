@@ -1,6 +1,7 @@
 package com.odyssey.travelplanner.data
 
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.ktor.client.statement.bodyAsText
@@ -40,6 +41,8 @@ data class RestaurantCatalogEntry(
     val photoAttribution: String? = null,
     val ratingPlaceUrl: String = "",
     val isLiveResult: Boolean = false,
+    /** Google Places price level, from 1 (inexpensive) to 4 (very expensive). */
+    val priceLevel: Int? = null,
 ) {
     fun name(language: String): String = when (language.trim().uppercase(Locale.ROOT).substringBefore('-')) {
         "EN" -> nameEn.ifBlank { nameRu }
@@ -104,6 +107,7 @@ private data class RestaurantEnrichmentPlace(
     val cuisine: String = "",
     val rating: Double? = null,
     @SerialName("rating_count") val ratingCount: Int? = null,
+    @SerialName("price_level") val priceLevel: Int? = null,
     @SerialName("photo_url") val photoUrl: String? = null,
     @SerialName("photo_attribution") val photoAttribution: String? = null,
     @SerialName("google_maps_url") val googleMapsUrl: String = "",
@@ -210,6 +214,14 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         val cityName = catalogCityName(city)
         if (cityName.isBlank()) return emptyList()
 
+        // Edge Functions require a user JWT. PostgREST can still return the
+        // public catalog with only the publishable key, so do not assume that
+        // a successful catalog request means the session is ready here.
+        if (client.auth.currentSessionOrNull() == null) {
+            runCatching { client.auth.refreshCurrentSession() }
+        }
+        val accessToken = client.auth.currentAccessTokenOrNull()
+
         val response = client.functions.invoke(
             function = "restaurant-enrichment",
             body = buildJsonObject {
@@ -220,6 +232,9 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
             },
             headers = Headers.build {
                 append(HttpHeaders.ContentType, "application/json")
+                if (!accessToken.isNullOrBlank()) {
+                    append(HttpHeaders.Authorization, "Bearer $accessToken")
+                }
             },
         )
         val livePlaces = Json { ignoreUnknownKeys = true }
@@ -250,6 +265,7 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
                 sortOrder = index,
                 rating = place.rating,
                 ratingCount = place.ratingCount,
+                priceLevel = place.priceLevel,
                 photoUrl = place.photoUrl,
                 photoAttribution = place.photoAttribution,
                 ratingPlaceUrl = place.googleMapsUrl,

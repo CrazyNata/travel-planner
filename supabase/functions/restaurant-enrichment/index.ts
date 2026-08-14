@@ -34,6 +34,17 @@ function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function priceLevelValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  switch (String(value ?? "")) {
+    case "PRICE_LEVEL_INEXPENSIVE": return 1;
+    case "PRICE_LEVEL_MODERATE": return 2;
+    case "PRICE_LEVEL_EXPENSIVE": return 3;
+    case "PRICE_LEVEL_VERY_EXPENSIVE": return 4;
+    default: return null;
+  }
+}
+
 async function resolvePhoto(
   photo: Record<string, unknown> | undefined,
   apiKey: string,
@@ -89,6 +100,7 @@ Deno.serve(async (request: Request) => {
         "places.location",
         "places.rating",
         "places.userRatingCount",
+        "places.priceLevel",
         "places.googleMapsUri",
         "places.photos",
         "places.types",
@@ -135,6 +147,7 @@ Deno.serve(async (request: Request) => {
       cuisine: types,
       rating: numberValue(place.rating),
       rating_count: typeof place.userRatingCount === "number" ? Math.trunc(place.userRatingCount) : null,
+      price_level: priceLevelValue(place.priceLevel),
       photo_url: photo.photoUrl,
       photo_attribution: photo.photoAttribution,
       google_maps_url: textValue(place.googleMapsUri),

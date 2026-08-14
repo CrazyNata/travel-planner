@@ -6662,6 +6662,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
     var cityPickerOpen by remember { mutableStateOf(false) }
     var restaurantCatalogOpen by remember { mutableStateOf(false) }
+    var openCatalogAfterCitySelection by remember { mutableStateOf(false) }
     var uploadingRestaurantId by remember { mutableStateOf<String?>(null) }
     var selectedCity by remember { mutableStateOf("Все города") }
     var cityMenuOpen by remember { mutableStateOf(false) }
@@ -6689,6 +6690,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         message = null
         cityPickerOpen = false
         restaurantCatalogOpen = false
+        openCatalogAfterCitySelection = false
     }
 
     fun closeRestaurantForm() {
@@ -7036,7 +7038,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 message = message,
                 onNameChange = { name = it },
                 onCityChange = { city = it },
-                onCityPickerOpen = { cityPickerOpen = true },
+                onCityPickerOpen = {
+                    openCatalogAfterCitySelection = false
+                    cityPickerOpen = true
+                },
                 onDatePickerOpen = {
                     val today = Calendar.getInstance()
                     DatePickerDialog(
@@ -7058,8 +7063,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onPickPhoto = { newRestaurantPhotoPicker.launch("image/*") },
                 onCatalogOpen = {
                     if (city.isBlank()) {
-                        message = localized(language, "Сначала выберите город", "Choose a city first", "Primero elige una ciudad", "Wählen Sie zuerst eine Stadt")
+                        openCatalogAfterCitySelection = true
+                        cityPickerOpen = true
                     } else {
+                        openCatalogAfterCitySelection = false
                         restaurantCatalogOpen = true
                     }
                 },
@@ -7112,7 +7119,14 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             RestaurantAddCitySheet(
                 options = tripCityOptions,
                 selectedCity = city,
-                onSelect = { option -> city = option; cityPickerOpen = false },
+                onSelect = { option ->
+                    city = option
+                    cityPickerOpen = false
+                    if (openCatalogAfterCitySelection) {
+                        openCatalogAfterCitySelection = false
+                        restaurantCatalogOpen = true
+                    }
+                },
                 onClose = { cityPickerOpen = false },
             )
         }
@@ -7246,6 +7260,21 @@ private fun RestaurantAddCitySheet(
 }
 
 @Composable
+private fun OdysseySortIcon(tint: Color = OdysseyPurple) {
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        val left = 2.dp.toPx()
+        val right = size.width - 2.dp.toPx()
+        val y1 = 4.dp.toPx()
+        val y2 = 9.dp.toPx()
+        val y3 = 14.dp.toPx()
+        drawLine(tint, Offset(left, y1), Offset(right, y1), strokeWidth, StrokeCap.Round)
+        drawLine(tint, Offset(left, y2), Offset(left + (right - left) * 0.72f, y2), strokeWidth, StrokeCap.Round)
+        drawLine(tint, Offset(left, y3), Offset(left + (right - left) * 0.46f, y3), strokeWidth, StrokeCap.Round)
+    }
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun RestaurantCatalogSheet(
     city: String,
@@ -7260,6 +7289,30 @@ private fun RestaurantCatalogSheet(
     var loading by remember { mutableStateOf(true) }
     var message by remember { mutableStateOf<String?>(null) }
     var liveRatingsAvailable by remember { mutableStateOf(false) }
+    var fullScreenRestaurantPhoto by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var sortMenuOpen by remember(city) { mutableStateOf(false) }
+    var sortMode by remember(city) { mutableStateOf("rating") }
+    val sortRatingLabel = localized("По рейтингу", "By rating", "Por valoración", "Nach Bewertung")
+    val sortPriceLabel = localized("По цене", "By price", "Por precio", "Nach Preis")
+    val sortButtonLabel = localized("Сортировать", "Sort", "Ordenar", "Sortieren")
+    val sortedEntries = when (sortMode) {
+        "price" -> entries.sortedWith(
+            compareBy<RestaurantCatalogEntry> { it.priceLevel ?: Int.MAX_VALUE }
+                .thenByDescending { it.rating ?: -1.0 }
+                .thenBy { it.sortOrder },
+        )
+        else -> entries.sortedWith(
+            compareByDescending<RestaurantCatalogEntry> { it.rating ?: -1.0 }
+                .thenByDescending { it.ratingCount ?: 0 }
+                .thenBy { it.sortOrder },
+        )
+    }
+    val liveRatingsUnavailableMessage = localized(
+        "Рейтинг и фото Google временно недоступны — показан каталог ресторанов",
+        "Google ratings and photos are temporarily unavailable — showing the restaurant catalog",
+        "Las valoraciones y fotos de Google no están disponibles temporalmente — se muestra el catálogo",
+        "Google-Bewertungen und Fotos sind vorübergehend nicht verfügbar — der Katalog wird angezeigt",
+    )
 
     LaunchedEffect(city, query, language) {
         loading = true
@@ -7275,6 +7328,7 @@ private fun RestaurantCatalogSheet(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Throwable) {
+                    message = liveRatingsUnavailableMessage
                     emptyList()
                 }
                 if (liveEntries.isNotEmpty()) {
@@ -7315,6 +7369,75 @@ private fun RestaurantCatalogSheet(
                     fontWeight = FontWeight.W600,
                     fontSize = 13.sp,
                 )
+            }
+            Box {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(OdysseyTint)
+                        .clickable { sortMenuOpen = !sortMenuOpen }
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OdysseySortIcon()
+                    Text(
+                        text = sortButtonLabel,
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                }
+                DropdownMenu(
+                    expanded = sortMenuOpen,
+                    onDismissRequest = { sortMenuOpen = false },
+                    modifier = Modifier.width(228.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = cardSurfaceColor(),
+                    shadowElevation = 14.dp,
+                ) {
+                    Text(
+                        text = sortButtonLabel.uppercase(Locale.ROOT),
+                        color = OdysseySubtext,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(sortRatingLabel, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                                Text(localized("Сначала лучшие", "Best first", "Mejor valorados", "Beste zuerst"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp)
+                            }
+                        },
+                        leadingIcon = { Text("★", color = Color(0xFFE29B32), fontSize = 18.sp) },
+                        trailingIcon = if (sortMode == "rating") {
+                            { Icon(Icons.Filled.Check, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(18.dp)) }
+                        } else null,
+                        onClick = {
+                            sortMode = "rating"
+                            sortMenuOpen = false
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(sortPriceLabel, color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                                Text(localized("Сначала доступные", "Most affordable first", "Más económicos primero", "Günstigste zuerst"), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp)
+                            }
+                        },
+                        leadingIcon = { Text("€", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp) },
+                        trailingIcon = if (sortMode == "price") {
+                            { Icon(Icons.Filled.Check, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(18.dp)) }
+                        } else null,
+                        onClick = {
+                            sortMode = "price"
+                            sortMenuOpen = false
+                        },
+                    )
+                }
             }
             Box(
                 modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable(onClick = onClose),
@@ -7366,67 +7489,73 @@ private fun RestaurantCatalogSheet(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(entries, key = { it.id }) { entry ->
+                items(sortedEntries, key = { it.id }) { entry ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(secondarySurfaceColor())
                             .border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp))
-                            .clickable { onSelect(entry) }
                             .padding(horizontal = 12.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (!entry.photoUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = entry.photoUrl,
-                                contentDescription = entry.name(language),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(62.dp)
-                                    .clip(RoundedCornerShape(11.dp)),
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(62.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(if (entry.photoUrl.isNullOrBlank()) OdysseyTint else Color.Transparent)
+                                .clickable(enabled = !entry.photoUrl.isNullOrBlank()) {
+                                    entry.photoUrl?.let { photoUrl ->
+                                        fullScreenRestaurantPhoto = photoUrl to entry.name(language)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (!entry.photoUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = entry.photoUrl,
+                                    contentDescription = entry.name(language),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Outlined.Restaurant,
+                                    contentDescription = null,
+                                    tint = OdysseyPurple,
+                                    modifier = Modifier.size(26.dp),
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(entry.name(language), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             val details = listOf(entry.cuisine, entry.address).filter(String::isNotBlank).joinToString(" · ")
                             if (details.isNotBlank()) {
                                 Text(details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                             }
-                        }
-                        if (!entry.photoAttribution.isNullOrBlank()) {
-                            Text(
-                                text = "Google photo",
-                                color = OdysseySubtext,
-                                fontFamily = Manrope,
-                                fontWeight = FontWeight.W600,
-                                fontSize = 9.5.sp,
-                                modifier = Modifier.padding(start = 10.dp),
-                            )
-                        }
-                        if (entry.rating != null || entry.ratingCount != null || entry.ratingPlaceUrl.isNotBlank()) {
-                            Row(
-                                modifier = Modifier.padding(start = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
+                            if (entry.rating != null || entry.ratingCount != null || entry.ratingPlaceUrl.isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.padding(top = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                 if (entry.rating != null) {
                                     Text(
-                                        text = localized("Оценка ${entry.rating}", "Rating ${entry.rating}", "Valoración ${entry.rating}", "Bewertung ${entry.rating}"),
+                                        text = "★ ${entry.rating.toString().removeSuffix(".0")}",
                                         color = Color(0xFFE29B32),
                                         fontFamily = Manrope,
                                         fontWeight = FontWeight.W800,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.5.sp,
                                     )
                                 }
                                 if (entry.ratingCount != null) {
                                     Text(
-                                        text = "(${entry.ratingCount})",
+                                        text = localized("${entry.ratingCount} отзывов", "${entry.ratingCount} reviews", "${entry.ratingCount} reseñas", "${entry.ratingCount} Bewertungen"),
                                         color = OdysseySubtext,
                                         fontFamily = Manrope,
                                         fontWeight = FontWeight.W600,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.5.sp,
                                     )
                                 }
                                 if (entry.ratingPlaceUrl.isNotBlank()) {
@@ -7435,13 +7564,41 @@ private fun RestaurantCatalogSheet(
                                         color = OdysseyPurple,
                                         fontFamily = Manrope,
                                         fontWeight = FontWeight.W800,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 10.sp,
                                         modifier = Modifier.clickable { uriHandler.openUri(entry.ratingPlaceUrl) },
                                     )
                                 }
                             }
+                            }
+                            if (!entry.photoAttribution.isNullOrBlank()) {
+                                Text(
+                                    text = "Google photo",
+                                    color = OdysseySubtext,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W600,
+                                    fontSize = 9.5.sp,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
                         }
-                        Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, modifier = Modifier.padding(start = 10.dp))
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(secondarySurfaceColor())
+                                .border(1.dp, contentBorderColor(), RoundedCornerShape(12.dp))
+                                .clickable { onSelect(entry) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "+",
+                                color = OdysseyPurple,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 24.sp,
+                            )
+                        }
                     }
                 }
             }
@@ -7455,6 +7612,14 @@ private fun RestaurantCatalogSheet(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
+        fullScreenRestaurantPhoto?.let { (photoUrl, title) ->
+            FullScreenPhotoViewer(
+                photos = listOf(photoUrl),
+                initialIndex = 0,
+                accommodationName = title,
+                onDismiss = { fullScreenRestaurantPhoto = null },
+            )
+        }
     }
 }
 
