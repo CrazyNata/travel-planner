@@ -296,7 +296,7 @@ interface TripRepository {
     suspend fun addSight(id: String, name: String, city: String, category: String)
     suspend fun updateRouteChecklist(id: String, dayId: String, itemId: String, completed: Boolean)
     suspend fun addMember(id: String, name: String, email: String, role: String)
-    suspend fun addCoverPhoto(id: String, bytes: ByteArray)
+    suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String = "")
     suspend fun updateTripDetails(id: String, title: String, dates: String, cities: String)
     suspend fun updateRestaurantStatus(id: String, restaurantId: String, status: String)
     suspend fun updateBudgetExpense(id: String, expenseId: String, name: String, amount: Double, category: String)
@@ -361,6 +361,8 @@ interface TripRepository {
     suspend fun addBudgetExpenseDetails(tripId: String, input: ExpenseInput)
     suspend fun updateBudgetExpenseDetails(tripId: String, expenseId: String, input: ExpenseInput)
 }
+
+class AuthSessionRequiredException : IllegalStateException()
 
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
     override suspend fun loadTrips(): List<TripCard> {
@@ -601,7 +603,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         cityCoordinates: Map<String, CityLocation>,
     ): TripCard {
         val id = UUID.randomUUID().toString()
-        val owner = client.auth.currentUserOrNull() ?: error("Необходимо войти в аккаунт")
+        val owner = client.auth.currentUserOrNull() ?: throw AuthSessionRequiredException()
         val ownerId = owner.id.toString()
         val ownerEmail = owner.email.orEmpty()
         val ownerName = ownerEmail.substringBefore('@').ifBlank { "Владелец" }
@@ -685,7 +687,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
 
     override suspend fun deleteTrip(id: String) {
         val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
-            ?: error("Необходимо войти в аккаунт")
+            ?: throw AuthSessionRequiredException()
         val current = loadTripRow(id)
         check(current.ownerId == currentUserId) {
             "Только владелец путешествия может его удалить"
@@ -953,9 +955,9 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         updateTripSection(id, "members", members, current.revision)
     }
 
-    override suspend fun addCoverPhoto(id: String, bytes: ByteArray) {
+    override suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
-        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$ownerId/$id/covers/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
@@ -966,6 +968,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             add(buildJsonObject {
                 put("id", UUID.randomUUID().toString())
                 put("image", imageUrl)
+                put("city", city.trim())
             })
         }
         val patch = buildJsonObject {
@@ -1174,7 +1177,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
 
     override suspend fun addAccommodationPhoto(id: String, accommodationId: String, bytes: ByteArray): String {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
-        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$ownerId/$id/accommodations/$accommodationId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
@@ -1200,7 +1203,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
 
     override suspend fun addSightPhoto(id: String, sightId: String, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
-        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$ownerId/$id/sights/$sightId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
@@ -1301,7 +1304,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
 
     override suspend fun addRestaurantPhoto(id: String, restaurantId: String, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
-        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$ownerId/$id/restaurants/$restaurantId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)

@@ -58,15 +58,23 @@ object SupabaseProvider {
         val restored = withContext(Dispatchers.IO) {
             persistentClient.auth.loadFromStorage(autoRefresh = true)
         }
-        if (restored) {
+        if (restored && persistentClient.auth.currentUserOrNull() != null) {
             activeClient = persistentClient
             withContext(Dispatchers.IO) {
                 persistentClient.auth.startAutoRefreshForCurrentSession()
             }
             return@runCatching true
         }
-        sessionOnlyClient.auth.currentSessionOrNull() != null
+        activeClient = sessionOnlyClient
+        sessionOnlyClient.auth.currentUserOrNull() != null
     }.getOrDefault(false)
+
+    suspend fun ensureActiveSession(): Boolean = withContext(Dispatchers.IO) {
+        val client = activeClient
+        if (client.auth.currentUserOrNull() != null) return@withContext true
+        runCatching { client.auth.refreshCurrentSession() }.isSuccess &&
+            client.auth.currentUserOrNull() != null
+    }
 
     suspend fun clearActiveSessionLocally() {
         activeClient.auth.stopAutoRefreshForCurrentSession()

@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.view.ContextThemeWrapper
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
@@ -185,12 +186,14 @@ import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.BuildConfig
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.AccountRepository
+import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.ExchangeRateRepository
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
+import com.odyssey.travelplanner.data.CoverPhoto
 import com.odyssey.travelplanner.data.CityCatalogEntry
 import com.odyssey.travelplanner.data.CityCatalogRepository
 import com.odyssey.travelplanner.data.CityLocation
@@ -946,11 +949,26 @@ private fun localizedRestaurantNote(value: String): String {
 
 private data class PhotoDateRange(val start: LocalDate, val end: LocalDate)
 
+private data class NewTripPhoto(
+    val uri: Uri,
+    val city: String = "",
+)
+
 private val PhotoMonthNames = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
 
 private fun photoCityKey(city: String): String = city.substringBefore(',').trim().lowercase(Locale.ROOT)
 
 private fun samePhotoCity(left: String, right: String): Boolean = photoCityKey(left) == photoCityKey(right)
+
+private fun coverPhotoForCity(photos: List<CoverPhoto>, city: String): CoverPhoto? {
+    val targetKey = cityCatalogEntry(city)?.key
+    return photos.firstOrNull { photo ->
+        photo.city.isNotBlank() && (
+            samePhotoCity(photo.city, city) ||
+                (targetKey != null && cityCatalogEntry(photo.city)?.key == targetKey)
+            )
+    }
+}
 
 private fun parsePhotoDateRange(value: String): PhotoDateRange? {
     return parseTripDateRange(value)?.let { (start, end) -> PhotoDateRange(start, end) }
@@ -1364,6 +1382,12 @@ fun OdysseyApp(
                         onCreated = { created ->
                             navController.navigate("trip/${created.id}") {
                                 popUpTo("trips") { inclusive = false }
+                            }
+                        },
+                        onAuthRequired = {
+                            hasSession = false
+                            navController.navigate("foundation") {
+                                popUpTo(0) { inclusive = true }
                             }
                         },
                     )
@@ -3438,9 +3462,14 @@ private fun EditTripPanel(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) {
+private fun CreateTripScreen(
+    onBack: () -> Unit,
+    onCreated: (TripCard) -> Unit,
+    onAuthRequired: () -> Unit,
+) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
+    val context = LocalContext.current
     var title by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
@@ -3468,7 +3497,15 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var newTripPhotos by remember { mutableStateOf<List<NewTripPhoto>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val newTripPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        val knownUris = newTripPhotos.mapTo(mutableSetOf()) { it.uri.toString() }
+        newTripPhotos = newTripPhotos + uris
+            .filter { knownUris.add(it.toString()) }
+            .map(::NewTripPhoto)
+        message = null
+    }
 
     LaunchedEffect(cityDialogOpen, normalizedCitySearch, language) {
         if (!cityDialogOpen) return@LaunchedEffect
@@ -3507,6 +3544,12 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
         message = null
     }
 
+    fun openCityPicker() {
+        citySearch = ""
+        message = null
+        cityDialogOpen = true
+    }
+
     fun save() {
         if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
         val unsupportedCity = cityList.firstOrNull { entryForStoredCity(it) == null }
@@ -3530,6 +3573,7 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
             message = localized(language, "Дата окончания не может быть раньше даты начала", "The end date cannot be before the start date", "La fecha de finalización no puede ser anterior a la de inicio", "Das Enddatum darf nicht vor dem Startdatum liegen")
             return
         }
+        val selectedPhotoItems = newTripPhotos
         scope.launch {
             saving = true
             message = null
@@ -3538,10 +3582,31 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                     city to CityLocation(entry.latitude, entry.longitude)
                 }
             }.toMap()
+            if (!SupabaseProvider.ensureActiveSession()) {
+                onAuthRequired()
+                saving = false
+                return@launch
+            }
             runCatching {
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).createTrip(title, startDate, endDate, cities, cityCoordinates)
-            }.onSuccess { onCreated(it) }.onFailure {
-                message = it.message ?: localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden")
+                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                val created = repository.createTrip(title, startDate, endDate, cities, cityCoordinates)
+                try {
+                    selectedPhotoItems.forEach { photo ->
+                        val bytes = context.contentResolver.openInputStream(photo.uri)?.use { it.readBytes() }
+                            ?: error(localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435", "Could not read the image", "No se pudo leer la imagen", "Das Bild konnte nicht gelesen werden"))
+                        repository.addCoverPhoto(created.id, bytes, photo.city)
+                    }
+                } catch (photoError: Throwable) {
+                    runCatching { repository.deleteTrip(created.id) }
+                    throw photoError
+                }
+                created
+            }.onSuccess { onCreated(it) }.onFailure { error ->
+                if (error is AuthSessionRequiredException) {
+                    onAuthRequired()
+                } else {
+                    message = error.message ?: localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden")
+                }
             }
             saving = false
         }
@@ -3595,6 +3660,13 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                 modifier = Modifier.padding(top = 8.dp),
             )
 
+            CreateTripCoverPhoto(
+                language = language,
+                photoUris = newTripPhotos.map { it.uri },
+                onPickPhoto = { if (!saving) newTripPhotoPicker.launch("image/*") },
+                onRemovePhoto = { uri -> newTripPhotos = newTripPhotos.filterNot { it.uri == uri } },
+            )
+
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(top = 20.dp),
@@ -3630,40 +3702,60 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                         fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 7.dp),
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 49.dp)
                             .clip(RoundedCornerShape(13.dp))
                             .border(1.5.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, RoundedCornerShape(13.dp))
-                            .padding(11.dp)
-                            .horizontalScroll(rememberScrollState()),
+                            .clickable(onClick = ::openCityPicker),
                     ) {
-                        cityList.forEach { city ->
-                            TripCityChip(city) {
-                                entryForStoredCity(city)?.key?.let { key ->
-                                    selectedCatalogEntries = selectedCatalogEntries - key
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(11.dp)
+                                .horizontalScroll(rememberScrollState()),
+                        ) {
+                            cityList.forEach { city ->
+                                TripCityChip(city) {
+                                    val removedCityKey = entryForStoredCity(city)?.key
+                                    removedCityKey?.let { key ->
+                                        selectedCatalogEntries = selectedCatalogEntries - key
+                                    }
+                                    cities = cityList.filterNot { it == city }.joinToString(", ")
+                                    newTripPhotos = newTripPhotos.map { photo ->
+                                        if (photo.city == city || (removedCityKey != null && entryForStoredCity(photo.city)?.key == removedCityKey)) {
+                                            photo.copy(city = "")
+                                        } else {
+                                            photo
+                                        }
+                                    }
                                 }
-                                cities = cityList.filterNot { it == city }.joinToString(", ")
                             }
+                            Text(
+                                localized("+ добавить…", "+ add…", "+ add…", "+ hinzufügen…"),
+                                color = Color(0xFFB6B6BE),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = 14.sp,
+                            )
                         }
-                        Text(
-                            localized("+ добавить…", "+ add…", "+ add…", "+ hinzufügen…"),
-                            color = Color(0xFFB6B6BE),
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W600,
-                            fontSize = 14.sp,
-                            modifier = Modifier.clickable {
-                                citySearch = ""
-                                message = null
-                                cityDialogOpen = true
-                            },
-                        )
                     }
                 }
             }
+
+            CreateTripPhotoCityAssignments(
+                language = language,
+                photos = newTripPhotos,
+                cityOptions = cityList,
+                onCityChange = { uri, city ->
+                    newTripPhotos = newTripPhotos.map { photo ->
+                        if (photo.uri == uri) photo.copy(city = city) else photo
+                    }
+                },
+            )
 
             if (message != null) {
                 Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
@@ -3884,6 +3976,414 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
                 datePickerTarget = null
             },
         )
+    }
+}
+
+@Composable
+private fun CreateTripPhotoCityAssignments(
+    language: String,
+    photos: List<NewTripPhoto>,
+    cityOptions: List<String>,
+    onCityChange: (Uri, String) -> Unit,
+) {
+    if (photos.isEmpty()) return
+
+    val darkTheme = LocalDarkTheme.current
+    var expandedPhoto by remember { mutableStateOf<Uri?>(null) }
+    val rowShape = RoundedCornerShape(14.dp)
+
+    Column(modifier = Modifier.padding(top = 16.dp)) {
+        Text(
+            localized(language, "Фото по городам", "Photos by city", "Fotos por ciudad", "Fotos nach Stadt"),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W700,
+            fontSize = 12.sp,
+        )
+        Text(
+            localized(
+                language,
+                "Укажите город для фото — оно появится в карточке погоды этого города",
+                "Choose a city for each photo — it will appear on that city's weather card",
+                "Elige una ciudad para cada foto: aparecerá en la tarjeta del tiempo de esa ciudad",
+                "Wähle für jedes Foto eine Stadt — es erscheint auf der Wetterkarte dieser Stadt",
+            ),
+            color = OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W500,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+        photos.forEachIndexed { index, photo ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(rowShape)
+                    .background(if (darkTheme) Color(0xFF20222E) else cardSurfaceColor())
+                    .border(1.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, rowShape)
+                    .padding(9.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = photo.uri,
+                        contentDescription = localized(language, "Фото путешествия", "Trip photo", "Foto del viaje", "Reisefoto"),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)),
+                    )
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(
+                            if (index == 0) {
+                                localized(language, "Обложка путешествия", "Trip cover", "Portada del viaje", "Reisetitelbild")
+                            } else {
+                                localized(language, "Фото ${index + 1}", "Photo ${index + 1}", "Foto ${index + 1}", "Foto ${index + 1}")
+                            },
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 12.sp,
+                        )
+                        Box {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .padding(top = 5.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(if (darkTheme) Color(0xFF302C43) else OdysseyTint)
+                                    .clickable(enabled = cityOptions.isNotEmpty()) { expandedPhoto = photo.uri }
+                                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    photo.city.ifBlank {
+                                        if (cityOptions.isEmpty()) {
+                                            localized(language, "Сначала добавьте города", "Add cities first", "Añade ciudades primero", "Füge zuerst Städte hinzu")
+                                        } else {
+                                            localized(language, "Выбрать город", "Choose a city", "Elegir ciudad", "Stadt auswählen")
+                                        }
+                                    },
+                                    color = if (photo.city.isBlank()) OdysseySubtext else OdysseyPurple,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W700,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (cityOptions.isNotEmpty()) {
+                                    Icon(
+                                        Icons.Outlined.KeyboardArrowDown,
+                                        contentDescription = localized(language, "Выбрать город", "Choose a city", "Elegir ciudad", "Stadt auswählen"),
+                                        tint = OdysseyPurple,
+                                        modifier = Modifier.size(16.dp).padding(start = 2.dp),
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expandedPhoto == photo.uri,
+                                onDismissRequest = { expandedPhoto = null },
+                            ) {
+                                cityOptions.forEach { city ->
+                                    DropdownMenuItem(
+                                        text = { Text(city, fontFamily = Manrope, fontWeight = FontWeight.W600) },
+                                        onClick = {
+                                            onCityChange(photo.uri, city)
+                                            expandedPhoto = null
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (index < photos.lastIndex) Spacer(Modifier.height(7.dp))
+        }
+    }
+}
+
+@Composable
+private fun CreateTripPhotoGallery(
+    language: String,
+    photoUris: List<Uri>,
+    onPickPhoto: () -> Unit,
+    onRemovePhoto: (Uri) -> Unit,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val tileShape = RoundedCornerShape(13.dp)
+
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp),
+        ) {
+            Text(
+                localized(language, "Фотографии", "Photos", "Fotos", "Fotos"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                localized(language, "первая станет обложкой", "the first becomes the cover", "la primera será la portada", "das erste wird das Titelbild"),
+                color = OdysseySubtext,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W500,
+                fontSize = 10.sp,
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(82.dp)
+                    .clip(tileShape)
+                    .background(if (darkTheme) Color(0xFF302C43) else OdysseyTint)
+                    .border(1.5.dp, OdysseyPurple.copy(alpha = 0.45f), tileShape)
+                    .clickable(onClick = onPickPhoto),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 23.sp, lineHeight = 23.sp)
+                    Text(
+                        localized(language, "Добавить", "Add", "Añadir", "Hinzufügen"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+            photoUris.forEachIndexed { index, uri ->
+                Box(
+                    modifier = Modifier
+                        .size(82.dp)
+                        .clip(tileShape)
+                        .border(1.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, tileShape),
+                ) {
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = localized(language, "Выбранное фото", "Selected photo", "Foto seleccionada", "Ausgewähltes Foto"),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    if (index == 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.58f))
+                                .padding(vertical = 3.dp, horizontal = 5.dp),
+                        ) {
+                            Text(
+                                localized(language, "Обложка", "Cover", "Portada", "Titelbild"),
+                                color = Color.White,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W700,
+                                fontSize = 9.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(21.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.62f))
+                            .clickable { onRemovePhoto(uri) },
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = localized(language, "Удалить фото", "Remove photo", "Eliminar foto", "Foto entfernen"),
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateTripCoverPhoto(
+    language: String,
+    photoUris: List<Uri>,
+    onPickPhoto: () -> Unit,
+    onRemovePhoto: (Uri) -> Unit,
+) {
+    val darkTheme = LocalDarkTheme.current
+    val coverShape = RoundedCornerShape(15.dp)
+    val thumbnailShape = RoundedCornerShape(11.dp)
+
+    Column(modifier = Modifier.padding(top = 18.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp),
+        ) {
+            Text(
+                localized(language, "Фото путешествия", "Trip photo", "Foto del viaje", "Reisefoto"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                localized(language, "необязательно", "optional", "opcional", "optional"),
+                color = OdysseySubtext,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W500,
+                fontSize = 10.sp,
+            )
+        }
+
+        if (photoUris.isEmpty()) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(190.dp)
+                    .clip(coverShape)
+                    .background(if (darkTheme) Color(0xFF302C43) else OdysseyTint)
+                    .border(1.5.dp, OdysseyPurple.copy(alpha = 0.5f), coverShape)
+                    .clickable(onClick = onPickPhoto),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 29.sp, lineHeight = 29.sp)
+                    Text(
+                        localized(language, "Добавить фото обложки", "Add cover photo", "Añadir foto de portada", "Titelbild hinzufügen"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        localized(language, "По желанию", "Optional", "Opcional", "Optional"),
+                        color = OdysseySubtext,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W500,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(190.dp)
+                    .clip(coverShape)
+                    .border(1.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, coverShape),
+            ) {
+                AsyncImage(
+                    model = photoUris.first(),
+                    contentDescription = localized(language, "Обложка путешествия", "Trip cover", "Portada del viaje", "Reisetitelbild"),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .padding(vertical = 6.dp, horizontal = 9.dp),
+                ) {
+                    Text(
+                        localized(language, "Обложка путешествия", "Trip cover", "Portada del viaje", "Reisetitelbild"),
+                        color = Color.White,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 11.sp,
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp)
+                        .size(25.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable { onRemovePhoto(photoUris.first()) },
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = localized(language, "Удалить обложку", "Remove cover", "Eliminar portada", "Titelbild entfernen"),
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(thumbnailShape)
+                        .background(if (darkTheme) Color(0xFF302C43) else OdysseyTint)
+                        .border(1.5.dp, OdysseyPurple.copy(alpha = 0.5f), thumbnailShape)
+                        .clickable(onClick = onPickPhoto),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, lineHeight = 20.sp)
+                        Text(
+                            localized(language, "Ещё", "More", "Más", "Mehr"),
+                            color = OdysseyPurple,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 9.sp,
+                        )
+                    }
+                }
+                photoUris.drop(1).forEach { uri ->
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(thumbnailShape)
+                            .border(1.dp, if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder, thumbnailShape),
+                    ) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = localized(language, "Дополнительное фото", "Additional photo", "Foto adicional", "Zusätzliches Foto"),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(3.dp)
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.62f))
+                                .clickable { onRemovePhoto(uri) },
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = localized(language, "Удалить фото", "Remove photo", "Eliminar foto", "Foto entfernen"),
+                                tint = Color.White,
+                                modifier = Modifier.size(11.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -5031,6 +5531,21 @@ internal fun daySightNamesToSave(placeNames: List<String>, draftName: String): L
     draftName.trim().takeIf { it.isNotBlank() }?.let { add(it) }
 }
 
+private fun keepMapGesturesInsideMap(mapView: MapView) {
+    mapView.setOnTouchListener { view, event ->
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_MOVE,
+            -> view.parent?.requestDisallowInterceptTouchEvent(true)
+
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL,
+            -> view.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        false
+    }
+}
+
 internal fun isAlreadyRegisteredAuthError(error: Throwable): Boolean =
     generateSequence(error) { it.cause }.any { candidate ->
         val message = candidate.message?.lowercase().orEmpty()
@@ -5411,6 +5926,7 @@ private fun SightLocationPickerSheet(
             ),
         ).also {
             it.scalebar.enabled = false
+            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
@@ -8136,6 +8652,7 @@ private fun RestaurantMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
+            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
@@ -13139,7 +13656,7 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                weatherCities.forEach { city -> WeatherPlaceholder(city, photos.firstOrNull { it.city.equals(city, true) }, weather[city], tripDatesWeather) }
+                weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], tripDatesWeather) }
             }
         }
     }
@@ -13173,6 +13690,7 @@ private fun OverviewMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
+            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }

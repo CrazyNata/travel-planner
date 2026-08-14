@@ -49,7 +49,7 @@ class AccountRepository(private val client: SupabaseClient) {
         language: String? = null,
         darkTheme: Boolean? = null,
     ) {
-        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
             filter { eq("user_id", userId); eq("key", "account_profile") }
         }.decodeList<UserDataRow>().firstOrNull()?.value
@@ -74,7 +74,7 @@ class AccountRepository(private val client: SupabaseClient) {
 
     suspend fun uploadProfilePhoto(bytes: ByteArray): String {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
-        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: error("Необходимо войти в аккаунт")
+        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$userId/profile/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val reference = storedTripPhotoReference(path)
@@ -87,7 +87,7 @@ class AccountRepository(private val client: SupabaseClient) {
     }
 
     suspend fun deleteAccount() {
-        check(client.auth.currentUserOrNull() != null) { "Необходимо войти в аккаунт" }
+        if (client.auth.currentUserOrNull() == null) throw AuthSessionRequiredException()
         client.functions.invoke(
             function = "delete-account",
             body = buildJsonObject { },
