@@ -215,6 +215,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 import java.util.Locale
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -3469,19 +3470,19 @@ private fun CreateTripScreen(onBack: () -> Unit, onCreated: (TripCard) -> Unit) 
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(cityDialogOpen) {
-        if (!cityDialogOpen) return@LaunchedEffect
-        cityCatalogRepository.preload()
-    }
-
     LaunchedEffect(cityDialogOpen, normalizedCitySearch, language) {
         if (!cityDialogOpen) return@LaunchedEffect
         delay(220)
         citySearchLoading = true
-        citySearchResults = runCatching {
-            cityCatalogRepository.search(citySearch, language)
-        }.getOrDefault(emptyList())
-        citySearchLoading = false
+        try {
+            citySearchResults = cityCatalogRepository.search(citySearch, language)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Throwable) {
+            citySearchResults = emptyList()
+        } finally {
+            citySearchLoading = false
+        }
     }
 
     fun storedValueFor(entry: CityCatalogEntry): String = entry.selectionValue(language)

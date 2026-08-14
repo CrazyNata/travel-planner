@@ -2,9 +2,9 @@ package com.odyssey.travelplanner.data
 
 import android.content.res.AssetManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
@@ -13,21 +13,14 @@ import java.util.zip.GZIPInputStream
 private const val CITY_CATALOG_ASSET = "city-catalog.tsv.bin"
 private const val SEARCH_LIMIT = 36
 private const val SEARCH_SEPARATOR = '\u0001'
+private const val SEARCH_CHECK_INTERVAL = 1024
 
 class CityCatalogRepository(private val assets: AssetManager) {
-    private data class BundledEntry(
-        val rawLine: String,
-        val normalizedLocalizedNames: List<String>,
-        val normalizedSearchText: String,
-        val population: Long,
-    )
-
     private data class ScoredEntry(
         val score: Int,
         val population: Long,
         val normalizedName: String,
-        val entry: CityCatalogEntry? = null,
-        val bundledEntry: BundledEntry? = null,
+        val entry: CityCatalogEntry,
     )
 
     private val localEntries = cityCatalog.map { entry ->
@@ -41,15 +34,10 @@ class CityCatalogRepository(private val assets: AssetManager) {
         )
     }
 
-    // The bundled catalog is immutable for the lifetime of the app. Loading and
-    // its compact search index once avoids reopening, decompressing, and parsing
-    // 150k+ rows every time the user types another character.
-    private val bundledEntries: List<BundledEntry> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        loadBundledEntries()
-    }
-
-    suspend fun preload() = withContext(Dispatchers.IO) {
-        bundledEntries.size
+    // Keep only the decompressed text, not 150k Kotlin objects and strings.
+    // Searching the text by field offsets is much cheaper on a mobile device.
+    private val catalogText: String by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        GZIPInputStream(assets.open(CITY_CATALOG_ASSET)).use { it.readBytes().toString(Charsets.UTF_8) }
     }
 
     suspend fun search(query: String, language: String, limit: Int = SEARCH_LIMIT): List<CityCatalogEntry> = withContext(Dispatchers.IO) {
@@ -70,84 +58,83 @@ class CityCatalogRepository(private val assets: AssetManager) {
             return@withContext localMatches
                 .sortedByDescending { it.score }
                 .take(limit)
-                .map { it.resolve() }
+                .map { it.entry }
         }
 
         val localNames = localMatches
             .map { it.normalizedName }
             .toSet()
         val remoteMatches = ArrayList<ScoredEntry>(limit * 2)
-        bundledEntries.forEach { bundledEntry ->
-            val normalizedName = bundledEntry.localizedName(language)
-            if (normalizedName !in localNames) {
-                cityCatalogSearchScore(bundledEntry.normalizedSearchText, normalizedQuery)?.let { value ->
-                    remoteMatches += ScoredEntry(
-                        score = value,
-                        population = bundledEntry.population,
-                        normalizedName = normalizedName,
-                        bundledEntry = bundledEntry,
-                    )
-                }
-            }
-        }
+        val compareEntries = compareByDescending<ScoredEntry> { it.score }
+            .thenByDescending { it.population }
+            .thenBy { it.normalizedName }
+        val catalog = catalogText
+        var lineStart = 0
+        var lineIndex = 0
 
-        (localMatches + remoteMatches)
-            .sortedWith(compareByDescending<ScoredEntry> { it.score }
-                .thenByDescending { it.population }
-                .thenBy { it.normalizedName })
-            .take(limit)
-            .map { it.resolve() }
-    }
+        while (lineStart < catalog.length) {
+            if (lineIndex % SEARCH_CHECK_INTERVAL == 0) currentCoroutineContext().ensureActive()
 
-    private fun loadBundledEntries(): List<BundledEntry> {
-        val entries = ArrayList<BundledEntry>()
-        assets.open(CITY_CATALOG_ASSET).use { compressed ->
-            GZIPInputStream(compressed).use { gzip ->
-                BufferedReader(InputStreamReader(gzip, Charsets.UTF_8)).useLines { lines ->
-                    lines.forEach { line ->
-                        index(line)?.let { entries += it }
+            var lineEnd = catalog.indexOf('\n', lineStart)
+            if (lineEnd < 0) lineEnd = catalog.length
+            if (lineEnd > lineStart && catalog[lineEnd - 1] == '\r') lineEnd--
+
+            val score = scoreRow(catalog, lineStart, lineEnd, normalizedQuery)
+            if (score != null) {
+                val entry = parse(catalog.substring(lineStart, lineEnd))
+                if (entry != null) {
+                    val normalizedName = normalizeCityAlias(entry.localized(language))
+                    if (normalizedName !in localNames) {
+                        remoteMatches += ScoredEntry(
+                            score = score,
+                            population = entry.population,
+                            normalizedName = normalizedName,
+                            entry = entry,
+                        )
+                        // Keep broad two-letter searches bounded while the text is scanned.
+                        if (remoteMatches.size > limit * 4) {
+                            remoteMatches.sortWith(compareEntries)
+                            remoteMatches.subList(limit, remoteMatches.size).clear()
+                        }
                     }
                 }
             }
+
+            lineStart = if (lineEnd < catalog.length) lineEnd + 1 else catalog.length
+            lineIndex++
         }
-        return entries
+
+        (localMatches + remoteMatches)
+            .sortedWith(compareEntries)
+            .take(limit)
+            .map { it.entry }
     }
 
-    private fun index(line: String): BundledEntry? {
-        val parts = line.split('\t')
-        if (parts.size < 12) return null
-        val name = parts[1].ifBlank { return null }
-        if (parts[4].toDoubleOrNull() == null || parts[5].toDoubleOrNull() == null) return null
+    private fun scoreRow(text: String, lineStart: Int, lineEnd: Int, query: String): Int? {
+        var fieldStart = lineStart
+        var fieldIndex = 0
+        var bestScore: Int? = null
 
-        val localizedNames = listOf(
-            parts[7].ifBlank { name },
-            parts[8].ifBlank { name },
-            parts[9].ifBlank { name },
-            parts[10].ifBlank { name },
-        )
-        val searchText = cityCatalogSearchText(
-            listOf(parts[1], parts[6], parts[3]) + localizedNames,
-        )
-        return BundledEntry(
-            rawLine = line,
-            normalizedLocalizedNames = localizedNames.map(::normalizeCityAlias),
-            normalizedSearchText = searchText,
-            population = parts[11].toLongOrNull() ?: 0L,
-        )
+        while (fieldStart <= lineEnd && fieldIndex <= 10) {
+            var fieldEnd = text.indexOf('\t', fieldStart)
+            if (fieldEnd < 0 || fieldEnd > lineEnd) fieldEnd = lineEnd
+
+            when (fieldIndex) {
+                1, 3, 6, 7, 8, 9, 10 -> {
+                    val score = cityCatalogFieldScore(text, fieldStart, fieldEnd, query)
+                    if (score != null && (bestScore == null || score > bestScore)) {
+                        bestScore = score
+                        if (score == 300) return score
+                    }
+                }
+            }
+
+            if (fieldEnd == lineEnd) break
+            fieldStart = fieldEnd + 1
+            fieldIndex++
+        }
+        return bestScore
     }
-
-    private fun BundledEntry.localizedName(language: String): String = normalizedLocalizedNames[
-        when (language.trim().uppercase(Locale.ROOT).substringBefore('-')) {
-            "EN" -> 1
-            "ES" -> 2
-            "DE" -> 3
-            else -> 0
-        },
-    ]
-
-    private fun ScoredEntry.resolve(): CityCatalogEntry = entry ?: bundledEntry
-        ?.let { parse(it.rawLine) }
-        ?: error("City catalog result has no source")
 
     private fun parse(line: String): CityCatalogEntry? {
         val parts = line.split('\t')
@@ -173,6 +160,24 @@ class CityCatalogRepository(private val assets: AssetManager) {
             population = parts[11].toLongOrNull() ?: 0L,
         )
     }
+}
+
+private fun cityCatalogFieldScore(text: String, start: Int, end: Int, query: String): Int? {
+    if (start >= end) return null
+    val fieldLength = end - start
+    val exact = fieldLength == query.length && text.regionMatches(start, query, 0, query.length, ignoreCase = true)
+    if (exact) return 300
+
+    val starts = fieldLength >= query.length && text.regionMatches(start, query, 0, query.length, ignoreCase = true)
+    if (starts) return 200
+
+    val lastCandidate = end - query.length
+    if (lastCandidate >= start) {
+        for (candidate in start..lastCandidate) {
+            if (text.regionMatches(candidate, query, 0, query.length, ignoreCase = true)) return 100
+        }
+    }
+    return null
 }
 
 internal fun cityCatalogSearchText(values: Iterable<String>): String = values
