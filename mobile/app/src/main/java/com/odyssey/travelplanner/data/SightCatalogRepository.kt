@@ -30,8 +30,8 @@ data class SightCatalogEntry(
 ) {
     fun name(language: String): String = when (language.trim().uppercase(Locale.ROOT).substringBefore('-')) {
         "EN" -> nameEn.ifBlank { nameRu }
-        "ES" -> nameEs.ifBlank { nameEn.ifBlank { nameRu } }
-        "DE" -> nameDe.ifBlank { nameEn.ifBlank { nameRu } }
+        "ES" -> nameEs.ifBlank { nameRu.ifBlank { nameEn } }
+        "DE" -> nameDe.ifBlank { nameRu.ifBlank { nameEn } }
         else -> nameRu.ifBlank { nameEn }
     }
 
