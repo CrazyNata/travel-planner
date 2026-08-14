@@ -94,7 +94,7 @@ private fun SightCatalogRow.toEntry() = SightCatalogEntry(
 )
 
 class SightCatalogRepository(private val client: SupabaseClient) {
-    suspend fun search(city: String, query: String, limit: Int = 60): List<SightCatalogEntry> {
+    suspend fun search(city: String, query: String, limit: Int = 200): List<SightCatalogEntry> {
         val cityName = catalogCityName(city)
         if (cityName.isBlank()) return emptyList()
 

@@ -191,6 +191,8 @@ import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SightCatalogEntry
 import com.odyssey.travelplanner.data.SightCatalogRepository
+import com.odyssey.travelplanner.data.RestaurantCatalogEntry
+import com.odyssey.travelplanner.data.RestaurantCatalogRepository
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.ExchangeRateRepository
@@ -3500,6 +3502,22 @@ private fun CreateTripScreen(
     val filteredCatalogCities = remember(citySearchResults, selectedCityKeys) {
         citySearchResults.sortedByDescending { entry -> entry.key in selectedCityKeys }
     }
+    val duplicateCityNames = remember(filteredCatalogCities, language) {
+        filteredCatalogCities
+            .groupingBy { normalizeCityAlias(it.localized(language)) }
+            .eachCount()
+            .filterValues { count -> count > 1 }
+            .keys
+    }
+    val duplicateCityCountryNames = remember(filteredCatalogCities, language) {
+        filteredCatalogCities
+            .groupingBy { entry ->
+                "${normalizeCityAlias(entry.localized(language))}|${entry.countryCode.uppercase(Locale.ROOT)}"
+            }
+            .eachCount()
+            .filterValues { count -> count > 1 }
+            .keys
+    }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var newTripPhotos by remember { mutableStateOf<List<NewTripPhoto>>(emptyList()) }
@@ -3678,21 +3696,21 @@ private fun CreateTripScreen(
             ) {
                 TripCreateField(
                     label = localized("Название поездки", "Trip name", "Nombre del viaje", "Name der Reise"),
-                    placeholder = localized("Италия весной", "Italy in spring", "Italia en primavera", "Italien im Frühling"),
+                    placeholder = localized("Введите название", "Enter trip name", "Escriba el nombre del viaje", "Reisename eingeben"),
                     value = title,
                     onValueChange = { title = it },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     TripCreateDateField(
                         label = localized("Начало", "Start", "Inicio", "Beginn"),
-                        placeholder = "15.04.2027",
+                        placeholder = localized("Выберите дату", "Choose date", "Elija una fecha", "Datum auswählen"),
                         value = startDate,
                         onClick = { datePickerTarget = "start" },
                         modifier = Modifier.weight(1f),
                     )
                     TripCreateDateField(
                         label = localized("Конец", "End", "Fin", "Ende"),
-                        placeholder = "28.04.2027",
+                        placeholder = localized("Выберите дату", "Choose date", "Elija una fecha", "Datum auswählen"),
                         value = endDate,
                         onClick = { datePickerTarget = "end" },
                         modifier = Modifier.weight(1f),
@@ -3892,6 +3910,24 @@ private fun CreateTripScreen(
                     ) {
                         items(filteredCatalogCities, key = { it.key }) { entry ->
                             val selected = entry.key in selectedCityKeys
+                            val localizedName = entry.localized(language)
+                            val normalizedName = normalizeCityAlias(localizedName)
+                            val countryLabel = entry.countryName.ifBlank { entry.countryCode }
+                            val sameName = normalizedName in duplicateCityNames
+                            val sameNameAndCountry = "${normalizedName}|${entry.countryCode.uppercase(Locale.ROOT)}" in duplicateCityCountryNames
+                            val displayName = if (sameName && countryLabel.isNotBlank()) {
+                                "$localizedName — $countryLabel"
+                            } else {
+                                localizedName
+                            }
+                            val secondaryLabel = if (sameNameAndCountry) {
+                                val coordinates = String.format(Locale.US, "%.3f, %.3f", entry.latitude, entry.longitude)
+                                listOf(countryLabel, coordinates).filter(String::isNotBlank).joinToString(" · ")
+                            } else if (!sameName) {
+                                countryLabel
+                            } else {
+                                ""
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -3906,15 +3942,15 @@ private fun CreateTripScreen(
                                 Text(countryFlag(entry.countryCode) ?: cityFlag(entry.russian), fontSize = 20.sp)
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        entry.localized(language),
+                                        displayName,
                                         color = contentTextColor(),
                                         fontFamily = Manrope,
                                         fontWeight = FontWeight.W700,
                                         fontSize = 14.sp,
                                     )
-                                    if (entry.countryName.isNotBlank()) {
+                                    if (secondaryLabel.isNotBlank()) {
                                         Text(
-                                            entry.countryName,
+                                            secondaryLabel,
                                             color = secondaryTextColor(),
                                             fontFamily = Manrope,
                                             fontWeight = FontWeight.W500,
@@ -5894,6 +5930,15 @@ private fun SightCatalogSheet(
                 }
             }
         }
+        Text(
+            text = "© OpenStreetMap contributors",
+            color = OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Button(
             onClick = {
                 scope.launch {
@@ -6616,6 +6661,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
     var cityPickerOpen by remember { mutableStateOf(false) }
+    var restaurantCatalogOpen by remember { mutableStateOf(false) }
     var uploadingRestaurantId by remember { mutableStateOf<String?>(null) }
     var selectedCity by remember { mutableStateOf("Все города") }
     var cityMenuOpen by remember { mutableStateOf(false) }
@@ -6642,6 +6688,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         newRestaurantPhotoUris = emptyList()
         message = null
         cityPickerOpen = false
+        restaurantCatalogOpen = false
     }
 
     fun closeRestaurantForm() {
@@ -7009,6 +7056,13 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onStatusChange = { status = it },
                 onPriorityChange = { priority = !priority },
                 onPickPhoto = { newRestaurantPhotoPicker.launch("image/*") },
+                onCatalogOpen = {
+                    if (city.isBlank()) {
+                        message = localized(language, "Сначала выберите город", "Choose a city first", "Primero elige una ciudad", "Wählen Sie zuerst eine Stadt")
+                    } else {
+                        restaurantCatalogOpen = true
+                    }
+                },
                 onClose = ::closeRestaurantForm,
                 onSave = {
                     scope.launch {
@@ -7060,6 +7114,29 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 selectedCity = city,
                 onSelect = { option -> city = option; cityPickerOpen = false },
                 onClose = { cityPickerOpen = false },
+            )
+        }
+    }
+    if (adding && restaurantCatalogOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { restaurantCatalogOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantCatalogSheet(
+                city = city,
+                onSelect = { entry ->
+                    name = entry.name(language)
+                    cuisine = entry.cuisine
+                    address = entry.address
+                    restaurantCatalogOpen = false
+                    message = null
+                },
+                onClose = { restaurantCatalogOpen = false },
             )
         }
     }
@@ -7169,6 +7246,219 @@ private fun RestaurantAddCitySheet(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun RestaurantCatalogSheet(
+    city: String,
+    onSelect: (RestaurantCatalogEntry) -> Unit,
+    onClose: () -> Unit,
+) {
+    val language = LocalLanguage.current
+    val uriHandler = LocalUriHandler.current
+    val catalogRepository = remember { RestaurantCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow()) }
+    var query by remember { mutableStateOf("") }
+    var entries by remember { mutableStateOf<List<RestaurantCatalogEntry>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var liveRatingsAvailable by remember { mutableStateOf(false) }
+
+    LaunchedEffect(city, query, language) {
+        loading = true
+        message = null
+        delay(180)
+        runCatching { catalogRepository.search(city = city, query = query) }
+            .onSuccess { localEntries ->
+                entries = localEntries
+                liveRatingsAvailable = false
+                loading = false
+                val liveEntries = try {
+                    catalogRepository.searchLiveRatings(city = city, query = query, language = language)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    emptyList()
+                }
+                if (liveEntries.isNotEmpty()) {
+                    entries = liveEntries
+                    liveRatingsAvailable = true
+                }
+            }
+            .onFailure { error ->
+                if (error is CancellationException) throw error
+                entries = emptyList()
+                message = error.message ?: localized(language, "Не удалось загрузить каталог", "Could not load the restaurant catalog", "No se pudo cargar el catálogo", "Restaurantkatalog konnte nicht geladen werden")
+            }
+        loading = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.94f)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("Рестораны", "Restaurants", "Restaurantes", "Restaurants"),
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 22.sp,
+                )
+                Text(
+                    localizedCityName(city),
+                    color = OdysseySubtext,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                )
+            }
+            Box(
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp))
+            }
+        }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            placeholder = { Text(localized("Поиск по названию или кухне", "Search by name or cuisine", "Buscar por nombre o cocina", "Nach Name oder Küche suchen"), color = OdysseySubtext, fontFamily = Manrope, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Outlined.Restaurant, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(20.dp)) },
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OdysseyPurple, unfocusedBorderColor = contentBorderColor()),
+        )
+        if (liveRatingsAvailable) {
+            Text(
+                text = localized("Рейтинг и фото из Google Maps", "Ratings and photos from Google Maps", "Valoraciones y fotos de Google Maps", "Bewertungen und Fotos aus Google Maps"),
+                color = OdysseySubtext,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 10.sp,
+            )
+        }
+        if (message != null) {
+            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        }
+        if (loading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = OdysseyPurple, strokeWidth = 3.dp, modifier = Modifier.size(30.dp))
+            }
+        } else if (entries.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    localized("Для этого города ресторанов пока нет", "No catalog restaurants for this city yet", "Todavía no hay restaurantes para esta ciudad", "Für diese Stadt gibt es noch keine Restaurants"),
+                    color = OdysseySubtext,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 22.dp),
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(entries, key = { it.id }) { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(secondarySurfaceColor())
+                            .border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp))
+                            .clickable { onSelect(entry) }
+                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (!entry.photoUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = entry.photoUrl,
+                                contentDescription = entry.name(language),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(62.dp)
+                                    .clip(RoundedCornerShape(11.dp)),
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.name(language), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val details = listOf(entry.cuisine, entry.address).filter(String::isNotBlank).joinToString(" · ")
+                            if (details.isNotBlank()) {
+                                Text(details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                            }
+                        }
+                        if (!entry.photoAttribution.isNullOrBlank()) {
+                            Text(
+                                text = "Google photo",
+                                color = OdysseySubtext,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = 9.5.sp,
+                                modifier = Modifier.padding(start = 10.dp),
+                            )
+                        }
+                        if (entry.rating != null || entry.ratingCount != null || entry.ratingPlaceUrl.isNotBlank()) {
+                            Row(
+                                modifier = Modifier.padding(start = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (entry.rating != null) {
+                                    Text(
+                                        text = localized("Оценка ${entry.rating}", "Rating ${entry.rating}", "Valoración ${entry.rating}", "Bewertung ${entry.rating}"),
+                                        color = Color(0xFFE29B32),
+                                        fontFamily = Manrope,
+                                        fontWeight = FontWeight.W800,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                                if (entry.ratingCount != null) {
+                                    Text(
+                                        text = "(${entry.ratingCount})",
+                                        color = OdysseySubtext,
+                                        fontFamily = Manrope,
+                                        fontWeight = FontWeight.W600,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                                if (entry.ratingPlaceUrl.isNotBlank()) {
+                                    Text(
+                                        text = "Google Maps",
+                                        color = OdysseyPurple,
+                                        fontFamily = Manrope,
+                                        fontWeight = FontWeight.W800,
+                                        fontSize = 10.5.sp,
+                                        modifier = Modifier.clickable { uriHandler.openUri(entry.ratingPlaceUrl) },
+                                    )
+                                }
+                            }
+                        }
+                        Text("+", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, modifier = Modifier.padding(start = 10.dp))
+                    }
+                }
+            }
+        }
+        Text(
+            text = "© OpenStreetMap contributors",
+            color = OdysseySubtext,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 10.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
 private fun RestaurantAddSheet(
     name: String,
     city: String,
@@ -7192,6 +7482,7 @@ private fun RestaurantAddSheet(
     onStatusChange: (String) -> Unit,
     onPriorityChange: () -> Unit,
     onPickPhoto: () -> Unit,
+    onCatalogOpen: () -> Unit,
     onClose: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -7225,7 +7516,7 @@ private fun RestaurantAddSheet(
                 .height(d(704f))
                 .verticalScroll(scrollState),
         ) {
-            Box(Modifier.fillMaxWidth().height(d(876f))) {
+            Box(Modifier.fillMaxWidth().height(d(926f))) {
                 Box(
                     modifier = Modifier
                         .offset(x = d(156.5f), y = d(12f))
@@ -7415,17 +7706,42 @@ private fun RestaurantAddSheet(
                     }
                 }
 
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(288f))
+                        .width(d(321f))
+                        .height(d(42f))
+                        .clip(RoundedCornerShape(d(12f)))
+                        .border(d(1f), OdysseyPurple.copy(alpha = 0.45f), RoundedCornerShape(d(12f)))
+                        .background(OdysseyPurple.copy(alpha = 0.08f))
+                        .clickable(onClick = onCatalogOpen),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(d(7f))) {
+                        Icon(Icons.Outlined.Restaurant, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(d(17f)))
+                        Text(
+                            localized("Выбрать из каталога", "Choose from catalog", "Elegir del catálogo", "Aus Katalog wählen"),
+                            color = OdysseyPurple,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = s(12f),
+                            lineHeight = s(16f),
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                    }
+                }
+
                 RestaurantAddField(
                     label = localized("Название", "Name", "Nombre", "Name"),
                     value = name,
                     placeholder = localized("Название места", "Restaurant name", "Nombre del lugar", "Name des Lokals"),
                     scale = scale,
-                    modifier = Modifier.offset(x = d(16f), y = d(296f)).width(d(321f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(346f)).width(d(321f)),
                     onValueChange = onNameChange,
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(d(12f)),
-                    modifier = Modifier.offset(x = d(16f), y = d(389f)).width(d(321f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(439f)).width(d(321f)),
                 ) {
                     RestaurantAddField(
                         label = localized("Город", "City", "Ciudad", "Stadt"),
@@ -7449,7 +7765,7 @@ private fun RestaurantAddSheet(
                 }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(d(12f)),
-                    modifier = Modifier.offset(x = d(16f), y = d(482f)).width(d(321f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(532f)).width(d(321f)),
                 ) {
                     RestaurantAddField(
                         label = localized("Дата и время", "Date and time", "Fecha y hora", "Datum und Uhrzeit"),
@@ -7474,18 +7790,18 @@ private fun RestaurantAddSheet(
                     value = address,
                     placeholder = localized("Адрес ресторана", "Restaurant address", "Dirección del restaurante", "Adresse des Lokals"),
                     scale = scale,
-                    modifier = Modifier.offset(x = d(16f), y = d(577f)).width(d(321f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(627f)).width(d(321f)),
                     onValueChange = onAddressChange,
                 )
 
                 Text(
                     text = localized("Статус", "Status", "Estado", "Status"),
                     style = labelStyle,
-                    modifier = Modifier.offset(x = d(16f), y = d(670f)).width(d(321f)).height(d(18f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(720f)).width(d(321f)).height(d(18f)),
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(d(9f)),
-                    modifier = Modifier.offset(x = d(16f), y = d(696f)).height(d(38f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(746f)).height(d(38f)),
                 ) {
                     RestaurantAddStatusChip(localized("хочу", "want", "quiero", "möchte"), "хочу", status == "хочу", 61.4f, scale, onStatusChange)
                     RestaurantAddStatusChip(localized("бронь", "reserved", "reserva", "Reservierung"), "бронь", status == "бронь", 71.4f, scale, onStatusChange)
@@ -7498,7 +7814,7 @@ private fun RestaurantAddSheet(
                     width = 124.1f,
                     scale = scale,
                     onClick = { onPriorityChange() },
-                    modifier = Modifier.offset(x = d(16f), y = d(743f)),
+                    modifier = Modifier.offset(x = d(16f), y = d(793f)),
                 )
 
                 if (message != null) {
@@ -7510,13 +7826,13 @@ private fun RestaurantAddSheet(
                         fontSize = s(11f),
                         lineHeight = s(15f),
                         style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                        modifier = Modifier.offset(x = d(16f), y = d(784f)).width(d(336f)),
+                        modifier = Modifier.offset(x = d(16f), y = d(834f)).width(d(336f)),
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .offset(x = d(16f), y = d(805f))
+                        .offset(x = d(16f), y = d(855f))
                         .width(d(135.3f))
                         .height(d(53f))
                         .clip(RoundedCornerShape(d(15f)))
@@ -7537,7 +7853,7 @@ private fun RestaurantAddSheet(
                 }
                 Box(
                     modifier = Modifier
-                        .offset(x = d(162.3f), y = d(805f))
+                        .offset(x = d(162.3f), y = d(855f))
                         .width(d(174.7f))
                         .height(d(53f))
                         .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
@@ -11460,10 +11776,13 @@ private fun FullScreenPhotoViewer(
             }
             val previousStatusBarColor = dialogWindow.statusBarColor
             val previousNavigationBarColor = dialogWindow.navigationBarColor
+            val previousDimAmount = dialogWindow.attributes.dimAmount
             val insetsController = WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView)
             val previousLightStatusBars = insetsController.isAppearanceLightStatusBars
             val previousLightNavigationBars = insetsController.isAppearanceLightNavigationBars
 
+            dialogWindow.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            dialogWindow.setDimAmount(1f)
             dialogWindow.statusBarColor = android.graphics.Color.BLACK
             dialogWindow.navigationBarColor = android.graphics.Color.BLACK
             WindowCompat.setDecorFitsSystemWindows(dialogWindow, false)
@@ -11471,6 +11790,7 @@ private fun FullScreenPhotoViewer(
             insetsController.isAppearanceLightNavigationBars = false
 
             onDispose {
+                dialogWindow.setDimAmount(previousDimAmount)
                 dialogWindow.statusBarColor = previousStatusBarColor
                 dialogWindow.navigationBarColor = previousNavigationBarColor
                 WindowCompat.setDecorFitsSystemWindows(dialogWindow, true)
@@ -11486,6 +11806,8 @@ private fun FullScreenPhotoViewer(
             AsyncImage(
                 model = photos[photoIndex],
                 contentDescription = accommodationName,
+                // Keep the complete photo visible; black letterbox bands are
+                // intentional and the dimmed dialog background hides the app below.
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -13975,7 +14297,15 @@ private fun OverviewMapCard(
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val cityCount = cities.distinctBy { cityFilterKey(it) }.size
     val cityMapCoordinates = cities.mapNotNull { mapCoordinate(it, cityCoordinates) }
-    val coordinates = (routePoints + markerPoints)
+    // The overview map has no separate sight geometry. Use the ordered city
+    // coordinates as its route and markers so the map shows the same journey
+    // that is summarized below it. Detailed sight maps still provide their
+    // own explicit routePoints/markerPoints.
+    val effectiveRoutePoints = routePoints.ifEmpty { cityMapCoordinates }
+    val effectiveMarkerPoints = markerPoints.ifEmpty {
+        if (routePoints.isNotEmpty()) routePoints else cityMapCoordinates
+    }
+    val coordinates = (effectiveRoutePoints + effectiveMarkerPoints)
         .ifEmpty { cityMapCoordinates }
         .distinctBy { "${it.longitude()},${it.latitude()}" }
     var mapStyleReady by remember { mutableStateOf(false) }
@@ -14017,21 +14347,21 @@ private fun OverviewMapCard(
         if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
     }
 
-    LaunchedEffect(mapStyleReady, coordinates, routePoints, markerPoints, selectedPointIndex) {
+    LaunchedEffect(mapStyleReady, coordinates, effectiveRoutePoints, effectiveMarkerPoints, selectedPointIndex) {
         if (mapStyleReady && coordinates.isNotEmpty()) {
             routeAnnotationManager.deleteAll()
             sightAnnotationManager.deleteAll()
             sightNumberAnnotationManager.deleteAll()
-            if (routePoints.size > 1) {
+            if (effectiveRoutePoints.size > 1) {
                 routeAnnotationManager.create(
                     PolylineAnnotationOptions()
-                        .withPoints(routePoints)
+                        .withPoints(effectiveRoutePoints)
                         .withLineColor("#6C5CE7")
                         .withLineWidth(5.0),
                 )
             }
-            if (markerPoints.isNotEmpty()) {
-                markerPoints.forEachIndexed { index, point ->
+            if (effectiveMarkerPoints.isNotEmpty()) {
+                effectiveMarkerPoints.forEachIndexed { index, point ->
                     val selected = index == selectedPointIndex
                     sightAnnotationManager.create(
                         CircleAnnotationOptions()
@@ -14075,9 +14405,9 @@ private fun OverviewMapCard(
         }
     }
 
-    LaunchedEffect(mapStyleReady, selectedPointIndex, markerPoints) {
+    LaunchedEffect(mapStyleReady, selectedPointIndex, effectiveMarkerPoints) {
         if (mapStyleReady) {
-            markerPoints.getOrNull(selectedPointIndex ?: -1)?.let { point ->
+            effectiveMarkerPoints.getOrNull(selectedPointIndex ?: -1)?.let { point ->
                 mapView.mapboxMap.setCamera(
                     CameraOptions.Builder()
                         .center(point)
