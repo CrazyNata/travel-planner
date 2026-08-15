@@ -140,6 +140,10 @@ jobs:
             exit 1
           fi
           fingerprint="$(printf '%s' "$fingerprint" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]' | sed 's/../&:/g; s/:$//')"
+          # The APK is signed with the upload key in CI, while Google Play
+          # re-signs the installed app with the Play App Signing certificate.
+          # Both public fingerprints must be allowed for Android App Links.
+          play_app_signing_fingerprint="90:33:B6:58:18:BB:8C:98:82:83:C0:64:01:AB:7D:CA:2D:F7:BD:CE:2C:93:6C:6A:32:A7:1B:EF:74:CE:29:60"
           cp "$apk_path" public/travel-planner.apk
           mkdir -p public/.well-known
           cat > public/.well-known/assetlinks.json <<EOF
@@ -148,7 +152,7 @@ jobs:
             "target": {
               "namespace": "android_app",
               "package_name": "com.odyssey.travelplanner",
-              "sha256_cert_fingerprints": ["$fingerprint"]
+              "sha256_cert_fingerprints": ["$fingerprint", "$play_app_signing_fingerprint"]
             }
           }]
           EOF

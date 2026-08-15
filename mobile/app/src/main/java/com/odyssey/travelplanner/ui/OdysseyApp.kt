@@ -62,6 +62,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -93,6 +94,8 @@ import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Restaurant
@@ -1455,7 +1458,7 @@ private fun AuthScreen(
                 SupabaseProvider.selectSessionPersistence(rememberSession)
                 val auth = SupabaseProvider.clientForCurrentAuthFlow().auth
                 if (isRegistration) {
-                    auth.signUpWith(Email) {
+                    auth.signUpWith(Email, "https://ramingo.online/mobile/auth") {
                         this.email = email.trim()
                         this.password = password
                         data = buildJsonObject { put("full_name", name.trim()) }
@@ -1813,6 +1816,7 @@ private fun AuthField(
     val surface = cardSurfaceColor()
     val border = if (darkTheme) Color(0xFF3A3D4C) else OdysseyBorder
     val text = contentTextColor()
+    var passwordVisible by remember { mutableStateOf(false) }
     Text(
         text = label,
         color = if (darkTheme) Color(0xFFF5F6FA) else Color(0xFF3A3A42),
@@ -1826,7 +1830,22 @@ private fun AuthField(
         onValueChange = onValueChange,
         placeholder = { Text(placeholder, fontFamily = Manrope, color = Color(0xFFB6B6BE)) },
         singleLine = true,
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        visualTransformation = if (password && !passwordVisible) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        trailingIcon = if (password) {
+            {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (passwordVisible) {
+                            localized("Скрыть пароль", "Hide password", "Ocultar contraseña", "Passwort ausblenden")
+                        } else {
+                            localized("Показать пароль", "Show password", "Mostrar contraseña", "Passwort anzeigen")
+                        },
+                        tint = secondaryTextColor(),
+                    )
+                }
+            }
+        } else null,
         shape = RoundedCornerShape(14.dp),
         textStyle = androidx.compose.ui.text.TextStyle(
             color = text,

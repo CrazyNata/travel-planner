@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.odyssey.travelplanner",
       "sha256_cert_fingerprints": [
-        "DE:02:B8:57:D8:8A:25:D1:45:C3:82:03:29:8E:E4:AE:30:3E:50:8F:93:37:F2:79:74:DA:3D:B1:68:89:B9:92"
+        "DE:02:B8:57:D8:8A:25:D1:45:C3:82:03:29:8E:E4:AE:30:3E:50:8F:93:37:F2:79:74:DA:3D:B1:68:89:B9:92",
+        "90:33:B6:58:18:BB:8C:98:82:83:C0:64:01:AB:7D:CA:2D:F7:BD:CE:2C:93:6C:6A:32:A7:1B:EF:74:CE:29:60"
       ]
     }
   }
