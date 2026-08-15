@@ -38,6 +38,8 @@ data class RestaurantCatalogEntry(
     val rating: Double? = null,
     val ratingCount: Int? = null,
     val photoUrl: String? = null,
+    /** Google Places photo resource name, resolved only when its card is visible. */
+    val photoName: String = "",
     val photoAttribution: String? = null,
     val ratingPlaceUrl: String = "",
     val isLiveResult: Boolean = false,
@@ -109,10 +111,22 @@ private data class RestaurantEnrichmentPlace(
     @SerialName("rating_count") val ratingCount: Int? = null,
     @SerialName("price_level") val priceLevel: Int? = null,
     @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("photo_name") val photoName: String = "",
     @SerialName("photo_attribution") val photoAttribution: String? = null,
     @SerialName("google_maps_url") val googleMapsUrl: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
+)
+
+@Serializable
+private data class RestaurantPhotoResponse(
+    @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("photo_attribution") val photoAttribution: String? = null,
+)
+
+data class RestaurantPhotoResult(
+    val photoUrl: String?,
+    val photoAttribution: String?,
 )
 
 data class RestaurantCatalogSearchResult(
@@ -267,11 +281,38 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
                 ratingCount = place.ratingCount,
                 priceLevel = place.priceLevel,
                 photoUrl = place.photoUrl,
+                photoName = place.photoName,
                 photoAttribution = place.photoAttribution,
                 ratingPlaceUrl = place.googleMapsUrl,
                 isLiveResult = true,
             )
         }
+    }
+
+    /** Resolves one Google photo only when its catalog card is visible. */
+    suspend fun resolveRestaurantPhoto(photoName: String): RestaurantPhotoResult? {
+        val cleanPhotoName = photoName.trim()
+        if (cleanPhotoName.isBlank()) return null
+
+        if (client.auth.currentSessionOrNull() == null) {
+            runCatching { client.auth.refreshCurrentSession() }
+        }
+        val accessToken = client.auth.currentAccessTokenOrNull()
+        val response = client.functions.invoke(
+            function = "restaurant-enrichment",
+            body = buildJsonObject {
+                put("photoName", cleanPhotoName)
+            },
+            headers = Headers.build {
+                append(HttpHeaders.ContentType, "application/json")
+                if (!accessToken.isNullOrBlank()) {
+                    append(HttpHeaders.Authorization, "Bearer $accessToken")
+                }
+            },
+        )
+        val payload = Json { ignoreUnknownKeys = true }
+            .decodeFromString<RestaurantPhotoResponse>(response.bodyAsText())
+        return RestaurantPhotoResult(payload.photoUrl, payload.photoAttribution)
     }
 }
 

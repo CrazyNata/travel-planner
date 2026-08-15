@@ -5383,6 +5383,7 @@ private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
 private val sightPhotoDownloadGate = Semaphore(6)
+private val restaurantPhotoLoadGate = Semaphore(6)
 private const val MaxSightBitmapDimension = 2048
 
 private fun openSightPhotoConnection(photoUrl: String): HttpURLConnection =
@@ -7490,6 +7491,35 @@ private fun RestaurantCatalogSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(sortedEntries, key = { it.id }) { entry ->
+                    if (entry.photoUrl.isNullOrBlank() && entry.photoName.isNotBlank()) {
+                        LaunchedEffect(entry.id, entry.photoName) {
+                            val photo = try {
+                                restaurantPhotoLoadGate.withPermit {
+                                    catalogRepository.resolveRestaurantPhoto(entry.photoName)
+                                }
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Throwable) {
+                                null
+                            }
+                            val photoUrl = photo?.photoUrl
+                            if (!photoUrl.isNullOrBlank()) {
+                                entries = entries.map { current ->
+                                    if (current.id == entry.id &&
+                                        current.photoName == entry.photoName &&
+                                        current.photoUrl.isNullOrBlank()
+                                    ) {
+                                        current.copy(
+                                            photoUrl = photoUrl,
+                                            photoAttribution = photo?.photoAttribution ?: current.photoAttribution,
+                                        )
+                                    } else {
+                                        current
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -23,7 +23,10 @@ function clampLimit(value: unknown): number {
 }
 
 const PlacesPageSize = 20;
-const PhotoConcurrency = 6;
+// Keep the first screen backwards-compatible for older Android builds. The
+// remaining photos are resolved on demand by the current client.
+const InitialPhotoLimit = 8;
+const PhotoConcurrency = 8;
 
 function textValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -48,17 +51,21 @@ function priceLevelValue(value: unknown): number | null {
   }
 }
 
+function photoAttributionValue(photo: Record<string, unknown> | undefined): string | null {
+  const attribution = Array.isArray(photo?.authorAttributions)
+    ? photo.authorAttributions[0]
+    : null;
+  return attribution && typeof attribution === "object"
+    ? textValue((attribution as Record<string, unknown>).displayName)
+    : null;
+}
+
 async function resolvePhoto(
   photo: Record<string, unknown> | undefined,
   apiKey: string,
 ): Promise<{ photoUrl: string | null; photoAttribution: string | null }> {
   const photoName = typeof photo?.name === "string" ? photo.name : "";
-  const attribution = Array.isArray(photo?.authorAttributions)
-    ? photo.authorAttributions[0]
-    : null;
-  const photoAttribution = attribution && typeof attribution === "object"
-    ? textValue((attribution as Record<string, unknown>).displayName)
-    : null;
+  const photoAttribution = photoAttributionValue(photo);
   if (!photoName) return { photoUrl: null, photoAttribution };
 
   // Photo resource names are intentionally resolved on demand and never stored.
@@ -155,6 +162,18 @@ Deno.serve(async (request: Request) => {
   }
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const requestedPhotoName = String(body?.photoName ?? "").trim().slice(0, 1000);
+  if (requestedPhotoName) {
+    if (!requestedPhotoName.startsWith("places/") || !requestedPhotoName.includes("/photos/")) {
+      return jsonResponse({ error: "invalid photoName" }, 400);
+    }
+    const photo = await resolvePhoto({ name: requestedPhotoName }, apiKey);
+    return jsonResponse({
+      photo_url: photo.photoUrl,
+      photo_attribution: photo.photoAttribution,
+    });
+  }
+
   const city = String(body?.city ?? "").trim().slice(0, 100);
   const query = String(body?.query ?? "").trim().slice(0, 80);
   const languageCode = safeLanguageCode(body?.languageCode);
@@ -188,7 +207,22 @@ Deno.serve(async (request: Request) => {
     pageToken = nextPageToken;
   }
 
-  const restaurants = await mapWithConcurrency(places.slice(0, limit), PhotoConcurrency, async (rawPlace, index) => {
+  // Resolve only the first visible batch here. Resolving all 60 photos before
+  // returning the catalog made the first screen wait for ten photo batches.
+  // Current clients resolve the rest from photoName as cards enter the list.
+  const initialPhotos = await mapWithConcurrency(
+    places.slice(0, Math.min(limit, InitialPhotoLimit)),
+    PhotoConcurrency,
+    async (rawPlace) => {
+      const place = rawPlace as Record<string, unknown>;
+      const firstPhoto = Array.isArray(place.photos) && place.photos[0] && typeof place.photos[0] === "object"
+        ? place.photos[0] as Record<string, unknown>
+        : undefined;
+      return resolvePhoto(firstPhoto, apiKey);
+    },
+  );
+
+  const restaurants = places.slice(0, limit).map((rawPlace, index) => {
     const place = rawPlace as Record<string, unknown>;
     const displayName = textValue(place.displayName);
     const location = place.location && typeof place.location === "object"
@@ -204,10 +238,8 @@ Deno.serve(async (request: Request) => {
     const firstPhoto = Array.isArray(place.photos) && place.photos[0] && typeof place.photos[0] === "object"
       ? place.photos[0] as Record<string, unknown>
       : undefined;
-    // Resolve a photo for every returned place. Previously only the first
-    // eight cards were enriched, which made most catalog cards show a blank
-    // restaurant icon even when Google had a photo available.
-    const photo = await resolvePhoto(firstPhoto, apiKey);
+    const photoName = typeof firstPhoto?.name === "string" ? firstPhoto.name : "";
+    const photo = initialPhotos[index];
     return {
       place_id: textValue(place.id),
       name: displayName,
@@ -216,8 +248,9 @@ Deno.serve(async (request: Request) => {
       rating: numberValue(place.rating),
       rating_count: typeof place.userRatingCount === "number" ? Math.trunc(place.userRatingCount) : null,
       price_level: priceLevelValue(place.priceLevel),
-      photo_url: photo.photoUrl,
-      photo_attribution: photo.photoAttribution,
+      photo_url: photo?.photoUrl ?? null,
+      photo_name: photoName,
+      photo_attribution: photo?.photoAttribution ?? photoAttributionValue(firstPhoto),
       google_maps_url: textValue(place.googleMapsUri),
       latitude: numberValue(location.latitude),
       longitude: numberValue(location.longitude),
