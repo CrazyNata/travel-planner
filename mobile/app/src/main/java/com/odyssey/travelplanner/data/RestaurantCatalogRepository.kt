@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 data class RestaurantCatalogEntry(
     val id: String,
@@ -124,6 +125,18 @@ private data class RestaurantPhotoResponse(
     @SerialName("photo_attribution") val photoAttribution: String? = null,
 )
 
+@Serializable
+private data class RestaurantPhotosResponse(
+    val photos: List<RestaurantPhotoResponseItem> = emptyList(),
+)
+
+@Serializable
+private data class RestaurantPhotoResponseItem(
+    @SerialName("photo_name") val photoName: String = "",
+    @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("photo_attribution") val photoAttribution: String? = null,
+)
+
 data class RestaurantPhotoResult(
     val photoUrl: String?,
     val photoAttribution: String?,
@@ -157,6 +170,8 @@ private fun RestaurantCatalogRow.toEntry() = RestaurantCatalogEntry(
 )
 
 class RestaurantCatalogRepository(private val client: SupabaseClient) {
+    private val photoCache = ConcurrentHashMap<String, RestaurantPhotoResult>()
+
     suspend fun search(city: String, query: String, limit: Int = 120): List<RestaurantCatalogEntry> {
         val cityName = catalogCityName(city)
         if (cityName.isBlank()) return emptyList()
@@ -255,8 +270,10 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
             .decodeFromString<RestaurantEnrichmentResponse>(response.bodyAsText())
             .restaurants
 
-        return livePlaces.mapIndexed { index, place ->
+        return livePlaces.mapIndexedNotNull { index, place ->
             val stableName = place.name.ifBlank { "Restaurant ${index + 1}" }
+            val hasPhotoReference = place.photoUrl?.isNotBlank() == true || place.photoName.isNotBlank()
+            if (place.rating == null || !hasPhotoReference) return@mapIndexedNotNull null
             RestaurantCatalogEntry(
                 id = "google:${place.placeId.ifBlank { "$cityName:$index:$stableName" }}",
                 cityKey = city,
@@ -294,6 +311,21 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         val cleanPhotoName = photoName.trim()
         if (cleanPhotoName.isBlank()) return null
 
+        return resolveRestaurantPhotos(listOf(cleanPhotoName))[cleanPhotoName]
+    }
+
+    /** Resolves the visible batch in one Edge Function request. */
+    suspend fun resolveRestaurantPhotos(photoNames: List<String>): Map<String, RestaurantPhotoResult> {
+        val cleanPhotoNames = photoNames
+            .map(String::trim)
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (cleanPhotoNames.isEmpty()) return emptyMap()
+
+        val cached = cleanPhotoNames.mapNotNull { name -> photoCache[name]?.let { name to it } }.toMap()
+        val missing = cleanPhotoNames.filterNot { it in cached }
+        if (missing.isEmpty()) return cached
+
         if (client.auth.currentSessionOrNull() == null) {
             runCatching { client.auth.refreshCurrentSession() }
         }
@@ -301,7 +333,9 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         val response = client.functions.invoke(
             function = "restaurant-enrichment",
             body = buildJsonObject {
-                put("photoName", cleanPhotoName)
+                put("photoNames", kotlinx.serialization.json.buildJsonArray {
+                    missing.take(24).forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+                })
             },
             headers = Headers.build {
                 append(HttpHeaders.ContentType, "application/json")
@@ -311,8 +345,14 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
             },
         )
         val payload = Json { ignoreUnknownKeys = true }
-            .decodeFromString<RestaurantPhotoResponse>(response.bodyAsText())
-        return RestaurantPhotoResult(payload.photoUrl, payload.photoAttribution)
+            .decodeFromString<RestaurantPhotosResponse>(response.bodyAsText())
+        val resolved = payload.photos
+            .filter { it.photoName.isNotBlank() }
+            .associate { item ->
+                item.photoName to RestaurantPhotoResult(item.photoUrl, item.photoAttribution)
+            }
+        resolved.forEach { (name, photo) -> photoCache[name] = photo }
+        return cached + resolved
     }
 }
 

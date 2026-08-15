@@ -1475,6 +1475,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("walkDay", normalizedWalkDay)
                 put("walkOrder", nextWalkOrder)
                 put("done", false)
+                if (!entry.photoUrl.isNullOrBlank()) put("photo", entry.photoUrl.trim())
+                if (entry.rating != null) put("rating", entry.rating)
                 if (mapUrl.isNotBlank()) put("link", mapUrl)
                 if (entry.longitude != null && entry.latitude != null) {
                     put("lnglat", buildJsonArray {

@@ -1,12 +1,9 @@
 package com.odyssey.travelplanner.ui
 
-import android.app.DatePickerDialog
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.view.ContextThemeWrapper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -178,6 +175,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -311,19 +309,6 @@ private fun normalizeLanguage(value: String): String = when (value.trim().upperc
     "ES", "SPANISH" -> "ES"
     "DE", "GERMAN" -> "DE"
     else -> "RU"
-}
-
-private fun localizedDatePickerContext(context: Context, language: String): Context {
-    val locale = when (normalizeLanguage(language)) {
-        "EN" -> Locale.ENGLISH
-        "ES" -> Locale.forLanguageTag("es")
-        "DE" -> Locale.GERMAN
-        else -> Locale.forLanguageTag("ru")
-    }
-    val configuration = Configuration(context.resources.configuration).apply { setLocale(locale) }
-    return ContextThemeWrapper(context, R.style.Theme_Ramingo_DatePicker).apply {
-        applyOverrideConfiguration(configuration)
-    }
 }
 
 private fun localized(language: String, ru: String, en: String, es: String, de: String): String = when (normalizeLanguage(language)) {
@@ -5463,6 +5448,7 @@ private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
 private val sightPhotoDownloadGate = Semaphore(6)
+private val sightPhotoLoadGate = Semaphore(6)
 private val restaurantPhotoLoadGate = Semaphore(6)
 private const val MaxSightBitmapDimension = 2048
 
@@ -5760,7 +5746,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Si
     var message by remember { mutableStateOf<String?>(null) }
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(localized("Редактировать день", "Edit day", "Editar día", "Tag bearbeiten"), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.5.sp)
             Spacer(Modifier.weight(1f))
@@ -5887,20 +5873,54 @@ private fun SightCatalogSheet(
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var liveRatingsAvailable by remember { mutableStateOf(false) }
     val selectedEntries = entries.filter { it.id in selectedIds && !catalogSightAlreadyAdded(it, city, existingSights) }
+    val liveRatingsUnavailableMessage = localized(
+        "Фото и рейтинг достопримечательностей временно недоступны — показан базовый каталог",
+        "Sight photos and ratings are temporarily unavailable — showing the base catalog",
+        "Las fotos y valoraciones no están disponibles temporalmente — se muestra el catálogo base",
+        "Fotos und Bewertungen sind vorübergehend nicht verfügbar — der Basiskatalog wird angezeigt",
+    )
 
     LaunchedEffect(city, query) {
         loading = true
         message = null
         delay(180)
-        runCatching { catalogRepository.search(city = city, query = query) }
-            .onSuccess {
-                entries = it
-                selectedIds = selectedIds.intersect(it.map(SightCatalogEntry::id).toSet())
+        runCatching { catalogRepository.searchWithLiveRatings(city = city, query = query, language = language) }
+            .onSuccess { result ->
+                entries = result.entries
+                liveRatingsAvailable = result.liveRatingsAvailable
+                if (!result.liveRatingsAvailable && result.entries.isNotEmpty()) {
+                    message = liveRatingsUnavailableMessage
+                }
+                selectedIds = selectedIds.intersect(result.entries.map(SightCatalogEntry::id).toSet())
+                if (result.liveRatingsAvailable) {
+                    val photoNames = result.entries
+                        .filter { it.photoUrl.isNullOrBlank() && it.photoName.isNotBlank() }
+                        .map(SightCatalogEntry::photoName)
+                        .take(12)
+                    if (photoNames.isNotEmpty()) {
+                        val photos = runCatching { catalogRepository.resolveSightPhotos(photoNames) }
+                            .getOrElse { error ->
+                                if (error is CancellationException) throw error
+                                emptyMap()
+                            }
+                        if (photos.isNotEmpty()) {
+                            entries = entries.map { entry ->
+                                val photo = photos[entry.photoName]
+                                if (photo == null) entry else entry.copy(
+                                    photoUrl = photo.photoUrl ?: entry.photoUrl,
+                                    photoAttribution = photo.photoAttribution ?: entry.photoAttribution,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             .onFailure { error ->
                 if (error is CancellationException) throw error
                 entries = emptyList()
+                liveRatingsAvailable = false
                 message = error.message ?: localized(language, "Не удалось загрузить каталог", "Could not load the catalog", "No se pudo cargar el catálogo", "Katalog konnte nicht geladen werden")
             }
         loading = false
@@ -5949,6 +5969,37 @@ private fun SightCatalogSheet(
             leadingIcon = { Text("⌕", color = OdysseyPurple, fontSize = 23.sp) },
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OdysseyPurple, unfocusedBorderColor = contentBorderColor()),
         )
+        if (liveRatingsAvailable) {
+            Text(
+                localized("Фото и рейтинг из Google Maps", "Photos and ratings from Google Maps", "Fotos y valoraciones de Google Maps", "Fotos und Bewertungen aus Google Maps"),
+                color = OdysseySubtext,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 10.sp,
+            )
+        }
+        if (!loading && entries.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    localized("Популярные места", "Popular places", "Lugares populares", "Beliebte Orte"),
+                    color = OdysseyText,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 14.sp,
+                )
+                Text(
+                    localized("${entries.size} мест", "${entries.size} places", "${entries.size} lugares", "${entries.size} Orte"),
+                    color = OdysseySubtext,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 11.sp,
+                )
+            }
+        }
         if (message != null) {
             Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
@@ -5974,29 +6025,142 @@ private fun SightCatalogSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(entries, key = { it.id }) { entry ->
+                    if (entry.photoUrl.isNullOrBlank() && entry.photoName.isNotBlank()) {
+                        LaunchedEffect(entry.id, entry.photoName) {
+                            val photo = try {
+                                sightPhotoLoadGate.withPermit {
+                                    catalogRepository.resolveSightPhoto(entry.photoName)
+                                }
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Throwable) {
+                                null
+                            }
+                            val photoUrl = photo?.photoUrl
+                            if (!photoUrl.isNullOrBlank()) {
+                                entries = entries.map { current ->
+                                    if (current.id == entry.id &&
+                                        current.photoName == entry.photoName &&
+                                        current.photoUrl.isNullOrBlank()
+                                    ) {
+                                        current.copy(
+                                            photoUrl = photoUrl,
+                                            photoAttribution = photo?.photoAttribution ?: current.photoAttribution,
+                                        )
+                                    } else {
+                                        current
+                                    }
+                                }
+                            }
+                        }
+                    }
                     val alreadyAdded = catalogSightAlreadyAdded(entry, city, existingSights)
                     val selected = entry.id in selectedIds
+                    val cardShape = RoundedCornerShape(18.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(cardShape)
                             .background(if (selected) OdysseyPurple.copy(alpha = 0.08f) else secondarySurfaceColor())
-                            .border(1.dp, if (selected) OdysseyPurple.copy(alpha = 0.45f) else contentBorderColor(), RoundedCornerShape(14.dp))
+                            .border(1.dp, if (selected) OdysseyPurple.copy(alpha = 0.52f) else contentBorderColor(), cardShape)
                             .clickable(enabled = !alreadyAdded && !saving) {
                                 selectedIds = if (selected) selectedIds - entry.id else selectedIds + entry.id
                             }
-                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                            .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 96.dp, height = 112.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(tintedSurfaceColor()),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (!entry.photoUrl.isNullOrBlank()) {
+                                FastCatalogImage(
+                                    url = entry.photoUrl,
+                                    contentDescription = entry.name(language),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Outlined.LocationOn,
+                                    contentDescription = null,
+                                    tint = OdysseyPurple.copy(alpha = 0.72f),
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(11.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(entry.name(language), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val details = listOf(entry.category, entry.description(language)).filter(String::isNotBlank).joinToString(" · ")
-                            if (details.isNotBlank()) Text(details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                            Text(
+                                entry.category.ifBlank { localized("Достопримечательность", "Attraction", "Atracción", "Sehenswürdigkeit") }.uppercase(Locale.ROOT),
+                                color = OdysseyPurple,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 9.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                entry.name(language),
+                                color = OdysseyText,
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 15.sp,
+                                lineHeight = 18.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                            if (entry.rating != null || entry.ratingCount != null) {
+                                Row(
+                                    modifier = Modifier.padding(top = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text("★", color = Color(0xFFFFB52E), fontSize = 14.sp, fontWeight = FontWeight.W800)
+                                    entry.rating?.let {
+                                        Text(
+                                            String.format(Locale.ROOT, "%.1f", it),
+                                            color = OdysseyText,
+                                            fontFamily = Manrope,
+                                            fontWeight = FontWeight.W800,
+                                            fontSize = 11.5.sp,
+                                        )
+                                    }
+                                    entry.ratingCount?.let {
+                                        Text(
+                                            "· ${catalogRatingCountLabel(it, language)}",
+                                            color = OdysseySubtext,
+                                            fontFamily = Manrope,
+                                            fontWeight = FontWeight.W600,
+                                            fontSize = 10.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                            entry.description(language).takeIf(String::isNotBlank)?.let { description ->
+                                Text(
+                                    description,
+                                    color = OdysseySubtext,
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W600,
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 15.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                         }
                         Box(
                             modifier = Modifier
                                 .padding(start = 10.dp)
-                                .size(32.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(if (alreadyAdded || selected) OdysseyPurple else tintedSurfaceColor()),
                             contentAlignment = Alignment.Center,
@@ -6055,6 +6219,38 @@ private fun SightCatalogSheet(
             )
         }
     }
+}
+
+private fun catalogRatingCountLabel(count: Int, language: String): String {
+    val formatted = String.format(Locale.ROOT, "%,d", count).replace(',', ' ')
+    return when (language.trim().uppercase(Locale.ROOT).substringBefore('-')) {
+        "EN" -> "$formatted reviews"
+        "ES" -> "$formatted reseñas"
+        "DE" -> "$formatted Bewertungen"
+        else -> "$formatted отзывов"
+    }
+}
+
+@Composable
+private fun FastCatalogImage(
+    url: String,
+    contentDescription: String?,
+    contentScale: androidx.compose.ui.layout.ContentScale,
+    modifier: Modifier,
+) {
+    val context = LocalContext.current
+    val request = remember(url) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .size(480, 360)
+            .build()
+    }
+    AsyncImage(
+        model = request,
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -6731,6 +6927,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
     var city by remember { mutableStateOf("") }
     var cuisine by remember { mutableStateOf("") }
     var dateTime by remember { mutableStateOf("") }
+    var restaurantDatePickerOpen by remember { mutableStateOf(false) }
     var address by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("хочу") }
     var priority by remember { mutableStateOf(false) }
@@ -6763,6 +6960,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         city = ""
         cuisine = ""
         dateTime = ""
+        restaurantDatePickerOpen = false
         address = ""
         status = "хочу"
         priority = false
@@ -7124,16 +7322,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     cityPickerOpen = true
                 },
                 onDatePickerOpen = {
-                    val today = Calendar.getInstance()
-                    DatePickerDialog(
-                        localizedDatePickerContext(context, language),
-                        { _, year, month, dayOfMonth ->
-                            dateTime = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
-                        },
-                        today.get(Calendar.YEAR),
-                        today.get(Calendar.MONTH),
-                        today.get(Calendar.DAY_OF_MONTH),
-                    ).show()
+                    restaurantDatePickerOpen = true
                 },
                 onCuisineChange = { cuisine = it },
                 onDateTimeChange = { dateTime = it },
@@ -7186,6 +7375,16 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 },
             )
         }
+    }
+    if (adding && restaurantDatePickerOpen) {
+        AccommodationCalendarDialog(
+            initialValue = dateTime,
+            onDismiss = { restaurantDatePickerOpen = false },
+            onConfirm = { selectedDate ->
+                dateTime = selectedDate
+                restaurantDatePickerOpen = false
+            },
+        )
     }
     if (adding && cityPickerOpen) {
         ModalBottomSheet(
@@ -7415,6 +7614,28 @@ private fun RestaurantCatalogSheet(
                 if (liveEntries.isNotEmpty()) {
                     entries = liveEntries
                     liveRatingsAvailable = true
+                    val photoNames = liveEntries
+                        .filter { it.photoUrl.isNullOrBlank() && it.photoName.isNotBlank() }
+                        .map(RestaurantCatalogEntry::photoName)
+                        .take(12)
+                    if (photoNames.isNotEmpty()) {
+                        val photos = try {
+                            catalogRepository.resolveRestaurantPhotos(photoNames)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Throwable) {
+                            emptyMap()
+                        }
+                        if (photos.isNotEmpty()) {
+                            entries = entries.map { entry ->
+                                val photo = photos[entry.photoName]
+                                if (photo == null) entry else entry.copy(
+                                    photoUrl = photo.photoUrl ?: entry.photoUrl,
+                                    photoAttribution = photo.photoAttribution ?: entry.photoAttribution,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             .onFailure { error ->
@@ -7622,8 +7843,8 @@ private fun RestaurantCatalogSheet(
                             contentAlignment = Alignment.Center,
                         ) {
                             if (!entry.photoUrl.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = entry.photoUrl,
+                                FastCatalogImage(
+                                    url = entry.photoUrl,
                                     contentDescription = entry.name(language),
                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize(),

@@ -27,6 +27,9 @@ const PlacesPageSize = 20;
 // remaining photos are resolved on demand by the current client.
 const InitialPhotoLimit = 8;
 const PhotoConcurrency = 8;
+const PhotoWidth = 480;
+const PhotoHeight = 360;
+const PhotoTimeoutMs = 5_000;
 
 function textValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -69,9 +72,13 @@ async function resolvePhoto(
   if (!photoName) return { photoUrl: null, photoAttribution };
 
   // Photo resource names are intentionally resolved on demand and never stored.
-  const mediaUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=640&maxHeightPx=480&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`;
+  // Catalog cards are small, so keep the network payload below the full-size
+  // Google photo while retaining enough resolution for the preview.
+  const mediaUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${PhotoWidth}&maxHeightPx=${PhotoHeight}&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PhotoTimeoutMs);
   try {
-    const mediaResponse = await fetch(mediaUrl);
+    const mediaResponse = await fetch(mediaUrl, { signal: controller.signal });
     if (!mediaResponse.ok) return { photoUrl: null, photoAttribution };
     const media = await mediaResponse.json().catch(() => null) as { photoUri?: unknown } | null;
     return {
@@ -81,6 +88,8 @@ async function resolvePhoto(
   } catch {
     // A single unavailable photo must not discard the rest of the catalog.
     return { photoUrl: null, photoAttribution };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -110,6 +119,7 @@ async function fetchPlacesPage(
   textQuery: string,
   languageCode: string,
   pageSize: number,
+  includedType: string,
   pageToken?: string,
 ): Promise<{ places?: unknown; nextPageToken?: unknown }> {
   const placesResponse = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -134,7 +144,7 @@ async function fetchPlacesPage(
     body: JSON.stringify({
       textQuery,
       languageCode,
-      includedType: "restaurant",
+      includedType,
       pageSize,
       ...(pageToken ? { pageToken } : {}),
     }),
@@ -162,6 +172,35 @@ Deno.serve(async (request: Request) => {
   }
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const category = String(body?.category ?? "restaurant").trim().toLowerCase() === "sight"
+    ? "sight"
+    : "restaurant";
+  const responseKey = category === "sight" ? "sights" : "restaurants";
+
+  const requestedPhotoNames = Array.isArray(body?.photoNames)
+    ? body.photoNames
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim().slice(0, 1000))
+      .filter((value) => value.startsWith("places/") && value.includes("/photos/"))
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .slice(0, 24)
+    : [];
+  if (requestedPhotoNames.length > 0) {
+    const photos = await mapWithConcurrency(
+      requestedPhotoNames,
+      PhotoConcurrency,
+      async (photoName) => {
+        const photo = await resolvePhoto({ name: photoName }, apiKey);
+        return {
+          photo_name: photoName,
+          photo_url: photo.photoUrl,
+          photo_attribution: photo.photoAttribution,
+        };
+      },
+    );
+    return jsonResponse({ photos });
+  }
+
   const requestedPhotoName = String(body?.photoName ?? "").trim().slice(0, 1000);
   if (requestedPhotoName) {
     if (!requestedPhotoName.startsWith("places/") || !requestedPhotoName.includes("/photos/")) {
@@ -183,8 +222,13 @@ Deno.serve(async (request: Request) => {
   if (!city) return jsonResponse({ error: "city is required" }, 400);
 
   const textQuery = query
-    ? `${query} restaurant in ${city}`
-    : `restaurants in ${city}`;
+    ? category === "sight"
+      ? `${query} tourist attraction in ${city}`
+      : `${query} restaurant in ${city}`
+    : category === "sight"
+      ? `top tourist attractions in ${city}`
+      : `restaurants in ${city}`;
+  const includedType = category === "sight" ? "tourist_attraction" : "restaurant";
   const places: unknown[] = [];
   const pageSize = Math.min(PlacesPageSize, limit);
   const seenPageTokens = new Set<string>();
@@ -195,6 +239,7 @@ Deno.serve(async (request: Request) => {
       textQuery,
       languageCode,
       pageSize,
+      includedType,
       pageToken,
     );
     const pagePlaces = Array.isArray(page.places) ? page.places : [];
@@ -222,7 +267,7 @@ Deno.serve(async (request: Request) => {
     },
   );
 
-  const restaurants = places.slice(0, limit).map((rawPlace, index) => {
+  const results = places.slice(0, limit).map((rawPlace, index) => {
     const place = rawPlace as Record<string, unknown>;
     const displayName = textValue(place.displayName);
     const location = place.location && typeof place.location === "object"
@@ -245,6 +290,7 @@ Deno.serve(async (request: Request) => {
       name: displayName,
       address: textValue(place.formattedAddress),
       cuisine: types,
+      category: types,
       rating: numberValue(place.rating),
       rating_count: typeof place.userRatingCount === "number" ? Math.trunc(place.userRatingCount) : null,
       price_level: priceLevelValue(place.priceLevel),
@@ -257,5 +303,5 @@ Deno.serve(async (request: Request) => {
     };
   });
 
-  return jsonResponse({ restaurants });
+  return jsonResponse({ [responseKey]: results });
 });
