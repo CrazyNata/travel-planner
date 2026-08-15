@@ -191,7 +191,7 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         city: String,
         query: String,
         language: String,
-        limit: Int = 20,
+        limit: Int = 60,
     ): RestaurantCatalogSearchResult {
         val fallback = search(city = city, query = query, limit = limit)
         val liveEntries = runCatching {
@@ -209,7 +209,7 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         city: String,
         query: String,
         language: String,
-        limit: Int = 20,
+        limit: Int = 60,
     ): List<RestaurantCatalogEntry> {
         val cityName = catalogCityName(city)
         if (cityName.isBlank()) return emptyList()
@@ -228,7 +228,7 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
                 put("city", cityName)
                 put("query", query.trim().take(80))
                 put("languageCode", placesLanguageCode(language))
-                put("limit", limit.coerceIn(1, 20))
+                put("limit", limit.coerceIn(1, 60))
             },
             headers = Headers.build {
                 append(HttpHeaders.ContentType, "application/json")

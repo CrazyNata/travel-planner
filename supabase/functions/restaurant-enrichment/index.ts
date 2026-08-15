@@ -18,9 +18,12 @@ function safeLanguageCode(value: unknown): string {
 
 function clampLimit(value: unknown): number {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 12;
-  return Math.min(Math.max(Math.trunc(parsed), 1), 20);
+  if (!Number.isFinite(parsed)) return 60;
+  return Math.min(Math.max(Math.trunc(parsed), 1), 60);
 }
+
+const PlacesPageSize = 20;
+const PhotoConcurrency = 6;
 
 function textValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -60,34 +63,48 @@ async function resolvePhoto(
 
   // Photo resource names are intentionally resolved on demand and never stored.
   const mediaUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=640&maxHeightPx=480&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`;
-  const mediaResponse = await fetch(mediaUrl);
-  if (!mediaResponse.ok) return { photoUrl: null, photoAttribution };
-  const media = await mediaResponse.json().catch(() => null) as { photoUri?: unknown } | null;
-  return {
-    photoUrl: typeof media?.photoUri === "string" ? media.photoUri : null,
-    photoAttribution,
-  };
+  try {
+    const mediaResponse = await fetch(mediaUrl);
+    if (!mediaResponse.ok) return { photoUrl: null, photoAttribution };
+    const media = await mediaResponse.json().catch(() => null) as { photoUri?: unknown } | null;
+    return {
+      photoUrl: typeof media?.photoUri === "string" ? media.photoUri : null,
+      photoAttribution,
+    };
+  } catch {
+    // A single unavailable photo must not discard the rest of the catalog.
+    return { photoUrl: null, photoAttribution };
+  }
 }
 
-Deno.serve(async (request: Request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(concurrency, 1), items.length);
 
-  const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY")?.trim();
-  if (!apiKey) {
-    return jsonResponse({ error: "GOOGLE_PLACES_API_KEY is not configured" }, 503);
-  }
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  };
 
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const city = String(body?.city ?? "").trim().slice(0, 100);
-  const query = String(body?.query ?? "").trim().slice(0, 80);
-  const languageCode = safeLanguageCode(body?.languageCode);
-  const limit = clampLimit(body?.limit);
-  if (!city) return jsonResponse({ error: "city is required" }, 400);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
 
-  const textQuery = query
-    ? `${query} restaurant in ${city}`
-    : `restaurants in ${city}`;
+async function fetchPlacesPage(
+  apiKey: string,
+  textQuery: string,
+  languageCode: string,
+  pageSize: number,
+  pageToken?: string,
+): Promise<{ places?: unknown; nextPageToken?: unknown }> {
   const placesResponse = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -104,24 +121,74 @@ Deno.serve(async (request: Request) => {
         "places.googleMapsUri",
         "places.photos",
         "places.types",
+        "nextPageToken",
       ].join(","),
     },
     body: JSON.stringify({
       textQuery,
       languageCode,
-      pageSize: limit,
+      includedType: "restaurant",
+      pageSize,
+      ...(pageToken ? { pageToken } : {}),
     }),
   });
 
   if (!placesResponse.ok) {
     const details = await placesResponse.text().catch(() => "");
     console.error("Google Places request failed", placesResponse.status, details);
-    return jsonResponse({ error: "Google Places request failed" }, 502);
+    throw new Error("Google Places request failed");
   }
 
-  const data = await placesResponse.json().catch(() => null) as { places?: unknown } | null;
-  const places = Array.isArray(data?.places) ? data.places : [];
-  const restaurants = await Promise.all(places.slice(0, limit).map(async (rawPlace, index) => {
+  return await placesResponse.json().catch(() => ({})) as {
+    places?: unknown;
+    nextPageToken?: unknown;
+  };
+}
+
+Deno.serve(async (request: Request) => {
+  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+
+  const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY")?.trim();
+  if (!apiKey) {
+    return jsonResponse({ error: "GOOGLE_PLACES_API_KEY is not configured" }, 503);
+  }
+
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const city = String(body?.city ?? "").trim().slice(0, 100);
+  const query = String(body?.query ?? "").trim().slice(0, 80);
+  const languageCode = safeLanguageCode(body?.languageCode);
+  // The original Android client sent limit=20. Keep the blank city catalog
+  // full-size so older clients also receive the complete city dataset.
+  const limit = query ? clampLimit(body?.limit) : 60;
+  if (!city) return jsonResponse({ error: "city is required" }, 400);
+
+  const textQuery = query
+    ? `${query} restaurant in ${city}`
+    : `restaurants in ${city}`;
+  const places: unknown[] = [];
+  const pageSize = Math.min(PlacesPageSize, limit);
+  const seenPageTokens = new Set<string>();
+  let pageToken: string | undefined;
+  while (places.length < limit) {
+    const page = await fetchPlacesPage(
+      apiKey,
+      textQuery,
+      languageCode,
+      pageSize,
+      pageToken,
+    );
+    const pagePlaces = Array.isArray(page.places) ? page.places : [];
+    places.push(...pagePlaces);
+    const nextPageToken = typeof page.nextPageToken === "string"
+      ? page.nextPageToken.trim()
+      : "";
+    if (!nextPageToken || pagePlaces.length === 0 || seenPageTokens.has(nextPageToken)) break;
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  }
+
+  const restaurants = await mapWithConcurrency(places.slice(0, limit), PhotoConcurrency, async (rawPlace, index) => {
     const place = rawPlace as Record<string, unknown>;
     const displayName = textValue(place.displayName);
     const location = place.location && typeof place.location === "object"
@@ -137,9 +204,10 @@ Deno.serve(async (request: Request) => {
     const firstPhoto = Array.isArray(place.photos) && place.photos[0] && typeof place.photos[0] === "object"
       ? place.photos[0] as Record<string, unknown>
       : undefined;
-    const photo = index < 8
-      ? await resolvePhoto(firstPhoto, apiKey)
-      : { photoUrl: null, photoAttribution: null };
+    // Resolve a photo for every returned place. Previously only the first
+    // eight cards were enriched, which made most catalog cards show a blank
+    // restaurant icon even when Google had a photo available.
+    const photo = await resolvePhoto(firstPhoto, apiKey);
     return {
       place_id: textValue(place.id),
       name: displayName,
@@ -154,7 +222,7 @@ Deno.serve(async (request: Request) => {
       latitude: numberValue(location.latitude),
       longitude: numberValue(location.longitude),
     };
-  }));
+  });
 
   return jsonResponse({ restaurants });
 });
