@@ -3159,7 +3159,9 @@ private fun EditTripPanel(
     var status by remember(trip.id) { mutableStateOf(trip.status) }
     var saving by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
     var deleteDialogOpen by remember { mutableStateOf(false) }
+    var leaveDialogOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     var tripCalendarOpen by remember { mutableStateOf(false) }
@@ -3198,6 +3200,28 @@ private fun EditTripPanel(
                     )
                 }
             deleting = false
+        }
+    }
+
+    fun leaveTrip() {
+        leaveDialogOpen = false
+        scope.launch {
+            leaving = true
+            message = null
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).leaveTrip(trip.id)
+            }
+                .onSuccess { onDeleted(trip.id) }
+                .onFailure {
+                    message = it.message ?: localized(
+                        language,
+                        "Не удалось выйти из путешествия",
+                        "Could not leave trip",
+                        "No se pudo salir del viaje",
+                        "Die Reise konnte nicht verlassen werden",
+                    )
+                }
+            leaving = false
         }
     }
 
@@ -3361,7 +3385,7 @@ private fun EditTripPanel(
                         .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
                     saving = false
                 }
-            }, enabled = !saving && !deleting, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
+            }, enabled = !saving && !deleting && !leaving, colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -3371,7 +3395,9 @@ private fun EditTripPanel(
                 .clip(RoundedCornerShape(14.dp))
                 .border(1.dp, Color(0xFFF1D0CF), RoundedCornerShape(14.dp))
                 .background(Color(0xFFFFF8F7))
-                .clickable(enabled = !saving && !deleting) { deleteDialogOpen = true }
+                .clickable(enabled = !saving && !deleting && !leaving) {
+                    if (trip.isOwner) deleteDialogOpen = true else leaveDialogOpen = true
+                }
                 .padding(11.dp),
         ) {
             Box(
@@ -3381,11 +3407,26 @@ private fun EditTripPanel(
                     .clip(RoundedCornerShape(9.dp))
                     .background(Color(0xFFFFE9E7)),
             ) {
-                Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color(0xFFD9534F), modifier = Modifier.size(17.dp))
+                Icon(if (trip.isOwner) Icons.Outlined.Delete else Icons.Outlined.Logout, contentDescription = null, tint = Color(0xFFD9534F), modifier = Modifier.size(17.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(localized("Удалить путешествие", "Delete trip", "Eliminar viaje", "Reise löschen"), color = Color(0xFFD9534F), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
-                Text(localized("Удаление нельзя отменить", "This cannot be undone", "No se puede deshacer", "Das kann nicht rückgängig gemacht werden"), color = Color(0xFFB78380), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(
+                    if (trip.isOwner) localized("Удалить путешествие", "Delete trip", "Eliminar viaje", "Reise löschen")
+                    else localized("Выйти из путешествия", "Leave trip", "Salir del viaje", "Reise verlassen"),
+                    color = Color(0xFFD9534F),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                )
+                Text(
+                    if (trip.isOwner) localized("Удаление нельзя отменить", "This cannot be undone", "No se puede deshacer", "Das kann nicht rückgängig gemacht werden")
+                    else localized("Поездка останется у остальных участников", "The trip will remain for the other members", "El viaje permanecerá para los demás participantes", "Die Reise bleibt für die anderen Mitglieder erhalten"),
+                    color = Color(0xFFB78380),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
     }
@@ -3458,6 +3499,45 @@ private fun EditTripPanel(
                     Text(
                         if (deleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
                         else localized("Удалить", "Delete", "Eliminar", "Löschen"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
+            },
+        )
+    }
+    if (leaveDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!leaving) leaveDialogOpen = false },
+            title = {
+                Text(localized("Выйти из путешествия?", "Leave trip?", "¿Salir del viaje?", "Reise verlassen?"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+            },
+            text = {
+                Text(
+                    localized(
+                        "Вы перестанете видеть это путешествие. У создателя и остальных участников оно останется.",
+                        "You will stop seeing this trip. It will remain with the owner and other members.",
+                        "Dejarás de ver este viaje. Permanecerá para el creador y los demás participantes.",
+                        "Sie sehen diese Reise danach nicht mehr. Für den Ersteller und die anderen Mitglieder bleibt sie erhalten.",
+                    ),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { leaveDialogOpen = false }, enabled = !leaving) {
+                    Text(localized("Остаться", "Stay", "Quedarse", "Bleiben"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = ::leaveTrip,
+                    enabled = !leaving,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(
+                        if (leaving) localized("Выходим…", "Leaving…", "Saliendo…", "Wird verlassen…")
+                        else localized("Выйти", "Leave", "Salir", "Verlassen"),
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                     )

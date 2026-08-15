@@ -52,6 +52,7 @@ data class TripCard(
     val progress: Int,
     val cities: String,
     val coverImage: String?,
+    val isOwner: Boolean,
 )
 
 data class CoverPhoto(val id: String, val imageUrl: String, val city: String)
@@ -271,6 +272,7 @@ interface TripRepository {
         cityCoordinates: Map<String, CityLocation> = emptyMap(),
     ): TripCard
     suspend fun deleteTrip(id: String)
+    suspend fun leaveTrip(id: String)
     suspend fun updateTripSection(id: String, key: String, value: JsonElement)
     suspend fun addRouteLeg(
         id: String,
@@ -373,6 +375,7 @@ class AuthSessionRequiredException : IllegalStateException()
 
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
     override suspend fun loadTrips(): List<TripCard> {
+        val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
         val rows = client.from("trips").select().decodeList<TripRow>()
         return supervisorScope {
             rows.map { row ->
@@ -386,6 +389,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 progress = row.payload["progress"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100) ?: 0,
                 cities = text("cities"),
                 coverImage = client.resolveTripPhotoReference(text("coverImage")),
+                isOwner = row.ownerId == currentUserId,
             )
                 }
             }.awaitAll()
@@ -689,7 +693,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             })
         }
         client.from("trips").insert(listOf(TripInsert(id, ownerId, payload)))
-        return TripCard(id, resolvedTitle, dates, "Черновик", 0, cities.trim(), null)
+        return TripCard(id, resolvedTitle, dates, "Черновик", 0, cities.trim(), null, isOwner = true)
     }
 
     override suspend fun deleteTrip(id: String) {
@@ -709,6 +713,17 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 eq("owner_id", currentUserId)
             }
         }
+    }
+
+    override suspend fun leaveTrip(id: String) {
+        client.auth.currentUserOrNull()?.id?.toString()
+            ?: throw AuthSessionRequiredException()
+        client.postgrest.rpc(
+            function = "leave_trip",
+            parameters = buildJsonObject {
+                put("p_trip_id", id)
+            },
+        )
     }
 
     private suspend fun loadTripRow(id: String): TripRow =
