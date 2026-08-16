@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -186,6 +187,7 @@ import androidx.navigation.compose.rememberNavController
 import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.BuildConfig
 import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.RememberedAccount
 import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.SupabaseTripRepository
@@ -214,6 +216,7 @@ import com.odyssey.travelplanner.data.parseSightLinkCoordinates
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
+import com.odyssey.travelplanner.data.isPlaceholderSightDescription
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -882,8 +885,56 @@ private fun localizedSightDescription(value: String): String {
 }
 
 @Composable
-private fun localizedSightInfo(description: String, category: String): String {
-    return if (description.isBlank()) localizedSightCategory(category) else localizedSightDescription(description)
+private fun localizedKnownSightDescription(name: String): String? = when (normalizeCatalogText(name)) {
+    "ravensburger spieleland" -> localized(
+        "Семейный парк развлечений недалеко от Равенсбурга с тематическими зонами и аттракционами для детей.",
+        "Family theme park near Ravensburg with themed areas and attractions for children.",
+        "Parque familiar cerca de Ravensburg con zonas temáticas y atracciones para niños.",
+        "Familienfreizeitpark nahe Ravensburg mit Themenwelten und Attraktionen für Kinder.",
+    )
+    "museum ravensburger" -> localized(
+        "Интерактивный музей истории Ravensburger: игры, книги, пазлы и процесс их создания.",
+        "Interactive museum about Ravensburger's history, games, books, puzzles, and how they are made.",
+        "Museo interactivo sobre la historia de Ravensburger, sus juegos, libros, puzles y su creación.",
+        "Interaktives Museum zur Geschichte von Ravensburger, Spielen, Büchern, Puzzles und ihrer Entstehung.",
+    )
+    "mehlsack" -> localized(
+        "Белая башня около 1425 года и один из главных символов Равенсбурга.",
+        "White tower built around 1425 and one of Ravensburg's main landmarks.",
+        "Torre blanca construida hacia 1425 y uno de los principales monumentos de Ravensburg.",
+        "Um 1425 erbauter weißer Turm und eines der wichtigsten Wahrzeichen Ravensburgs.",
+    )
+    "grüner turm", "gruener turm" -> localized(
+        "Башня начала XV века с зелёной глазурованной черепицей, сохранившейся со времени постройки.",
+        "Early-15th-century tower with glazed green roof tiles preserved from its construction.",
+        "Torre de principios del siglo XV con tejas vidriadas verdes conservadas desde su construcción.",
+        "Turm aus dem frühen 15. Jahrhundert mit seit dem Bau erhaltenen grün glasierten Dachziegeln.",
+    )
+    "humpis-quartier", "museum humpis-quartier" -> localized(
+        "Культурно-исторический музей в пяти зданиях позднесредневекового квартала с тысячелетней историей города.",
+        "Cultural history museum in five late-medieval buildings tracing a thousand years of city history.",
+        "Museo de historia cultural en cinco edificios tardomedievales que recorren mil años de historia urbana.",
+        "Kulturhistorisches Museum in fünf spätmittelalterlichen Gebäuden mit 1.000 Jahren Stadtgeschichte.",
+    )
+    "замок нойшванштайн", "neuschwanstein", "neuschwanstein castle", "schloss neuschwanstein" -> localized(
+        "Замок Людвига II XIX века в баварских Альпах, вдохновлённый образами средневековых замков.",
+        "19th-century castle of Ludwig II in the Bavarian Alps, inspired by visions of medieval castles.",
+        "Castillo del siglo XIX de Luis II en los Alpes bávaros, inspirado en imágenes de castillos medievales.",
+        "Schloss Ludwigs II. aus dem 19. Jahrhundert in den Bayerischen Alpen, inspiriert von mittelalterlichen Burgen.",
+    )
+    "wirtschaftsmuseum", "wirtschaftsmuseum ravensburg" -> localized(
+        "Музей экономической истории региона XIX и XX веков с оригинальными экспонатами и историями людей.",
+        "Museum of the region's economic history in the 19th and 20th centuries, with original objects and stories.",
+        "Museo de la historia económica regional de los siglos XIX y XX, con objetos originales y relatos.",
+        "Museum zur Wirtschaftsgeschichte der Region im 19. und 20. Jahrhundert mit Originalobjekten und Geschichten.",
+    )
+    else -> null
+}
+
+@Composable
+private fun localizedSightInfo(name: String, description: String, category: String): String {
+    if (!isPlaceholderSightDescription(description)) return localizedSightDescription(description)
+    return localizedKnownSightDescription(name) ?: localizedSightCategory(category)
 }
 
 @Composable
@@ -940,6 +991,60 @@ private fun localizedRestaurantNote(value: String): String {
         )
         else -> value
     }
+}
+
+@Composable
+private fun localizedRestaurantCuisine(value: String): String {
+    val tokens = value
+        .split('·')
+        .map { it.trim() }
+        .filter(String::isNotBlank)
+    if (tokens.isEmpty()) return ""
+
+    val normalizedTokens = tokens.map { token ->
+        token.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim()
+    }
+    val hasSpecificRestaurantType = normalizedTokens.any {
+        it != "restaurant" && it.endsWith(" restaurant")
+    }
+    val visibleTokens = tokens.zip(normalizedTokens)
+        .filterNot { (_, normalized) -> hasSpecificRestaurantType && normalized == "restaurant" }
+        .map { (token, _) -> localizedRestaurantCuisineToken(token) }
+        .distinct()
+    return visibleTokens.joinToString(" · ")
+}
+
+@Composable
+private fun localizedRestaurantCuisineToken(value: String): String = when (
+    value.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim()
+) {
+    "italian restaurant", "italian" -> localized("Итальянская кухня", "Italian cuisine", "Cocina italiana", "Italienische Küche")
+    "fast food restaurant", "fast food" -> localized("Фастфуд", "Fast food", "Comida rápida", "Fast Food")
+    "korean restaurant", "korean" -> localized("Корейская кухня", "Korean cuisine", "Cocina coreana", "Koreanische Küche")
+    "japanese restaurant", "japanese" -> localized("Японская кухня", "Japanese cuisine", "Cocina japonesa", "Japanische Küche")
+    "sushi restaurant", "sushi" -> localized("Суши", "Sushi", "Sushi", "Sushi")
+    "chinese restaurant", "chinese" -> localized("Китайская кухня", "Chinese cuisine", "Cocina china", "Chinesische Küche")
+    "indian restaurant", "indian" -> localized("Индийская кухня", "Indian cuisine", "Cocina india", "Indische Küche")
+    "thai restaurant", "thai" -> localized("Тайская кухня", "Thai cuisine", "Cocina tailandesa", "Thailändische Küche")
+    "french restaurant", "french" -> localized("Французская кухня", "French cuisine", "Cocina francesa", "Französische Küche")
+    "german restaurant", "german" -> localized("Немецкая кухня", "German cuisine", "Cocina alemana", "Deutsche Küche")
+    "bavarian restaurant", "bavarian" -> localized("Баварская кухня", "Bavarian cuisine", "Cocina bávara", "Bayerische Küche")
+    "seafood restaurant", "seafood", "fish restaurant", "fish" -> localized("Рыба и морепродукты", "Seafood", "Mariscos", "Fisch und Meeresfrüchte")
+    "pizza restaurant", "pizza", "pizzeria" -> localized("Пицца", "Pizza", "Pizza", "Pizza")
+    "steak house", "steakhouse", "steak restaurant" -> localized("Стейки", "Steakhouse", "Parrilla", "Steakhaus")
+    "barbecue restaurant", "barbecue", "bbq" -> localized("Барбекю", "Barbecue", "Barbacoa", "Barbecue")
+    "vegetarian restaurant", "vegetarian" -> localized("Вегетарианская кухня", "Vegetarian cuisine", "Cocina vegetariana", "Vegetarische Küche")
+    "vegan restaurant", "vegan" -> localized("Веганская кухня", "Vegan cuisine", "Cocina vegana", "Vegane Küche")
+    "restaurant" -> localized("Ресторан", "Restaurant", "Restaurante", "Restaurant")
+    "cafe", "café" -> localized("Кафе", "Café", "Café", "Café")
+    "coffee shop", "coffee" -> localized("Кофейня", "Coffee shop", "Cafetería", "Café")
+    "bar", "wine bar", "cocktail bar" -> localized("Бар", "Bar", "Bar", "Bar")
+    "bakery" -> localized("Пекарня", "Bakery", "Panadería", "Bäckerei")
+    "dessert shop", "dessert" -> localized("Десерты", "Desserts", "Postres", "Desserts")
+    "meal takeaway", "takeaway" -> localized("Еда навынос", "Takeaway", "Comida para llevar", "Essen zum Mitnehmen")
+    "food court" -> localized("Фуд-корт", "Food court", "Zona de restauración", "Food-Court")
+    "regional" -> localized("Региональная кухня", "Regional cuisine", "Cocina regional", "Regionale Küche")
+    else -> value
 }
 
 private data class PhotoDateRange(val start: LocalDate, val end: LocalDate)
@@ -1235,6 +1340,7 @@ fun OdysseyApp(
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
     var rememberSession by remember { mutableStateOf(false) }
+    var rememberedAccounts by remember { mutableStateOf<List<RememberedAccount>>(emptyList()) }
 
     LaunchedEffect(darkTheme, authReady) {
         if (authReady) {
@@ -1247,11 +1353,17 @@ fun OdysseyApp(
 
     LaunchedEffect(Unit) {
         hasSession = SupabaseProvider.restorePersistentSession()
+        rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
         authReady = true
     }
 
     LaunchedEffect(authReady, hasSession) {
-        if (!authReady || !hasSession) return@LaunchedEffect
+        if (!authReady) return@LaunchedEffect
+        if (!hasSession) {
+            rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+            return@LaunchedEffect
+        }
+        rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
         val repository = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
         runCatching { repository.loadProfile() }.getOrNull()?.let { profile ->
             darkTheme = profile.darkTheme
@@ -1285,9 +1397,9 @@ fun OdysseyApp(
         }
     }
 
-    LaunchedEffect(authReady) {
+    LaunchedEffect(authReady, rememberedAccounts) {
         if (!authReady) return@LaunchedEffect
-        val authClients = listOf(SupabaseProvider.sessionOnlyClient, SupabaseProvider.persistentClient)
+        val authClients = SupabaseProvider.authClients()
         authClients.forEach { client ->
             launch {
                 client.auth.sessionStatus.collect { status ->
@@ -1295,10 +1407,13 @@ fun OdysseyApp(
                     if (isActiveClient && status is SessionStatus.Authenticated) {
                         hasSession = true
                     }
-                    val sessionLost = isActiveClient && (
-                        status is SessionStatus.RefreshFailure ||
-                            status is SessionStatus.NotAuthenticated
-                        )
+                    // A refresh failure can be temporary (for example, a
+                    // network interruption) and must not discard the current
+                    // navigation state after a successful trip insert. The
+                    // create-trip flow verifies the session before writing;
+                    // only an explicit sign-out is a UI logout.
+                    val sessionLost = isActiveClient &&
+                        status is SessionStatus.NotAuthenticated && status.isSignOut
                     if (sessionLost) {
                         hasSession = false
                     }
@@ -1331,10 +1446,18 @@ fun OdysseyApp(
                     AuthScreen(
                         rememberSession = rememberSession,
                         onRememberSessionChange = { rememberSession = it },
+                        rememberedAccounts = rememberedAccounts,
+                        onRememberedAccountSelected = { account ->
+                            SupabaseProvider.activateRememberedAccount(account.id)
+                        },
+                        onRememberedAccountRemoved = { account ->
+                            SupabaseProvider.removeRememberedAccount(account.id)
+                            rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+                        },
                         onLanguageChange = ::handleLanguageChange,
                         onAuthenticated = {
-                        hasSession = true
-                        navController.navigate("trips")
+                            hasSession = true
+                            navController.navigate("trips")
                         },
                     )
                 }
@@ -1414,6 +1537,9 @@ fun OdysseyApp(
 private fun AuthScreen(
     rememberSession: Boolean,
     onRememberSessionChange: (Boolean) -> Unit,
+    rememberedAccounts: List<RememberedAccount>,
+    onRememberedAccountSelected: suspend (RememberedAccount) -> Boolean,
+    onRememberedAccountRemoved: suspend (RememberedAccount) -> Unit,
     onLanguageChange: (String) -> Unit,
     onAuthenticated: () -> Unit,
 ) {
@@ -1428,6 +1554,9 @@ private fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var languagePickerOpen by remember { mutableStateOf(false) }
+    var accountPickerOpen by remember(rememberedAccounts) {
+        mutableStateOf(rememberedAccounts.isNotEmpty())
+    }
     val scope = rememberCoroutineScope()
     val languageCode = normalizeLanguage(language)
     val languageOptions = listOf(
@@ -1463,12 +1592,17 @@ private fun AuthScreen(
                         this.password = password
                         data = buildJsonObject { put("full_name", name.trim()) }
                     }
-                    auth.currentSessionOrNull() != null
+                    val authenticatedImmediately = auth.currentSessionOrNull() != null
+                    if (authenticatedImmediately) {
+                        SupabaseProvider.finalizeAuthentication(rememberSession)
+                    }
+                    authenticatedImmediately
                 } else {
                     auth.signInWith(Email) {
                         this.email = email.trim()
                         this.password = password
                     }
+                    SupabaseProvider.finalizeAuthentication(rememberSession)
                     true
                 }
             }.onSuccess { authenticatedImmediately ->
@@ -1508,6 +1642,7 @@ private fun AuthScreen(
                     idToken = googleCredential.idToken
                     provider = Google
                 }
+                SupabaseProvider.finalizeAuthentication(rememberSession)
             }.onSuccess { onAuthenticated() }.onFailure { error ->
                 message = if (error is NoCredentialException) {
                     messageText("Аккаунт Google не выбран", "No Google account was selected", "No se seleccionó ninguna cuenta de Google", "Kein Google-Konto ausgewählt")
@@ -1650,7 +1785,46 @@ private fun AuthScreen(
             modifier = Modifier.padding(top = 8.dp),
         )
 
-        Spacer(Modifier.height(28.dp))
+        val showRememberedAccounts = !isRegistration && accountPickerOpen && rememberedAccounts.isNotEmpty()
+        if (showRememberedAccounts) {
+            RememberedAccountsPanel(
+                accounts = rememberedAccounts,
+                isLoading = isLoading,
+                onSelect = { account ->
+                    scope.launch {
+                        isLoading = true
+                        message = null
+                        val activated = runCatching {
+                            onRememberedAccountSelected(account)
+                        }.getOrDefault(false)
+                        if (activated) {
+                            onAuthenticated()
+                        } else {
+                            onRememberedAccountRemoved(account)
+                            message = messageText(
+                                "Не удалось войти под этим аккаунтом. Войдите снова.",
+                                "Could not use this account. Sign in again.",
+                                "No se pudo usar esta cuenta. Inicie sesión de nuevo.",
+                                "Dieses Konto konnte nicht verwendet werden. Melden Sie sich erneut an.",
+                            )
+                            if (rememberedAccounts.size <= 1) accountPickerOpen = false
+                        }
+                        isLoading = false
+                    }
+                },
+                onRemove = { account ->
+                    scope.launch {
+                        onRememberedAccountRemoved(account)
+                        if (rememberedAccounts.size <= 1) accountPickerOpen = false
+                    }
+                },
+                onOtherAccount = {
+                    accountPickerOpen = false
+                    message = null
+                },
+            )
+        } else {
+            Spacer(Modifier.height(28.dp))
         if (isRegistration) {
             AuthField(localized("Имя", "Name", "Nombre", "Name"), localized("Как вас зовут", "What is your name", "Cómo se llama", "Wie heißen Sie"), name) { name = it }
             Spacer(Modifier.height(14.dp))
@@ -1794,6 +1968,7 @@ private fun AuthScreen(
                 fontSize = 14.sp,
                 modifier = Modifier.clickable {
                     isRegistration = !isRegistration
+                    accountPickerOpen = !isRegistration && rememberedAccounts.isNotEmpty()
                     name = ""
                     password = ""
                     repeatPassword = ""
@@ -1801,6 +1976,325 @@ private fun AuthScreen(
                 },
             )
         }
+        }
+    }
+}
+
+@Composable
+private fun RememberedAccountsPanel(
+    accounts: List<RememberedAccount>,
+    isLoading: Boolean,
+    onSelect: (RememberedAccount) -> Unit,
+    onRemove: suspend (RememberedAccount) -> Unit,
+    onOtherAccount: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var selectedId by remember(accounts) { mutableStateOf(accounts.firstOrNull()?.id) }
+    var menuAccount by remember { mutableStateOf<RememberedAccount?>(null) }
+    var removeAccount by remember { mutableStateOf<RememberedAccount?>(null) }
+    val selectedAccount = accounts.firstOrNull { it.id == selectedId } ?: accounts.firstOrNull()
+
+    Column(modifier = Modifier.padding(top = 27.dp)) {
+        Text(
+            text = localized("СОХРАНЁННЫЕ АККАУНТЫ", "SAVED ACCOUNTS", "CUENTAS GUARDADAS", "GESPEICHERTE KONTEN"),
+            color = OdysseyPurple,
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 11.sp,
+            letterSpacing = 1.2.sp,
+        )
+        Text(
+            text = localized(
+                "Выберите аккаунт, под которым хотите продолжить.",
+                "Choose the account you want to continue with.",
+                "Elija la cuenta con la que desea continuar.",
+                "Wählen Sie das Konto, mit dem Sie fortfahren möchten.",
+            ),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 17.dp),
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            accounts.forEachIndexed { index, account ->
+                val selected = selectedAccount?.id == account.id
+                val cardShape = RoundedCornerShape(14.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(cardShape)
+                        .background(if (selected) Color(0xFFFBFAFF) else cardSurfaceColor())
+                        .border(
+                            width = if (selected) 1.5.dp else 1.dp,
+                            color = if (selected) OdysseyPurple else contentBorderColor(),
+                            shape = cardShape,
+                        )
+                        .clickable {
+                            selectedId = account.id
+                        }
+                        .padding(start = 13.dp, top = 13.dp, bottom = 13.dp, end = 42.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val avatarColors = if (index % 2 == 0) {
+                            listOf(Color(0xFFF6CDA5), Color(0xFFE88E77))
+                        } else {
+                            listOf(Color(0xFFACCBFF), Color(0xFF7384E9))
+                        }
+                        Text(
+                            text = account.displayName.trim().take(1).uppercase().ifBlank { "R" },
+                            color = Color.White,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 17.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(Brush.linearGradient(avatarColors), RoundedCornerShape(12.dp))
+                                .padding(top = 10.dp),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp),
+                        ) {
+                            Text(
+                                text = account.displayName,
+                                color = contentTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = account.email,
+                                color = secondaryTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W600,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 3.dp),
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 5.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(Color(0xFF22B07D), CircleShape),
+                                )
+                                Text(
+                                    text = localized(
+                                        "Сохранён на этом устройстве",
+                                        "Saved on this device",
+                                        "Guardado en este dispositivo",
+                                        "Auf diesem Gerät gespeichert",
+                                    ),
+                                    color = Color(0xFF22B07D),
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W800,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(start = 5.dp),
+                                )
+                            }
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .background(if (selected) OdysseyPurple else Color.Transparent, RoundedCornerShape(6.dp))
+                                .drawBehind {
+                                    if (!selected) {
+                                        drawRoundRect(
+                                            Color(0xFFBDBCC6),
+                                            style = Stroke(width = 1.dp.toPx()),
+                                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),
+                                        )
+                                    }
+                                },
+                        ) {
+                            if (selected) {
+                                Text("✓", color = Color.White, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { menuAccount = account },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(34.dp)
+                            .padding(top = 2.dp, end = 2.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = localized("Настройки аккаунта", "Account options", "Opciones de cuenta", "Kontenoptionen"),
+                            tint = Color(0xFFB1B1BB),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuAccount?.id == account.id,
+                        onDismissRequest = { menuAccount = null },
+                        shape = RoundedCornerShape(14.dp),
+                        containerColor = cardSurfaceColor(),
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = localized("Удалить с устройства", "Remove from device", "Eliminar del dispositivo", "Vom Gerät entfernen"),
+                                    color = contentTextColor(),
+                                    fontFamily = Manrope,
+                                    fontWeight = FontWeight.W700,
+                                    fontSize = 13.sp,
+                                )
+                            },
+                            onClick = {
+                                removeAccount = account
+                                menuAccount = null
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = { selectedAccount?.let(onSelect) },
+            enabled = selectedAccount != null && !isLoading,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(15.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 18.dp)
+                .height(56.dp)
+                .background(
+                    Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))),
+                    RoundedCornerShape(15.dp),
+                ),
+        ) {
+            Text(
+                text = if (isLoading) {
+                    localized("Подождите…", "Please wait…", "Espere…", "Bitte warten…")
+                } else {
+                    localized("Продолжить как ${selectedAccount?.displayName.orEmpty()}", "Continue as ${selectedAccount?.displayName.orEmpty()}", "Continuar como ${selectedAccount?.displayName.orEmpty()}", "Fortfahren als ${selectedAccount?.displayName.orEmpty()}")
+                },
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 16.sp,
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(vertical = 21.dp),
+        ) {
+            Spacer(Modifier.weight(1f).height(1.dp).background(OdysseyBorder))
+            Text(
+                text = localized("или", "or", "o", "oder"),
+                color = Color(0xFFB6B6BE),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+            Spacer(Modifier.weight(1f).height(1.dp).background(OdysseyBorder))
+        }
+        TextButton(
+            onClick = onOtherAccount,
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(23.dp)
+                    .border(1.dp, Color(0xFFCFCBFA), RoundedCornerShape(8.dp)),
+            ) {
+                Text("+", color = OdysseyPurple, fontSize = 17.sp, lineHeight = 17.sp)
+            }
+            Text(
+                text = localized("Войти под другим аккаунтом", "Sign in with another account", "Iniciar sesión con otra cuenta", "Mit einem anderen Konto anmelden"),
+                color = OdysseyPurple,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        Text(
+            text = localized(
+                "Если сохранённых аккаунтов нет, откроется обычная форма входа.",
+                "If there are no saved accounts, the standard sign-in form opens.",
+                "Si no hay cuentas guardadas, se abrirá el formulario de inicio de sesión.",
+                "Wenn keine Konten gespeichert sind, wird das normale Anmeldeformular geöffnet.",
+            ),
+            color = Color(0xFFA0A0AA),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            modifier = Modifier.padding(top = 24.dp),
+        )
+    }
+
+    removeAccount?.let { account ->
+        AlertDialog(
+            onDismissRequest = { removeAccount = null },
+            title = {
+                Text(
+                    text = localized("Удалить аккаунт?", "Remove account?", "¿Eliminar la cuenta?", "Konto entfernen?"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Text(
+                    text = localized(
+                        "Аккаунт будет удалён только с этого устройства.",
+                        "The account will only be removed from this device.",
+                        "La cuenta solo se eliminará de este dispositivo.",
+                        "Das Konto wird nur von diesem Gerät entfernt.",
+                    ),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val target = removeAccount
+                        removeAccount = null
+                        if (target != null) {
+                            scope.launch { onRemove(target) }
+                        }
+                    },
+                ) {
+                    Text(
+                        text = localized("Удалить", "Remove", "Eliminar", "Entfernen"),
+                        color = Color(0xFFE0524B),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { removeAccount = null }) {
+                    Text(
+                        text = localized("Отмена", "Cancel", "Cancelar", "Abbrechen"),
+                        color = OdysseyPurple,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
+            },
+        )
     }
 }
 
@@ -2980,8 +3474,40 @@ private fun TripDateCalendarDialog(
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
+        val dialogWindow = (LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        DisposableEffect(dialogWindow) {
+            if (dialogWindow == null) {
+                return@DisposableEffect onDispose { }
+            }
+            val previousStatusBarColor = dialogWindow.statusBarColor
+            val previousNavigationBarColor = dialogWindow.navigationBarColor
+            val previousDimAmount = dialogWindow.attributes.dimAmount
+            val insetsController = WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView)
+            val previousLightStatusBars = insetsController.isAppearanceLightStatusBars
+            val previousLightNavigationBars = insetsController.isAppearanceLightNavigationBars
+
+            dialogWindow.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            dialogWindow.setDimAmount(1f)
+            dialogWindow.statusBarColor = android.graphics.Color.BLACK
+            dialogWindow.navigationBarColor = android.graphics.Color.BLACK
+            WindowCompat.setDecorFitsSystemWindows(dialogWindow, false)
+            insetsController.isAppearanceLightStatusBars = false
+            insetsController.isAppearanceLightNavigationBars = false
+
+            onDispose {
+                dialogWindow.setDimAmount(previousDimAmount)
+                dialogWindow.statusBarColor = previousStatusBarColor
+                dialogWindow.navigationBarColor = previousNavigationBarColor
+                WindowCompat.setDecorFitsSystemWindows(dialogWindow, true)
+                insetsController.isAppearanceLightStatusBars = previousLightStatusBars
+                insetsController.isAppearanceLightNavigationBars = previousLightNavigationBars
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -5204,6 +5730,45 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     var fullScreenSight by remember { mutableStateOf<com.odyssey.travelplanner.data.Sight?>(null) }
     var editingDay by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val missingSightDescriptionKey = remember(sights) {
+        sights
+            .filter { isPlaceholderSightDescription(it.description) }
+            .map { sightDescriptionLookupKey(it.city, it.name) }
+            .sorted()
+            .joinToString("|")
+    }
+    var sightDescriptionOverrides by remember(tripId, language) { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(tripId, language, missingSightDescriptionKey) {
+        sightDescriptionOverrides = emptyMap()
+        if (missingSightDescriptionKey.isBlank()) return@LaunchedEffect
+
+        val missingSights = sights.filter { isPlaceholderSightDescription(it.description) }
+        val repository = SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+        val resolved = mutableMapOf<String, String>()
+        missingSights
+            .groupBy { catalogCityName(it.city) }
+            .filterKeys(String::isNotBlank)
+            .forEach { (cityName, citySights) ->
+                val entries = runCatching {
+                    repository.searchWithLiveRatings(city = cityName, query = "", language = language, limit = 60).entries
+                }.getOrElse { emptyList() }
+                entries.forEach { entry ->
+                    val description = entry.description(language).trim()
+                    if (isPlaceholderSightDescription(description)) return@forEach
+                    citySights.firstOrNull { sight -> sightDescriptionNameMatches(sight.name, entry) }
+                        ?.let { sight -> resolved[sightDescriptionLookupKey(sight.city, sight.name)] = description }
+                }
+            }
+        sightDescriptionOverrides = resolved
+    }
+    val visibleSightsWithDescriptions = visibleSights.map { sight ->
+        val override = sightDescriptionOverrides[sightDescriptionLookupKey(sight.city, sight.name)]
+        if (isPlaceholderSightDescription(sight.description) && !override.isNullOrBlank()) {
+            sight.copy(description = override)
+        } else {
+            sight
+        }
+    }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val sightId = uploadingSightId ?: return@rememberLauncherForActivityResult
         if (uri == null) { uploadingSightId = null; return@rememberLauncherForActivityResult }
@@ -5415,13 +5980,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
         if (visibleSights.isEmpty()) {
             item { Text(localized("Достопримечательности пока не добавлены", "No sights added yet", "Aún no se han añadido lugares", "Noch keine Orte hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
-            if (editingSight != null) item {
-                EditSightPanel(editingSight!!, tripId, dayCities, onClose = { editingSight = null }, onSaved = {
-                    editingSight = null
-                    onSightUpdated()
-                })
-            }
-            items(visibleSights, key = { it.id }) { sight ->
+            items(visibleSightsWithDescriptions, key = { it.id }) { sight ->
                 SightCard(
                     sight = sight,
                     uploading = uploadingSightId == sight.id,
@@ -5433,6 +5992,34 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
             }
         }
     }
+    if (editingSight != null) {
+        ModalBottomSheet(
+            onDismissRequest = { editingSight = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            EditSightPanel(
+                sight = editingSight!!,
+                tripId = tripId,
+                dayCities = dayCities,
+                onClose = { editingSight = null },
+                onSaved = {
+                    editingSight = null
+                    onSightUpdated()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 720.dp)
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+                    .navigationBarsPadding(),
+            )
+        }
+    }
     fullScreenSight?.let { sight ->
         FullScreenSightPhotoViewer(
             sight = sight,
@@ -5441,7 +6028,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
     }
     if (editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
-            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSights, sights, onClose = { editingDay = false }, onSaved = onSightUpdated)
+            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSightsWithDescriptions, sights, onClose = { editingDay = false }, onSaved = onSightUpdated)
         }
     }
     if (creatingDay) {
@@ -5454,6 +6041,20 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
             CreateDaySheet(tripId = tripId, city = selectedDayCity, day = nextDayNumber, onClose = { creatingDay = false }, onSaved = onSightUpdated)
         }
     }
+}
+
+private fun sightDescriptionLookupKey(city: String, name: String): String =
+    "${normalizeCatalogText(catalogCityName(city))}|${normalizeCatalogText(name)}"
+
+private fun sightDescriptionNameMatches(name: String, entry: SightCatalogEntry): Boolean {
+    val normalizedName = normalizeCatalogText(name)
+    if (normalizedName.isBlank()) return false
+    return entry.allNames()
+        .map(::normalizeCatalogText)
+        .filter(String::isNotBlank)
+        .any { candidate ->
+            candidate == normalizedName || candidate.contains(normalizedName) || normalizedName.contains(candidate)
+        }
 }
 
 private fun sightRouteDay(walkDay: Int): Int = walkDay.coerceAtLeast(1)
@@ -5782,7 +6383,7 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Si
         sights.forEach { sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(secondarySurfaceColor()).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
-                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
+                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.name, sight.description, sight.category), color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
                 Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(dangerSurfaceColor()).clickable(enabled = deletingSightId == null) {
                     deletingSightId = sight.id
                     message = null
@@ -5901,7 +6502,7 @@ private fun SightCatalogSheet(
         "Fotos und Bewertungen sind vorübergehend nicht verfügbar — der Basiskatalog wird angezeigt",
     )
 
-    LaunchedEffect(city, query) {
+    LaunchedEffect(city, query, language) {
         loading = true
         message = null
         delay(180)
@@ -6750,7 +7351,7 @@ private fun SightCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                localizedSightInfo(sight.description, sight.category),
+                localizedSightInfo(sight.name, sight.description, sight.category),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
@@ -6830,6 +7431,7 @@ private fun EditSightPanel(
     dayCities: List<String>,
     onClose: () -> Unit,
     onSaved: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val language = LocalLanguage.current
     val displayedName = localizedSightName(sight.name)
@@ -6858,7 +7460,7 @@ private fun EditSightPanel(
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(localized("Редактировать место", "Edit sight", "Editar lugar", "Ort bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
         AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
         SightRouteDayField(
@@ -7993,7 +8595,7 @@ private fun RestaurantCatalogSheet(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(entry.name(language), color = OdysseyText, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val details = listOf(entry.cuisine, entry.address).filter(String::isNotBlank).joinToString(" · ")
+                            val details = listOf(localizedRestaurantCuisine(entry.cuisine), entry.address).filter(String::isNotBlank).joinToString(" · ")
                             if (details.isNotBlank()) {
                                 Text(details, color = OdysseySubtext, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                             }

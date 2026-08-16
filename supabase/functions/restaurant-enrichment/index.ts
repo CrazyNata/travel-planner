@@ -39,6 +39,11 @@ function textValue(value: unknown): string {
   return "";
 }
 
+function editorialSummaryValue(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  return textValue((value as Record<string, unknown>).text);
+}
+
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -121,25 +126,28 @@ async function fetchPlacesPage(
   pageSize: number,
   includedType: string,
   pageToken?: string,
+  includeEditorialSummary = true,
 ): Promise<{ places?: unknown; nextPageToken?: unknown }> {
+  const fields = [
+    "places.id",
+    "places.displayName",
+    "places.formattedAddress",
+    "places.location",
+    "places.rating",
+    "places.userRatingCount",
+    "places.priceLevel",
+    "places.googleMapsUri",
+    "places.photos",
+    "places.types",
+    ...(includeEditorialSummary ? ["places.editorialSummary"] : []),
+    "nextPageToken",
+  ];
   const placesResponse = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": [
-        "places.id",
-        "places.displayName",
-        "places.formattedAddress",
-        "places.location",
-        "places.rating",
-        "places.userRatingCount",
-        "places.priceLevel",
-        "places.googleMapsUri",
-        "places.photos",
-        "places.types",
-        "nextPageToken",
-      ].join(","),
+      "X-Goog-FieldMask": fields.join(","),
     },
     body: JSON.stringify({
       textQuery,
@@ -233,15 +241,35 @@ Deno.serve(async (request: Request) => {
   const pageSize = Math.min(PlacesPageSize, limit);
   const seenPageTokens = new Set<string>();
   let pageToken: string | undefined;
+  let includeEditorialSummary = category === "sight";
   while (places.length < limit) {
-    const page = await fetchPlacesPage(
-      apiKey,
-      textQuery,
-      languageCode,
-      pageSize,
-      includedType,
-      pageToken,
-    );
+    let page: { places?: unknown; nextPageToken?: unknown };
+    try {
+      page = await fetchPlacesPage(
+        apiKey,
+        textQuery,
+        languageCode,
+        pageSize,
+        includedType,
+        pageToken,
+        includeEditorialSummary,
+      );
+    } catch (error) {
+      // Keep live ratings/photos working if a Places project does not have the
+      // Atmosphere field enabled yet. Descriptions are optional enrichment.
+      if (!includeEditorialSummary) throw error;
+      console.warn("Google Places editorial summaries unavailable; retrying without them");
+      includeEditorialSummary = false;
+      page = await fetchPlacesPage(
+        apiKey,
+        textQuery,
+        languageCode,
+        pageSize,
+        includedType,
+        pageToken,
+        false,
+      );
+    }
     const pagePlaces = Array.isArray(page.places) ? page.places : [];
     places.push(...pagePlaces);
     const nextPageToken = typeof page.nextPageToken === "string"
@@ -294,6 +322,7 @@ Deno.serve(async (request: Request) => {
       rating: numberValue(place.rating),
       rating_count: typeof place.userRatingCount === "number" ? Math.trunc(place.userRatingCount) : null,
       price_level: priceLevelValue(place.priceLevel),
+      description: editorialSummaryValue(place.editorialSummary),
       photo_url: photo?.photoUrl ?? null,
       photo_name: photoName,
       photo_attribution: photo?.photoAttribution ?? photoAttributionValue(firstPhoto),

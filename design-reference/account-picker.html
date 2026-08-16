@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ramingo · авторизация Android</title>
+    <style>
+      :root {
+        --purple: #6c5ce7;
+        --purple-light: #8e7bf5;
+        --background: #f4f4f7;
+        --surface: #ffffff;
+        --tint: #f1eefe;
+        --text: #141419;
+        --label: #3a3a42;
+        --subtext: #8a8a95;
+        --border: #e6e6ec;
+        --green: #22b07d;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background: #e9e9ee;
+        color: var(--text);
+        font-family: Manrope, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button,
+      input { font: inherit; }
+
+      .preview-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        max-width: calc(100vw - 24px);
+        margin: 14px auto 10px;
+        border: 1px solid rgba(108, 92, 231, .18);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .92);
+        padding: 4px;
+        box-shadow: 0 8px 24px rgba(27, 28, 31, .08);
+      }
+
+      .preview-bar small {
+        padding: 0 7px;
+        color: var(--subtext);
+        font-size: 10px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .preview-bar button {
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        padding: 7px 10px;
+        color: #858895;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .preview-bar button.active { background: var(--purple); color: #fff; }
+
+      .phone {
+        position: relative;
+        width: min(100%, 390px);
+        min-height: 844px;
+        margin: 0 auto 28px;
+        overflow: hidden;
+        border: 10px solid #1c1c22;
+        border-radius: 43px;
+        background: var(--background);
+        box-shadow: 0 26px 70px rgba(32, 31, 49, .22), inset 0 0 0 1px #3a3a42;
+      }
+
+      .phone-screen {
+        min-height: 824px;
+        overflow: hidden;
+        border-radius: 32px;
+        background: var(--background);
+      }
+
+      .status-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 31px;
+        padding: 7px 18px 0;
+        color: #5e5e68;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .status-icons { display: inline-flex; align-items: center; gap: 8px; color: #62626d; font-size: 10px; }
+
+      .screen-content {
+        min-height: 793px;
+        padding: 31px 24px 28px;
+      }
+
+      .top-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 43px;
+        height: 43px;
+        place-items: center;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--purple), var(--purple-light));
+        color: #fff;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .brand-name {
+        margin-left: 11px;
+        color: var(--text);
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .language {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #faf9ff;
+        padding: 7px 8px;
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .language-icon { color: var(--purple); font-size: 15px; }
+      .language-chevron { color: var(--subtext); font-size: 14px; }
+
+      .auth-heading { margin-top: 34px; }
+      .auth-heading h1 { margin: 0; font-size: 30px; line-height: 32px; letter-spacing: -.055em; }
+      .auth-heading p { margin: 8px 0 0; color: var(--subtext); font-size: 14px; font-weight: 600; line-height: 1.45; }
+
+      .state[hidden] { display: none; }
+
+      .saved-state { padding-top: 27px; }
+      .state-label { margin: 0 0 10px; color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+      .saved-copy { margin: 0 0 17px; color: var(--subtext); font-size: 13px; font-weight: 600; line-height: 1.45; }
+
+      .account-list { display: grid; gap: 11px; }
+
+      .account {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 13px 44px 13px 13px;
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+      }
+
+      .account.selected {
+        border-color: var(--purple);
+        background: #fbfaff;
+        box-shadow: 0 0 0 3px rgba(108, 92, 231, .1);
+      }
+
+      .avatar {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        flex: 0 0 42px;
+        place-items: center;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f6cda5, #e88e77);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .avatar.blue { background: linear-gradient(135deg, #accbff, #7384e9); }
+      .account-copy { min-width: 0; }
+      .account-copy strong { display: block; font-size: 14px; font-weight: 800; }
+      .account-copy span { display: block; overflow: hidden; margin-top: 3px; color: var(--subtext); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .account-copy small { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--green); font-size: 10px; font-weight: 800; }
+      .account-copy small::before { width: 6px; height: 6px; border-radius: 50%; background: var(--green); content: ""; }
+
+      .radio {
+        position: absolute;
+        top: 50%;
+        right: 15px;
+        display: grid;
+        width: 20px;
+        height: 20px;
+        place-items: center;
+        border: 1.5px solid #bdbcc6;
+        border-radius: 6px;
+        transform: translateY(-50%);
+      }
+
+      .account.selected .radio { border-color: var(--purple); background: var(--purple); }
+      .account.selected .radio::after { content: "✓"; color: #fff; font-size: 13px; font-weight: 900; }
+
+      .account-tools {
+        position: absolute;
+        top: 7px;
+        right: 9px;
+        border: 0;
+        background: transparent;
+        color: #b1b1bb;
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .saved-submit,
+      .primary-button {
+        display: flex;
+        width: 100%;
+        height: 56px;
+        align-items: center;
+        justify-content: center;
+        margin-top: 18px;
+        border: 0;
+        border-radius: 15px;
+        background: linear-gradient(135deg, var(--purple), #7d6cf0);
+        color: #fff;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .saved-submit { box-shadow: 0 8px 18px rgba(108, 92, 231, .22); }
+
+      .or-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 21px 0;
+        color: #b6b6be;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .or-row::before,
+      .or-row::after { height: 1px; flex: 1; background: var(--border); content: ""; }
+
+      .other-account {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: var(--purple);
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .plus {
+        display: grid;
+        width: 23px;
+        height: 23px;
+        place-items: center;
+        border: 1px solid #cfcafb;
+        border-radius: 8px;
+        font-size: 17px;
+        line-height: 1;
+      }
+
+      .field-list { padding-top: 27px; }
+      .field { display: grid; gap: 8px; margin-bottom: 14px; }
+      .field label { color: var(--label); font-size: 13px; font-weight: 800; }
+      .field input { width: 100%; height: 54px; border: 1px solid var(--border); border-radius: 14px; outline: none; background: var(--surface); padding: 0 14px; color: var(--text); font-size: 15px; font-weight: 600; }
+      .field input::placeholder { color: #b6b6be; font-weight: 500; }
+      .field input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(108, 92, 231, .1); }
+
+      .forgot { margin: -3px 0 0; color: var(--purple); font-size: 13px; font-weight: 800; cursor: pointer; }
+
+      .remember-row { display: flex; align-items: center; gap: 9px; margin-top: 14px; color: var(--subtext); font-size: 13px; font-weight: 700; cursor: pointer; }
+      .remember-row input { width: 20px; height: 20px; margin: 0; accent-color: var(--purple); }
+      .standard-or { margin-top: 22px; margin-bottom: 22px; }
+
+      .google-button {
+        display: flex;
+        width: 100%;
+        height: 53px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .google-mark { margin-right: 10px; color: #4285f4; font-size: 18px; }
+      .footer-switch { display: flex; justify-content: center; margin-top: 26px; color: var(--subtext); font-size: 14px; font-weight: 600; }
+      .footer-switch button { border: 0; background: transparent; padding: 0; color: var(--purple); font-size: 14px; font-weight: 800; cursor: pointer; }
+
+      .note {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 24px;
+        color: #a0a0aa;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .note-icon { color: var(--purple); font-size: 14px; }
+
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        max-width: min(360px, calc(100vw - 36px));
+        border-radius: 12px;
+        background: #242331;
+        padding: 11px 14px;
+        color: #fff;
+        font-size: 12px;
+        line-height: 1.35;
+        box-shadow: 0 12px 30px rgba(21, 20, 35, .22);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(10px);
+        transition: opacity .2s ease, transform .2s ease;
+      }
+
+      .toast.visible { opacity: 1; transform: translateY(0); }
+
+      @media (max-width: 430px) {
+        body { background: var(--background); }
+        .preview-bar { margin-top: 8px; }
+        .preview-bar small { display: none; }
+        .preview-bar button { padding-inline: 8px; }
+        .phone { width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+        .phone-screen { min-height: 100vh; border-radius: 0; }
+        .screen-content { min-height: calc(100vh - 31px); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-bar" aria-label="Переключатель состояния макета">
+      <small>Сценарий просмотра</small>
+      <button class="active" type="button" data-preview="saved">Есть сохранённые</button>
+      <button type="button" data-preview="standard">Нет сохранённых</button>
+    </div>
+
+    <main class="phone">
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-icons">◌ ◇ ▰ 97%</span></div>
+        <div class="screen-content">
+          <div class="top-row">
+            <div class="brand" aria-label="Ramingo">
+              <span class="brand-mark">R</span>
+              <span class="brand-name">Ramingo</span>
+            </div>
+            <button class="language" type="button" aria-label="Язык">
+              <span class="language-icon">◎</span><span>RU</span><span class="language-chevron">⌄</span>
+            </button>
+          </div>
+
+          <div class="auth-heading">
+            <h1>С возвращением</h1>
+            <p>Войдите, чтобы продолжить планирование</p>
+          </div>
+
+          <section class="state saved-state" id="savedState" aria-label="Сохранённые аккаунты">
+            <p class="state-label">Сохранённые аккаунты</p>
+            <p class="saved-copy">Выберите аккаунт, под которым хотите продолжить.</p>
+
+            <div class="account-list" role="radiogroup" aria-label="Аккаунты">
+              <button class="account selected" type="button" role="radio" aria-checked="true" data-name="Наташа" data-email="natasha@example.com">
+                <span class="avatar">Н</span>
+                <span class="account-copy"><strong>Наташа</strong><span>natasha@example.com</span><small>Сохранён на этом устройстве</small></span>
+                <span class="radio" aria-hidden="true"></span>
+                <span class="account-tools" aria-label="Настройки аккаунта">⋯</span>
+              </button>
+              <button class="account" type="button" role="radio" aria-checked="false" data-name="Александра" data-email="alexandra@example.com">
+                <span class="avatar blue">А</span>
+                <span class="account-copy"><strong>Александра</strong><span>alexandra@example.com</span><small>Сохранён на этом устройстве</small></span>
+                <span class="radio" aria-hidden="true"></span>
+                <span class="account-tools" aria-label="Настройки аккаунта">⋯</span>
+              </button>
+            </div>
+
+            <button class="saved-submit" type="button">Продолжить как Наташа</button>
+            <div class="or-row"><span>или</span></div>
+            <button class="other-account" type="button"><span class="plus">＋</span> Войти под другим аккаунтом</button>
+            <p class="note"><span class="note-icon">♢</span><span>Если аккаунтов без «Запомнить меня» нет, откроется обычная форма входа.</span></p>
+          </section>
+
+          <section class="state standard-state" id="standardState" hidden aria-label="Стандартная форма входа">
+            <form class="standard-form">
+              <div class="field"><label for="email">E-mail</label><input id="email" type="email" placeholder="you@example.com" autocomplete="email" /></div>
+              <div class="field"><label for="password">Пароль</label><input id="password" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
+              <div class="forgot">Забыли пароль?</div>
+              <label class="remember-row"><input type="checkbox" /><span>Запомнить меня</span></label>
+              <button class="primary-button" type="submit">Войти</button>
+            </form>
+
+            <div class="or-row standard-or"><span>или</span></div>
+            <button class="google-button" type="button"><b class="google-mark">G</b> Продолжить с Google</button>
+            <div class="footer-switch"><span>Нет аккаунта?&nbsp;</span><button type="button">Зарегистрироваться</button></div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <div class="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const accounts = [...document.querySelectorAll(".account")];
+      const previewButtons = [...document.querySelectorAll("[data-preview]")];
+      const savedState = document.querySelector("#savedState");
+      const standardState = document.querySelector("#standardState");
+      const savedSubmit = document.querySelector(".saved-submit");
+      const otherButton = document.querySelector(".other-account");
+      const standardForm = document.querySelector(".standard-form");
+      const toast = document.querySelector(".toast");
+      let selected = accounts[0];
+      let toastTimer;
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("visible"), 2600);
+      }
+
+      function choose(account) {
+        selected = account;
+        accounts.forEach((item) => {
+          const active = item === account;
+          item.classList.toggle("selected", active);
+          item.setAttribute("aria-checked", String(active));
+        });
+        savedSubmit.textContent = `Продолжить как ${account.dataset.name}`;
+      }
+
+      function setPreview(state) {
+        const saved = state === "saved";
+        savedState.hidden = !saved;
+        standardState.hidden = saved;
+        previewButtons.forEach((button) => button.classList.toggle("active", button.dataset.preview === state));
+      }
+
+      accounts.forEach((account) => account.addEventListener("click", (event) => {
+        if (event.target.closest(".account-tools")) {
+          showToast(`Меню аккаунта «${account.dataset.name}» — здесь можно будет удалить его с устройства.`);
+          return;
+        }
+        choose(account);
+      }));
+
+      previewButtons.forEach((button) => button.addEventListener("click", () => setPreview(button.dataset.preview)));
+      otherButton.addEventListener("click", () => setPreview("standard"));
+      savedSubmit.addEventListener("click", () => showToast(`Макет: вход под аккаунтом «${selected.dataset.name}».`));
+      standardForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        showToast("Макет: после входа откроются ваши путешествия.");
+      });
+
+      setPreview("saved");
+    </script>
+  </body>
+</html>

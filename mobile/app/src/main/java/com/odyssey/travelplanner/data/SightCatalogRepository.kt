@@ -102,6 +102,7 @@ private data class SightEnrichmentPlace(
     val name: String = "",
     val address: String = "",
     val category: String = "",
+    val description: String = "",
     val rating: Double? = null,
     @SerialName("rating_count") val ratingCount: Int? = null,
     @SerialName("photo_url") val photoUrl: String? = null,
@@ -226,6 +227,10 @@ class SightCatalogRepository(private val client: SupabaseClient) {
             if (match != null) {
                 matchedFallbackIds += match.id
                 match.copy(
+                    descriptionRu = preferSightDescription(match.descriptionRu, live.descriptionRu),
+                    descriptionEn = preferSightDescription(match.descriptionEn, live.descriptionEn),
+                    descriptionEs = preferSightDescription(match.descriptionEs, live.descriptionEs),
+                    descriptionDe = preferSightDescription(match.descriptionDe, live.descriptionDe),
                     photoUrl = live.photoUrl ?: match.photoUrl,
                     photoName = live.photoName,
                     photoAttribution = live.photoAttribution,
@@ -284,6 +289,8 @@ class SightCatalogRepository(private val client: SupabaseClient) {
             val hasPhotoReference = place.photoUrl?.isNotBlank() == true || place.photoName.isNotBlank()
             if (name.isBlank() || rating == null || !hasPhotoReference) return@mapIndexedNotNull null
             val category = place.category.ifBlank { "достопримечательность" }
+            val description = place.description.trim()
+            val descriptionLanguage = placesLanguageCode(language)
             SightCatalogEntry(
                 id = "google:sight:${place.placeId.ifBlank { "$cityName:$index:$name" }}",
                 cityKey = city,
@@ -295,10 +302,10 @@ class SightCatalogRepository(private val client: SupabaseClient) {
                 nameEn = name,
                 nameEs = name,
                 nameDe = name,
-                descriptionRu = "Популярная достопримечательность города.",
-                descriptionEn = "Popular attraction in $cityName.",
-                descriptionEs = "Lugar popular de la ciudad.",
-                descriptionDe = "Beliebte Sehenswürdigkeit der Stadt.",
+                descriptionRu = description.takeIf { descriptionLanguage == "ru" }.orEmpty(),
+                descriptionEn = description.takeIf { descriptionLanguage == "en" }.orEmpty(),
+                descriptionEs = description.takeIf { descriptionLanguage == "es" }.orEmpty(),
+                descriptionDe = description.takeIf { descriptionLanguage == "de" }.orEmpty(),
                 category = category,
                 latitude = place.latitude,
                 longitude = place.longitude,
@@ -371,6 +378,18 @@ private fun sightMatchScore(entry: SightCatalogEntry, live: SightCatalogEntry): 
         kotlin.math.abs(entry.latitude - live.latitude) < 0.01 &&
         kotlin.math.abs(entry.longitude - live.longitude) < 0.01
     return if (coordinatesMatch) 40 else 0
+}
+
+private fun preferSightDescription(existing: String, live: String): String =
+    if (isPlaceholderSightDescription(existing) && live.isNotBlank()) live else existing
+
+fun isPlaceholderSightDescription(value: String): Boolean {
+    val normalized = value.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
+    if (normalized.isBlank()) return true
+    return normalized == "популярная достопримечательность города." ||
+        normalized.startsWith("popular attraction in ") ||
+        normalized == "lugar popular de la ciudad." ||
+        normalized == "beliebte sehenswürdigkeit der stadt."
 }
 
 private fun placesLanguageCode(language: String): String = when (
