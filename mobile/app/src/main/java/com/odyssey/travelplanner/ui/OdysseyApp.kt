@@ -2748,7 +2748,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 },
                 onSignOut = {
                     scope.launch {
-                        SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
+                        SupabaseProvider.signOutForAccountPicker()
                         accountMenuOpen = false
                         onLogout()
                     }
@@ -2954,7 +2954,7 @@ private fun AccountSettingsScreen(
             },
             onSignOut = {
                 scope.launch {
-                    SupabaseProvider.clientForCurrentAuthFlow().auth.signOut()
+                    SupabaseProvider.signOutForAccountPicker()
                     onLogout()
                 }
             },

@@ -266,5 +266,23 @@ object SupabaseProvider {
         activeClient = sessionOnlyClient
     }
 
+    /**
+     * Leaves the current account without deleting a remembered login.
+     *
+     * A normal sign-out should return to the account chooser when the user
+     * selected "Remember me". The remembered client keeps its session in
+     * storage, while the app stops treating it as the active client. The
+     * explicit "Remove from device" action is still responsible for deleting
+     * that stored session.
+     */
+    suspend fun signOutForAccountPicker() {
+        if (activeClient === sessionOnlyClient) {
+            clearClientSession(sessionOnlyClient)
+        } else {
+            activeClient.auth.stopAutoRefreshForCurrentSession()
+            activeClient = sessionOnlyClient
+        }
+    }
+
     fun clientForCurrentAuthFlow(): SupabaseClient = activeClient
 }
