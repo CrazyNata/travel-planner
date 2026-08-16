@@ -205,6 +205,25 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: "Не удалось создать ссылку приглашения" }, 400);
   }
 
+  // Persist access and the member row before sending the message. The RPC is
+  // idempotent for an email/user pair and locks the trip row, so repeated
+  // invitations cannot create duplicate members or partial permissions.
+  const { error: invitationError } = await admin.rpc(
+    "upsert_trip_invitation",
+    {
+      p_trip_id: tripId,
+      p_actor_id: inviter.id,
+      p_user_id: inviteeId,
+      p_email: email,
+      p_name: inviteeName,
+      p_role: inviteeRole,
+    },
+  );
+  if (invitationError) {
+    console.error("send-invite: could not persist invitation", invitationError);
+    return jsonResponse({ error: "Не удалось выдать доступ к поездке" }, 500);
+  }
+
   const subject = oneLine(
     `Вас пригласили в поездку «${tripTitle}»`,
   ).slice(0, 180);
@@ -324,13 +343,5 @@ Deno.serve(async (request) => {
     }, 502);
   }
 
-  if (inviteeId !== trip.owner_id) {
-    const { error: collaboratorError } = await admin
-      .from("trip_collaborators")
-      .upsert({ trip_id: tripId, user_id: inviteeId, role: inviteeRole });
-    if (collaboratorError) {
-      return jsonResponse({ error: "Не удалось выдать доступ к поездке" }, 500);
-    }
-  }
   return jsonResponse({ ok: true });
 });

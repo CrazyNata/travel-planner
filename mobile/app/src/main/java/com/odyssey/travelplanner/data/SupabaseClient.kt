@@ -1,5 +1,8 @@
 package com.odyssey.travelplanner.data
 
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import com.odyssey.travelplanner.BuildConfig
 import com.russhwolf.settings.Settings
 import io.github.jan.supabase.SupabaseClient
@@ -17,10 +20,19 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 data class RememberedAccount(
     val id: String,
@@ -28,15 +40,31 @@ data class RememberedAccount(
     val email: String,
 )
 
+data class RememberedCredentials(
+    val email: String,
+    val password: String,
+)
+
 object SupabaseProvider {
     val isConfigured: Boolean =
         BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
 
     private const val REMEMBERED_SESSION_PREFIX = "ramingo.auth.session."
+    private const val LAST_ACTIVE_ACCOUNT_KEY = "ramingo.auth.last-account-id"
+    private const val PENDING_REMEMBER_KEY = "ramingo.auth.remember.pending"
+    private const val REMEMBERED_CREDENTIALS_KEY = "ramingo.auth.credentials"
+    private const val CREDENTIALS_KEY_ALIAS = "ramingo.auth.credentials.key"
 
     private val authSettings: Settings by lazy { Settings() }
     private val sessionJson = Json { ignoreUnknownKeys = true }
     private val rememberedClients = mutableMapOf<String, SupabaseClient>()
+    private val restoreMutex = Mutex()
+
+    @Serializable
+    private data class StoredCredentials(
+        val email: String,
+        val password: String,
+    )
 
     private fun newClient(
         sessionManager: SessionManager,
@@ -63,15 +91,65 @@ object SupabaseProvider {
         }
     }
 
-    // Kept as a compatibility client for the single-session format used by
-    // older app versions. New remembered sessions are stored below by user id.
+    // Kept as a compatibility client for the auth-session format used by
+    // older app versions. The current active session always uses this client.
     val persistentClient: SupabaseClient by lazy {
         newClient(SettingsSessionManager(), autoSaveToStorage = true)
     }
     val sessionOnlyClient: SupabaseClient by lazy {
         newClient(MemorySessionManager(), autoSaveToStorage = false)
     }
-    private var activeClient: SupabaseClient = sessionOnlyClient
+    // Auth sessions are kept independently of the "remember credentials"
+    // checkbox. This lets Android recreate the activity/process after the
+    // screen is locked without treating that as an explicit logout.
+    private var activeClient: SupabaseClient = persistentClient
+
+    private fun credentialsKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val existing = (keyStore.getEntry(CREDENTIALS_KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)
+            ?.secretKey
+        if (existing != null) return existing
+
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
+            init(
+                KeyGenParameterSpec.Builder(
+                    CREDENTIALS_KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setUserAuthenticationRequired(false)
+                    .build(),
+            )
+        }.generateKey()
+    }
+
+    private fun encryptCredentials(credentials: RememberedCredentials): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, credentialsKey())
+        val payload = sessionJson.encodeToString(
+            StoredCredentials.serializer(),
+            StoredCredentials(credentials.email, credentials.password),
+        ).toByteArray(StandardCharsets.UTF_8)
+        val encrypted = cipher.doFinal(payload)
+        val combined = ByteArray(cipher.iv.size + encrypted.size)
+        cipher.iv.copyInto(combined)
+        encrypted.copyInto(combined, destinationOffset = cipher.iv.size)
+        return Base64.encodeToString(combined, Base64.NO_WRAP)
+    }
+
+    private fun decryptCredentials(value: String): RememberedCredentials? {
+        val combined = Base64.decode(value, Base64.NO_WRAP)
+        if (combined.size <= 12) return null
+        val iv = combined.copyOfRange(0, 12)
+        val encrypted = combined.copyOfRange(12, combined.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, credentialsKey(), GCMParameterSpec(128, iv))
+        val stored = sessionJson.decodeFromString<StoredCredentials>(
+            cipher.doFinal(encrypted).toString(StandardCharsets.UTF_8),
+        )
+        return RememberedCredentials(stored.email, stored.password)
+    }
 
     private fun rememberedSessionKey(accountId: String): String =
         REMEMBERED_SESSION_PREFIX + accountId
@@ -129,36 +207,134 @@ object SupabaseProvider {
         )
     }
 
+    /** Reads the optional login form data saved by the remember-credentials checkbox. */
+    suspend fun loadRememberedCredentials(): RememberedCredentials? = withContext(Dispatchers.IO) {
+        val stored = authSettings.getStringOrNull(REMEMBERED_CREDENTIALS_KEY) ?: return@withContext null
+        runCatching { decryptCredentials(stored) }
+            .getOrElse {
+                // A key can become invalid after a device security reset. Do
+                // not leave an unreadable blob that prevents future saves.
+                authSettings.remove(REMEMBERED_CREDENTIALS_KEY)
+                null
+            }
+    }
+
+    /** Stores only the login form data; the auth session is handled separately. */
+    suspend fun updateRememberedCredentials(
+        email: String,
+        password: String,
+        remember: Boolean,
+    ) = withContext(Dispatchers.IO) {
+        if (!remember || email.isBlank() || password.isBlank()) {
+            authSettings.remove(REMEMBERED_CREDENTIALS_KEY)
+            return@withContext
+        }
+        runCatching {
+            authSettings.putString(
+                REMEMBERED_CREDENTIALS_KEY,
+                encryptCredentials(RememberedCredentials(email.trim(), password)),
+            )
+        }
+    }
+
+    suspend fun clearRememberedCredentials() = withContext(Dispatchers.IO) {
+        authSettings.remove(REMEMBERED_CREDENTIALS_KEY)
+    }
+
+    private suspend fun legacyAccountIds(): List<String> = withContext(Dispatchers.IO) {
+        authSettings.keys
+            .filter { it.startsWith(REMEMBERED_SESSION_PREFIX) }
+            .map { it.removePrefix(REMEMBERED_SESSION_PREFIX) }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
+    /** Migrates one account from the account-picker storage used by older builds. */
+    private suspend fun migrateLegacyRememberedSession(accountId: String): UserSession? = withContext(Dispatchers.IO) {
+        val legacyClient = rememberedClient(accountId)
+        runCatching { legacyClient.auth.loadFromStorage(autoRefresh = false) }
+        val legacySession = legacyClient.auth.currentSessionOrNull() ?: return@withContext null
+        runCatching {
+            persistentClient.auth.importSession(
+                session = legacySession,
+                autoRefresh = false,
+                source = SessionSource.Storage,
+            )
+            persistentClient.auth.sessionManager.saveSession(legacySession)
+            authSettings.putString(LAST_ACTIVE_ACCOUNT_KEY, accountId)
+            clearClientSession(legacyClient)
+            synchronized(rememberedClients) { rememberedClients.remove(accountId) }
+        }.getOrNull()?.let { legacySession }
+    }
+
+    /** Migrates the only legacy account, or the one selected in a previous build. */
+    private suspend fun migrateLegacyRememberedSession(): UserSession? {
+        val accountIds = legacyAccountIds()
+        val accountId = when {
+            accountIds.size == 1 -> accountIds.single()
+            else -> authSettings.getStringOrNull(LAST_ACTIVE_ACCOUNT_KEY)
+                ?.takeIf { it in accountIds }
+        } ?: return null
+        return migrateLegacyRememberedSession(accountId)
+    }
+
     /**
-     * Restores an in-memory callback session first. If the old one-account
-     * storage contains a remembered session, migrate it to per-account storage
-     * and show the account chooser instead of silently picking it.
+     * Restores the active auth session independently of the remember-credentials
+     * checkbox. A saved session means the user is still authenticated until an
+     * explicit sign-out, including after the Android process is recreated.
      */
-    suspend fun restorePersistentSession(): Boolean = runCatching {
-        if (sessionOnlyClient.auth.currentUserOrNull() != null) {
-            activeClient = sessionOnlyClient
-            return@runCatching true
-        }
+    suspend fun restorePersistentSession(): Boolean = restoreMutex.withLock {
+        runCatching {
+            val inMemorySession = sessionOnlyClient.auth.currentSessionOrNull()
+            if (inMemorySession != null) {
+                persistentClient.auth.importSession(
+                    session = inMemorySession,
+                    autoRefresh = false,
+                    source = SessionSource.Storage,
+                )
+                persistentClient.auth.sessionManager.saveSession(inMemorySession)
+                clearClientSession(sessionOnlyClient)
+                activeClient = persistentClient
+                runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
+                authSettings.remove(PENDING_REMEMBER_KEY)
+                return@runCatching true
+            }
 
-        if (loadRememberedAccounts().isNotEmpty()) {
-            activeClient = sessionOnlyClient
-            return@runCatching false
-        }
+            // Do not reload an already active session on every ON_RESUME. In
+            // particular, reloading with auto-refresh=true can turn a
+            // temporary network error into a false logout during screen lock.
+            if (persistentClient.auth.currentSessionOrNull() != null) {
+                activeClient = persistentClient
+                runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
+                authSettings.remove(PENDING_REMEMBER_KEY)
+                return@runCatching true
+            }
 
-        val restoredLegacy = withContext(Dispatchers.IO) {
-            persistentClient.auth.loadFromStorage(autoRefresh = false)
-        }
-        val legacySession = persistentClient.auth.currentSessionOrNull()
-        if (restoredLegacy && legacySession != null) {
-            check(saveRememberedSession(legacySession)) { "Could not migrate the authentication session" }
-            clearClientSession(persistentClient)
-            activeClient = sessionOnlyClient
-            return@runCatching false
-        }
+            // Read the stored session first. Refreshing is handled by the
+            // auth client's auto-refresh job and must not gate showing the
+            // already authenticated app after a process recreation.
+            withContext(Dispatchers.IO) {
+                runCatching { persistentClient.auth.loadFromStorage(autoRefresh = false) }
+            }
+            if (persistentClient.auth.currentSessionOrNull() != null) {
+                activeClient = persistentClient
+                runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
+                authSettings.remove(PENDING_REMEMBER_KEY)
+                return@runCatching true
+            }
 
-        activeClient = sessionOnlyClient
-        sessionOnlyClient.auth.currentUserOrNull() != null
-    }.getOrDefault(false)
+            if (migrateLegacyRememberedSession() != null) {
+                activeClient = persistentClient
+                runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
+                authSettings.remove(PENDING_REMEMBER_KEY)
+                return@runCatching true
+            }
+
+            activeClient = persistentClient
+            authSettings.remove(PENDING_REMEMBER_KEY)
+            false
+        }.getOrDefault(false)
+    }
 
     private suspend fun saveRememberedSession(session: UserSession): Boolean {
         val id = accountId(session)
@@ -178,40 +354,56 @@ object SupabaseProvider {
         }.isSuccess
     }
 
-    /** Completes a successful login and moves remembered sessions to a named key. */
-    suspend fun finalizeAuthentication(rememberSession: Boolean) {
-        if (rememberSession) {
-            val session = activeClient.auth.currentSessionOrNull()
-                ?: error("The authentication session is empty")
-            check(saveRememberedSession(session)) { "Could not save the authentication session" }
-            if (activeClient !== persistentClient) {
-                clearClientSession(persistentClient)
-            }
-        } else {
-            activeClient = sessionOnlyClient
+    /** Completes a successful login and always persists the active auth session. */
+    suspend fun finalizeAuthentication() {
+        val sourceClient = activeClient
+        val session = sourceClient.auth.currentSessionOrNull()
+            ?: error("The authentication session is empty")
+        if (sourceClient !== persistentClient) {
+            persistentClient.auth.importSession(
+                session = session,
+                autoRefresh = true,
+                source = SessionSource.Storage,
+            )
+            persistentClient.auth.sessionManager.saveSession(session)
+            clearClientSession(sourceClient)
         }
+        persistentClient.auth.sessionManager.saveSession(session)
+        accountId(session).takeIf(String::isNotBlank)?.let {
+            authSettings.putString(LAST_ACTIVE_ACCOUNT_KEY, it)
+        }
+        activeClient = persistentClient
+        persistentClient.auth.startAutoRefreshForCurrentSession()
+        authSettings.remove(PENDING_REMEMBER_KEY)
     }
 
-    suspend fun selectSessionPersistence(rememberSession: Boolean) {
-        if (rememberSession) {
-            // This compatibility client is only a staging client for a new
-            // login. Never let it replace another account's named session.
-            clearClientSession(persistentClient)
-            activeClient = persistentClient
-        } else {
-            activeClient = sessionOnlyClient
-        }
+    /** Selects the persistent auth client for a new flow. Credential saving is separate. */
+    suspend fun prepareAuthentication() {
+        authSettings.remove(PENDING_REMEMBER_KEY)
+        activeClient = persistentClient
     }
 
     suspend fun activateRememberedAccount(accountId: String): Boolean = withContext(Dispatchers.IO) {
         val client = rememberedClient(accountId)
-        runCatching { client.auth.loadFromStorage(autoRefresh = true) }
-        if (client.auth.currentUserOrNull() == null) {
+        runCatching { client.auth.loadFromStorage(autoRefresh = false) }
+        val session = client.auth.currentSessionOrNull()
+        if (session == null) {
             removeRememberedAccount(accountId)
             return@withContext false
         }
-        activeClient = client
-        true
+        runCatching {
+            persistentClient.auth.importSession(
+                session = session,
+                autoRefresh = false,
+                source = SessionSource.Storage,
+            )
+            persistentClient.auth.sessionManager.saveSession(session)
+            authSettings.putString(LAST_ACTIVE_ACCOUNT_KEY, accountId)
+            clearClientSession(client)
+            synchronized(rememberedClients) { rememberedClients.remove(accountId) }
+            activeClient = persistentClient
+            runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
+        }.isSuccess
     }
 
     suspend fun removeRememberedAccount(accountId: String) {
@@ -225,18 +417,12 @@ object SupabaseProvider {
             rememberedClients.remove(accountId)
         }
         if (activeClient === client) {
-            activeClient = sessionOnlyClient
+            activeClient = persistentClient
         }
     }
 
     suspend fun ensureActiveSession(): Boolean = withContext(Dispatchers.IO) {
-        // Do not silently switch to another remembered account if the active
-        // account expires. Account switching is always explicit in the UI.
-        val clients = if (activeClient === sessionOnlyClient) {
-            listOf(sessionOnlyClient, persistentClient)
-        } else {
-            listOf(activeClient)
-        }
+        val clients = listOf(activeClient, sessionOnlyClient, persistentClient).distinct()
         for (client in clients) {
             if (client.auth.currentUserOrNull() != null) {
                 activeClient = client
@@ -261,27 +447,17 @@ object SupabaseProvider {
     }
 
     suspend fun clearActiveSessionLocally() {
-        val client = activeClient
-        clearClientSession(client)
-        activeClient = sessionOnlyClient
+        for (client in listOf(activeClient, sessionOnlyClient, persistentClient).distinct()) {
+            clearClientSession(client)
+        }
+        activeClient = persistentClient
     }
 
-    /**
-     * Leaves the current account without deleting a remembered login.
-     *
-     * A normal sign-out should return to the account chooser when the user
-     * selected "Remember me". The remembered client keeps its session in
-     * storage, while the app stops treating it as the active client. The
-     * explicit "Remove from device" action is still responsible for deleting
-     * that stored session.
-     */
     suspend fun signOutForAccountPicker() {
-        if (activeClient === sessionOnlyClient) {
-            clearClientSession(sessionOnlyClient)
-        } else {
-            activeClient.auth.stopAutoRefreshForCurrentSession()
-            activeClient = sessionOnlyClient
+        for (client in listOf(activeClient, sessionOnlyClient, persistentClient).distinct()) {
+            clearClientSession(client)
         }
+        activeClient = persistentClient
     }
 
     fun clientForCurrentAuthFlow(): SupabaseClient = activeClient

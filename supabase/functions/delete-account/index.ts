@@ -22,6 +22,31 @@ function json(body: Record<string, unknown>, status: number, headers: Record<str
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+const storagePageSize = 1000;
+
+async function listStorageObjectNames(
+  admin: ReturnType<typeof createClient>,
+  pattern: string,
+): Promise<string[]> {
+  const names: string[] = [];
+  for (let offset = 0; ; offset += storagePageSize) {
+    const { data, error } = await admin
+      .schema("storage")
+      .from("objects")
+      .select("name")
+      .eq("bucket_id", "trip-photos")
+      .like("name", pattern)
+      .range(offset, offset + storagePageSize - 1);
+    if (error) throw error;
+    const page = (data ?? [])
+      .map((object) => object.name as string)
+      .filter(Boolean);
+    names.push(...page);
+    if (page.length < storagePageSize) break;
+  }
+  return names;
+}
+
 Deno.serve(async (request) => {
   const headers = headersFor(request.headers.get("Origin") ?? "");
   if (request.method === "OPTIONS") return new Response("ok", { headers });
@@ -58,29 +83,12 @@ Deno.serve(async (request) => {
     if (tripsLookupError) throw tripsLookupError;
 
     const ownedTripIds = (ownedTrips ?? []).map((trip) => trip.id as string);
-    const objectLookups = await Promise.all([
-      admin
-        .schema("storage")
-        .from("objects")
-        .select("name")
-        .eq("bucket_id", "trip-photos")
-        .like("name", `${user.id}/profile/%`),
+    const objectNames = await Promise.all([
+      listStorageObjectNames(admin, `${user.id}/profile/%`),
       ...ownedTripIds.map((tripId) =>
-        admin
-          .schema("storage")
-          .from("objects")
-          .select("name")
-          .eq("bucket_id", "trip-photos")
-          .like("name", `%/${tripId}/%`)
+        listStorageObjectNames(admin, `%/${tripId}/%`)
       ),
-    ]);
-    const failedLookup = objectLookups.find((lookup) => lookup.error);
-    if (failedLookup?.error) throw failedLookup.error;
-
-    const objectNames = objectLookups
-      .flatMap((lookup) => lookup.data ?? [])
-      .map((object) => object.name as string)
-      .filter(Boolean);
+    ]).then((pages) => pages.flat());
     const uniqueObjectNames = [...new Set(objectNames)];
 
     // Revoke refresh tokens before deleting data. The current access token can

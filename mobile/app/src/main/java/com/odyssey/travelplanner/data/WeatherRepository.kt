@@ -65,6 +65,10 @@ class WeatherRepository {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
+    fun close() {
+        http.close()
+    }
+
     suspend fun loadCurrent(
         cities: List<String>,
         tripDates: String = "",

@@ -28,6 +28,10 @@ class ExchangeRateRepository {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
+    fun close() {
+        http.close()
+    }
+
     suspend fun loadRubRates(quotes: Set<String>): ExchangeRateSnapshot {
         val normalizedQuotes = quotes
             .map { it.uppercase(Locale.ROOT) }

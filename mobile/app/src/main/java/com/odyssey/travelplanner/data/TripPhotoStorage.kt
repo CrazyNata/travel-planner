@@ -68,7 +68,7 @@ internal suspend fun SupabaseClient.resolveTripPhotoReference(reference: String?
                 expiresAtMillis = refreshedNow + SIGNED_URL_CACHE_TTL_MILLIS,
             )
         }
-        signedUrl ?: bucket.publicUrl(path)
+        signedUrl
     }
 }
 
@@ -76,7 +76,7 @@ internal suspend fun SupabaseClient.resolveTripPhotoReferences(references: List<
     supervisorScope {
         references.map { reference ->
             async(Dispatchers.IO) {
-                runCatching { resolveTripPhotoReference(reference) ?: reference }.getOrDefault(reference)
+                runCatching { resolveTripPhotoReference(reference).orEmpty() }.getOrDefault("")
             }
         }.awaitAll()
     }

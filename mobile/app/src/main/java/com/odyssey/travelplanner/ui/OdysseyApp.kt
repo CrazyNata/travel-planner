@@ -659,12 +659,19 @@ private fun localizedTripDateText(value: String, language: String, multilineDura
     result = monthPattern.replace(result) { match ->
         monthNames[match.value.lowercase(Locale.ROOT)] ?: match.value
     }
-    val durationWord = when (normalizeLanguage(language)) {
-        "EN" -> "days"
-        "ES" -> "días"
-        "DE" -> "Tage"
-        else -> "дней"
-    }
+    fun durationWord(count: Int) = localizedCountWord(
+        count,
+        language,
+        "день",
+        "дня",
+        "дней",
+        "day",
+        "days",
+        "día",
+        "días",
+        "Tag",
+        "Tage",
+    )
     val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value)
         .mapNotNull { match -> runCatching { LocalDate.parse(match.value) }.getOrNull() }
         .toList()
@@ -677,7 +684,7 @@ private fun localizedTripDateText(value: String, language: String, multilineDura
                 ChronoUnit.DAYS.between(dates[0], dates[1]).toInt() + 1
             }
             val formatted = if (duration != null && duration > 0) {
-                "$formattedRange · $duration $durationWord"
+                "$formattedRange · $duration ${durationWord(duration)}"
             } else {
                 formattedRange
             }
@@ -688,7 +695,10 @@ private fun localizedTripDateText(value: String, language: String, multilineDura
             }
         }
     }
-    result = result.replace(Regex("(\\d+)\\s+дн(?:ей|я|ень)", RegexOption.IGNORE_CASE)) { "${it.groupValues[1]} $durationWord" }
+    result = result.replace(Regex("(\\d+)\\s+дн(?:ей|я|ень)", RegexOption.IGNORE_CASE)) {
+        val count = it.groupValues[1].toIntOrNull() ?: 0
+        "${it.groupValues[1]} ${durationWord(count)}"
+    }
     val dateJoiner = when (normalizeLanguage(language)) {
         "EN" -> " and "
         "ES" -> " y "
@@ -1343,8 +1353,10 @@ fun OdysseyApp(
     var languageSelectedBeforeAuth by remember { mutableStateOf<String?>(null) }
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
-    var rememberSession by remember { mutableStateOf(false) }
+    var rememberCredentials by remember { mutableStateOf(false) }
     var rememberedAccounts by remember { mutableStateOf<List<RememberedAccount>>(emptyList()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val authScope = rememberCoroutineScope()
 
     LaunchedEffect(darkTheme, authReady) {
         if (authReady) {
@@ -1357,7 +1369,9 @@ fun OdysseyApp(
 
     LaunchedEffect(Unit) {
         hasSession = SupabaseProvider.restorePersistentSession()
-        rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+        if (!hasSession) {
+            rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+        }
         authReady = true
     }
 
@@ -1365,9 +1379,35 @@ fun OdysseyApp(
         if (!authReady) return@LaunchedEffect
         if (!hasSession) {
             rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
-            return@LaunchedEffect
+        } else {
+            rememberedAccounts = emptyList()
         }
-        rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+    }
+
+    DisposableEffect(lifecycleOwner, authReady) {
+        if (!authReady) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    authScope.launch {
+                        // Re-read the persisted auth session after returning
+                        // from background/process recreation. A failed restore
+                        // must not turn an explicit logout into a login.
+                        if (SupabaseProvider.restorePersistentSession()) {
+                            hasSession = true
+                        }
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+    }
+
+    LaunchedEffect(authReady, hasSession) {
+        if (!authReady) return@LaunchedEffect
+        if (!hasSession) return@LaunchedEffect
         val repository = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
         runCatching { repository.loadProfile() }.getOrNull()?.let { profile ->
             darkTheme = profile.darkTheme
@@ -1401,7 +1441,7 @@ fun OdysseyApp(
         }
     }
 
-    LaunchedEffect(authReady, rememberedAccounts) {
+    LaunchedEffect(authReady) {
         if (!authReady) return@LaunchedEffect
         val authClients = SupabaseProvider.authClients()
         authClients.forEach { client ->
@@ -1426,16 +1466,22 @@ fun OdysseyApp(
         }
     }
 
-    LaunchedEffect(authReady, hasSession, currentRoute, pendingTripId, pendingPasswordReset) {
+    val currentTripId = currentBackStackEntry?.arguments?.getString("tripId")
+
+    LaunchedEffect(authReady, hasSession, currentRoute, currentTripId, pendingTripId, pendingPasswordReset) {
         if (!authReady || !hasSession || currentRoute == null) return@LaunchedEffect
         when {
             pendingPasswordReset && currentRoute != "reset-password" -> {
                 navController.navigate("reset-password")
                 onPendingDeepLinkHandled()
             }
-            !pendingTripId.isNullOrBlank() && currentRoute != "trip/{tripId}" -> {
-                navController.navigate("trip/$pendingTripId")
-                onPendingDeepLinkHandled()
+            !pendingTripId.isNullOrBlank() -> {
+                if (pendingTripId == currentTripId) {
+                    onPendingDeepLinkHandled()
+                } else {
+                    navController.navigate("trip/$pendingTripId")
+                    onPendingDeepLinkHandled()
+                }
             }
         }
     }
@@ -1448,8 +1494,7 @@ fun OdysseyApp(
             } else NavHost(navController = navController, startDestination = "foundation") {
                 composable("foundation") {
                     AuthScreen(
-                        rememberSession = rememberSession,
-                        onRememberSessionChange = { rememberSession = it },
+                        rememberCredentials = rememberCredentials,
                         rememberedAccounts = rememberedAccounts,
                         onRememberedAccountSelected = { account ->
                             SupabaseProvider.activateRememberedAccount(account.id)
@@ -1458,8 +1503,10 @@ fun OdysseyApp(
                             SupabaseProvider.removeRememberedAccount(account.id)
                             rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
                         },
+                        onRememberCredentialsChange = { rememberCredentials = it },
                         onLanguageChange = ::handleLanguageChange,
                         onAuthenticated = {
+                            rememberedAccounts = emptyList()
                             hasSession = true
                             navController.navigate("trips")
                         },
@@ -1539,11 +1586,11 @@ fun OdysseyApp(
 
 @Composable
 private fun AuthScreen(
-    rememberSession: Boolean,
-    onRememberSessionChange: (Boolean) -> Unit,
+    rememberCredentials: Boolean,
     rememberedAccounts: List<RememberedAccount>,
-    onRememberedAccountSelected: suspend (RememberedAccount) -> Boolean,
-    onRememberedAccountRemoved: suspend (RememberedAccount) -> Unit,
+    onRememberCredentialsChange: (Boolean) -> Unit,
+    onRememberedAccountSelected: suspend (RememberedAccount) -> Boolean = { false },
+    onRememberedAccountRemoved: suspend (RememberedAccount) -> Unit = {},
     onLanguageChange: (String) -> Unit,
     onAuthenticated: () -> Unit,
 ) {
@@ -1558,6 +1605,9 @@ private fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var languagePickerOpen by remember { mutableStateOf(false) }
+    // Legacy saved accounts are shown only long enough to migrate them to the
+    // single persistent auth session used by the current app. New logins do
+    // not create account-picker entries.
     var accountPickerOpen by remember(rememberedAccounts) {
         mutableStateOf(rememberedAccounts.isNotEmpty())
     }
@@ -1570,6 +1620,23 @@ private fun AuthScreen(
         Triple("DE", "\uD83C\uDDE9\uD83C\uDDEA", "Deutsch"),
     )
     fun messageText(ru: String, en: String, es: String, de: String) = localized(language, ru, en, es, de)
+
+    LaunchedEffect(Unit) {
+        SupabaseProvider.loadRememberedCredentials()?.let { credentials ->
+            if (email.isBlank() && password.isBlank()) {
+                email = credentials.email
+                password = credentials.password
+                onRememberCredentialsChange(true)
+            }
+        }
+    }
+
+    fun setRememberCredentials(checked: Boolean) {
+        onRememberCredentialsChange(checked)
+        if (!checked) {
+            scope.launch { SupabaseProvider.clearRememberedCredentials() }
+        }
+    }
 
     fun submit() {
         if (email.isBlank() || password.isBlank() || (isRegistration && name.isBlank())) {
@@ -1588,7 +1655,7 @@ private fun AuthScreen(
             isLoading = true
             message = null
             runCatching {
-                SupabaseProvider.selectSessionPersistence(rememberSession)
+                SupabaseProvider.prepareAuthentication()
                 val auth = SupabaseProvider.clientForCurrentAuthFlow().auth
                 if (isRegistration) {
                     auth.signUpWith(Email, "https://ramingo.online/mobile/auth") {
@@ -1598,15 +1665,17 @@ private fun AuthScreen(
                     }
                     val authenticatedImmediately = auth.currentSessionOrNull() != null
                     if (authenticatedImmediately) {
-                        SupabaseProvider.finalizeAuthentication(rememberSession)
+                        SupabaseProvider.finalizeAuthentication()
                     }
+                    SupabaseProvider.updateRememberedCredentials(email.trim(), password, rememberCredentials)
                     authenticatedImmediately
                 } else {
                     auth.signInWith(Email) {
                         this.email = email.trim()
                         this.password = password
                     }
-                    SupabaseProvider.finalizeAuthentication(rememberSession)
+                    SupabaseProvider.finalizeAuthentication()
+                    SupabaseProvider.updateRememberedCredentials(email.trim(), password, rememberCredentials)
                     true
                 }
             }.onSuccess { authenticatedImmediately ->
@@ -1635,7 +1704,7 @@ private fun AuthScreen(
             isLoading = true
             message = null
             runCatching {
-                SupabaseProvider.selectSessionPersistence(rememberSession)
+                SupabaseProvider.prepareAuthentication()
                 val option = GetSignInWithGoogleOption.Builder(
                     BuildConfig.GOOGLE_WEB_CLIENT_ID,
                 ).build()
@@ -1646,7 +1715,7 @@ private fun AuthScreen(
                     idToken = googleCredential.idToken
                     provider = Google
                 }
-                SupabaseProvider.finalizeAuthentication(rememberSession)
+                SupabaseProvider.finalizeAuthentication()
             }.onSuccess { onAuthenticated() }.onFailure { error ->
                 message = if (error is NoCredentialException) {
                     messageText("Аккаунт Google не выбран", "No Google account was selected", "No se seleccionó ninguna cuenta de Google", "Kein Google-Konto ausgewählt")
@@ -1870,18 +1939,18 @@ private fun AuthScreen(
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 14.dp).clickable { onRememberSessionChange(!rememberSession) },
+            modifier = Modifier.padding(top = 14.dp).clickable { setRememberCredentials(!rememberCredentials) },
         ) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(20.dp).background(if (rememberSession) OdysseyPurple else Color.Transparent, RoundedCornerShape(6.dp)).drawBehind {
-                    if (!rememberSession) drawRoundRect(Color(0xFFBDBCC6), style = Stroke(width = 1.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
+                modifier = Modifier.size(20.dp).background(if (rememberCredentials) OdysseyPurple else Color.Transparent, RoundedCornerShape(6.dp)).drawBehind {
+                    if (!rememberCredentials) drawRoundRect(Color(0xFFBDBCC6), style = Stroke(width = 1.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
                 },
             ) {
-                if (rememberSession) Text("✓", color = Color.White, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                if (rememberCredentials) Text("✓", color = Color.White, fontWeight = FontWeight.W800, fontSize = 13.sp)
             }
             Text(
-                text = localized("Запомнить меня", "Remember me", "Recordarme", "Angemeldet bleiben"),
+                text = localized("Запомнить данные входа", "Remember login details", "Recordar datos de acceso", "Anmeldedaten speichern"),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
@@ -1972,7 +2041,6 @@ private fun AuthScreen(
                 fontSize = 14.sp,
                 modifier = Modifier.clickable {
                     isRegistration = !isRegistration
-                    accountPickerOpen = !isRegistration && rememberedAccounts.isNotEmpty()
                     name = ""
                     password = ""
                     repeatPassword = ""
@@ -5430,6 +5498,11 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
     var sectionMenuOpen by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var loadError by remember { mutableStateOf<String?>(null) }
+    val weatherRepository = remember { WeatherRepository() }
+
+    DisposableEffect(weatherRepository) {
+        onDispose { weatherRepository.close() }
+    }
 
     LaunchedEffect(tripId, refresh) {
         val hadOverview = overview != null
@@ -5451,7 +5524,9 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
             val cities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
-            weather = WeatherRepository().loadCurrent(cities, trip.dates, trip.cityCoordinates)
+            weather = runCatching {
+                weatherRepository.loadCurrent(cities, trip.dates, trip.cityCoordinates)
+            }.getOrDefault(emptyMap())
         }
     }
 
@@ -5551,18 +5626,19 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
         } else {
             when (tab) {
                 "overview" -> OverviewContent(overview!!, weather)
-                "route" -> TripRouteContent(tripId, overview!!) { refresh++ }
-                "sights" -> SightsContent(tripId, overview!!) { refresh++ }
-                "restaurants" -> RestaurantsContent(tripId, overview!!) { refresh++ }
-                "accommodation" -> AccommodationContent(tripId, overview!!) { refresh++ }
+                "route" -> TripRouteContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
+                "sights" -> SightsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
+                "restaurants" -> RestaurantsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
+                "accommodation" -> AccommodationContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "budget" -> BudgetContent(
                     tripId = tripId,
                     overview = overview!!,
+                    canEdit = overview!!.canEdit,
                     onExpenseAdded = { refresh++ },
                     onCurrencyChanged = { selectedCurrency -> overview = overview?.copy(budgetCurrency = selectedCurrency) },
                 )
-                "members" -> MembersContent(tripId, overview!!) { refresh++ }
-                else -> PhotosContent(tripId, overview!!) { refresh++ }
+                "members" -> MembersContent(tripId, overview!!, canEdit = overview!!.currentUserRole == "Владелец") { refresh++ }
+                else -> PhotosContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
             }
         }
             }
@@ -5681,7 +5757,7 @@ private fun TripTabs(selected: String, onSelect: (String) -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated: () -> Unit) {
+private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onSightUpdated: () -> Unit) {
     val context = LocalContext.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val language = LocalLanguage.current
@@ -5869,8 +5945,10 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                             letterSpacing = (-0.17).sp,
                             style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                         )
-                        Box(modifier = Modifier.padding(start = 7.dp).size(22.dp).clip(RoundedCornerShape(7.dp)).background(OdysseyTint).clickable { editingDay = true }, contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить", "Edit", "Editar", "Bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(12.dp))
+                        if (canEdit) {
+                            Box(modifier = Modifier.padding(start = 7.dp).size(22.dp).clip(RoundedCornerShape(7.dp)).background(OdysseyTint).clickable { editingDay = true }, contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить", "Edit", "Editar", "Bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(12.dp))
+                            }
                         }
                     }
                 }
@@ -5904,9 +5982,11 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                         }
                     }
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(OdysseyBorder).padding(horizontal = 12.dp))
-                    Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 22.dp).clickable { creatingDay = true; dayMenuOpen = false }, verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Text("+", color = OdysseyPurple, fontSize = 23.sp, fontWeight = FontWeight.W500) }
-                        Text(localized("Добавить день", "Add day", "Añadir día", "Tag hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
+                    if (canEdit) {
+                        Row(modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 22.dp).clickable { creatingDay = true; dayMenuOpen = false }, verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Text("+", color = OdysseyPurple, fontSize = 23.sp, fontWeight = FontWeight.W500) }
+                            Text(localized("Добавить день", "Add day", "Añadir día", "Tag hinzufügen"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
+                        }
                     }
                 }
             }
@@ -5938,7 +6018,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                                 )
                                 Text(
-                                    "${localizedCityName(selectedDayCity)} · ${visibleSights.size} ${localized("места", "places", "lugares", "Orte")}",
+                                    "${localizedCityName(selectedDayCity)} · ${visibleSights.size} ${localizedCountWord(visibleSights.size, language, "место", "места", "мест", "place", "places", "lugar", "lugares", "Ort", "Orte")}",
                                     color = secondaryTextColor(),
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W700,
@@ -5991,12 +6071,13 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
                     onOpenPhoto = { fullScreenSight = sight },
-                    onEdit = { editingSight = sight },
+                    canEdit = canEdit,
+                    onEdit = { if (canEdit) editingSight = sight },
                 )
             }
         }
     }
-    if (editingSight != null) {
+    if (canEdit && editingSight != null) {
         ModalBottomSheet(
             onDismissRequest = { editingSight = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -6030,12 +6111,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, onSightUpdated
             onDismiss = { fullScreenSight = null },
         )
     }
-    if (editingDay) {
+    if (canEdit && editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
             EditDaySheet(tripId, routeDay, selectedDayCity, visibleSightsWithDescriptions, sights, onClose = { editingDay = false }, onSaved = onSightUpdated)
         }
     }
-    if (creatingDay) {
+    if (canEdit && creatingDay) {
         ModalBottomSheet(onDismissRequest = { creatingDay = false }, containerColor = cardSurfaceColor()) {
             val nextDayNumber = maxOf(
                 routeDay,
@@ -6217,7 +6298,9 @@ private fun rememberSightBitmap(sight: com.odyssey.travelplanner.data.Sight): Bi
     var bitmap by remember(sight.id, sight.photo) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(sight.id, sight.name, sight.city, sight.photo, displayedName, displayedCity) {
         bitmap = null
-        val resolvedPhotoUrl = sight.photo.ifBlank { knownSightPhotoUrl(sight).orEmpty() }.ifBlank {
+        val resolvedPhotoUrl = if (sight.photoUnavailable) {
+            ""
+        } else sight.photo.ifBlank { knownSightPhotoUrl(sight).orEmpty() }.ifBlank {
             cachedSightPhotoUrl(
                 sight.id,
                 "$displayedName $englishCity",
@@ -6237,7 +6320,7 @@ private fun SightPhoto(
     onClick: (() -> Unit)? = null,
 ) {
     val bitmap = rememberSightBitmap(sight)
-    val canOpenPhoto = onClick != null && (sight.photo.isNotBlank() || bitmap != null)
+    val canOpenPhoto = onClick != null && !sight.photoUnavailable && (sight.photo.isNotBlank() || bitmap != null)
     val photoModifier = if (canOpenPhoto) modifier.clickable { onClick?.invoke() } else modifier
     Box(modifier = photoModifier.background(Color(0xFFE3E1EC)), contentAlignment = Alignment.Center) {
         if (bitmap != null) {
@@ -6955,6 +7038,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
             onClick = {
                 scope.launch {
                     saving = true
+                    var createdSightId: String? = null
                     runCatching {
                         val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                         var savedPoint = selectedPoint
@@ -6974,12 +7058,19 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                             latitude = savedPoint?.latitude(),
                             link = link.trim(),
                         )
+                        createdSightId = sightId
                         photoUri?.let { uri ->
                             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                 ?: error("Не удалось прочитать изображение")
                             repository.addSightPhoto(tripId, sightId, bytes)
                         }
                     }.onSuccess { onSaved(); onClose() }.onFailure {
+                        createdSightId?.let { sightId ->
+                            runCatching {
+                                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                    .deleteTripItem(tripId, "sights", sightId)
+                            }
+                        }
                         message = it.message ?: localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden")
                     }
                     saving = false
@@ -7157,7 +7248,6 @@ private fun SightLocationPickerSheet(
     DisposableEffect(mapView, annotationManager) {
         onDispose {
             annotationManager.deleteAll()
-            mapView.onDestroy()
         }
     }
 
@@ -7321,6 +7411,7 @@ private fun SightCard(
     selected: Boolean,
     onSelect: () -> Unit,
     onOpenPhoto: () -> Unit,
+    canEdit: Boolean = true,
     onEdit: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
@@ -7411,20 +7502,22 @@ private fun SightCard(
                 }
             }
         }
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(tintedSurfaceColor())
-                .clickable(onClick = onEdit),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Outlined.Edit,
-                contentDescription = localized("Редактировать", "Edit", "Editar", "Bearbeiten"),
-                tint = OdysseyPurple,
-                modifier = Modifier.size(17.dp),
-            )
+        if (canEdit) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tintedSurfaceColor())
+                    .clickable(onClick = onEdit),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = localized("Редактировать", "Edit", "Editar", "Bearbeiten"),
+                    tint = OdysseyPurple,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
         }
     }
 }
@@ -7657,7 +7750,7 @@ private fun SightRouteDayField(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaurantAdded: () -> Unit) {
+private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onRestaurantAdded: () -> Unit) {
     val context = LocalContext.current
     val language = LocalLanguage.current
     var adding by remember { mutableStateOf(false) }
@@ -7796,7 +7889,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
         verticalArrangement = Arrangement.spacedBy(0.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item {
+        if (canEdit) item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(44.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
@@ -7934,7 +8027,8 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                     restaurant,
                     savingRestaurantId == restaurant.id,
                     uploadingRestaurantId == restaurant.id,
-                    onEdit = { editingRestaurant = restaurant },
+                    canEdit = canEdit,
+                    onEdit = { if (canEdit) editingRestaurant = restaurant },
                     onAddPhoto = { uploadingRestaurantId = restaurant.id; photoPicker.launch("image/*") },
                     modifier = Modifier.padding(top = if (index == 0) 16.dp else 13.dp),
                 ) { status ->
@@ -7973,7 +8067,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             )
         }
     }
-    if (editingRestaurant != null) {
+    if (canEdit && editingRestaurant != null) {
         ModalBottomSheet(
             onDismissRequest = { editingRestaurant = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -8032,7 +8126,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             )
         }
     }
-    if (adding) {
+    if (canEdit && adding) {
         ModalBottomSheet(
             onDismissRequest = ::closeRestaurantForm,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -8083,6 +8177,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                 onSave = {
                     scope.launch {
                         saving = true
+                        var createdRestaurantId: String? = null
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                             val restaurantId = repository.addRestaurantDetails(
@@ -8098,6 +8193,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                                 ),
                                 tripId,
                             )
+                            createdRestaurantId = restaurantId
                             newRestaurantPhotoUris.forEach { uri ->
                                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                     ?: error("Не удалось прочитать изображение")
@@ -8107,6 +8203,12 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
                             closeRestaurantForm()
                             onRestaurantAdded()
                         }.onFailure {
+                            createdRestaurantId?.let { restaurantId ->
+                                runCatching {
+                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                        .deleteTripItem(tripId, "restaurants", restaurantId)
+                                }
+                            }
                             message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
                         }
                         saving = false
@@ -8115,7 +8217,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             )
         }
     }
-    if (adding && restaurantDatePickerOpen) {
+    if (canEdit && adding && restaurantDatePickerOpen) {
         AccommodationCalendarDialog(
             initialValue = dateTime,
             onDismiss = { restaurantDatePickerOpen = false },
@@ -8125,7 +8227,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             },
         )
     }
-    if (adding && cityPickerOpen) {
+    if (canEdit && adding && cityPickerOpen) {
         ModalBottomSheet(
             onDismissRequest = { cityPickerOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -8150,7 +8252,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, onRestaur
             )
         }
     }
-    if (adding && restaurantCatalogOpen) {
+    if (canEdit && adding && restaurantCatalogOpen) {
         ModalBottomSheet(
             onDismissRequest = { restaurantCatalogOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -10299,13 +10401,17 @@ private fun RestaurantCard(
     restaurant: com.odyssey.travelplanner.data.Restaurant,
     saving: Boolean,
     uploading: Boolean,
+    canEdit: Boolean = true,
     onEdit: () -> Unit,
     onAddPhoto: () -> Unit,
     modifier: Modifier = Modifier,
     onStatusChange: (String) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    val photos = restaurant.photos
+    // Failed signed-URL resolutions are represented by blank placeholders so
+    // photo indexes stay stable in the editor. They must not make a viewer
+    // appear to have a usable photo.
+    val photos = restaurant.photos.filter(String::isNotBlank)
     var photoIndex by remember(restaurant.id, photos) { mutableStateOf(0) }
     var fullScreenPhotoIndex by remember(restaurant.id, photos) { mutableStateOf<Int?>(null) }
     val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
@@ -10342,8 +10448,8 @@ private fun RestaurantCard(
                     .size(78.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFFE4E1EA))
-                    .clickable(enabled = !uploading) {
-                        if (photos.isEmpty()) onAddPhoto() else fullScreenPhotoIndex = activePhotoIndex
+                    .clickable(enabled = !uploading && (canEdit || photos.isNotEmpty())) {
+                        if (photos.isEmpty() && canEdit) onAddPhoto() else if (photos.isNotEmpty()) fullScreenPhotoIndex = activePhotoIndex
                     },
             ) {
                 photos.getOrNull(activePhotoIndex)?.let { AsyncImage(model = it, contentDescription = restaurant.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
@@ -10478,7 +10584,7 @@ private fun RestaurantCard(
                 .height(29.dp)
                 .drawBehind { drawLine(OdysseyBorder, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx()) }
                 .padding(top = 11.dp)
-                .clickable(enabled = !saving) { onStatusChange(when (restaurant.status) { "хочу" -> "бронь"; "бронь" -> "были"; else -> "хочу" }) },
+                .clickable(enabled = canEdit && !saving) { onStatusChange(when (restaurant.status) { "хочу" -> "бронь"; "бронь" -> "были"; else -> "хочу" }) },
         ) {
             if (booked || visited) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -10503,17 +10609,19 @@ private fun RestaurantCard(
                 }
             }
         }
-        OutlinedButton(
-            onClick = onEdit,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = OdysseyLabel),
-            border = androidx.compose.foundation.BorderStroke(1.dp, OdysseyBorder),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 11.dp).height(42.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(11.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                OdysseyEditIcon(15.dp, OdysseyPurple)
-                Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+        if (canEdit) {
+            OutlinedButton(
+                onClick = onEdit,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = OdysseyLabel),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OdysseyBorder),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 11.dp).height(42.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(11.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    OdysseyEditIcon(15.dp, OdysseyPurple)
+                    Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                }
             }
         }
         fullScreenPhotoIndex?.let { initialIndex ->
@@ -10572,7 +10680,7 @@ private fun RestaurantMapCard(
         }
     }
 
-    DisposableEffect(annotationManager, numberAnnotationManager) {
+    DisposableEffect(mapView, annotationManager, numberAnnotationManager) {
         onDispose {
             annotationManager.deleteAll()
             numberAnnotationManager.deleteAll()
@@ -10701,7 +10809,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
 }
 
 @Composable
-private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: () -> Unit) {
+private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onPhotoAdded: () -> Unit) {
     val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -10752,22 +10860,24 @@ private fun PhotosContent(tripId: String, overview: TripOverview, onPhotoAdded: 
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             ) {
                 Text(localized("Фото", "Photos", "Fotos", "Fotos"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
-                        .shadow(5.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x426C5CE7), spotColor = Color(0x426C5CE7))
-                        .clickable(enabled = !uploading) { picker.launch("image/*") }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                ) {
-                    Text(
-                        if (uploading) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("↑  Загрузить", "↑  Upload", "↑  Subir", "↑  Hochladen"),
-                        color = Color.White,
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 12.5.sp,
-                    )
+                if (canEdit) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(Brush.linearGradient(listOf(OdysseyPurple, Color(0xFF7D6CF0))))
+                            .shadow(5.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x426C5CE7), spotColor = Color(0x426C5CE7))
+                            .clickable(enabled = !uploading) { picker.launch("image/*") }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        Text(
+                            if (uploading) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("↑  Загрузить", "↑  Upload", "↑  Subir", "↑  Hochladen"),
+                            color = Color.White,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 12.5.sp,
+                        )
+                    }
                 }
             }
         }
@@ -10826,7 +10936,7 @@ private fun PhotoTile(imageUrl: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated: () -> Unit) {
+private fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onRoleUpdated: () -> Unit) {
     val language = LocalLanguage.current
     var savingMemberId by remember { mutableStateOf<String?>(null) }
     var deleteMember by remember { mutableStateOf<com.odyssey.travelplanner.data.TripMember?>(null) }
@@ -10851,12 +10961,14 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 Text(localized("Участники", "Members", "Participantes", "Teilnehmer"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
                 Spacer(Modifier.weight(1f))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(OdysseyTint).clickable { editing = !editing }.padding(horizontal = 13.dp, vertical = 8.dp),
-                ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить участников", "Edit members", "Editar participantes", "Teilnehmer bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(16.dp))
-                    Text(if (editing) localized("Готово", "Done", "Listo", "Fertig") else localized("Изменить", "Edit", "Editar", "Bearbeiten"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 5.dp))
+                if (canEdit) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(OdysseyTint).clickable { editing = !editing }.padding(horizontal = 13.dp, vertical = 8.dp),
+                    ) {
+                        Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить участников", "Edit members", "Editar participantes", "Teilnehmer bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(16.dp))
+                        Text(if (editing) localized("Готово", "Done", "Listo", "Fertig") else localized("Изменить", "Edit", "Editar", "Bearbeiten"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(start = 5.dp))
+                    }
                 }
             }
         }
@@ -10869,26 +10981,30 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
             item { Text(localized("Участники пока не добавлены", "No members added yet", "Aún no se han añadido participantes", "Noch keine Mitglieder hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
             items(overview.members, key = { it.id }) { member ->
-                MemberCard(member, savingMemberId == member.id, editing, onDelete = {
-                    deleteMember = member
-                    deleteMemberError = null
+                MemberCard(member, savingMemberId == member.id, canEdit && editing, onDelete = {
+                    if (canEdit) {
+                        deleteMember = member
+                        deleteMemberError = null
+                    }
                 }) { role ->
-                    scope.launch {
-                        savingMemberId = member.id
-                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateMemberRole(tripId, member.id, role) }
-                            .onSuccess {
-                                actionMessage = null
-                                onRoleUpdated()
-                            }
-                            .onFailure {
-                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0440\u043e\u043b\u044c. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the role. Check your connection and try again.", "No se pudo cambiar el rol. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Rolle konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
-                            }
-                        savingMemberId = null
+                    if (canEdit) {
+                        scope.launch {
+                            savingMemberId = member.id
+                            runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateMemberRole(tripId, member.id, role) }
+                                .onSuccess {
+                                    actionMessage = null
+                                    onRoleUpdated()
+                                }
+                                .onFailure {
+                                    actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0440\u043e\u043b\u044c. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the role. Check your connection and try again.", "No se pudo cambiar el rol. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Rolle konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
+                                }
+                            savingMemberId = null
+                        }
                     }
                 }
             }
         }
-        item {
+        if (canEdit) item {
             if (adding) {
                 Column(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(horizontal = 15.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     InviteMemberField(localized("Имя участника", "Member name", "Nombre", "Name"), name) { name = it }
@@ -10927,7 +11043,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
                 }
             }
         }
-        item {
+        if (canEdit) item {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -10951,7 +11067,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, onRoleUpdated
             }
         }
     }
-    deleteMember?.let { member ->
+    if (canEdit) deleteMember?.let { member ->
         val deleting = savingMemberId == member.id
         AlertDialog(
             onDismissRequest = {
@@ -11144,6 +11260,7 @@ private fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, saving
 private fun BudgetContent(
     tripId: String,
     overview: TripOverview,
+    canEdit: Boolean = true,
     onExpenseAdded: () -> Unit,
     onCurrencyChanged: (String) -> Unit,
 ) {
@@ -11167,6 +11284,9 @@ private fun BudgetContent(
     var selectedCurrencyCode by remember(tripId, storedCurrencyCode) { mutableStateOf(storedCurrencyCode) }
     val currencySymbol = currencyOptions.firstOrNull { it.code == selectedCurrencyCode }?.symbol ?: "₽"
     val exchangeRateRepository = remember { ExchangeRateRepository() }
+    DisposableEffect(exchangeRateRepository) {
+        onDispose { exchangeRateRepository.close() }
+    }
     val storedManualRates = overview.budgetManualRates
     var manualRates by remember(tripId, storedManualRates) { mutableStateOf(storedManualRates) }
     var onlineRates by remember(tripId) { mutableStateOf<Map<String, Double>>(emptyMap()) }
@@ -11210,6 +11330,16 @@ private fun BudgetContent(
         onlineRates[code]?.takeIf { it > 0.0 } != null -> onlineRates.getValue(code)
         else -> fallbackCurrencyRate(code)
     }
+
+    val hasReliableCurrencyRate = selectedCurrencyCode == "RUB" ||
+        manualRates[selectedCurrencyCode]?.let { it > 0.0 } == true ||
+        onlineRates[selectedCurrencyCode]?.let { it > 0.0 } == true
+    val missingCurrencyRateMessage = localized(
+        "Курс валюты ещё не загружен. Обновите курс или задайте его вручную.",
+        "The exchange rate is not loaded yet. Refresh it or set it manually.",
+        "El tipo de cambio aún no está cargado. Actualízalo o establécelo manualmente.",
+        "Der Wechselkurs ist noch nicht geladen. Aktualisieren Sie ihn oder geben Sie ihn manuell ein.",
+    )
 
     fun rubPerCurrencyUnit(code: String): Double = 1.0 / effectiveCurrencyRate(code)
 
@@ -11369,6 +11499,7 @@ private fun BudgetContent(
             selectedCode = selectedCurrencyCode,
             options = currencyOptions,
             saving = savingCurrency,
+            editable = canEdit,
             onSelect = { selected ->
                 if (selected != selectedCurrencyCode && !savingCurrency) {
                     val previousCurrencyCode = selectedCurrencyCode
@@ -11407,7 +11538,7 @@ private fun BudgetContent(
             hasOnlineRate = selectedCurrencyCode == "RUB" || onlineRates.containsKey(selectedCurrencyCode),
             message = ratesMessage,
             onEdit = {
-                if (selectedCurrencyCode != "RUB") {
+                if (canEdit && selectedCurrencyCode != "RUB") {
                     rateEditorCode = selectedCurrencyCode
                     rateReferenceCode = "RUB"
                     rateInput = formatBudgetRateInput(rubPerCurrencyUnit(selectedCurrencyCode))
@@ -11415,6 +11546,7 @@ private fun BudgetContent(
                 }
             },
             onRefresh = { scope.launch { refreshOnlineRates() } },
+            editable = canEdit,
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(71.dp)) {
@@ -11461,18 +11593,25 @@ private fun BudgetContent(
             currencySymbol = currencySymbol,
             conversionRate = currencyRate,
             editMode = editMode,
+            editable = canEdit,
             deletingExpenseId = deletingExpenseId,
             onToggleEditMode = { editMode = !editMode },
-            onAdd = ::openNewExpense,
-            onEdit = ::openEditExpense,
+            onAdd = {
+                if (hasReliableCurrencyRate) openNewExpense() else ratesMessage = missingCurrencyRateMessage
+            },
+            onEdit = { expense ->
+                if (hasReliableCurrencyRate) openEditExpense(expense) else ratesMessage = missingCurrencyRateMessage
+            },
             onDelete = { expense ->
-                deleteExpense = expense
-                deleteExpenseError = null
+                if (canEdit) {
+                    deleteExpense = expense
+                    deleteExpenseError = null
+                }
             },
         )
     }
 
-    if (adding || editingExpense != null) {
+    if (canEdit && (adding || editingExpense != null)) {
         ModalBottomSheet(
             onDismissRequest = ::closeExpenseSheet,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -11502,32 +11641,36 @@ private fun BudgetContent(
                 onScopeChange = { scopeName = it },
                 onClose = ::closeExpenseSheet,
                 onSave = {
-                    scope.launch {
-                        saving = true
-                        message = null
-                        val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-                        val baseValue = value / currencyRate
-                        val expenseName = name.trim().ifBlank { category }
-                        val input = com.odyssey.travelplanner.data.ExpenseInput(
-                            name = expenseName,
-                            amount = baseValue,
-                            category = category,
-                            scope = scopeName,
-                            paidBy = paidBy,
-                            date = date,
-                        )
-                        runCatching {
-                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                            editingExpense?.let { expense ->
-                                repository.updateBudgetExpenseDetails(tripId, expense.id, input)
-                            } ?: repository.addBudgetExpenseDetails(tripId, input)
-                        }.onSuccess {
-                            closeExpenseSheet()
-                            onExpenseAdded()
-                        }.onFailure {
-                            message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden")
+                    if (!hasReliableCurrencyRate) {
+                        message = missingCurrencyRateMessage
+                    } else {
+                        scope.launch {
+                            saving = true
+                            message = null
+                            val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
+                            val baseValue = value / currencyRate
+                            val expenseName = name.trim().ifBlank { category }
+                            val input = com.odyssey.travelplanner.data.ExpenseInput(
+                                name = expenseName,
+                                amount = baseValue,
+                                category = category,
+                                scope = scopeName,
+                                paidBy = paidBy,
+                                date = date,
+                            )
+                            runCatching {
+                                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                editingExpense?.let { expense ->
+                                    repository.updateBudgetExpenseDetails(tripId, expense.id, input)
+                                } ?: repository.addBudgetExpenseDetails(tripId, input)
+                            }.onSuccess {
+                                closeExpenseSheet()
+                                onExpenseAdded()
+                            }.onFailure {
+                                message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden")
+                            }
+                            saving = false
                         }
-                        saving = false
                     }
                 },
             )
@@ -11543,7 +11686,7 @@ private fun BudgetContent(
             },
         )
     }
-    deleteExpense?.let { expense ->
+    if (canEdit) deleteExpense?.let { expense ->
         val deleting = deletingExpenseId == expense.id
         AlertDialog(
             onDismissRequest = {
@@ -11618,7 +11761,7 @@ private fun BudgetContent(
             },
         )
     }
-    rateEditorCode?.let { code ->
+    if (canEdit) rateEditorCode?.let { code ->
         AlertDialog(
             onDismissRequest = { if (!savingRate) rateEditorCode = null },
             title = {
@@ -11817,6 +11960,7 @@ private fun BudgetCurrencySelector(
     selectedCode: String,
     options: List<BudgetCurrencyStyle>,
     saving: Boolean,
+    editable: Boolean = true,
     onSelect: (String) -> Unit,
 ) {
     Row(
@@ -11836,7 +11980,7 @@ private fun BudgetCurrencySelector(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(11.dp))
                     .background(if (selected) cardSurfaceColor() else Color.Transparent)
-                    .clickable(enabled = !saving && !selected) { onSelect(option.code) },
+                    .clickable(enabled = editable && !saving && !selected) { onSelect(option.code) },
             ) {
                 Text(
                     text = option.symbol,
@@ -11861,6 +12005,7 @@ private fun BudgetExchangeRateCard(
     onlineRateDate: String,
     hasOnlineRate: Boolean,
     message: String?,
+    editable: Boolean = true,
     onEdit: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -11939,7 +12084,7 @@ private fun BudgetExchangeRateCard(
                         fontSize = 10.sp,
                     )
                 }
-                if (currencyCode != "RUB") {
+                if (editable && currencyCode != "RUB") {
                     Text(
                         text = localized("Изменить", "Edit", "Editar", "Ändern"),
                         color = Color.White,
@@ -12108,6 +12253,7 @@ private fun BudgetExpensesCard(
     currencySymbol: String,
     conversionRate: Double,
     editMode: Boolean,
+    editable: Boolean = true,
     deletingExpenseId: String?,
     onToggleEditMode: () -> Unit,
     onAdd: () -> Unit,
@@ -12142,15 +12288,17 @@ private fun BudgetExpensesCard(
                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
             )
             Spacer(Modifier.weight(1f))
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(OdysseyTint)
-                    .clickable(onClick = onToggleEditMode),
-            ) {
-                OdysseyEditIcon(16.dp, OdysseyPurple)
+            if (editable) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(OdysseyTint)
+                        .clickable(onClick = onToggleEditMode),
+                ) {
+                    OdysseyEditIcon(16.dp, OdysseyPurple)
+                }
             }
         }
         expenses.forEachIndexed { index, expense ->
@@ -12158,7 +12306,7 @@ private fun BudgetExpensesCard(
                 expense = expense,
                 currencySymbol = currencySymbol,
                 conversionRate = conversionRate,
-                editMode = editMode,
+                editMode = editable && editMode,
                 deleting = deletingExpenseId == expense.id,
                 showDivider = index < expenses.lastIndex,
                 onEdit = { onEdit(expense) },
@@ -12166,7 +12314,7 @@ private fun BudgetExpensesCard(
             )
         }
         Spacer(Modifier.height(5.dp))
-        BudgetDashedButton(onClick = onAdd)
+        if (editable) BudgetDashedButton(onClick = onAdd)
     }
 }
 
@@ -12797,7 +12945,7 @@ private fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccommodationContent(tripId: String, overview: TripOverview, onStatusUpdated: () -> Unit) {
+private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onStatusUpdated: () -> Unit) {
     val context = LocalContext.current
     val language = LocalLanguage.current
     var savingAccommodationId by remember { mutableStateOf<String?>(null) }
@@ -12904,7 +13052,8 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                     accommodation,
                     savingAccommodationId == accommodation.id,
                     uploadingAccommodationId == accommodation.id,
-                    onEdit = { editingAccommodation = accommodation },
+                    canEdit = canEdit,
+                    onEdit = { if (canEdit) editingAccommodation = accommodation },
                     onAddPhoto = { uploadingAccommodationId = accommodation.id; photoPicker.launch("image/*") },
                     onMovePhoto = { index, direction ->
                         scope.launch {
@@ -12921,7 +13070,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                         }
                     },
                 ) { status ->
-                    scope.launch {
+                    if (canEdit) scope.launch {
                         savingAccommodationId = accommodation.id
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationStatus(tripId, accommodation.id, status) }
                             .onSuccess {
@@ -12936,7 +13085,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                 }
             }
         }
-        item {
+        if (canEdit) item {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -12953,7 +13102,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
             }
         }
     }
-    if (editingAccommodation != null) {
+    if (canEdit && editingAccommodation != null) {
         ModalBottomSheet(
             onDismissRequest = { editingAccommodation = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -12982,7 +13131,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
             )
         }
     }
-    if (adding) {
+    if (canEdit && adding) {
         ModalBottomSheet(
             onDismissRequest = ::closeAccommodationForm,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -13019,6 +13168,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                 onSave = {
                     scope.launch {
                         saving = true
+                        var createdAccommodationId: String? = null
                         runCatching {
                             val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                             val accommodationId = repository.addAccommodationDetails(
@@ -13038,24 +13188,31 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
                                 ),
                                 tripId,
                             )
+                            createdAccommodationId = accommodationId
                             newAccommodationPhotoUri?.let { uri ->
                                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                     ?: error("Не удалось прочитать изображение")
                                 repository.addAccommodationPhoto(tripId, accommodationId, bytes)
                             }
-                            }
-                            .onSuccess {
+                        }.onSuccess {
                                 closeAccommodationForm()
                                 onStatusUpdated()
+                        }.onFailure {
+                            createdAccommodationId?.let { accommodationId ->
+                                runCatching {
+                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                        .deleteAccommodation(tripId, accommodationId)
+                                }
                             }
-                            .onFailure { message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden") }
+                            message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                        }
                         saving = false
                     }
                 },
             )
         }
     }
-    if (accommodationAddChoiceOpen) {
+    if (canEdit && accommodationAddChoiceOpen) {
         ModalBottomSheet(
             onDismissRequest = { accommodationAddChoiceOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -13081,7 +13238,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
             )
         }
     }
-    if (accommodationCatalogOpen) {
+    if (canEdit && accommodationCatalogOpen) {
         ModalBottomSheet(
             onDismissRequest = { accommodationCatalogOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -13161,7 +13318,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, onStatu
 }
 
 @Composable
-private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, saving: Boolean, uploading: Boolean, onEdit: () -> Unit, onAddPhoto: () -> Unit, onMovePhoto: (Int, Int) -> Unit, onStatusChange: (String) -> Unit) {
+private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, saving: Boolean, uploading: Boolean, canEdit: Boolean = true, onEdit: () -> Unit, onAddPhoto: () -> Unit, onMovePhoto: (Int, Int) -> Unit, onStatusChange: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
     val language = LocalLanguage.current
     val surface = cardSurfaceColor()
@@ -13306,10 +13463,12 @@ private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acco
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
-                Box(modifier = (if (bookingTarget.isNotBlank()) Modifier.width(150.234.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        OdysseyEditIcon(15.dp, OdysseyPurple)
-                        Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                if (canEdit) {
+                    Box(modifier = (if (bookingTarget.isNotBlank()) Modifier.width(150.234.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, OdysseyBorder, RoundedCornerShape(12.dp)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            OdysseyEditIcon(15.dp, OdysseyPurple)
+                            Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = OdysseyLabel, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                        }
                     }
                 }
                 if (bookingTarget.isNotBlank()) {
@@ -15552,7 +15711,7 @@ private fun AccommodationCalendarDialog(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdded: () -> Unit) {
+private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onRouteAdded: () -> Unit) {
     val language = LocalLanguage.current
     val cityCatalogContext = LocalContext.current
     val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
@@ -15621,18 +15780,20 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
         } else {
             itemsIndexed(overview.routeLegs) { index, leg ->
                 val dayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1) ?: index
-                RouteLegCard(leg, dayIndex, overview.dates, resolvedRouteFlags, onEdit = {
-                    editingLeg = leg
-                    from = leg.from
-                    to = leg.to
-                    checkIn = leg.checkIn
-                    checkOut = leg.checkOut
-                    notes = leg.notes
-                    mapsUrl = leg.mapsUrl
-                    selectedDateIso = routeEditorDateIso(leg.date, overview.dates, dayIndex, leg.dateDay, leg.dateMonth)
-                    adding = true
+                RouteLegCard(leg, dayIndex, overview.dates, resolvedRouteFlags, canEdit = canEdit, onEdit = {
+                    if (canEdit) {
+                        editingLeg = leg
+                        from = leg.from
+                        to = leg.to
+                        checkIn = leg.checkIn
+                        checkOut = leg.checkOut
+                        notes = leg.notes
+                        mapsUrl = leg.mapsUrl
+                        selectedDateIso = routeEditorDateIso(leg.date, overview.dates, dayIndex, leg.dateDay, leg.dateMonth)
+                        adding = true
+                    }
                 }) { itemId, completed ->
-                    scope.launch {
+                    if (canEdit) scope.launch {
                         runCatching {
                             SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                                 .updateRouteChecklist(tripId, leg.dayId, itemId, completed)
@@ -15646,7 +15807,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 }
             }
         }
-        item {
+        if (canEdit) item {
             if (!adding) {
                 Text(
                     localized("＋  Добавить день", "＋  Add day", "＋  Añadir día", "＋  Tag hinzufügen"),
@@ -15676,7 +15837,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
             }
         }
     }
-    if (adding) {
+    if (canEdit && adding) {
         ModalBottomSheet(
             onDismissRequest = { adding = false; editingLeg = null; message = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -15698,7 +15859,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
                 onCheckOutChange = { checkOut = it },
                 onMapsUrlChange = { mapsUrl = it },
                 onCancel = { adding = false; editingLeg = null; message = null },
-                canDelete = editingLeg != null,
+                canDelete = canEdit && editingLeg != null,
                 onDelete = {
                     editingLeg?.let { leg ->
                         scope.launch {
@@ -15754,7 +15915,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, onRouteAdde
             )
         }
     }
-    if (datePickerOpen) {
+    if (canEdit && datePickerOpen) {
         AccommodationCalendarDialog(
             initialValue = selectedDateIso,
             onDismiss = { datePickerOpen = false },
@@ -15910,6 +16071,7 @@ private fun RouteLegCard(
     dayIndex: Int,
     tripDates: String,
     resolvedCityFlags: Map<String, String> = emptyMap(),
+    canEdit: Boolean = true,
     onEdit: () -> Unit,
     onChecklistChange: (String, Boolean) -> Unit,
 ) {
@@ -15954,8 +16116,10 @@ private fun RouteLegCard(
                 Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { clipboard.setText(AnnotatedString(mapsUrl)) }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.ContentCopy, contentDescription = localized("Копировать ссылку", "Copy link", "Copiar enlace", "Link kopieren"), tint = OdysseyPurple, modifier = Modifier.size(18.dp))
                 }
-                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { onEdit() }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить", "Edit", "Editar", "Bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(18.dp))
+                if (canEdit) {
+                    Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { onEdit() }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Edit, contentDescription = localized("Изменить", "Edit", "Editar", "Bearbeiten"), tint = OdysseyPurple, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
@@ -16446,7 +16610,7 @@ private fun OverviewMapCard(
         }
     }
 
-    DisposableEffect(routeAnnotationManager, sightAnnotationManager, sightNumberAnnotationManager) {
+    DisposableEffect(mapView, routeAnnotationManager, sightAnnotationManager, sightNumberAnnotationManager) {
         onDispose {
             routeAnnotationManager.deleteAll()
             sightAnnotationManager.deleteAll()
@@ -16718,11 +16882,13 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                     modifier = Modifier.padding(start = 6.dp),
                 )
             }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(36.dp).background(Color(0xF8FFFFFF), RoundedCornerShape(12.dp)).clickable { onEdit() },
-            ) {
-                Icon(Icons.Filled.MoreVert, contentDescription = localized("Действия с путешествием", "Trip actions", "Acciones del viaje", "Reiseaktionen"), tint = Color(0xFF46464D), modifier = Modifier.size(20.dp))
+            if (trip.canEdit) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(36.dp).background(Color(0xF8FFFFFF), RoundedCornerShape(12.dp)).clickable { onEdit() },
+                ) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = localized("Действия с путешествием", "Trip actions", "Acciones del viaje", "Reiseaktionen"), tint = Color(0xFF46464D), modifier = Modifier.size(20.dp))
+                }
             }
         }
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 17.dp)) {

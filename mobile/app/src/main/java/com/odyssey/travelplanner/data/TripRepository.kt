@@ -26,6 +26,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 
@@ -53,6 +54,14 @@ data class TripCard(
     val cities: String,
     val coverImage: String?,
     val isOwner: Boolean,
+    val canEdit: Boolean = isOwner,
+)
+
+@Serializable
+private data class TripCollaboratorRow(
+    @SerialName("trip_id") val tripId: String,
+    @SerialName("user_id") val userId: String,
+    val role: String,
 )
 
 data class CoverPhoto(val id: String, val imageUrl: String, val city: String)
@@ -125,6 +134,7 @@ data class Sight(
     val latitude: Double?,
     val rating: Double? = null,
     val link: String = "",
+    val photoUnavailable: Boolean = false,
 )
 
 private fun jsonText(element: JsonElement?): String =
@@ -191,6 +201,8 @@ data class TripOverview(
     val cities: List<String> = emptyList(),
     val cityCoordinates: Map<String, CityLocation> = emptyMap(),
     val routeDayCount: Int = 0,
+    val currentUserRole: String = "",
+    val canEdit: Boolean = false,
 )
 
 private data class ResolvedTripOverviewPhotos(
@@ -402,6 +414,38 @@ interface TripRepository {
 class AuthSessionRequiredException : IllegalStateException()
 
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
+    private fun roleCanEdit(role: String): Boolean = role == "Владелец" || role == "Редактор"
+
+    private suspend fun currentUserRole(row: TripRow, currentUserId: String?): String {
+        if (currentUserId.isNullOrBlank()) return ""
+        if (row.ownerId == currentUserId) return "Владелец"
+
+        val collaboratorRole = runCatching {
+            client.from("trip_collaborators").select {
+                filter {
+                    eq("trip_id", row.id)
+                    eq("user_id", currentUserId)
+                }
+            }.decodeList<TripCollaboratorRow>().firstOrNull()?.role.orEmpty()
+        }.getOrDefault("")
+        if (collaboratorRole.isNotBlank()) return collaboratorRole
+
+        // Keep older trips usable until their member list is rewritten by the
+        // invitation RPC and contains userId.
+        val currentEmail = client.auth.currentUserOrNull()?.email?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        return row.payload["members"]?.jsonArray.orEmpty()
+            .firstOrNull { member ->
+                val memberObject = member.jsonObject
+                memberObject["userId"]?.jsonPrimitive?.contentOrNull == currentUserId ||
+                    (currentEmail.isNotBlank() && memberObject["email"]?.jsonPrimitive?.contentOrNull?.trim()?.lowercase(Locale.ROOT) == currentEmail)
+            }
+            ?.jsonObject
+            ?.get("role")
+            ?.jsonPrimitive
+            ?.contentOrNull
+            .orEmpty()
+    }
+
     override suspend fun loadTrips(): List<TripCard> {
         val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
         val rows = client.from("trips").select().decodeList<TripRow>()
@@ -409,16 +453,18 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             rows.map { row ->
                 async {
                     fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
-            TripCard(
-                id = row.id,
-                title = text("title").ifBlank { "Путешествие" },
-                dates = text("dates"),
-                status = text("status").ifBlank { "Черновик" },
-                progress = row.payload["progress"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100) ?: 0,
-                cities = text("cities"),
-                coverImage = client.resolveTripPhotoReference(text("coverImage")),
-                isOwner = row.ownerId == currentUserId,
-            )
+                    val role = currentUserRole(row, currentUserId)
+                    TripCard(
+                        id = row.id,
+                        title = text("title").ifBlank { "Путешествие" },
+                        dates = text("dates"),
+                        status = text("status").ifBlank { "Черновик" },
+                        progress = row.payload["progress"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100) ?: 0,
+                        cities = text("cities"),
+                        coverImage = client.resolveTripPhotoReference(text("coverImage")),
+                        isOwner = row.ownerId == currentUserId,
+                        canEdit = roleCanEdit(role),
+                    )
                 }
             }.awaitAll()
         }
@@ -428,6 +474,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val row = client.from("trips").select {
             filter { eq("id", id) }
         }.decodeList<TripRow>().firstOrNull() ?: return null
+        val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
+        val resolvedUserRole = currentUserRole(row, currentUserId)
         fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
         val covers = row.payload["coverPhotos"]?.jsonArray.orEmpty().mapNotNull { item ->
             val photo = item.jsonObject
@@ -586,8 +634,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             text("coverImage").takeIf(String::isNotBlank)?.let { listOf(CoverPhoto("legacy", it, "")) }.orEmpty()
         })
         val resolvedPhotos = supervisorScope {
-            val coverUrls = async {
-                client.resolveTripPhotoReferences(rawCovers.map(CoverPhoto::imageUrl))
+            val coverValues = async {
+                rawCovers.mapNotNull { photo ->
+                    client.resolveTripPhotoReference(photo.imageUrl)?.let { url -> photo.copy(imageUrl = url) }
+                }
             }
             val accommodationValues = async {
                 accommodations.map { accommodation ->
@@ -599,7 +649,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             val sightValues = async {
                 sights.map { sight ->
                     async {
-                        sight.copy(photo = client.resolveTripPhotoReference(sight.photo) ?: sight.photo)
+                        val resolvedPhoto = client.resolveTripPhotoReference(sight.photo)
+                        sight.copy(
+                            photo = resolvedPhoto.orEmpty(),
+                            photoUnavailable = resolvedPhoto == null && sight.photo.isNotBlank() && tripPhotoPath(sight.photo) != null,
+                        )
                     }
                 }.awaitAll()
             }
@@ -611,7 +665,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }.awaitAll()
             }
             ResolvedTripOverviewPhotos(
-                covers = rawCovers.zip(coverUrls.await()).map { (photo, url) -> photo.copy(imageUrl = url) },
+                covers = coverValues.await(),
                 accommodations = accommodationValues.await(),
                 sights = sightValues.await(),
                 restaurants = restaurantValues.await(),
@@ -647,6 +701,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
             cityCoordinates = cityCoordinates,
             routeDayCount = routeDayCount,
+            currentUserRole = resolvedUserRole,
+            canEdit = roleCanEdit(resolvedUserRole),
         )
     }
 
@@ -1005,30 +1061,15 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             },
             headers = Headers.build { append(HttpHeaders.ContentType, "application/json") },
         )
-        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
-            ?: error("Путешествие не найдено")
-        val members = buildJsonArray {
-            current.payload["members"]?.jsonArray.orEmpty().forEach { add(it) }
-            add(buildJsonObject {
-                put("id", UUID.randomUUID().toString())
-                put("name", name.trim())
-                put("email", email.trim().lowercase())
-                put("role", role)
-                put("initials", name.trim().take(2).uppercase())
-                put("tone", "blue")
-            })
-        }
-        updateTripSection(id, "members", members, current.revision)
     }
 
     override suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        val current = loadTripRow(id)
         val path = "$ownerId/$id/covers/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
-        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
-            ?: error("Путешествие не найдено")
         val photos = buildJsonArray {
             current.payload["coverPhotos"]?.jsonArray.orEmpty().forEach { add(it) }
             add(buildJsonObject {
@@ -1041,16 +1082,111 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("coverPhotos", photos)
             if (current.payload["coverImage"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()) put("coverImage", kotlinx.serialization.json.JsonPrimitive(imageUrl))
         }
-        patchTripPayload(id, patch, current.revision)
+        runCatching { patchTripPayload(id, patch, current.revision) }
+            .onFailure {
+                runCatching { client.storage.from("trip-photos").delete(path) }
+                throw it
+            }
     }
 
     override suspend fun updateTripDetails(id: String, title: String, dates: String, cities: String) {
         require(title.isNotBlank()) { "Укажите название путешествия" }
         val current = loadTripRow(id)
+        val cityList = cities.split(",").map(String::trim).filter(String::isNotBlank)
+        val oldDays = current.payload["days"]?.jsonArray.orEmpty()
+        fun parseTripDate(value: String): LocalDate? {
+            val iso = Regex("\\d{4}-\\d{2}-\\d{2}").find(value)?.value
+            if (iso != null) return runCatching { LocalDate.parse(iso) }.getOrNull()
+            val dotted = Regex("(\\d{1,2})[./](\\d{1,2})[./](\\d{4})").find(value)
+            if (dotted != null) {
+                return runCatching {
+                    LocalDate.of(
+                        dotted.groupValues[3].toInt(),
+                        dotted.groupValues[2].toInt(),
+                        dotted.groupValues[1].toInt(),
+                    )
+                }.getOrNull()
+            }
+            return null
+        }
+        val parsedDates = Regex("(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[./]\\d{1,2}[./]\\d{4})")
+            .findAll(dates)
+            .mapNotNull { parseTripDate(it.value) }
+            .toList()
+        val startDate = parsedDates.firstOrNull()
+        val endDate = parsedDates.getOrNull(1) ?: startDate
+        val oldCoordinates = current.payload["cityCoordinates"]?.jsonObject.orEmpty()
+        fun oldCoordinate(city: String): CityLocation? {
+            val exact = oldCoordinates[city]?.jsonObject
+            val exactLocation = exact?.get("latitude")?.jsonPrimitive?.doubleOrNull?.let { latitude ->
+                exact["longitude"]?.jsonPrimitive?.doubleOrNull?.let { longitude -> CityLocation(latitude, longitude) }
+            }
+            if (exactLocation != null) return exactLocation
+            val catalogKey = cityCatalogEntry(city)?.key ?: return null
+            return oldCoordinates.entries.firstOrNull { (key, _) -> cityCatalogEntry(key)?.key == catalogKey }
+                ?.value
+                ?.jsonObject
+                ?.let { coordinates ->
+                    val latitude = coordinates["latitude"]?.jsonPrimitive?.doubleOrNull ?: return@let null
+                    val longitude = coordinates["longitude"]?.jsonPrimitive?.doubleOrNull ?: return@let null
+                    CityLocation(latitude, longitude)
+                }
+        }
+        val nextCoordinates = linkedMapOf<String, CityLocation>()
+        cityList.forEach { city ->
+            val existingLocation = oldCoordinate(city)
+            val catalogLocation = cityCatalogEntry(city)?.let { CityLocation(it.latitude, it.longitude) }
+            (existingLocation ?: catalogLocation)?.let { nextCoordinates[city] = it }
+        }
+        val nextDays = buildJsonArray {
+            cityList.zipWithNext().forEachIndexed { index, (from, to) ->
+                val oldDay = oldDays.getOrNull(index)?.jsonObject
+                val oldRoadLeg = oldDay?.get("roadLeg")?.jsonObject
+                val dayDate = startDate?.plusDays(index.toLong())?.toString()
+                    ?: oldDay?.get("date")?.jsonPrimitive?.contentOrNull.orEmpty()
+                val nextRoadLeg = JsonObject((oldRoadLeg?.toMutableMap() ?: mutableMapOf()).apply {
+                    put("from", kotlinx.serialization.json.JsonPrimitive(from))
+                    put("to", kotlinx.serialization.json.JsonPrimitive(to))
+                    if (startDate != null) {
+                        // These are derived display fields. Let the Android
+                        // reader calculate them from the new ISO date instead
+                        // of retaining the previous day's labels.
+                        remove("dateDay")
+                        remove("dateMonth")
+                        remove("weekday")
+                    }
+                })
+                add(JsonObject((oldDay?.toMutableMap() ?: mutableMapOf()).apply {
+                    put("id", oldDay?.get("id") ?: kotlinx.serialization.json.JsonPrimitive(UUID.randomUUID().toString()))
+                    put("city", kotlinx.serialization.json.JsonPrimitive(to))
+                    put("date", kotlinx.serialization.json.JsonPrimitive(dayDate))
+                    put("dayNumber", kotlinx.serialization.json.JsonPrimitive(index + 1))
+                    put("places", oldDay?.get("places") ?: buildJsonArray { })
+                    put("roadLeg", nextRoadLeg)
+                }))
+            }
+        }
+        val preservedRouteDays = buildJsonArray {
+            current.payload["archivedRouteDays"]?.jsonArray.orEmpty().forEach { add(it) }
+            oldDays.drop(nextDays.size).forEach { add(it) }
+        }
         val patch = buildJsonObject {
             put("title", kotlinx.serialization.json.JsonPrimitive(title.trim()))
             put("dates", kotlinx.serialization.json.JsonPrimitive(dates.trim()))
             put("cities", kotlinx.serialization.json.JsonPrimitive(cities.trim()))
+            startDate?.let { put("startDate", kotlinx.serialization.json.JsonPrimitive(it.toString())) }
+            endDate?.let { put("endDate", kotlinx.serialization.json.JsonPrimitive(it.toString())) }
+            put("overviewMapPoints", buildJsonArray { cityList.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
+            put("cityCoordinates", buildJsonObject {
+                nextCoordinates.forEach { (city, coordinates) ->
+                    put(city, buildJsonObject {
+                        put("latitude", coordinates.latitude)
+                        put("longitude", coordinates.longitude)
+                    })
+                }
+            })
+            put("days", nextDays)
+            if (preservedRouteDays.isNotEmpty()) put("archivedRouteDays", preservedRouteDays)
         }
         patchTripPayload(id, patch, current.revision)
     }
@@ -1244,11 +1380,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     override suspend fun addAccommodationPhoto(id: String, accommodationId: String, bytes: ByteArray): String {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        val current = loadTripRow(id)
+        require(current.payload["accommodations"]?.jsonArray.orEmpty().any {
+            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull == accommodationId
+        }) { "Жильё не найдено" }
         val path = "$ownerId/$id/accommodations/$accommodationId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
-        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id }
-            ?: error("Путешествие не найдено")
         val accommodations = buildJsonArray {
             current.payload["accommodations"]?.jsonArray.orEmpty().forEach { item ->
                 val accommodation = item.jsonObject
@@ -1263,7 +1401,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "accommodations", accommodations, current.revision)
+        runCatching { updateTripSection(id, "accommodations", accommodations, current.revision) }
+            .onFailure {
+                runCatching { client.storage.from("trip-photos").delete(path) }
+                throw it
+            }
         return imageUrl
     }
 
@@ -1308,10 +1450,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     override suspend fun addSightPhoto(id: String, sightId: String, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        val current = loadTripRow(id)
+        require(current.payload["sights"]?.jsonArray.orEmpty().any {
+            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull == sightId
+        }) { "Место не найдено" }
         val path = "$ownerId/$id/sights/$sightId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
-        val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == id } ?: error("Путешествие не найдено")
         val sights = buildJsonArray {
             current.payload["sights"]?.jsonArray.orEmpty().forEach { item ->
                 val sight = item.jsonObject
@@ -1320,7 +1465,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "sights", sights, current.revision)
+        runCatching { updateTripSection(id, "sights", sights, current.revision) }
+            .onFailure {
+                runCatching { client.storage.from("trip-photos").delete(path) }
+                throw it
+            }
     }
 
     override suspend fun moveAccommodationPhoto(id: String, accommodationId: String, photoIndex: Int, direction: Int) {
@@ -1353,9 +1502,6 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         require(photoIndex in photos.indices) { "Фото не найдено" }
 
         val removedPhoto = photos.removeAt(photoIndex)
-        tripPhotoPath(jsonText(removedPhoto))?.let { path ->
-            client.storage.from("trip-photos").delete(path)
-        }
 
         val accommodations = buildJsonArray {
             current.payload["accommodations"]?.jsonArray.orEmpty().forEach { item ->
@@ -1370,6 +1516,12 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             }
         }
         updateTripSection(id, "accommodations", accommodations, current.revision)
+        // Remove the object only after the database no longer references it.
+        // Storage and Postgres cannot share a transaction, but this ordering
+        // prevents a failed database write from leaving a broken photo link.
+        tripPhotoPath(jsonText(removedPhoto))?.let { path ->
+            runCatching { client.storage.from("trip-photos").delete(path) }
+        }
     }
 
     override suspend fun deleteAccommodation(id: String, accommodationId: String) {
@@ -1380,14 +1532,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             .firstOrNull { it["id"]?.jsonPrimitive?.contentOrNull == accommodationId }
             ?: error("Жильё не найдено")
 
-        accommodation["photos"]?.jsonArray.orEmpty().forEach { photo ->
-            tripPhotoPath(jsonText(photo))?.let { path ->
-                client.storage.from("trip-photos").delete(path)
-            }
-        }
-
         val payload = TripPayloadCodec.removeArrayItem(current.payload, "accommodations", accommodationId)
         patchTripSectionFromPayload(id, "accommodations", payload, current.revision)
+        accommodation["photos"]?.jsonArray.orEmpty().forEach { photo ->
+            tripPhotoPath(jsonText(photo))?.let { path ->
+                runCatching { client.storage.from("trip-photos").delete(path) }
+            }
+        }
     }
 
     override suspend fun moveRestaurantPhoto(id: String, restaurantId: String, photoIndex: Int, direction: Int) {
@@ -1409,10 +1560,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     override suspend fun addRestaurantPhoto(id: String, restaurantId: String, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        val current = loadTripRow(id)
+        require(current.payload["restaurants"]?.jsonArray.orEmpty().any {
+            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull == restaurantId
+        }) { "Ресторан не найден" }
         val path = "$ownerId/$id/restaurants/$restaurantId/${UUID.randomUUID()}.jpg"
         client.storage.from("trip-photos").upload(path, bytes)
         val imageUrl = storedTripPhotoReference(path)
-        val current = loadTripRow(id)
         val restaurants = buildJsonArray {
             current.payload["restaurants"]?.jsonArray.orEmpty().forEach { item ->
                 val restaurant = item.jsonObject
@@ -1427,7 +1581,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }
         }
-        updateTripSection(id, "restaurants", restaurants, current.revision)
+        runCatching { updateTripSection(id, "restaurants", restaurants, current.revision) }
+            .onFailure {
+                runCatching { client.storage.from("trip-photos").delete(path) }
+                throw it
+            }
     }
 
     override suspend fun replaceRestaurantCoverPhoto(id: String, restaurantId: String, bytes: ByteArray) {
