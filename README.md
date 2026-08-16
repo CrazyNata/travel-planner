@@ -71,3 +71,6 @@ VITE_LEGAL_EFFECTIVE_DATE
 ## Android-релиз
 
 Native Android-проект находится в `mobile/`. Инструкция по production-конфигурации, подписанному AAB, GitHub Actions и чек-листу Play Console: [`mobile/RELEASE.md`](mobile/RELEASE.md).
+
+
+_Тестовая правка от Spark AI — проверка возможности создания PR._
