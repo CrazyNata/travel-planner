@@ -10,6 +10,7 @@ import type { Map } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
+import { AccommodationPrototype } from "./AccommodationPrototype";
 
 type View =
   | "auth"
@@ -20,7 +21,8 @@ type View =
   | "public"
   | "delete-account"
   | "privacy"
-  | "terms";
+  | "terms"
+  | "housing-preview";
 type Tab =
   | "overview"
   | "route"
@@ -10148,6 +10150,8 @@ export function App() {
               ? "privacy"
               : location.pathname === "/terms"
                 ? "terms"
+                : location.pathname === "/housing-preview"
+                  ? "housing-preview"
           : location.pathname === "/trips"
             ? "trips"
             : "auth";
@@ -10170,6 +10174,7 @@ export function App() {
       "delete-account": "/delete-account",
       privacy: "/privacy",
       terms: "/terms",
+      "housing-preview": "/housing-preview",
     };
     navigate(next === "trip" ? `/trips/${tripId}/overview` : paths[next]);
     setMenu(false);
@@ -10237,7 +10242,7 @@ export function App() {
       setAuthReady(true);
       if (!data.session?.user) {
         setIsAuthenticated(false);
-        if (location.pathname !== "/auth") {
+        if (location.pathname !== "/auth" && view !== "housing-preview") {
           const next = `${location.pathname}${location.search}`;
           navigate(`/auth?next=${encodeURIComponent(next)}`, { replace: true });
         }
@@ -10359,6 +10364,7 @@ export function App() {
     !authReady ||
     (!isAuthenticated &&
       view !== "auth" &&
+      view !== "housing-preview" &&
       view !== "delete-account" &&
       view !== "privacy" &&
       view !== "terms") ||
@@ -10369,6 +10375,7 @@ export function App() {
   if (view === "delete-account") return <AccountDeletionPage />;
   if (view === "privacy") return <LegalPage kind="privacy" />;
   if (view === "terms") return <LegalPage kind="terms" />;
+  if (view === "housing-preview") return <AccommodationPrototype />;
   if (view === "auth")
     return (
       <Auth

@@ -137,8 +137,13 @@ async function fetchPlacesPage(
     "places.userRatingCount",
     "places.priceLevel",
     "places.googleMapsUri",
+    "places.websiteUri",
+    "places.nationalPhoneNumber",
+    "places.internationalPhoneNumber",
     "places.photos",
     "places.types",
+    "places.primaryType",
+    "places.primaryTypeDisplayName",
     ...(includeEditorialSummary ? ["places.editorialSummary"] : []),
     "nextPageToken",
   ];
@@ -180,10 +185,15 @@ Deno.serve(async (request: Request) => {
   }
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const category = String(body?.category ?? "restaurant").trim().toLowerCase() === "sight"
-    ? "sight"
+  const requestedCategory = String(body?.category ?? "restaurant").trim().toLowerCase();
+  const category = requestedCategory === "sight" || requestedCategory === "accommodation"
+    ? requestedCategory
     : "restaurant";
-  const responseKey = category === "sight" ? "sights" : "restaurants";
+  const responseKey = category === "sight"
+    ? "sights"
+    : category === "accommodation"
+      ? "accommodations"
+      : "restaurants";
 
   const requestedPhotoNames = Array.isArray(body?.photoNames)
     ? body.photoNames
@@ -232,11 +242,22 @@ Deno.serve(async (request: Request) => {
   const textQuery = query
     ? category === "sight"
       ? `${query} tourist attraction in ${city}`
-      : `${query} restaurant in ${city}`
+      : category === "accommodation"
+        ? `${query} hotel lodging in ${city}`
+        : `${query} restaurant in ${city}`
     : category === "sight"
       ? `top tourist attractions in ${city}`
-      : `restaurants in ${city}`;
-  const includedType = category === "sight" ? "tourist_attraction" : "restaurant";
+      : category === "accommodation"
+        ? `hotels, apartments, hostels, resorts, bed and breakfasts, guest houses and motels in ${city}`
+        : `restaurants in ${city}`;
+  // Text Search accepts one included type. `lodging` is the broad Google
+  // lodging type and the text query keeps hotels, apartments and hostels in
+  // the result set without making a separate paid request for every subtype.
+  const includedType = category === "sight"
+    ? "tourist_attraction"
+    : category === "accommodation"
+      ? "lodging"
+      : "restaurant";
   const places: unknown[] = [];
   const pageSize = Math.min(PlacesPageSize, limit);
   const seenPageTokens = new Set<string>();
@@ -303,15 +324,27 @@ Deno.serve(async (request: Request) => {
       : {};
     const types = Array.isArray(place.types)
       ? place.types.filter((type): type is string => typeof type === "string")
-          .filter((type) => !["establishment", "point_of_interest", "food"].includes(type))
+          .filter((type) => !["establishment", "point_of_interest", "food", "lodging"].includes(type))
           .slice(0, 2)
           .map((type) => type.replaceAll("_", " "))
           .join(" · ")
       : "";
+    const primaryTypeDisplayName = textValue(place.primaryTypeDisplayName);
+    const typeLabel = category === "accommodation"
+      ? primaryTypeDisplayName || types || "Жильё"
+      : types;
     const firstPhoto = Array.isArray(place.photos) && place.photos[0] && typeof place.photos[0] === "object"
       ? place.photos[0] as Record<string, unknown>
       : undefined;
     const photoName = typeof firstPhoto?.name === "string" ? firstPhoto.name : "";
+    const photoNames = Array.isArray(place.photos)
+      ? place.photos
+        .filter((photo): photo is Record<string, unknown> => Boolean(photo) && typeof photo === "object")
+        .map((photo) => typeof photo.name === "string" ? photo.name.trim() : "")
+        .filter((name) => name.startsWith("places/") && name.includes("/photos/"))
+        .filter((name, photoIndex, names) => names.indexOf(name) === photoIndex)
+        .slice(0, 5)
+      : [];
     const photo = initialPhotos[index];
     return {
       place_id: textValue(place.id),
@@ -325,8 +358,12 @@ Deno.serve(async (request: Request) => {
       description: editorialSummaryValue(place.editorialSummary),
       photo_url: photo?.photoUrl ?? null,
       photo_name: photoName,
+      photo_names: photoNames,
       photo_attribution: photo?.photoAttribution ?? photoAttributionValue(firstPhoto),
       google_maps_url: textValue(place.googleMapsUri),
+      website: textValue(place.websiteUri),
+      phone: textValue(place.internationalPhoneNumber) || textValue(place.nationalPhoneNumber),
+      type: typeLabel,
       latitude: numberValue(location.latitude),
       longitude: numberValue(location.longitude),
     };

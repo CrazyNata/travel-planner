@@ -83,10 +83,22 @@ data class Accommodation(
     val details: String,
     val photos: List<String>,
     val bookingUrl: String,
-    // Optional fields already used by the existing trip payload. They are read-only
-    // here so the Supabase schema and persisted shape remain unchanged.
+    // Optional fields extend the existing JSON payload without requiring a new table.
     val deadline: String = "",
     val rating: Double? = null,
+    val source: String = "manual",
+    val googlePlaceId: String = "",
+    val bookingPropertyId: String = "",
+    val externalUrl: String = "",
+    val address: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val reviewCount: Int? = null,
+    val photoReference: String = "",
+    val website: String = "",
+    val phone: String = "",
+    val type: String = "",
+    val tripCityId: String = "",
 )
 data class BudgetExpense(
     val id: String,
@@ -233,6 +245,20 @@ data class AccommodationInput(
     val details: String = "",
     val bookingUrl: String = "",
     val deadline: String = "",
+    val source: String = "",
+    val googlePlaceId: String = "",
+    val bookingPropertyId: String = "",
+    val externalUrl: String = "",
+    val address: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val rating: Double? = null,
+    val reviewCount: Int? = null,
+    val photoReference: String = "",
+    val website: String = "",
+    val phone: String = "",
+    val type: String = "",
+    val tripCityId: String = "",
 )
 
 data class ExpenseInput(
@@ -460,12 +486,28 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 dates = accommodationText("dates"),
                 price = accommodationText("price"),
                 status = accommodationText("status"),
-                details = accommodationText("details"),
+                details = accommodationText("details").ifBlank { accommodationText("address") },
                 photos = accommodationPhotoReferences(accommodation),
-                bookingUrl = accommodationText("bookingUrl"),
+                bookingUrl = accommodationText("bookingUrl").ifBlank { accommodationText("externalUrl") },
                 deadline = accommodationText("deadline"),
                 rating = accommodation["rating"]?.jsonPrimitive?.doubleOrNull
                     ?: accommodation["hotelRating"]?.jsonPrimitive?.doubleOrNull,
+                source = accommodationText("source").ifBlank {
+                    if (accommodationText("googlePlaceId").isNotBlank()) "google" else "manual"
+                },
+                googlePlaceId = accommodationText("googlePlaceId").ifBlank { accommodationText("placeId") },
+                bookingPropertyId = accommodationText("bookingPropertyId"),
+                externalUrl = accommodationText("externalUrl"),
+                address = accommodationText("address").ifBlank { accommodationText("details") },
+                latitude = accommodation["latitude"]?.jsonPrimitive?.doubleOrNull,
+                longitude = accommodation["longitude"]?.jsonPrimitive?.doubleOrNull,
+                reviewCount = accommodation["reviewCount"]?.jsonPrimitive?.intOrNull
+                    ?: accommodation["userRatingCount"]?.jsonPrimitive?.intOrNull,
+                photoReference = accommodationText("photoReference").ifBlank { accommodationText("googlePhotoName") },
+                website = accommodationText("website"),
+                phone = accommodationText("phone"),
+                type = accommodationText("type").ifBlank { accommodationText("category") },
+                tripCityId = accommodationText("tripCityId"),
             )
         }
         val expenses = row.payload["budgetExpenses"]?.jsonArray.orEmpty().mapNotNull { item ->
@@ -1707,6 +1749,20 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("bookingUrl", input.bookingUrl.trim())
             put("deadline", input.deadline.trim())
             put("photos", buildJsonArray { })
+            put("source", input.source.trim().ifBlank { "manual" })
+            if (input.googlePlaceId.isNotBlank()) put("googlePlaceId", input.googlePlaceId.trim())
+            if (input.bookingPropertyId.isNotBlank()) put("bookingPropertyId", input.bookingPropertyId.trim())
+            if (input.externalUrl.isNotBlank()) put("externalUrl", input.externalUrl.trim())
+            if (input.address.isNotBlank()) put("address", input.address.trim())
+            if (input.latitude != null) put("latitude", input.latitude)
+            if (input.longitude != null) put("longitude", input.longitude)
+            if (input.rating != null) put("rating", input.rating)
+            if (input.reviewCount != null) put("reviewCount", input.reviewCount)
+            if (input.photoReference.isNotBlank()) put("photoReference", input.photoReference.trim())
+            if (input.website.isNotBlank()) put("website", input.website.trim())
+            if (input.phone.isNotBlank()) put("phone", input.phone.trim())
+            if (input.type.isNotBlank()) put("type", input.type.trim())
+            if (input.tripCityId.isNotBlank()) put("tripCityId", input.tripCityId.trim())
         }
         patchTripSectionFromPayload(tripId, "accommodations", TripPayloadCodec.append(current.payload, "accommodations", item), current.revision)
         return accommodationId
@@ -1726,6 +1782,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("details", kotlinx.serialization.json.JsonPrimitive(input.details.trim()))
                 put("bookingUrl", kotlinx.serialization.json.JsonPrimitive(input.bookingUrl.trim()))
                 put("deadline", kotlinx.serialization.json.JsonPrimitive(input.deadline.trim()))
+                put("externalUrl", kotlinx.serialization.json.JsonPrimitive(input.externalUrl.trim()))
+                put("address", kotlinx.serialization.json.JsonPrimitive(input.address.trim()))
             })
         }
         patchTripSectionFromPayload(tripId, "accommodations", payload, current.revision)
