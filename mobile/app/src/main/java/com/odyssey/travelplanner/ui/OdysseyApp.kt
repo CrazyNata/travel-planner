@@ -244,6 +244,7 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import java.util.Locale
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONObject
@@ -5503,6 +5504,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
     var weather by remember { mutableStateOf<Map<String, WeatherSnapshot>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
     var tab by remember { mutableStateOf("overview") }
+    var overviewEditMode by remember { mutableStateOf(false) }
     var sectionMenuOpen by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -5529,9 +5531,10 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
         loading = false
 
         loadedOverview.let { trip ->
-            val cities = trip.overviewMapPoints.ifEmpty {
+            val routeCities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
+            val cities = trip.overviewWeatherCities.ifEmpty { routeCities }.distinct()
             weather = runCatching {
                 weatherRepository.loadCurrent(cities, trip.dates, trip.cityCoordinates)
             }.getOrDefault(emptyMap())
@@ -5562,6 +5565,11 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                     },
             ) {
         val menuContentDescription = localized("Открыть меню", "Open menu", "Abrir menú", "Menü öffnen")
+        val overviewEditContentDescription = if (overviewEditMode) {
+            localized("Завершить редактирование главного экрана", "Finish editing the overview", "Finalizar la edición del inicio", "Bearbeitung der Übersicht beenden")
+        } else {
+            localized("Редактировать главный экран", "Edit overview", "Editar inicio", "Übersicht bearbeiten")
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 16.dp),
@@ -5618,7 +5626,28 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                     Spacer(Modifier.width(5.dp))
                 }
             }
-            Spacer(Modifier.width(48.dp))
+            if (tab == "overview" && overview?.canEdit == true) {
+                IconButton(
+                    onClick = { overviewEditMode = !overviewEditMode },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (overviewEditMode) OdysseyPurple else OdysseyTint)
+                        .semantics {
+                            contentDescription = overviewEditContentDescription
+                            role = Role.Button
+                        },
+                ) {
+                    Icon(
+                        imageVector = if (overviewEditMode) Icons.Filled.Check else Icons.Outlined.Edit,
+                        contentDescription = null,
+                        tint = OdysseyPurple,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            } else {
+                Spacer(Modifier.width(48.dp))
+            }
         }
 
         if (loading) {
@@ -5633,7 +5662,13 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
             )
         } else {
             when (tab) {
-                "overview" -> OverviewContent(overview!!, weather)
+                "overview" -> OverviewContent(
+                    tripId = tripId,
+                    overview = overview!!,
+                    weather = weather,
+                    editMode = overviewEditMode,
+                    onChanged = { refresh++ },
+                )
                 "route" -> TripRouteContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "sights" -> SightsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "restaurants" -> RestaurantsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
@@ -5691,7 +5726,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                         Triple("photos", Icons.Outlined.Image, localized("Фото", "Photos", "Fotos", "Fotos")),
                         ).forEach { (entry, icon, label) ->
                         val selected = tab == entry
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().background(if (selected) OdysseyTint else Color.Transparent, RoundedCornerShape(14.dp)).clickable { tab = entry; sectionMenuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().background(if (selected) OdysseyTint else Color.Transparent, RoundedCornerShape(14.dp)).clickable { tab = entry; overviewEditMode = false; sectionMenuOpen = false }.padding(horizontal = 14.dp, vertical = 13.dp)) {
                             Icon(icon, contentDescription = null, tint = if (selected) OdysseyPurple else secondaryTextColor(), modifier = Modifier.size(20.dp))
                             Text(label, color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = if (selected) FontWeight.W800 else FontWeight.W700, fontSize = 14.5.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 14.dp))
                         }
@@ -16563,7 +16598,7 @@ private fun RouteDetail(text: String, completed: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun OverviewContent(overview: TripOverview, weather: Map<String, WeatherSnapshot>) {
+private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, WeatherSnapshot>) {
     var photoIndex by remember { mutableStateOf(0) }
     var tripDatesWeather by remember { mutableStateOf(false) }
     val photos = overview.coverPhotos
@@ -16690,6 +16725,369 @@ private fun OverviewContent(overview: TripOverview, weather: Map<String, Weather
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
                 weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], tripDatesWeather) }
+            }
+        }
+    }
+}
+
+private val DefaultOverviewBlocks = listOf("photo", "map", "weather")
+
+private enum class OverviewEditSheet { MAP, WEATHER }
+
+private fun normalizedOverviewBlocks(value: List<String>): List<String> =
+    (value.filter { it in DefaultOverviewBlocks } + DefaultOverviewBlocks.filterNot(value::contains)).distinct()
+
+private fun List<String>.toggleOverviewCity(city: String): List<String> =
+    if (any { cityFilterKey(it) == cityFilterKey(city) }) {
+        filterNot { cityFilterKey(it) == cityFilterKey(city) }
+    } else {
+        this + city
+    }
+
+@Composable
+private fun OverviewContent(
+    tripId: String,
+    overview: TripOverview,
+    weather: Map<String, WeatherSnapshot>,
+    editMode: Boolean,
+    onChanged: () -> Unit,
+) {
+    val language = LocalLanguage.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val hapticFeedback = LocalHapticFeedback.current
+    val listState = rememberLazyListState()
+    var photoIndex by remember { mutableStateOf(0) }
+    var tripDatesWeather by remember { mutableStateOf(false) }
+    var orderedBlocks by remember(overview.id, overview.overviewBlocks) {
+        mutableStateOf(normalizedOverviewBlocks(overview.overviewBlocks))
+    }
+    var selectedMapCities by remember(overview.id, overview.overviewMapPoints, overview.routeLegs) {
+        mutableStateOf<List<String>>(emptyList())
+    }
+    var selectedWeatherCities by remember(overview.id, overview.overviewWeatherCities, overview.overviewMapPoints, overview.routeLegs) {
+        mutableStateOf<List<String>>(emptyList())
+    }
+    var editSheet by remember { mutableStateOf<OverviewEditSheet?>(null) }
+    var savingSettings by remember { mutableStateOf(false) }
+    var uploadingPhoto by remember { mutableStateOf(false) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+    var draggedBlock by remember { mutableStateOf<String?>(null) }
+    var dragOffsetPx by remember { mutableStateOf(0f) }
+    var dragInitialOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    val photos = overview.coverPhotos
+    val routeCities = remember(overview.routeLegs, overview.cities, overview.overviewMapPoints) {
+        (overview.cities + overview.overviewMapPoints + overview.routeLegs.flatMap { listOf(it.from, it.to) })
+            .filter(String::isNotBlank)
+            .distinctBy { cityFilterKey(it) }
+    }
+    val defaultMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+    val weatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
+        .distinctBy { cityFilterKey(it) }
+    val selectableWeatherCities = routeCities.ifEmpty { defaultMapCities }
+
+    LaunchedEffect(overview.id, overview.overviewMapPoints, overview.routeLegs, overview.cities) {
+        selectedMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+    }
+    LaunchedEffect(overview.id, overview.overviewWeatherCities, overview.overviewMapPoints, overview.routeLegs, overview.cities) {
+        selectedWeatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
+    }
+
+    fun updateBlockDrag(dragAmount: Float) {
+        val draggedId = draggedBlock ?: return
+        dragOffsetPx += dragAmount
+        val draggedInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "overview-block:$draggedId" } ?: return
+        val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffsetPx
+        val viewport = listState.layoutInfo
+        if (draggedCenter < viewport.viewportStartOffset + 80f) scope.launch { listState.scrollBy(-24f) }
+        if (draggedCenter > viewport.viewportEndOffset - 80f) scope.launch { listState.scrollBy(24f) }
+
+        val currentIndex = orderedBlocks.indexOf(draggedId)
+        if (currentIndex < 0) return
+        val targetIndex = when {
+            dragAmount > 0f -> currentIndex + 1
+            dragAmount < 0f -> currentIndex - 1
+            else -> return
+        }
+        if (targetIndex !in orderedBlocks.indices) return
+        val targetId = orderedBlocks[targetIndex]
+        val targetInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "overview-block:$targetId" } ?: return
+        val targetCenter = targetInfo.offset + targetInfo.size / 2f
+        val crossedTarget = if (dragAmount > 0f) draggedCenter > targetCenter else draggedCenter < targetCenter
+        if (!crossedTarget) return
+
+        dragOffsetPx -= (targetInfo.offset - draggedInfo.offset).toFloat()
+        orderedBlocks = orderedBlocks.toMutableList().apply {
+            removeAt(currentIndex)
+            add(targetIndex, draggedId)
+        }
+    }
+
+    fun finishBlockDrag() {
+        val draggedId = draggedBlock
+        val finalOrder = orderedBlocks
+        val initialOrder = dragInitialOrder
+        val changed = draggedId != null && finalOrder != initialOrder
+        draggedBlock = null
+        dragOffsetPx = 0f
+        dragInitialOrder = emptyList()
+        if (!changed) return
+
+        scope.launch {
+            savingSettings = true
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
+                    tripId,
+                    "overviewBlocks",
+                    buildJsonArray { finalOrder.forEach { add(JsonPrimitive(it)) } },
+                )
+            }.onSuccess {
+                actionMessage = null
+                onChanged()
+            }.onFailure {
+                orderedBlocks = initialOrder.ifEmpty { normalizedOverviewBlocks(overview.overviewBlocks) }
+                actionMessage = it.message ?: localized(
+                    language,
+                    "Не удалось сохранить порядок блоков. Проверьте интернет и повторите попытку.",
+                    "Could not save the block order. Check your connection and try again.",
+                    "No se pudo guardar el orden de los bloques. Comprueba la conexión e inténtalo de nuevo.",
+                    "Die Reihenfolge der Blöcke konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+                )
+            }
+            savingSettings = false
+        }
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploadingPhoto = true
+            actionMessage = null
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("Не удалось прочитать изображение")
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addCoverPhoto(
+                    id = tripId,
+                    bytes = bytes,
+                    city = photos.getOrNull(photoIndex)?.city.orEmpty().ifBlank { routeCities.firstOrNull().orEmpty() },
+                )
+            }.onSuccess {
+                photoIndex = overview.coverPhotos.size
+                onChanged()
+            }.onFailure {
+                actionMessage = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload the photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden")
+            }
+            uploadingPhoto = false
+        }
+    }
+
+    LazyColumn(
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars),
+    ) {
+        item(key = "overview-summary") {
+            if (editMode) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(OdysseyTint).padding(horizontal = 12.dp, vertical = 9.dp)) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = OdysseyPurple, modifier = Modifier.size(17.dp))
+                    Text(localized("Зажмите блок за ⋮⋮ и перенесите его", "Hold ⋮⋮ to move a block", "Mantén ⋮⋮ para mover un bloque", "Halten Sie ⋮⋮ zum Verschieben gedrückt"), color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(start = 7.dp))
+                }
+            }
+            if (actionMessage != null) {
+                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+        orderedBlocks.forEach { block ->
+            item(key = "overview-block:$block") {
+                val dragModifier = if (editMode && overview.canEdit && !savingSettings && !uploadingPhoto) {
+                    Modifier.pointerInput(block) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggedBlock = block
+                                dragInitialOrder = orderedBlocks
+                                dragOffsetPx = 0f
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDrag = { _, dragAmount -> updateBlockDrag(dragAmount.y) },
+                            onDragEnd = ::finishBlockDrag,
+                            onDragCancel = ::finishBlockDrag,
+                        )
+                    }
+                } else Modifier
+                OverviewEditableBlock(
+                    block = block,
+                    editMode = editMode,
+                    isDragging = draggedBlock == block,
+                    dragOffsetPx = if (draggedBlock == block) dragOffsetPx else 0f,
+                    modifier = dragModifier,
+                    actionLabel = when (block) {
+                        "photo" -> if (uploadingPhoto) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("Изменить фото", "Change photo", "Cambiar foto", "Foto ändern")
+                        "map" -> localized("Изменить карту", "Edit map", "Editar mapa", "Karte bearbeiten")
+                        else -> localized("Настроить погоду", "Configure weather", "Configurar el tiempo", "Wetter einstellen")
+                    },
+                    onAction = {
+                        when (block) {
+                            "photo" -> if (!uploadingPhoto) photoPicker.launch("image/*")
+                            "map" -> {
+                                selectedMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+                                editSheet = OverviewEditSheet.MAP
+                            }
+                            "weather" -> {
+                                selectedWeatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
+                                editSheet = OverviewEditSheet.WEATHER
+                            }
+                        }
+                    },
+                ) {
+                    when (block) {
+                        "photo" -> OverviewPhotoBlock(photos, photoIndex, { photoIndex = (photoIndex - 1 + photos.size) % photos.size }, { photoIndex = (photoIndex + 1) % photos.size })
+                        "map" -> OverviewMapCard(overview.routeLegs, defaultMapCities, cityCoordinates = overview.cityCoordinates)
+                        "weather" -> OverviewWeatherBlock(weatherCities, photos, weather, tripDatesWeather) { tripDatesWeather = it }
+                    }
+                }
+            }
+        }
+    }
+
+    if (editSheet == OverviewEditSheet.MAP) {
+        OverviewCitySelectionSheet(
+            title = localized("Создать карту", "Create map", "Crear mapa", "Karte erstellen"),
+            body = localized("Выберите города, которые должны быть на карте маршрута.", "Choose the cities that should appear on the route map.", "Elige las ciudades que deben aparecer en el mapa.", "Wählen Sie die Städte für die Routenkarte aus."),
+            cities = routeCities,
+            selectedCities = selectedMapCities,
+            saving = savingSettings,
+            onToggle = { city -> selectedMapCities = selectedMapCities.toggleOverviewCity(city) },
+            onDismiss = { editSheet = null },
+            onSave = {
+                scope.launch {
+                    savingSettings = true
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(tripId, "overviewMapPoints", buildJsonArray { selectedMapCities.forEach { add(JsonPrimitive(it)) } })
+                    }.onSuccess { editSheet = null; actionMessage = null; onChanged() }
+                        .onFailure { actionMessage = it.message ?: localized(language, "Не удалось сохранить карту", "Could not save the map", "No se pudo guardar el mapa", "Die Karte konnte nicht gespeichert werden") }
+                    savingSettings = false
+                }
+            },
+        )
+    }
+    if (editSheet == OverviewEditSheet.WEATHER) {
+        OverviewCitySelectionSheet(
+            title = localized("Погода по городам", "Weather by city", "Tiempo por ciudad", "Wetter nach Stadt"),
+            body = localized("Добавьте или уберите города в блоке погоды на главном экране.", "Add or remove cities from the weather block on the overview.", "Añade o quita ciudades del bloque del tiempo.", "Fügen Sie Städte im Wetterblock hinzu oder entfernen Sie sie."),
+            cities = selectableWeatherCities,
+            selectedCities = selectedWeatherCities,
+            saving = savingSettings,
+            onToggle = { city -> selectedWeatherCities = selectedWeatherCities.toggleOverviewCity(city) },
+            onDismiss = { editSheet = null },
+            onSave = {
+                scope.launch {
+                    savingSettings = true
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(tripId, "overviewWeatherCities", buildJsonArray { selectedWeatherCities.forEach { add(JsonPrimitive(it)) } })
+                    }.onSuccess { editSheet = null; actionMessage = null; onChanged() }
+                        .onFailure { actionMessage = it.message ?: localized(language, "Не удалось сохранить города погоды", "Could not save weather cities", "No se pudieron guardar las ciudades del tiempo", "Wetterstädte konnten nicht gespeichert werden") }
+                    savingSettings = false
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun OverviewEditableBlock(
+    block: String,
+    editMode: Boolean,
+    isDragging: Boolean,
+    dragOffsetPx: Float,
+    modifier: Modifier,
+    actionLabel: String,
+    onAction: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().graphicsLayer {
+            translationY = if (isDragging) dragOffsetPx else 0f
+            scaleX = if (isDragging) 1.015f else 1f
+            scaleY = if (isDragging) 1.015f else 1f
+            shadowElevation = if (isDragging) 18.dp.toPx() else 0f
+            alpha = if (isDragging) 0.96f else 1f
+        }.then(if (editMode) Modifier.border(1.dp, OdysseyPurple, RoundedCornerShape(21.dp)).padding(7.dp) else Modifier),
+    ) {
+        if (editMode) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                Text("⋮⋮", color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
+                Text(when (block) { "photo" -> localized("Фото", "Photo", "Foto", "Foto"); "map" -> localized("Карта", "Map", "Mapa", "Karte"); else -> localized("Погода", "Weather", "Tiempo", "Wetter") }, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(start = 5.dp))
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onAction, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                    Text(actionLabel, color = OdysseyPurple, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
+                }
+            }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun OverviewPhotoBlock(photos: List<CoverPhoto>, photoIndex: Int, onPrevious: () -> Unit, onNext: () -> Unit) {
+    val activePhoto = photos.getOrNull(photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)))
+    Box(modifier = Modifier.fillMaxWidth().height(270.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xFFCAC7D9))) {
+        if (activePhoto != null) AsyncImage(model = activePhoto.imageUrl, contentDescription = activePhoto.city, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Text(localizedCityName(activePhoto?.city.orEmpty()), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, modifier = Modifier.align(Alignment.BottomStart).padding(16.dp))
+        if (photos.size > 1) {
+            Text("‹", color = Color.White, fontSize = 31.sp, modifier = Modifier.align(Alignment.CenterStart).padding(12.dp).clickable(onClick = onPrevious))
+            Text("›", color = Color.White, fontSize = 31.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(12.dp).clickable(onClick = onNext))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {
+                photos.forEachIndexed { index, _ -> Spacer(Modifier.height(6.dp).width(if (index == photoIndex) 18.dp else 6.dp).background(if (index == photoIndex) Color.White else Color(0x99FFFFFF), RoundedCornerShape(3.dp))) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewWeatherBlock(weatherCities: List<String>, photos: List<CoverPhoto>, weather: Map<String, WeatherSnapshot>, tripDatesWeather: Boolean, onTripDatesWeatherChange: (Boolean) -> Unit) {
+    Text(localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 2.dp))
+    Row(modifier = Modifier.background(if (LocalDarkTheme.current) Color(0xFF2B2D38) else Color(0xFFEEEEF2), RoundedCornerShape(12.dp)).padding(4.dp)) {
+        Text(localized("Сейчас", "Now", "Ahora", "Jetzt"), color = if (!tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (!tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(false) }.padding(horizontal = 14.dp, vertical = 8.dp))
+        Text(localized("На даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"), color = if (tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(true) }.padding(horizontal = 14.dp, vertical = 8.dp))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
+        weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], tripDatesWeather) }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun OverviewCitySelectionSheet(
+    title: String,
+    body: String,
+    cities: List<String>,
+    selectedCities: List<String>,
+    saving: Boolean,
+    onToggle: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = cardSurfaceColor()) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 18.dp)) {
+            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp)
+            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
+            if (cities.isEmpty()) {
+                Text(localized("Добавьте города в маршрут, чтобы выбрать их здесь.", "Add cities to the route to choose them here.", "Añade ciudades a la ruta para elegirlas aquí.", "Fügen Sie der Route Städte hinzu, um sie hier auszuwählen."), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                cities.forEach { city ->
+                    val selected = selectedCities.any { cityFilterKey(it) == cityFilterKey(city) }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(if (selected) OdysseyTint else Color.Transparent).clickable { onToggle(city) }.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                        Icon(if (selected) Icons.Filled.Check else Icons.Outlined.LocationOn, contentDescription = null, tint = if (selected) OdysseyPurple else secondaryTextColor(), modifier = Modifier.size(20.dp))
+                        Text(localizedCityName(city), color = if (selected) OdysseyPurple else contentTextColor(), fontFamily = Manrope, fontWeight = if (selected) FontWeight.W800 else FontWeight.W700, fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp))
+                        Spacer(Modifier.weight(1f))
+                        Text(cityFlag(city), fontSize = 17.sp)
+                    }
+                }
+            }
+            Button(onClick = onSave, enabled = !saving && selectedCities.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = OdysseyPurple), shape = RoundedCornerShape(13.dp), modifier = Modifier.fillMaxWidth().padding(top = 13.dp)) {
+                Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Готово", "Done", "Listo", "Fertig"), fontFamily = Manrope, fontWeight = FontWeight.W800)
             }
         }
     }

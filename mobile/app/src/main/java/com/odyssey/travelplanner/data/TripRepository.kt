@@ -189,6 +189,8 @@ data class TripOverview(
     val status: String,
     val coverPhotos: List<CoverPhoto>,
     val overviewMapPoints: List<String>,
+    val overviewWeatherCities: List<String> = emptyList(),
+    val overviewBlocks: List<String> = emptyList(),
     val routeLegs: List<RouteLeg>,
     val accommodations: List<Accommodation>,
     val budgetCurrency: String,
@@ -489,6 +491,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         }
         val mapPoints = row.payload["overviewMapPoints"]?.jsonArray.orEmpty()
             .mapNotNull { it.jsonPrimitive.contentOrNull }
+        val overviewWeatherCities = row.payload["overviewWeatherCities"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull }
+        val overviewBlocks = row.payload["overviewBlocks"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull }
         val cityCoordinates = row.payload["cityCoordinates"]?.jsonObject.orEmpty().mapNotNull { (city, value) ->
             val coordinates = value.jsonObject
             val latitude = coordinates["latitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
@@ -694,6 +700,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             status = text("status"),
             coverPhotos = resolvedCovers,
             overviewMapPoints = mapPoints,
+            overviewWeatherCities = overviewWeatherCities,
+            overviewBlocks = overviewBlocks,
             routeLegs = legs,
             accommodations = resolvedAccommodations,
             budgetCurrency = text("budgetCurrency").ifBlank { "EUR" },
