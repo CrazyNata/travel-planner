@@ -12,6 +12,7 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import java.net.URLEncoder
 import java.util.Locale
 
 data class WeatherSnapshot(
@@ -36,6 +37,17 @@ private data class OpenMeteoArchiveResponse(
 @Serializable
 private data class OpenMeteoClimateResponse(
     val daily: OpenMeteoDaily? = null,
+)
+
+@Serializable
+private data class OpenMeteoGeocodingResponse(
+    val results: List<OpenMeteoGeocodingResult>? = null,
+)
+
+@Serializable
+private data class OpenMeteoGeocodingResult(
+    val latitude: Double,
+    val longitude: Double,
 )
 
 @Serializable
@@ -76,33 +88,51 @@ class WeatherRepository {
     ): Map<String, WeatherSnapshot> {
         val targetDate = tripDateFrom(tripDates)
         return supervisorScope {
-            cities.mapNotNull { city ->
-                val coordinates = cityCoordinates[city]?.let { it.latitude to it.longitude }
-                    ?: cityCatalogEntry(city)?.let { it.latitude to it.longitude }
-                    ?: return@mapNotNull null
+            cities
+                .filter(String::isNotBlank)
+                .distinctBy { it.trim().lowercase(Locale.ROOT) }
+                .map { city ->
                 async {
+                    val coordinates = cityCoordinates[city]?.let { it.latitude to it.longitude }
+                        ?: cityCatalogEntry(city)?.let { it.latitude to it.longitude }
+                        ?: resolveCoordinates(city)
+                        ?: return@async null
                     runCatching {
-            val weather: OpenMeteoResponse = http.get(
-                "https://api.open-meteo.com/v1/forecast?latitude=${coordinates.first}&longitude=${coordinates.second}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&forecast_days=16&timezone=auto",
-            ).body()
-            var tripWeather = targetDate?.let { tripWeatherAt(weather.daily, it) }
-            if (tripWeather == null && targetDate?.isBefore(LocalDate.now()) == true) {
-                tripWeather = loadArchivedTripWeather(coordinates, targetDate)
-            }
-            if (tripWeather == null && targetDate?.isAfter(LocalDate.now().plusDays(15)) == true) {
-                tripWeather = loadClimateTripWeather(coordinates, targetDate)
-            }
-            city to WeatherSnapshot(
-                temperature = "${weather.current.temperature_2m.toInt()}°C",
-                condition = conditionFor(weather.current.weather_code),
-                tripTemperature = tripWeather?.temperature,
-                tripCondition = tripWeather?.condition,
-                tripIsEstimate = tripWeather?.isEstimate == true,
-            )
+                        val weather: OpenMeteoResponse = http.get(
+                            "https://api.open-meteo.com/v1/forecast?latitude=${coordinates.first}&longitude=${coordinates.second}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&forecast_days=16&timezone=auto",
+                        ).body()
+                        var tripWeather = targetDate?.let { tripWeatherAt(weather.daily, it) }
+                        if (tripWeather == null && targetDate?.isBefore(LocalDate.now()) == true) {
+                            tripWeather = loadArchivedTripWeather(coordinates, targetDate)
+                        }
+                        if (tripWeather == null && targetDate?.isAfter(LocalDate.now().plusDays(15)) == true) {
+                            tripWeather = loadClimateTripWeather(coordinates, targetDate)
+                        }
+                        city to WeatherSnapshot(
+                            temperature = "${weather.current.temperature_2m.toInt()}°C",
+                            condition = conditionFor(weather.current.weather_code),
+                            tripTemperature = tripWeather?.temperature,
+                            tripCondition = tripWeather?.condition,
+                            tripIsEstimate = tripWeather?.isEstimate == true,
+                        )
                     }.getOrNull()
                 }
             }.awaitAll().filterNotNull().toMap()
         }
+    }
+
+    private suspend fun resolveCoordinates(city: String): Pair<Double, Double>? {
+        val query = city.trim()
+            .replace(" — ", ", ")
+            .takeIf { it.length >= 2 }
+            ?: return null
+        return runCatching {
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val response: OpenMeteoGeocodingResponse = http.get(
+                "https://geocoding-api.open-meteo.com/v1/search?name=$encodedQuery&count=1&language=en&format=json",
+            ).body()
+            response.results?.firstOrNull()?.let { it.latitude to it.longitude }
+        }.getOrNull()
     }
 
     private suspend fun loadArchivedTripWeather(

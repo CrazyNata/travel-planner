@@ -5537,6 +5537,8 @@ private fun TripCityChip(city: String, onRemove: () -> Unit) {
 private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: () -> Unit) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
+    val cityCatalogContext = LocalContext.current
+    val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
     var overview by remember { mutableStateOf<TripOverview?>(null) }
     var weather by remember { mutableStateOf<Map<String, WeatherSnapshot>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
@@ -5572,8 +5574,16 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
             val cities = trip.overviewWeatherCities.ifEmpty { routeCities }.distinct()
+            val unresolvedCities = cities.filter { city ->
+                trip.cityCoordinates[city] == null && cityCatalogEntry(city) == null
+            }
+            val catalogCoordinates = runCatching {
+                cityCatalogRepository.findExact(unresolvedCities).mapValues { (_, entry) ->
+                    CityLocation(entry.latitude, entry.longitude)
+                }
+            }.getOrDefault(emptyMap())
             weather = runCatching {
-                weatherRepository.loadCurrent(cities, trip.dates, trip.cityCoordinates)
+                weatherRepository.loadCurrent(cities, trip.dates, catalogCoordinates + trip.cityCoordinates)
             }.getOrDefault(emptyMap())
         }
     }
@@ -16841,6 +16851,8 @@ private fun OverviewContent(
     val weatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
         .distinctBy { cityFilterKey(it) }
     val selectableWeatherCities = routeCities.ifEmpty { defaultMapCities }
+    val weatherEditorCities = (selectableWeatherCities + selectedWeatherCities)
+        .distinctBy { cityFilterKey(it) }
 
     LaunchedEffect(overview.id, overview.overviewMapPoints, overview.routeLegs, overview.cities) {
         selectedMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
@@ -17031,7 +17043,7 @@ private fun OverviewContent(
         OverviewCitySelectionSheet(
             title = localized("Погода по городам", "Weather by city", "Tiempo por ciudad", "Wetter nach Stadt"),
             body = localized("Добавьте или уберите города в блоке погоды на главном экране.", "Add or remove cities from the weather block on the overview.", "Añade o quita ciudades del bloque del tiempo.", "Fügen Sie Städte im Wetterblock hinzu oder entfernen Sie sie."),
-            cities = selectableWeatherCities,
+            cities = weatherEditorCities,
             selectedCities = selectedWeatherCities,
             saving = savingSettings,
             onToggle = { city -> selectedWeatherCities = selectedWeatherCities.toggleOverviewCity(city) },
@@ -17044,6 +17056,16 @@ private fun OverviewContent(
                     }.onSuccess { editSheet = null; actionMessage = null; onChanged() }
                         .onFailure { actionMessage = it.message ?: localized(language, "Не удалось сохранить города погоды", "Could not save weather cities", "No se pudieron guardar las ciudades del tiempo", "Wetterstädte konnten nicht gespeichert werden") }
                     savingSettings = false
+                }
+            },
+            allowAddingCities = true,
+            onAddCity = { city ->
+                val cleanedCity = city.trim()
+                if (selectedWeatherCities.any { cityFilterKey(it) == cityFilterKey(cleanedCity) }) {
+                    false
+                } else {
+                    selectedWeatherCities = selectedWeatherCities + cleanedCity
+                    true
                 }
             },
         )
@@ -17123,13 +17145,76 @@ private fun OverviewCitySelectionSheet(
     onToggle: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
+    allowAddingCities: Boolean = false,
+    onAddCity: ((String) -> Boolean)? = null,
 ) {
+    var newCity by remember { mutableStateOf("") }
+    var addCityMessage by remember { mutableStateOf<String?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = cardSurfaceColor()) {
-        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 18.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(start = 20.dp, end = 20.dp, bottom = 18.dp)) {
             Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp)
             Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
+            if (allowAddingCities && onAddCity != null) {
+                val invalidCityMessage = localized("Введите название города", "Enter a city name", "Escribe el nombre de una ciudad", "Geben Sie einen Stadtnamen ein")
+                val duplicateCityMessage = localized("Этот город уже добавлен", "This city is already added", "Esta ciudad ya está añadida", "Diese Stadt wurde bereits hinzugefügt")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = newCity,
+                        onValueChange = {
+                            newCity = it
+                            addCityMessage = null
+                        },
+                        label = { Text(localized("Новый город", "New city", "Nueva ciudad", "Neue Stadt"), fontFamily = Manrope, fontSize = 12.sp) },
+                        placeholder = { Text(localized("Например, Париж", "For example, Paris", "Por ejemplo, París", "Zum Beispiel Paris"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(13.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = primaryColor(),
+                            unfocusedBorderColor = contentBorderColor(),
+                            focusedLabelColor = primaryColor(),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = {
+                            val cleanedCity = newCity.trim()
+                            if (cleanedCity.length < 2) {
+                                addCityMessage = invalidCityMessage
+                            } else if (onAddCity(cleanedCity)) {
+                                newCity = ""
+                                addCityMessage = null
+                            } else {
+                                addCityMessage = duplicateCityMessage
+                            }
+                        },
+                        enabled = !saving && newCity.trim().length >= 2,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp),
+                    ) {
+                        Text(localized("Добавить", "Add", "Añadir", "Hinzufügen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    localized("Можно добавить город, которого нет в маршруте.", "You can add a city that is not on the route.", "Puedes añadir una ciudad que no esté en la ruta.", "Sie können eine Stadt hinzufügen, die nicht auf der Route liegt."),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp),
+                )
+                addCityMessage?.let { message ->
+                    Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
             if (cities.isEmpty()) {
-                Text(localized("Добавьте города в маршрут, чтобы выбрать их здесь.", "Add cities to the route to choose them here.", "Añade ciudades a la ruta para elegirlas aquí.", "Fügen Sie der Route Städte hinzu, um sie hier auszuwählen."), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp))
+                Text(
+                    if (allowAddingCities) localized("Добавьте город через поле выше.", "Add a city using the field above.", "Añade una ciudad usando el campo de arriba.", "Fügen Sie eine Stadt über das Feld oben hinzu.")
+                    else localized("Добавьте города в маршрут, чтобы выбрать их здесь.", "Add cities to the route to choose them here.", "Añade ciudades a la ruta para elegirlas aquí.", "Fügen Sie der Route Städte hinzu, um sie hier auszuwählen."),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
             } else {
                 cities.forEach { city ->
                     val selected = selectedCities.any { cityFilterKey(it) == cityFilterKey(city) }
