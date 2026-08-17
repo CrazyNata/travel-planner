@@ -327,6 +327,7 @@ interface TripRepository {
         travelTime: String = "",
         date: String = "",
     )
+    suspend fun reorderRouteLegs(id: String, orderedDayIds: List<String>)
     suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String)
     suspend fun updateMemberRole(id: String, memberId: String, role: String)
     suspend fun updateAccommodationStatus(id: String, accommodationId: String, status: String)
@@ -494,16 +495,20 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             val longitude = coordinates["longitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
             city to CityLocation(latitude = latitude, longitude = longitude)
         }.toMap()
-        val days = row.payload["days"]?.jsonArray.orEmpty()
-        val legs = days.mapIndexedNotNull { dayIndex, day ->
-            val dayData = day.jsonObject
+        val days = row.payload["days"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
+        val routeStartDate = tripStartDate(row.payload)
+        val orderedRouteIds = routeDayIdsInDateOrder(days, routeStartDate)
+        val legs = routeDayObjectsInDateOrder(days, routeStartDate).mapIndexedNotNull { routeIndex, day ->
+            val dayData = day
             val roadLeg = dayData["roadLeg"]?.jsonObject ?: return@mapIndexedNotNull null
             val from = roadLeg["from"]?.jsonPrimitive?.contentOrNull ?: return@mapIndexedNotNull null
             val to = roadLeg["to"]?.jsonPrimitive?.contentOrNull ?: return@mapIndexedNotNull null
-            val dayNumber = dayData["dayNumber"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 } ?: (dayIndex + 1)
+            val dayNumber = routeIndex + 1
             fun roadText(key: String) = roadLeg[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             RouteLeg(
-                dayId = dayData["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                dayId = dayData["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: orderedRouteIds.getOrNull(routeIndex)
+                    ?: "legacy-route-$routeIndex",
                 from = from,
                 to = to,
                 date = dayData["date"]?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -904,7 +909,24 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             current.payload["days"]?.jsonArray.orEmpty().forEach { add(it) }
             add(day)
         }
-        updateTripSection(id, "days", days, current.revision)
+        val startDate = tripStartDate(current.payload)
+        val synchronizedDays = synchronizeRouteDayOrder(
+            days = days,
+            orderedRouteDayIds = routeDayIdsInDateOrder(days, startDate),
+            startDate = startDate,
+        )
+        updateTripSection(id, "days", synchronizedDays, current.revision)
+    }
+
+    override suspend fun reorderRouteLegs(id: String, orderedDayIds: List<String>) {
+        require(orderedDayIds.isNotEmpty()) { "Маршрут пуст" }
+        val current = loadTripRow(id)
+        val days = current.payload["days"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
+        val startDate = tripStartDate(current.payload)
+        val synchronizedDays = synchronizeRouteDayOrder(days, orderedDayIds, startDate)
+        if (synchronizedDays != days) {
+            updateTripSection(id, "days", synchronizedDays, current.revision)
+        }
     }
 
     override suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String) {
@@ -1293,7 +1315,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 } else add(item)
             }
         }
-        updateTripSection(id, "days", days, current.revision)
+        val startDate = tripStartDate(current.payload)
+        val synchronizedDays = synchronizeRouteDayOrder(
+            days = days,
+            orderedRouteDayIds = routeDayIdsInDateOrder(days, startDate),
+            startDate = startDate,
+        )
+        updateTripSection(id, "days", synchronizedDays, current.revision)
     }
 
     override suspend fun updateRestaurantDetails(id: String, restaurantId: String, name: String, city: String, note: String) {

@@ -20,6 +20,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -27,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +86,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Image
@@ -176,6 +180,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -15715,6 +15723,8 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     val language = LocalLanguage.current
     val cityCatalogContext = LocalContext.current
     val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
+    val hapticFeedback = LocalHapticFeedback.current
+    val routeListState = rememberLazyListState()
     val routeCities = remember(overview.routeLegs) {
         overview.routeLegs
             .flatMap { listOf(it.from, it.to) }
@@ -15733,9 +15743,88 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     var datePickerOpen by remember { mutableStateOf(false) }
     var editingLeg by remember { mutableStateOf<com.odyssey.travelplanner.data.RouteLeg?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var savingRouteOrder by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
+    var orderedRouteIds by remember(overview.routeLegs) { mutableStateOf(overview.routeLegs.map { it.dayId }) }
+    var draggedRouteId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetPx by remember { mutableStateOf(0f) }
+    var dragInitialOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
+
+    val displayedRouteLegs = orderedRouteIds.mapNotNull { id ->
+        overview.routeLegs.firstOrNull { it.dayId == id }
+    } + overview.routeLegs.filterNot { leg -> orderedRouteIds.contains(leg.dayId) }
+
+    fun updateRouteDrag(dragAmount: Float) {
+        val draggedId = draggedRouteId ?: return
+        dragOffsetPx += dragAmount
+        val draggedKey = "route:$draggedId"
+        val draggedInfo = routeListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == draggedKey } ?: return
+        val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffsetPx
+        val viewport = routeListState.layoutInfo
+        when {
+            draggedCenter < viewport.viewportStartOffset + 80f -> scope.launch { routeListState.scrollBy(-24f) }
+            draggedCenter > viewport.viewportEndOffset - 80f -> scope.launch { routeListState.scrollBy(24f) }
+        }
+        val currentIndex = orderedRouteIds.indexOf(draggedId)
+        if (currentIndex < 0) return
+        val targetIndex = when {
+            dragAmount > 0f -> currentIndex + 1
+            dragAmount < 0f -> currentIndex - 1
+            else -> return
+        }
+        if (targetIndex !in orderedRouteIds.indices) return
+        val targetId = orderedRouteIds[targetIndex]
+        val targetInfo = routeListState.layoutInfo.visibleItemsInfo
+            .firstOrNull { it.key == "route:$targetId" }
+            ?: return
+        val targetCenter = targetInfo.offset + targetInfo.size / 2f
+        val crossedTarget = if (dragAmount > 0f) {
+            draggedCenter > targetCenter
+        } else {
+            draggedCenter < targetCenter
+        }
+        if (!crossedTarget) return
+
+        // Keep the card under the finger when its slot changes in the list.
+        dragOffsetPx -= (targetInfo.offset - draggedInfo.offset).toFloat()
+        orderedRouteIds = orderedRouteIds.toMutableList().apply {
+            removeAt(currentIndex)
+            add(targetIndex, draggedId)
+        }
+    }
+
+    fun finishRouteDrag() {
+        val draggedId = draggedRouteId
+        val finalOrder = orderedRouteIds
+        val changed = draggedId != null && finalOrder != dragInitialOrder
+        draggedRouteId = null
+        dragOffsetPx = 0f
+        dragInitialOrder = emptyList()
+        if (!changed) return
+
+        scope.launch {
+            savingRouteOrder = true
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                    .reorderRouteLegs(tripId, finalOrder)
+            }.onSuccess {
+                actionMessage = null
+                onRouteAdded()
+            }.onFailure {
+                orderedRouteIds = overview.routeLegs.map { it.dayId }
+                actionMessage = it.message ?: localized(
+                    language,
+                    "Не удалось сохранить порядок маршрута. Проверьте интернет и повторите попытку.",
+                    "Could not save the route order. Check your connection and try again.",
+                    "No se pudo guardar el orden de la ruta. Comprueba la conexión e inténtalo de nuevo.",
+                    "Die Reihenfolge der Route konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+                )
+            }
+            savingRouteOrder = false
+        }
+    }
 
     LaunchedEffect(routeCities) {
         val unresolvedCities = routeCities.filter { cityFlag(it) == "📍" }
@@ -15757,6 +15846,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
+        state = routeListState,
         modifier = Modifier.fillMaxSize(),
     ) {
         item {
@@ -15778,9 +15868,27 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                 Text(localized("Переезды пока не добавлены", "No route legs added yet", "Aún no se han añadido trayectos", "Noch keine Etappen hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
             }
         } else {
-            itemsIndexed(overview.routeLegs) { index, leg ->
-                val dayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1) ?: index
-                RouteLegCard(leg, dayIndex, overview.dates, resolvedRouteFlags, canEdit = canEdit, onEdit = {
+            itemsIndexed(displayedRouteLegs, key = { _, leg -> "route:${leg.dayId}" }) { index, leg ->
+                RouteLegCard(
+                    leg = leg,
+                    dayIndex = index,
+                    tripDates = overview.dates,
+                    resolvedCityFlags = resolvedRouteFlags,
+                    canEdit = canEdit,
+                    dragEnabled = canEdit && !adding && !savingRouteOrder,
+                    isDragging = draggedRouteId == leg.dayId,
+                    dragOffsetPx = if (draggedRouteId == leg.dayId) dragOffsetPx else 0f,
+                    onDragStart = {
+                        if (canEdit && !adding && !savingRouteOrder) {
+                            draggedRouteId = leg.dayId
+                            dragInitialOrder = orderedRouteIds
+                            dragOffsetPx = 0f
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    },
+                    onDrag = ::updateRouteDrag,
+                    onDragEnd = ::finishRouteDrag,
+                    onEdit = {
                     if (canEdit) {
                         editingLeg = leg
                         from = leg.from
@@ -15789,10 +15897,11 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                         checkOut = leg.checkOut
                         notes = leg.notes
                         mapsUrl = leg.mapsUrl
-                        selectedDateIso = routeEditorDateIso(leg.date, overview.dates, dayIndex, leg.dateDay, leg.dateMonth)
+                        selectedDateIso = routeEditorDateIso(leg.date, overview.dates, index, leg.dateDay, leg.dateMonth)
                         adding = true
                     }
-                }) { itemId, completed ->
+                    },
+                ) { itemId, completed ->
                     if (canEdit) scope.launch {
                         runCatching {
                             SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
@@ -16072,11 +16181,20 @@ private fun RouteLegCard(
     tripDates: String,
     resolvedCityFlags: Map<String, String> = emptyMap(),
     canEdit: Boolean = true,
+    dragEnabled: Boolean = false,
+    isDragging: Boolean = false,
+    dragOffsetPx: Float = 0f,
+    onDragStart: () -> Unit = {},
+    onDrag: (Float) -> Unit = {},
+    onDragEnd: () -> Unit = {},
     onEdit: () -> Unit,
     onChecklistChange: (String, Boolean) -> Unit,
 ) {
     val language = LocalLanguage.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val timing = routeTiming(leg.checkIn, leg.checkOut)
     val timingLabel = if (timing.isCheckOut) {
         localized("Выселение", "Check-out", "Salida", "Check-out")
@@ -16087,7 +16205,12 @@ private fun RouteLegCard(
         "https://www.google.com/maps/dir/?api=1&origin=${Uri.encode(leg.from)}&destination=${Uri.encode(leg.to)}"
     }
     val longDestination = leg.to.length > 14
-    val dateParts = if (leg.dateDay.isNotBlank() || leg.dateMonth.isNotBlank()) {
+    val dateParts = if (leg.date.isNotBlank()) {
+        // The ISO day is the source of truth. Legacy display labels can be
+        // stale after a trip/date change or may have been saved in another
+        // device language.
+        routeDateParts(leg.date, tripDates, dayIndex, language)
+    } else if (leg.dateDay.isNotBlank() || leg.dateMonth.isNotBlank()) {
         leg.dateDay.ifBlank { "—" } to leg.dateMonth.ifBlank { "—" }
     } else {
         routeDateParts(leg.date, tripDates, dayIndex, language)
@@ -16096,10 +16219,28 @@ private fun RouteLegCard(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 158.dp)
-            .shadow(8.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0x12202040), spotColor = Color(0x12202040))
+            .graphicsLayer {
+                translationY = if (isDragging) dragOffsetPx else 0f
+                scaleX = if (isDragging) 1.02f else 1f
+                scaleY = if (isDragging) 1.02f else 1f
+            }
+            .zIndex(if (isDragging) 1f else 0f)
+            .shadow(if (isDragging) 16.dp else 8.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0x12202040), spotColor = Color(0x12202040))
             .clip(RoundedCornerShape(20.dp))
             .background(cardSurfaceColor())
-            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 14.dp),
+            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 14.dp)
+            .pointerInput(leg.dayId, dragEnabled) {
+                if (!dragEnabled) return@pointerInput
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { currentOnDragStart() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        currentOnDrag(dragAmount.y)
+                    },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
