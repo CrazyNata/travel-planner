@@ -61,10 +61,10 @@ import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyDangerDeep
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurple
 import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -387,7 +387,7 @@ internal fun BudgetContent(
             fontWeight = FontWeight.W800,
             fontSize = 16.sp,
             lineHeight = 22.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(22.dp),
         )
         Spacer(Modifier.height(14.dp))

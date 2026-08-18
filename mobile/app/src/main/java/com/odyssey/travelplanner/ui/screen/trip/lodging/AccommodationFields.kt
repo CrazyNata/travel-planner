@@ -50,6 +50,7 @@ import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -79,7 +80,7 @@ internal fun AccommodationEditTextField(
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(d(18f)),
             maxLines = 1,
             softWrap = false,
@@ -122,7 +123,7 @@ internal fun AccommodationEditTextField(
                                 fontWeight = FontWeight.W600,
                                 fontSize = s(15f),
                                 lineHeight = s(20f),
-                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                style = OdysseyTightText,
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
@@ -154,7 +155,7 @@ internal fun AccommodationEditDateField(
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(d(18f)),
             maxLines = 1,
             softWrap = false,
@@ -272,7 +273,7 @@ internal fun AccommodationCalendarDialog(
                         fontWeight = FontWeight.W800,
                         fontSize = 18.sp,
                         lineHeight = 24.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                     Box(
                         contentAlignment = Alignment.Center,
@@ -311,7 +312,7 @@ internal fun AccommodationCalendarDialog(
                         fontWeight = FontWeight.W800,
                         fontSize = 16.sp,
                         lineHeight = 22.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                     Box(
                         contentAlignment = Alignment.Center,
@@ -338,7 +339,7 @@ internal fun AccommodationCalendarDialog(
                             fontSize = 11.sp,
                             lineHeight = 16.sp,
                             textAlign = TextAlign.Center,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -373,7 +374,7 @@ internal fun AccommodationCalendarDialog(
                                                 fontSize = 14.sp,
                                                 lineHeight = 18.sp,
                                                 textAlign = TextAlign.Center,
-                                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                                style = OdysseyTightText,
                                             )
                                         }
                                     }
@@ -394,7 +395,7 @@ internal fun AccommodationCalendarDialog(
                             .border(1.dp, contentBorderColor(), RoundedCornerShape(15.dp))
                             .clickable(onClick = onDismiss),
                     ) {
-                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = OdysseyTightText)
                     }
                     Box(
                         contentAlignment = Alignment.Center,
@@ -405,7 +406,7 @@ internal fun AccommodationCalendarDialog(
                             .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                             .clickable { onConfirm(accommodationDateIso(selectedYear, selectedMonth, selectedDay)) },
                     ) {
-                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = OdysseyTightText)
                     }
                 }
             }

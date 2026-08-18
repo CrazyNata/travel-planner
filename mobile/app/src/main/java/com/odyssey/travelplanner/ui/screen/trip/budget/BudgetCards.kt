@@ -56,9 +56,9 @@ import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface2
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkTint
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurple
 import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
@@ -88,7 +88,7 @@ internal fun BudgetSummaryCard(total: Double, currencySymbol: String, conversion
             fontSize = 11.sp,
             lineHeight = 15.sp,
             letterSpacing = 1.1.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(15.dp),
         )
         Text(
@@ -99,7 +99,7 @@ internal fun BudgetSummaryCard(total: Double, currencySymbol: String, conversion
             fontSize = 38.sp,
             lineHeight = 38.sp,
             letterSpacing = (-0.76).sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.padding(top = 6.dp),
             maxLines = 1,
             softWrap = false,
@@ -141,7 +141,7 @@ internal fun BudgetCurrencySelector(
                     fontWeight = FontWeight.W800,
                     fontSize = 13.sp,
                     lineHeight = 17.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
             }
         }
@@ -337,7 +337,7 @@ internal fun BudgetMetricCard(label: String, value: String, modifier: Modifier =
             fontSize = 10.sp,
             lineHeight = 14.sp,
             letterSpacing = 0.6.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(14.dp),
             maxLines = 1,
             softWrap = false,
@@ -349,7 +349,7 @@ internal fun BudgetMetricCard(label: String, value: String, modifier: Modifier =
             fontWeight = FontWeight.W800,
             fontSize = 17.sp,
             lineHeight = 23.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.padding(top = 6.dp),
             maxLines = 1,
             softWrap = false,
@@ -371,7 +371,7 @@ internal fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total
                 fontWeight = FontWeight.W700,
                 fontSize = 14.sp,
                 lineHeight = 19.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier.padding(start = 9.dp),
                 maxLines = 1,
                 softWrap = false,
@@ -383,7 +383,7 @@ internal fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total
                 fontWeight = FontWeight.W600,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier.padding(start = 5.dp),
                 maxLines = 1,
                 softWrap = false,
@@ -396,7 +396,7 @@ internal fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total
                 fontWeight = FontWeight.W800,
                 fontSize = 14.sp,
                 lineHeight = 19.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 maxLines = 1,
                 softWrap = false,
             )
@@ -446,7 +446,7 @@ internal fun BudgetExpensesCard(
                 fontWeight = FontWeight.W800,
                 fontSize = 16.sp,
                 lineHeight = 22.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
             )
             Spacer(Modifier.weight(1f))
             if (editable) {
@@ -517,7 +517,7 @@ internal fun BudgetExpenseRow(
                     fontWeight = FontWeight.W800,
                     fontSize = 14.5.sp,
                     lineHeight = 19.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -528,7 +528,7 @@ internal fun BudgetExpenseRow(
                     fontWeight = FontWeight.W800,
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier
                         .padding(top = 5.dp)
                         .clip(RoundedCornerShape(7.dp))
@@ -559,7 +559,7 @@ internal fun BudgetExpenseRow(
                     fontWeight = FontWeight.W800,
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -622,7 +622,7 @@ internal fun BudgetDashedButton(onClick: () -> Unit) {
                 fontWeight = FontWeight.W800,
                 fontSize = 14.sp,
                 lineHeight = 18.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier.padding(start = 7.dp),
             )
         }
@@ -656,7 +656,7 @@ internal fun BudgetChoiceChip(
             fontWeight = FontWeight.W800,
             fontSize = s(13.5f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             maxLines = 1,
             softWrap = false,
         )

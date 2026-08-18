@@ -67,6 +67,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadowSoft
 import com.odyssey.travelplanner.ui.theme.OdysseyShadowFaint
 import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -322,7 +323,7 @@ internal fun InviteMemberField(placeholder: String, value: String, onValueChange
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W600,
                             fontSize = 14.5.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis,

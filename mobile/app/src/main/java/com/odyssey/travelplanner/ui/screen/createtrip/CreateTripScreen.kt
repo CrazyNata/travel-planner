@@ -105,6 +105,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkTint
 import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -1106,7 +1107,7 @@ internal fun TripCreationCalendarDialog(
                             fontWeight = FontWeight.W800,
                             fontSize = 19.sp,
                             lineHeight = 24.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                         Text(
                             text = "${selectedDay.toString().padStart(2, '0')}.${(selectedMonth + 1).toString().padStart(2, '0')}.$selectedYear",
@@ -1116,7 +1117,7 @@ internal fun TripCreationCalendarDialog(
                             fontSize = 13.sp,
                             lineHeight = 18.sp,
                             modifier = Modifier.padding(top = 3.dp),
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                     Box(
@@ -1160,7 +1161,7 @@ internal fun TripCreationCalendarDialog(
                         fontWeight = FontWeight.W800,
                         fontSize = 16.sp,
                         lineHeight = 22.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                     Box(
                         contentAlignment = Alignment.Center,
@@ -1192,7 +1193,7 @@ internal fun TripCreationCalendarDialog(
                             lineHeight = 16.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.weight(1f),
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -1234,7 +1235,7 @@ internal fun TripCreationCalendarDialog(
                                                 fontSize = 14.sp,
                                                 lineHeight = 18.sp,
                                                 textAlign = TextAlign.Center,
-                                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                                style = OdysseyTightText,
                                             )
                                         }
                                     }
@@ -1255,7 +1256,7 @@ internal fun TripCreationCalendarDialog(
                             .border(1.dp, contentBorderColor(), RoundedCornerShape(15.dp))
                             .clickable(onClick = onDismiss),
                     ) {
-                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                        Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = OdysseyTightText)
                     }
                     Box(
                         contentAlignment = Alignment.Center,
@@ -1268,7 +1269,7 @@ internal fun TripCreationCalendarDialog(
                                 onConfirm(String.format(Locale.US, "%04d-%02d-%02d", selectedYear, selectedMonth + 1, selectedDay))
                             },
                     ) {
-                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                        Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = OdysseyTightText)
                     }
                 }
             }

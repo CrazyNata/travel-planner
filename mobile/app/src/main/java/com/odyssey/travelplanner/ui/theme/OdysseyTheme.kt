@@ -89,6 +89,10 @@ internal val Manrope = FontFamily(
 )
 internal val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 internal val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
+
+// The text style used by almost every Text in the app: font padding off, so the
+// glyph box matches the design's line boxes.
+internal val OdysseyTightText = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding)
 internal val LocalDarkTheme = staticCompositionLocalOf { false }
 internal val LocalLanguage = staticCompositionLocalOf { "RU" }
 

@@ -80,10 +80,10 @@ import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDia
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadowSoft
 import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -261,7 +261,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
                         fontWeight = FontWeight.W800,
                         fontSize = 14.sp,
                         lineHeight = 19.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -291,7 +291,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
                         fontWeight = FontWeight.W800,
                         fontSize = 14.sp,
                         lineHeight = 19.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                     Box(
                         modifier = Modifier.size(20.dp).clip(RoundedCornerShape(10.dp)).background(primaryColor()),
@@ -304,7 +304,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
                             fontWeight = FontWeight.W800,
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -343,7 +343,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
                     fontWeight = FontWeight.W800,
                     fontSize = 14.5.sp,
                     lineHeight = 19.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -661,7 +661,7 @@ internal fun RestaurantAddCitySheet(
                     fontWeight = FontWeight.W800,
                     fontSize = 22.sp,
                     lineHeight = 30.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
                 Box(
                     modifier = Modifier
@@ -709,7 +709,7 @@ internal fun RestaurantAddCitySheet(
                             fontWeight = FontWeight.W800,
                             fontSize = 15.5.sp,
                             lineHeight = 20.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             modifier = Modifier.weight(1f),
                         )
                         if (active) {

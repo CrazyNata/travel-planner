@@ -79,6 +79,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.OdysseyScrimSoft
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -281,7 +282,7 @@ internal fun AccommodationEditSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = s(13f),
                 lineHeight = s(18f),
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier
                     .offset(x = d(16f), y = d(82f))
                     .width(d(321f))
@@ -330,7 +331,7 @@ internal fun AccommodationEditSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = s(13f),
                 lineHeight = s(18f),
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier
                     .offset(x = d(16f), y = d(298f))
                     .width(d(336f))
@@ -355,7 +356,7 @@ internal fun AccommodationEditSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(12f),
                         lineHeight = s(16f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
             }
@@ -488,7 +489,7 @@ internal fun AccommodationEditSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
                 Box(
@@ -542,7 +543,7 @@ internal fun AccommodationEditSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
             }
@@ -554,7 +555,7 @@ internal fun AccommodationEditSheet(
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
                     lineHeight = s(15f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier
                         .offset(x = d(16f), y = d(754f))
                         .width(d(336f))
@@ -580,7 +581,7 @@ internal fun AccommodationEditSheet(
                         fontSize = s(11f),
                         lineHeight = s(15f),
                         maxLines = 2,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -623,7 +624,7 @@ internal fun AccommodationEditSheet(
                             fontWeight = FontWeight.W800,
                             fontSize = s(15f),
                             lineHeight = s(20f),
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                     Box(
@@ -649,7 +650,7 @@ internal fun AccommodationEditSheet(
                             fontWeight = FontWeight.W800,
                             fontSize = s(15f),
                             lineHeight = s(20f),
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -777,7 +778,7 @@ internal fun AccommodationEditPhotoStrip(
                             fontSize = s(11.5f),
                             lineHeight = s(17f),
                             textAlign = TextAlign.Center,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             modifier = Modifier.padding(top = d(6f)),
                         )
                     }
@@ -830,7 +831,7 @@ internal fun AccommodationEditPhotoStrip(
                         fontWeight = FontWeight.W800,
                         fontSize = s(11.5f),
                         lineHeight = s(15f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         modifier = Modifier.padding(top = d(5f)),
                     )
                 }
@@ -886,7 +887,7 @@ internal fun AccommodationEditPhotoTile(
                 fontWeight = FontWeight.W800,
                 fontSize = d(10f).value.sp,
                 lineHeight = d(14f).value.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = d(8f), top = d(8f))

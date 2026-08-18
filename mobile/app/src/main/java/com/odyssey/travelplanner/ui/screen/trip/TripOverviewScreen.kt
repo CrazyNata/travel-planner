@@ -90,8 +90,8 @@ import com.odyssey.travelplanner.ui.theme.OdysseyBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseySurface2
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -212,7 +212,7 @@ internal fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: 
                     fontWeight = FontWeight.W700,
                     fontSize = 10.sp,
                     lineHeight = 14.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -233,7 +233,7 @@ internal fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: 
                         fontWeight = FontWeight.W800,
                         fontSize = 15.sp,
                         lineHeight = 21.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         maxLines = 1,
                         softWrap = false,
                     )

@@ -85,7 +85,7 @@ import com.odyssey.travelplanner.ui.screen.trip.route.RouteEditorField
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -128,12 +128,12 @@ internal fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () -
         }
         RouteEditorField(localized("Главная достопримечательность", "Main sight", "Lugar principal", "Hauptsehenswürdigkeit"), name, { name = it }, Modifier.fillMaxWidth(), placeholder = localized("Напр. Две башни", "E.g. Two towers", "P. ej. Dos torres", "Z. B. Zwei Türme"))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(value = description, onValueChange = { description = it }, placeholder = { Text(localized("Описание объекта: что\nважно увидеть, время\nпосещения, заметки...", "Description", "Descripción", "Beschreibung"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 13.sp, lineHeight = 20.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding)) }, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = contentBorderColor(), unfocusedBorderColor = contentBorderColor()), modifier = Modifier.weight(1f).height(122.dp))
+            OutlinedTextField(value = description, onValueChange = { description = it }, placeholder = { Text(localized("Описание объекта: что\nважно увидеть, время\nпосещения, заметки...", "Description", "Descripción", "Beschreibung"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 13.sp, lineHeight = 20.sp, style = OdysseyTightText) }, shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = contentBorderColor(), unfocusedBorderColor = contentBorderColor()), modifier = Modifier.weight(1f).height(122.dp))
             Box(modifier = Modifier.width(132.dp).height(122.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).clickable { photoPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
                 if (photoUri != null) AsyncImage(model = photoUri, contentDescription = localized("Выбранное фото", "Selected photo", "Foto seleccionada", "Ausgewähltes Foto"), contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("⇧", color = primaryColor(), fontSize = 25.sp, lineHeight = 28.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                    Text(localized("Фото объекта", "Photo", "Foto", "Foto"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, lineHeight = 13.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                    Text(localized("Выберите\nфайл", "Choose file", "Elige archivo", "Datei wählen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 15.sp, textAlign = TextAlign.Center, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    Text("⇧", color = primaryColor(), fontSize = 25.sp, lineHeight = 28.sp, style = OdysseyTightText)
+                    Text(localized("Фото объекта", "Photo", "Foto", "Foto"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, lineHeight = 13.sp, style = OdysseyTightText)
+                    Text(localized("Выберите\nфайл", "Choose file", "Elige archivo", "Datei wählen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 15.sp, textAlign = TextAlign.Center, style = OdysseyTightText)
                 }
             }
         }
@@ -250,7 +250,7 @@ internal fun SightLocationField(
             fontWeight = FontWeight.W800,
             fontSize = 12.sp,
             lineHeight = 16.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
         )
         Box(
             modifier = Modifier
@@ -286,7 +286,7 @@ internal fun SightLocationField(
                         fontWeight = FontWeight.W600,
                         fontSize = 14.sp,
                         lineHeight = 18.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -298,7 +298,7 @@ internal fun SightLocationField(
                             fontWeight = FontWeight.W600,
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             maxLines = 1,
                         )
                     }
@@ -433,7 +433,7 @@ internal fun SightLocationPickerSheet(
                     fontWeight = FontWeight.W800,
                     fontSize = 10.sp,
                     lineHeight = 14.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
                 Text(
                     localized("Выберите место", "Choose a place", "Elige un lugar", "Ort auswählen"),
@@ -442,7 +442,7 @@ internal fun SightLocationPickerSheet(
                     fontWeight = FontWeight.W800,
                     fontSize = 23.sp,
                     lineHeight = 28.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
             }
             Box(
@@ -468,7 +468,7 @@ internal fun SightLocationPickerSheet(
             fontWeight = FontWeight.W700,
             fontSize = 13.sp,
             lineHeight = 17.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
         )
         Box(
             modifier = Modifier
@@ -493,7 +493,7 @@ internal fun SightLocationPickerSheet(
             fontWeight = FontWeight.W600,
             fontSize = 12.sp,
             lineHeight = 17.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
         )
         if (selectedPoint != null) {
             Text(
@@ -503,7 +503,7 @@ internal fun SightLocationPickerSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = 13.sp,
                 lineHeight = 17.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
             )
         }
         Row(

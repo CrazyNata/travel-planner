@@ -63,7 +63,7 @@ import com.odyssey.travelplanner.ui.screen.trip.route.RouteEditorField
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -120,7 +120,7 @@ internal fun SightCard(
                 fontSize = 9.5.sp,
                 lineHeight = 12.sp,
                 letterSpacing = 0.2.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -131,7 +131,7 @@ internal fun SightCard(
                 fontWeight = FontWeight.W800,
                 fontSize = 15.sp,
                 lineHeight = 18.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
@@ -151,7 +151,7 @@ internal fun SightCard(
                             fontWeight = FontWeight.W800,
                             fontSize = 11.5.sp,
                             lineHeight = 17.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -164,7 +164,7 @@ internal fun SightCard(
                             fontWeight = FontWeight.W600,
                             fontSize = 10.5.sp,
                             lineHeight = 15.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -178,7 +178,7 @@ internal fun SightCard(
                 fontWeight = FontWeight.W600,
                 fontSize = 11.5.sp,
                 lineHeight = 15.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 4.dp),

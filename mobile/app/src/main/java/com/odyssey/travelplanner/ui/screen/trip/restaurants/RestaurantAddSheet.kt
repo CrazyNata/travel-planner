@@ -65,6 +65,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.OdysseyScrimSoft
 import com.odyssey.travelplanner.ui.theme.OdysseyShadowBlack
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -151,7 +152,7 @@ internal fun RestaurantAddSheet(
                     fontSize = s(24f),
                     lineHeight = s(33f),
                     letterSpacing = (-0.24f * scale).sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(260f)).height(d(34f)),
                     maxLines = 1,
                     softWrap = false,
@@ -216,7 +217,7 @@ internal fun RestaurantAddSheet(
                                     fontSize = s(11.5f),
                                     lineHeight = s(17f),
                                     textAlign = TextAlign.Center,
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                     modifier = Modifier.padding(top = d(6f)),
                                 )
                             }
@@ -245,7 +246,7 @@ internal fun RestaurantAddSheet(
                                 fontWeight = FontWeight.W800,
                                 fontSize = s(10f),
                                 lineHeight = s(14f),
-                                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                style = OdysseyTightText,
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(start = d(8f), top = d(8f))
@@ -276,7 +277,7 @@ internal fun RestaurantAddSheet(
                                     fontWeight = FontWeight.W800,
                                     fontSize = s(10f),
                                     lineHeight = s(14f),
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                     modifier = Modifier
                                         .align(Alignment.TopStart)
                                         .padding(start = d(8f), top = d(8f))
@@ -316,7 +317,7 @@ internal fun RestaurantAddSheet(
                                     fontWeight = FontWeight.W800,
                                     fontSize = s(11.5f),
                                     lineHeight = s(15f),
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                     modifier = Modifier.padding(top = d(5f)),
                                 )
                             }
@@ -344,7 +345,7 @@ internal fun RestaurantAddSheet(
                             fontWeight = FontWeight.W800,
                             fontSize = s(12f),
                             lineHeight = s(16f),
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -443,7 +444,7 @@ internal fun RestaurantAddSheet(
                         fontWeight = FontWeight.W700,
                         fontSize = s(11f),
                         lineHeight = s(15f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         modifier = Modifier.offset(x = d(16f), y = d(834f)).width(d(336f)),
                     )
                 }
@@ -466,7 +467,7 @@ internal fun RestaurantAddSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
                 Box(
@@ -487,7 +488,7 @@ internal fun RestaurantAddSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
             }
@@ -536,7 +537,7 @@ internal fun RestaurantAddField(
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(d(18f)),
             maxLines = 1,
             softWrap = false,
@@ -575,7 +576,7 @@ internal fun RestaurantAddField(
                                  fontWeight = FontWeight.W600,
                                  fontSize = s(13f),
                                  lineHeight = s(15f),
-                                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                 style = OdysseyTightText,
                                  maxLines = 2,
                                  softWrap = true,
                                  overflow = TextOverflow.Clip,
@@ -617,7 +618,7 @@ internal fun RestaurantAddPriceField(
             fontWeight = FontWeight.W800,
             fontSize = s(13f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             modifier = Modifier.height(d(18f)),
             maxLines = 1,
             softWrap = false,
@@ -651,7 +652,7 @@ internal fun RestaurantAddPriceField(
                         fontWeight = FontWeight.W800,
                         fontSize = s(12f),
                         lineHeight = s(16f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -689,7 +690,7 @@ internal fun RestaurantAddStatusChip(
             fontWeight = FontWeight.W800,
             fontSize = s(13.5f),
             lineHeight = s(18f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             maxLines = 1,
             softWrap = false,
         )

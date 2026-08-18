@@ -57,6 +57,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.OdysseyShadowBlack
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -105,7 +106,7 @@ internal fun RestaurantCityFilterSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = 22.sp,
                 lineHeight = 30.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
             )
             Box(
                 modifier = Modifier
@@ -151,7 +152,7 @@ internal fun RestaurantCityFilterSheet(
                     fontWeight = FontWeight.W800,
                     fontSize = 15.5.sp,
                     lineHeight = 20.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier.weight(1f),
                 )
                 if (option != options.first()) {
@@ -162,7 +163,7 @@ internal fun RestaurantCityFilterSheet(
                         fontWeight = FontWeight.W700,
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
                 if (active) {
@@ -225,7 +226,7 @@ internal fun RestaurantFilterSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = s(22f),
                 lineHeight = s(30f),
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier.offset(x = d(16f), y = d(30f)).width(d(190f)).height(d(30f)),
             )
             Box(
@@ -243,7 +244,7 @@ internal fun RestaurantFilterSheet(
                     fontWeight = FontWeight.W800,
                     fontSize = s(14f),
                     lineHeight = s(21f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
             }
 
@@ -338,7 +339,7 @@ internal fun RestaurantFilterSheet(
                     fontWeight = FontWeight.W800,
                     fontSize = s(16f),
                     lineHeight = s(22f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
             }
         }
@@ -374,7 +375,7 @@ internal fun RestaurantFilterTypeButton(
             fontWeight = FontWeight.W800,
             fontSize = d(13.5f).value.sp,
             lineHeight = d(18f).value.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             maxLines = 1,
         )
     }
@@ -408,7 +409,7 @@ internal fun RestaurantFilterFeatureChip(
             fontWeight = FontWeight.W800,
             fontSize = d(13.5f).value.sp,
             lineHeight = d(18f).value.sp,
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             maxLines = 1,
             softWrap = false,
         )
@@ -452,7 +453,7 @@ internal fun RestaurantFilterSegmentedRow(
                     fontWeight = FontWeight.W800,
                     fontSize = d(itemFontSize).value.sp,
                     lineHeight = d(itemFontSize * 1.35f).value.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     textAlign = TextAlign.Center,
                 )
             }

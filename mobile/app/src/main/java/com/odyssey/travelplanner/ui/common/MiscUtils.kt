@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.icons.OdysseyCalendarIcon
 import com.odyssey.travelplanner.ui.theme.Manrope
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -60,7 +60,7 @@ internal fun RouteEditorDateField(
                     fontWeight = FontWeight.W600,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                 )
                 Spacer(Modifier.weight(1f))
                 OdysseyCalendarIcon(17.dp, if (value.isBlank()) secondaryTextColor() else primaryColor())

@@ -81,9 +81,9 @@ import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyError
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -241,7 +241,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
                 letterSpacing = 0.66.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
             )
             Spacer(Modifier.height(16.dp))
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -266,7 +266,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                             fontWeight = FontWeight.W800,
                             fontSize = 17.sp,
                             lineHeight = 17.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                         Text(
                             localized("ДЕНЬ", "DAY", "DÍA", "TAG"),
@@ -276,7 +276,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                             fontSize = 7.sp,
                             lineHeight = 9.sp,
                             letterSpacing = 0.7.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -289,7 +289,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                         fontSize = 10.sp,
                         lineHeight = 14.sp,
                         letterSpacing = 0.8.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -305,7 +305,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                             fontSize = 17.sp,
                             lineHeight = 23.sp,
                             letterSpacing = (-0.17).sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
@@ -380,7 +380,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                                     fontSize = 11.sp,
                                     lineHeight = 15.sp,
                                     letterSpacing = 0.66.sp,
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                 )
                                 Text(
                                     "${localizedCityName(selectedDayCity)} · ${visibleSights.size} ${localizedCountWord(visibleSights.size, language, "место", "места", "мест", "place", "places", "lugar", "lugares", "Ort", "Orte")}",
@@ -389,7 +389,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                                     fontWeight = FontWeight.W700,
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                     modifier = Modifier.padding(top = 2.dp),
                                 )
                             }
@@ -411,7 +411,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                                     fontWeight = FontWeight.W700,
                                     fontSize = 13.sp,
                                     lineHeight = 16.sp,
-                                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                                    style = OdysseyTightText,
                                     maxLines = 1,
                                     softWrap = false,
                                 )

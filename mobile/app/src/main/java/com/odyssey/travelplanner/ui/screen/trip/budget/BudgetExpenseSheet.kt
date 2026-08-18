@@ -57,6 +57,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -123,7 +124,7 @@ internal fun BudgetExpenseSheet(
                     fontSize = s(24f),
                     lineHeight = s(33f),
                     letterSpacing = s(-0.24f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -215,7 +216,7 @@ internal fun BudgetExpenseSheet(
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
                     lineHeight = s(15f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     modifier = Modifier.offset(x = d(16f), y = d(591f)).width(d(336f)),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -242,7 +243,7 @@ internal fun BudgetExpenseSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
                 Box(
@@ -262,7 +263,7 @@ internal fun BudgetExpenseSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
             }

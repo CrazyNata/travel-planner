@@ -78,10 +78,10 @@ import com.odyssey.travelplanner.ui.screen.trip.sights.keepMapGesturesInsideMap
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyCardShadow
-import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyScrimStrong
 import com.odyssey.travelplanner.ui.theme.OdysseyShadowFaint
 import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
@@ -208,7 +208,7 @@ internal fun RestaurantCard(
                             fontWeight = FontWeight.W800,
                             fontSize = 9.sp,
                             lineHeight = 11.sp,
-                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            style = OdysseyTightText,
                         )
                     }
                 }
@@ -222,7 +222,7 @@ internal fun RestaurantCard(
                         fontWeight = FontWeight.W800,
                         fontSize = 15.sp,
                         lineHeight = 17.25.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -245,7 +245,7 @@ internal fun RestaurantCard(
                     fontWeight = FontWeight.W600,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 3.dp),
@@ -257,18 +257,18 @@ internal fun RestaurantCard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text("★", color = OdysseyWarning, fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                            Text(it.toString(), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                            Text("★", color = OdysseyWarning, fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 11.sp, lineHeight = 15.sp, style = OdysseyTightText)
+                            Text(it.toString(), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = OdysseyTightText)
                         }
                     }
                     if (restaurant.price.isNotBlank()) {
                         Box(modifier = Modifier.height(25.dp).clip(RoundedCornerShape(8.dp)).background(tintedSurfaceColor()).padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
-                            Text(restaurant.price, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                            Text(restaurant.price, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = OdysseyTightText)
                         }
                     }
                     if (displayedNote.isNotBlank() && !restaurant.note.contains("http", ignoreCase = true)) {
                         Box(modifier = Modifier.height(25.dp).clip(RoundedCornerShape(8.dp)).background(secondarySurfaceColor()).padding(horizontal = 8.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
-                            Text(displayedNote, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                            Text(displayedNote, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = OdysseyTightText)
                         }
                     }
                 }
@@ -287,7 +287,7 @@ internal fun RestaurantCard(
             if (booked || visited) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OdysseyCalendarIcon(14.dp, if (booked) OdysseySuccess else secondaryTextColor())
-                    Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reservation, color = if (booked) OdysseySuccess else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reservation, color = if (booked) OdysseySuccess else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = OdysseyTightText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             } else {
                 Text(
@@ -297,13 +297,13 @@ internal fun RestaurantCard(
                     fontWeight = FontWeight.W700,
                     fontSize = 12.5.sp,
                     lineHeight = 17.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (restaurant.reviews.isNotBlank()) {
-                    Text(localized("Забронировать", "Book", "Reservar", "Buchen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                    Text(localized("Забронировать", "Book", "Reservar", "Buchen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = OdysseyTightText, maxLines = 1)
                 }
             }
         }
@@ -318,7 +318,7 @@ internal fun RestaurantCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     OdysseyEditIcon(15.dp, primaryColor())
-                    Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+                    Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = OdysseyTightText, maxLines = 1)
                 }
             }
         }

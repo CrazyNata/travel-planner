@@ -61,6 +61,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
 import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseyTightText
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -263,7 +264,7 @@ internal fun RestaurantEditSheet(
                 fontWeight = FontWeight.W800,
                 fontSize = s(13f),
                 lineHeight = s(18f),
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                style = OdysseyTightText,
                 modifier = Modifier
                     .offset(x = d(16f), y = d(490f))
                     .width(d(336f))
@@ -393,7 +394,7 @@ internal fun RestaurantEditSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
                 Box(
@@ -445,7 +446,7 @@ internal fun RestaurantEditSheet(
                         fontWeight = FontWeight.W800,
                         fontSize = s(15f),
                         lineHeight = s(20f),
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        style = OdysseyTightText,
                     )
                 }
             }
@@ -458,7 +459,7 @@ internal fun RestaurantEditSheet(
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
                     lineHeight = s(15f),
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    style = OdysseyTightText,
                         modifier = Modifier
                         .offset(x = d(16f), y = d(765f))
                         .width(d(336f)),
@@ -527,7 +528,7 @@ internal fun RestaurantEditStatusChip(
             fontWeight = FontWeight.W800,
             fontSize = s(14f),
             lineHeight = s(19f),
-            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+            style = OdysseyTightText,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
