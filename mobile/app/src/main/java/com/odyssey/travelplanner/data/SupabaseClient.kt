@@ -3,6 +3,7 @@ package com.odyssey.travelplanner.data
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import com.odyssey.travelplanner.BuildConfig
 import com.russhwolf.settings.Settings
 import io.github.jan.supabase.SupabaseClient
@@ -45,7 +46,14 @@ data class RememberedCredentials(
     val password: String,
 )
 
+enum class AuthRestoreResult {
+    RESTORED,
+    NO_SESSION,
+    FAILED,
+}
+
 object SupabaseProvider {
+    private const val TAG = "SupabaseProvider"
     val isConfigured: Boolean =
         BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_PUBLISHABLE_KEY.isNotBlank()
 
@@ -283,8 +291,8 @@ object SupabaseProvider {
      * checkbox. A saved session means the user is still authenticated until an
      * explicit sign-out, including after the Android process is recreated.
      */
-    suspend fun restorePersistentSession(): Boolean = restoreMutex.withLock {
-        runCatching {
+    suspend fun restorePersistentSession(): AuthRestoreResult = restoreMutex.withLock {
+        try {
             val inMemorySession = sessionOnlyClient.auth.currentSessionOrNull()
             if (inMemorySession != null) {
                 persistentClient.auth.importSession(
@@ -297,7 +305,7 @@ object SupabaseProvider {
                 activeClient = persistentClient
                 runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
                 authSettings.remove(PENDING_REMEMBER_KEY)
-                return@runCatching true
+                return@withLock AuthRestoreResult.RESTORED
             }
 
             // Do not reload an already active session on every ON_RESUME. In
@@ -307,33 +315,37 @@ object SupabaseProvider {
                 activeClient = persistentClient
                 runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
                 authSettings.remove(PENDING_REMEMBER_KEY)
-                return@runCatching true
+                return@withLock AuthRestoreResult.RESTORED
             }
 
             // Read the stored session first. Refreshing is handled by the
             // auth client's auto-refresh job and must not gate showing the
             // already authenticated app after a process recreation.
             withContext(Dispatchers.IO) {
-                runCatching { persistentClient.auth.loadFromStorage(autoRefresh = false) }
+                persistentClient.auth.loadFromStorage(autoRefresh = false)
             }
             if (persistentClient.auth.currentSessionOrNull() != null) {
                 activeClient = persistentClient
                 runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
                 authSettings.remove(PENDING_REMEMBER_KEY)
-                return@runCatching true
+                return@withLock AuthRestoreResult.RESTORED
             }
 
             if (migrateLegacyRememberedSession() != null) {
                 activeClient = persistentClient
                 runCatching { persistentClient.auth.startAutoRefreshForCurrentSession() }
                 authSettings.remove(PENDING_REMEMBER_KEY)
-                return@runCatching true
+                return@withLock AuthRestoreResult.RESTORED
             }
 
             activeClient = persistentClient
             authSettings.remove(PENDING_REMEMBER_KEY)
-            false
-        }.getOrDefault(false)
+            AuthRestoreResult.NO_SESSION
+        } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            Log.w(TAG, "Auth session restore failed: ${error::class.simpleName}")
+            AuthRestoreResult.FAILED
+        }
     }
 
     private suspend fun saveRememberedSession(session: UserSession): Boolean {

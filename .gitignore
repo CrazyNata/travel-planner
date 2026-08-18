@@ -13,6 +13,7 @@ mobile/local.properties
 
 # Android/Gradle generated files
 .gradle/
+.gradle-user/
 **/.gradle/
 **/.kotlin/
 build/

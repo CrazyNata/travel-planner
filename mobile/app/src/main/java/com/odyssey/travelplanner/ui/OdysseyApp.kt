@@ -198,6 +198,7 @@ import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.BuildConfig
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.RememberedAccount
+import com.odyssey.travelplanner.data.AuthRestoreResult
 import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.SupabaseTripRepository
@@ -1399,6 +1400,9 @@ fun OdysseyApp(
     var languageSelectedBeforeAuth by remember { mutableStateOf<String?>(null) }
     var authReady by remember { mutableStateOf(false) }
     var hasSession by remember { mutableStateOf(false) }
+    var authRestoreError by remember { mutableStateOf(false) }
+    var authRestoreAttempt by remember { mutableStateOf(0) }
+    var sessionRestoreVersion by remember { mutableStateOf(0) }
     var rememberCredentials by remember { mutableStateOf(false) }
     var rememberedAccounts by remember { mutableStateOf<List<RememberedAccount>>(emptyList()) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -1413,16 +1417,40 @@ fun OdysseyApp(
         }
     }
 
-    LaunchedEffect(Unit) {
-        hasSession = SupabaseProvider.restorePersistentSession()
-        if (!hasSession) {
-            rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+    LaunchedEffect(authRestoreAttempt) {
+        authReady = false
+        authRestoreError = false
+        var result = AuthRestoreResult.FAILED
+        for (attempt in 0 until 3) {
+            result = SupabaseProvider.restorePersistentSession()
+            if (result != AuthRestoreResult.FAILED) break
+            if (attempt < 2) delay(250)
+        }
+        when (result) {
+            AuthRestoreResult.RESTORED -> {
+                hasSession = true
+                rememberedAccounts = emptyList()
+                runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }
+                    .getOrNull()
+                    ?.let { profile ->
+                        darkTheme = profile.darkTheme
+                        language = normalizeLanguage(profile.language)
+                    }
+            }
+            AuthRestoreResult.NO_SESSION -> {
+                hasSession = false
+                rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
+            }
+            AuthRestoreResult.FAILED -> {
+                hasSession = false
+                authRestoreError = true
+            }
         }
         authReady = true
     }
 
-    LaunchedEffect(authReady, hasSession) {
-        if (!authReady) return@LaunchedEffect
+    LaunchedEffect(authReady, hasSession, authRestoreError) {
+        if (!authReady || authRestoreError) return@LaunchedEffect
         if (!hasSession) {
             rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
         } else {
@@ -1430,8 +1458,8 @@ fun OdysseyApp(
         }
     }
 
-    DisposableEffect(lifecycleOwner, authReady) {
-        if (!authReady) {
+    DisposableEffect(lifecycleOwner, authReady, authRestoreError) {
+        if (!authReady || authRestoreError) {
             onDispose { }
         } else {
             val observer = LifecycleEventObserver { _, event ->
@@ -1440,8 +1468,10 @@ fun OdysseyApp(
                         // Re-read the persisted auth session after returning
                         // from background/process recreation. A failed restore
                         // must not turn an explicit logout into a login.
-                        if (SupabaseProvider.restorePersistentSession()) {
+                        val restoreResult = SupabaseProvider.restorePersistentSession()
+                        if (restoreResult == AuthRestoreResult.RESTORED) {
                             hasSession = true
+                            sessionRestoreVersion += 1
                         }
                     }
                 }
@@ -1478,8 +1508,8 @@ fun OdysseyApp(
         if (!hasSession) languageSelectedBeforeAuth = normalized
     }
 
-    LaunchedEffect(authReady, hasSession, currentRoute) {
-        if (!authReady || currentRoute == null) return@LaunchedEffect
+    LaunchedEffect(authReady, hasSession, currentRoute, authRestoreError) {
+        if (!authReady || authRestoreError || currentRoute == null) return@LaunchedEffect
         if (hasSession && currentRoute == "foundation") {
             navController.navigate("trips") { popUpTo("foundation") { inclusive = true } }
         } else if (!hasSession && currentRoute != "foundation") {
@@ -1487,8 +1517,8 @@ fun OdysseyApp(
         }
     }
 
-    LaunchedEffect(authReady) {
-        if (!authReady) return@LaunchedEffect
+    LaunchedEffect(authReady, authRestoreError) {
+        if (!authReady || authRestoreError) return@LaunchedEffect
         val authClients = SupabaseProvider.authClients()
         authClients.forEach { client ->
             launch {
@@ -1497,16 +1527,10 @@ fun OdysseyApp(
                     if (isActiveClient && status is SessionStatus.Authenticated) {
                         hasSession = true
                     }
-                    // A refresh failure can be temporary (for example, a
-                    // network interruption) and must not discard the current
-                    // navigation state after a successful trip insert. The
-                    // create-trip flow verifies the session before writing;
-                    // only an explicit sign-out is a UI logout.
-                    val sessionLost = isActiveClient &&
-                        status is SessionStatus.NotAuthenticated && status.isSignOut
-                    if (sessionLost) {
-                        hasSession = false
-                    }
+                    // The auth library can briefly publish NotAuthenticated
+                    // while Android pauses/resumes its refresh job. Do not
+                    // turn that transient state into a navigation logout;
+                    // explicit UI logout handlers are the source of truth.
                 }
             }
         }
@@ -1537,7 +1561,19 @@ fun OdysseyApp(
         Surface(color = if (darkTheme) OdysseyDarkBackground else OdysseyBackground) {
             if (!authReady) {
                 RamingoSplash()
-            } else NavHost(navController = navController, startDestination = "foundation") {
+            } else if (authRestoreError) {
+                RamingoSplash(
+                    message = localized(
+                        "Не удалось восстановить вход. Проверьте соединение и попробуйте ещё раз.",
+                        "Could not restore your session. Check your connection and try again.",
+                        "No se pudo restaurar la sesión. Compruebe la conexión e inténtelo de nuevo.",
+                        "Die Sitzung konnte nicht wiederhergestellt werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+                    ),
+                    onRetry = {
+                        authRestoreAttempt += 1
+                    },
+                )
+            } else NavHost(navController = navController, startDestination = if (hasSession) "trips" else "foundation") {
                 composable("foundation") {
                     AuthScreen(
                         rememberCredentials = rememberCredentials,
@@ -1573,6 +1609,7 @@ fun OdysseyApp(
                         onThemeSet = { darkTheme = it },
                         language = language,
                         onLanguageChange = ::handleLanguageChange,
+                        sessionRestoreVersion = sessionRestoreVersion,
                     )
                 }
                 composable("settings") {
@@ -2568,7 +2605,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
@@ -2587,7 +2624,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var accountDeleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     fun reloadTrips(force: Boolean = false) {
         val now = System.currentTimeMillis()
@@ -2596,9 +2632,22 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         scope.launch {
             loading = true
             loadFailed = false
-            runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }
-                .onSuccess { trips = it }
-                .onFailure { loadFailed = true }
+            val restoreResult = SupabaseProvider.restorePersistentSession()
+            if (restoreResult != AuthRestoreResult.RESTORED) {
+                loadFailed = trips.isEmpty()
+                loading = false
+                return@launch
+            }
+            val client = SupabaseProvider.clientForCurrentAuthFlow()
+            runCatching { SupabaseTripRepository(client).loadTrips() }
+                .onSuccess {
+                    if (it.isNotEmpty() || trips.isEmpty()) {
+                        trips = it
+                    }
+                }
+                .onFailure {
+                    loadFailed = trips.isEmpty()
+                }
             loading = false
         }
     }
@@ -2630,12 +2679,8 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
 
     LaunchedEffect(Unit) { reloadTrips(force = true) }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) reloadTrips()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    LaunchedEffect(sessionRestoreVersion) {
+        if (sessionRestoreVersion > 0) reloadTrips()
     }
 
     val upcoming = trips.filter {
@@ -2654,11 +2699,12 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         "completed" -> completed
         else -> trips
     }
+    fun tripCountLabel(count: Int): String = if (loading) "…" else count.toString()
     val filters = listOf(
-        "all" to localized("Все · ${trips.size}", "All · ${trips.size}", "Todos · ${trips.size}", "Alle · ${trips.size}"),
-        "upcoming" to localized("Предстоящие · ${upcoming.size}", "Upcoming · ${upcoming.size}", "Próximos · ${upcoming.size}", "Bevorstehend · ${upcoming.size}"),
-        "drafts" to localized("Черновики · ${drafts.size}", "Drafts · ${drafts.size}", "Borradores · ${drafts.size}", "Entwürfe · ${drafts.size}"),
-        "completed" to localized("Завершённые · ${completed.size}", "Completed · ${completed.size}", "Completados · ${completed.size}", "Abgeschlossen · ${completed.size}"),
+        "all" to localized("Все · ${tripCountLabel(trips.size)}", "All · ${tripCountLabel(trips.size)}", "Todos · ${tripCountLabel(trips.size)}", "Alle · ${tripCountLabel(trips.size)}"),
+        "upcoming" to localized("Предстоящие · ${tripCountLabel(upcoming.size)}", "Upcoming · ${tripCountLabel(upcoming.size)}", "Próximos · ${tripCountLabel(upcoming.size)}", "Bevorstehend · ${tripCountLabel(upcoming.size)}"),
+        "drafts" to localized("Черновики · ${tripCountLabel(drafts.size)}", "Drafts · ${tripCountLabel(drafts.size)}", "Borradores · ${tripCountLabel(drafts.size)}", "Entwürfe · ${tripCountLabel(drafts.size)}"),
+        "completed" to localized("Завершённые · ${tripCountLabel(completed.size)}", "Completed · ${tripCountLabel(completed.size)}", "Completados · ${tripCountLabel(completed.size)}", "Abgeschlossen · ${tripCountLabel(completed.size)}"),
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -6069,7 +6115,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                         letterSpacing = 0.8.sp,
                         style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 1.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 1.dp),
+                    ) {
                         Text(
                             localizedCityName(selectedDayCity),
                             color = contentTextColor(),
@@ -6079,6 +6130,9 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                             lineHeight = 23.sp,
                             letterSpacing = (-0.17).sp,
                             style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
                         )
                         if (canEdit) {
                             Box(modifier = Modifier.padding(start = 7.dp).size(22.dp).clip(RoundedCornerShape(7.dp)).background(tintedSurfaceColor()).clickable { editingDay = true }, contentAlignment = Alignment.Center) {
@@ -7980,6 +8034,8 @@ private fun SightRouteDayField(
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                         fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Icon(
@@ -8015,6 +8071,8 @@ private fun SightRouteDayField(
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W700,
                                     fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         },
@@ -17844,7 +17902,10 @@ private fun TripOverviewLoading() {
 }
 
 @Composable
-private fun RamingoSplash() {
+private fun RamingoSplash(
+    message: String? = null,
+    onRetry: (() -> Unit)? = null,
+) {
     val accentColor = primaryColor()
     val transition = rememberInfiniteTransition(label = "ramingo-splash")
     val iconScale by transition.animateFloat(
@@ -17992,6 +18053,34 @@ private fun RamingoSplash() {
                                 alpha = 0.35f + emphasis * 0.65f
                             }
                             .background(Color.White, CircleShape),
+                    )
+                }
+            }
+            if (message != null && onRetry != null) {
+                Text(
+                    text = message,
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 24.dp),
+                )
+                Button(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF4C39B8),
+                    ),
+                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.padding(top = 14.dp),
+                ) {
+                    Text(
+                        text = localized("Повторить", "Try again", "Intentar de nuevo", "Erneut versuchen"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 13.sp,
                     )
                 }
             }
