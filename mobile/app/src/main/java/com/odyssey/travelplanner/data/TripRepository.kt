@@ -203,7 +203,7 @@ data class TripOverview(
     val cities: List<String> = emptyList(),
     val cityCoordinates: Map<String, CityLocation> = emptyMap(),
     val routeDayCount: Int = 0,
-    val currentUserRole: String = "",
+    val currentUserRole: TripRole = TripRole.None,
     val canEdit: Boolean = false,
 )
 
@@ -418,11 +418,9 @@ interface TripRepository {
 class AuthSessionRequiredException : IllegalStateException()
 
 class SupabaseTripRepository(private val client: SupabaseClient) : TripRepository {
-    private fun roleCanEdit(role: String): Boolean = role == "Владелец" || role == "Редактор"
-
-    private suspend fun currentUserRole(row: TripRow, currentUserId: String?): String {
-        if (currentUserId.isNullOrBlank()) return ""
-        if (row.ownerId == currentUserId) return "Владелец"
+    private suspend fun currentUserRole(row: TripRow, currentUserId: String?): TripRole {
+        if (currentUserId.isNullOrBlank()) return TripRole.None
+        if (row.ownerId == currentUserId) return TripRole.Owner
 
         val collaboratorRole = runCatching {
             client.from("trip_collaborators").select {
@@ -432,7 +430,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 }
             }.decodeList<TripCollaboratorRow>().firstOrNull()?.role.orEmpty()
         }.getOrDefault("")
-        if (collaboratorRole.isNotBlank()) return collaboratorRole
+        if (collaboratorRole.isNotBlank()) return TripRole.fromWire(collaboratorRole)
 
         // Keep older trips usable until their member list is rewritten by the
         // invitation RPC and contains userId.
@@ -447,7 +445,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             ?.get("role")
             ?.jsonPrimitive
             ?.contentOrNull
-            .orEmpty()
+            .let(TripRole::fromWire)
     }
 
     override suspend fun loadTrips(): List<TripCard> {
@@ -467,7 +465,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         cities = text("cities"),
                         coverImage = client.resolveTripPhotoReference(text("coverImage")),
                         isOwner = row.ownerId == currentUserId,
-                        canEdit = roleCanEdit(role),
+                        canEdit = role.canEdit,
                     )
                 }
             }.awaitAll()
@@ -716,7 +714,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             cityCoordinates = cityCoordinates,
             routeDayCount = routeDayCount,
             currentUserRole = resolvedUserRole,
-            canEdit = roleCanEdit(resolvedUserRole),
+            canEdit = resolvedUserRole.canEdit,
         )
     }
 
@@ -773,7 +771,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                     put("id", ownerId)
                     put("name", ownerName)
                     put("email", ownerEmail)
-                    put("role", "Владелец")
+                    put("role", TripRole.Owner.toWire())
                     put("initials", ownerName.take(2).uppercase())
                     put("tone", "purple")
                 })
@@ -956,7 +954,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     }
 
     override suspend fun updateMemberRole(id: String, memberId: String, role: String) {
-        require(role == "Редактор" || role == "Читатель") { "Недопустимая роль" }
+        require(TripRole.fromWire(role) in TripRole.assignable) { "Недопустимая роль" }
         client.postgrest.rpc(
             function = "manage_trip_member",
             parameters = buildJsonObject {
@@ -1072,7 +1070,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     override suspend fun addMember(id: String, name: String, email: String, role: String) {
         require(name.isNotBlank()) { "Укажите имя участника" }
         require(email.contains("@")) { "Укажите корректный e-mail" }
-        require(role == "Редактор" || role == "Читатель") { "Недопустимая роль" }
+        require(TripRole.fromWire(role) in TripRole.assignable) { "Недопустимая роль" }
         client.functions.invoke(
             function = "send-invite",
             body = buildJsonObject {

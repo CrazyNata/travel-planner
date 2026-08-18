@@ -318,7 +318,7 @@ internal fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: 
                     onExpenseAdded = { refresh++ },
                     onCurrencyChanged = { selectedCurrency -> overview = overview?.copy(budgetCurrency = selectedCurrency) },
                 )
-                "members" -> MembersContent(tripId, overview!!, canEdit = overview!!.currentUserRole == "Владелец") { refresh++ }
+                "members" -> MembersContent(tripId, overview!!, canEdit = overview!!.currentUserRole.isOwner) { refresh++ }
                 else -> PhotosContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
             }
         }
