@@ -1,0 +1,62 @@
+name: Android CI
+
+# The release workflow is workflow_dispatch only, so until now nothing built the
+# Android app on a push or a pull request: a broken build surfaced no earlier
+# than the next release attempt. This job is the missing gate.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/android-ci.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/android-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      # Only needed to resolve the Mapbox SDK from its authenticated repository.
+      # The BuildConfig secrets are deliberately absent: debug builds compile
+      # with empty values, and no unit test reads them.
+      MAPBOX_DOWNLOADS_TOKEN: ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # Debug variants only. Every task whose name contains "Release" is gated
+      # behind the signing keystore and the four config secrets, so the release
+      # equivalents cannot run here.
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Assemble debug
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: mobile/app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore

@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# SourceEncodingTest walks mobile/app/src/main and fails the build on mojibake,
+# so UTF-8 is not a preference here — it is enforced.
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = off
+
+[*.{xml,yml,yaml,json,toml}]
+indent_style = space
+indent_size = 2
+
+[*.{ts,tsx,js,jsx,css,html}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
