@@ -6204,7 +6204,20 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
     }
     if (canEdit && editingDay) {
         ModalBottomSheet(onDismissRequest = { editingDay = false }, containerColor = cardSurfaceColor()) {
-            EditDaySheet(tripId, routeDay, selectedDayCity, visibleSightsWithDescriptions, sights, onClose = { editingDay = false }, onSaved = onSightUpdated)
+            EditDaySheet(
+                tripId = tripId,
+                day = routeDay,
+                city = selectedDayCity,
+                sights = visibleSightsWithDescriptions,
+                allSights = sights,
+                onClose = { editingDay = false },
+                onSaved = onSightUpdated,
+                onDeleted = {
+                    editingDay = false
+                    routeDay = (routeDay - 1).coerceAtLeast(1)
+                    onSightUpdated()
+                },
+            )
         }
     }
     if (canEdit && creatingDay) {
@@ -6538,10 +6551,22 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () -
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Sight>, allSights: List<Sight>, onClose: () -> Unit, onSaved: () -> Unit) {
+private fun EditDaySheet(
+    tripId: String,
+    day: Int,
+    city: String,
+    sights: List<Sight>,
+    allSights: List<Sight>,
+    onClose: () -> Unit,
+    onSaved: () -> Unit,
+    onDeleted: () -> Unit,
+) {
     var addingSight by remember { mutableStateOf(false) }
     var catalogOpen by remember { mutableStateOf(false) }
     var deletingSightId by remember { mutableStateOf<String?>(null) }
+    var deleteDayDialogOpen by remember { mutableStateOf(false) }
+    var deletingDay by remember { mutableStateOf(false) }
+    var deleteDayError by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
@@ -6613,6 +6638,25 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Si
                     .padding(top = 15.dp),
             )
         }
+        if (sights.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(dangerSurfaceColor())
+                    .clickable(enabled = deletingSightId == null && !deletingDay) {
+                        deleteDayError = null
+                        deleteDayDialogOpen = true
+                    }
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(18.dp))
+                    Text(localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), color = Color(0xFFFF6B65), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                }
+            }
+        }
         Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(14.dp)) { Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
     }
     if (catalogOpen) {
@@ -6636,6 +6680,67 @@ private fun EditDaySheet(tripId: String, day: Int, city: String, sights: List<Si
         ModalBottomSheet(onDismissRequest = { addingSight = false }, containerColor = cardSurfaceColor()) {
             AddSightSheet(tripId, city, day, onClose = { addingSight = false }, onSaved = onSaved)
         }
+    }
+    if (deleteDayDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingDay) deleteDayDialogOpen = false },
+            title = {
+                Text(
+                    localized("Удалить день?", "Delete day?", "¿Eliminar día?", "Tag löschen?"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        localized(
+                            "Все достопримечательности этого дня будут удалены из поездки.",
+                            "All sights from this day will be removed from the trip.",
+                            "Todos los lugares de este día se eliminarán del viaje.",
+                            "Alle Sehenswürdigkeiten dieses Tages werden aus der Reise entfernt.",
+                        ),
+                        fontFamily = Manrope,
+                    )
+                    deleteDayError?.let { error ->
+                        Text(error, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDayDialogOpen = false }, enabled = !deletingDay) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            deletingDay = true
+                            deleteDayError = null
+                            runCatching {
+                                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteSightDay(tripId, day)
+                            }.onSuccess {
+                                deleteDayDialogOpen = false
+                                onDeleted()
+                            }.onFailure {
+                                deleteDayError = it.message ?: localized(language, "Не удалось удалить день", "Could not delete day", "No se pudo eliminar el día", "Tag konnte nicht gelöscht werden")
+                            }
+                            deletingDay = false
+                        }
+                    },
+                    enabled = !deletingDay,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(
+                        if (deletingDay) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
+                        else localized("Удалить", "Delete", "Eliminar", "Löschen"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                    )
+                }
+            },
+        )
     }
 }
 

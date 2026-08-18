@@ -374,6 +374,7 @@ interface TripRepository {
     suspend fun addRestaurantPhoto(id: String, restaurantId: String, bytes: ByteArray)
     suspend fun replaceRestaurantCoverPhoto(id: String, restaurantId: String, bytes: ByteArray)
     suspend fun deleteTripItem(id: String, section: String, itemId: String)
+    suspend fun deleteSightDay(id: String, walkDay: Int)
     suspend fun addSightDetails(
         id: String,
         name: String,
@@ -1680,6 +1681,16 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             ?: error("Путешествие не найдено")
         val payload = TripPayloadCodec.removeArrayItem(current.payload, section, itemId)
         patchTripSectionFromPayload(id, section, payload, current.revision)
+    }
+
+    override suspend fun deleteSightDay(id: String, walkDay: Int) {
+        val normalizedWalkDay = walkDay.coerceAtLeast(1)
+        val current = loadTripRow(id)
+        val nextPayload = TripPayloadCodec.removeArrayItems(current.payload, "sights") { sight ->
+            (sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0).coerceAtLeast(1) == normalizedWalkDay
+        }
+        if (nextPayload["sights"] == current.payload["sights"]) return
+        patchTripSectionFromPayload(id, "sights", nextPayload, current.revision)
     }
 
     override suspend fun addSightDetails(

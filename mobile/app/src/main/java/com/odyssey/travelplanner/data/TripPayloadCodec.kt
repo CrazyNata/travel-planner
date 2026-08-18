@@ -48,6 +48,20 @@ object TripPayloadCodec {
         ),
     )
 
+    fun removeArrayItems(
+        payload: JsonObject,
+        key: String,
+        predicate: (JsonObject) -> Boolean,
+    ): JsonObject = withSection(
+        payload,
+        key,
+        JsonArray(
+            (payload[key] as? JsonArray).orEmpty().filterNot { item ->
+                (item as? JsonObject)?.let(predicate) == true
+            },
+        ),
+    )
+
     private fun JsonObject.stringValue(key: String): String? =
         this[key]?.toString()?.trim('"')
 
