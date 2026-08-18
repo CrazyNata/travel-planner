@@ -5957,6 +5957,22 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             }
         sightDescriptionOverrides = resolved
     }
+    val visibleSightCatalogKey = visibleSights.joinToString("|") { "${it.id}:${it.name}:${it.city}" }
+    var sightCatalogEntries by remember(tripId, language) { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
+    LaunchedEffect(tripId, language, selectedDayCity, visibleSightCatalogKey) {
+        sightCatalogEntries = emptyList()
+        if (selectedDayCity.isBlank() || visibleSights.isEmpty()) return@LaunchedEffect
+
+        val repository = SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+        sightCatalogEntries = runCatching {
+            repository.searchWithLiveRatings(
+                city = selectedDayCity,
+                query = "",
+                language = language,
+                limit = 60,
+            ).entries
+        }.getOrElse { emptyList() }
+    }
     val visibleSightsWithDescriptions = visibleSights.map { sight ->
         val override = sightDescriptionOverrides[sightDescriptionLookupKey(sight.city, sight.name)]
         if (isPlaceholderSightDescription(sight.description) && !override.isNullOrBlank()) {
@@ -5964,6 +5980,9 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
         } else {
             sight
         }
+    }
+    val sightCatalogById = visibleSightsWithDescriptions.associate { sight ->
+        sight.id to sightCatalogEntries.firstOrNull { entry -> sightDescriptionNameMatches(sight.name, entry) }
     }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val sightId = uploadingSightId ?: return@rememberLauncherForActivityResult
@@ -6183,6 +6202,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             items(visibleSightsWithDescriptions, key = { it.id }) { sight ->
                 SightCard(
                     sight = sight,
+                    catalogEntry = sightCatalogById[sight.id],
                     uploading = uploadingSightId == sight.id,
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
@@ -7636,6 +7656,7 @@ private fun SightLocationPickerSheet(
 @Composable
 private fun SightCard(
     sight: com.odyssey.travelplanner.data.Sight,
+    catalogEntry: SightCatalogEntry? = null,
     uploading: Boolean,
     selected: Boolean,
     onSelect: () -> Unit,
@@ -7644,73 +7665,104 @@ private fun SightCard(
     onEdit: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
+    val displayedCategory = localizedSightCategory(
+        sight.category.trim().takeIf { it.isNotBlank() }
+            ?: catalogEntry?.category?.trim().orEmpty(),
+    ).uppercase(Locale.ROOT)
+    val displayedRating = catalogEntry?.rating ?: sight.rating
+    val displayedRatingCount = catalogEntry?.ratingCount
+    val language = LocalLanguage.current
     val uriHandler = LocalUriHandler.current
+    val cardShape = RoundedCornerShape(18.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(cardSurfaceColor())
-            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x10141428), spotColor = Color(0x10141428))
-            .border(if (selected) 2.dp else 0.dp, if (selected) primaryColor() else Color.Transparent, RoundedCornerShape(18.dp))
-            .padding(11.dp),
+            .clip(cardShape)
+            .background(if (selected) primaryColor().copy(alpha = 0.08f) else secondarySurfaceColor())
+            .border(if (selected) 2.dp else 1.dp, if (selected) primaryColor().copy(alpha = 0.52f) else contentBorderColor(), cardShape)
+            .padding(8.dp),
     ) {
-        Box(modifier = Modifier.size(82.dp).clip(RoundedCornerShape(13.dp))) {
+        Box(modifier = Modifier.size(width = 96.dp, height = 112.dp).clip(RoundedCornerShape(14.dp))) {
             SightPhoto(
                 sight = sight,
                 modifier = Modifier.fillMaxSize(),
                 onClick = onOpenPhoto.takeIf { !uploading },
             )
         }
-        Column(modifier = Modifier.weight(1f).clickable { onSelect() }, verticalArrangement = Arrangement.Center) {
+        Column(modifier = Modifier.weight(1f).clickable { onSelect() }) {
+            Text(
+                displayedCategory,
+                color = primaryColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 9.5.sp,
+                lineHeight = 12.sp,
+                letterSpacing = 0.2.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 displayedName,
                 color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 15.sp,
-                lineHeight = 17.25.sp,
+                lineHeight = 18.sp,
                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
             )
+            if (displayedRating != null || displayedRatingCount != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 5.dp),
+                ) {
+                    Text("★", color = Color(0xFFFFB52E), fontSize = 14.sp, fontWeight = FontWeight.W800)
+                    displayedRating?.let {
+                        Text(
+                            String.format(Locale.ROOT, "%.1f", it),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 11.5.sp,
+                            lineHeight = 17.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    displayedRatingCount?.let {
+                        Text(
+                            "· ${catalogRatingCountLabel(it, language)}",
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 10.5.sp,
+                            lineHeight = 15.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
             Text(
                 localizedSightInfo(sight.name, sight.description, sight.category),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
+                fontSize = 11.5.sp,
+                lineHeight = 15.sp,
                 style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 3.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
-            if (sight.rating != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    Text(
-                        "★",
-                        color = Color(0xFFF5A623),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W400,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    )
-                    Text(
-                        sight.rating.toString(),
-                        color = contentTextColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
             if (sight.link.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -7734,8 +7786,8 @@ private fun SightCard(
         if (canEdit) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(34.dp)
+                    .clip(CircleShape)
                     .background(tintedSurfaceColor())
                     .clickable(onClick = onEdit),
                 contentAlignment = Alignment.Center,
