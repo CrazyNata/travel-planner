@@ -5674,23 +5674,47 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                 }
             }
             if (tab == "overview" && overview?.canEdit == true) {
-                IconButton(
-                    onClick = { overviewEditMode = !overviewEditMode },
+                val editButtonShape = RoundedCornerShape(12.dp)
+                val editButtonBackground = if (overviewEditMode) {
+                    primaryColor()
+                } else if (darkTheme) {
+                    Color(0xFF2A2D3B)
+                } else {
+                    OdysseySurface2
+                }
+                val editButtonBorder = if (overviewEditMode) {
+                    primaryColor()
+                } else if (darkTheme) {
+                    Color(0xFF3A3D4C)
+                } else {
+                    OdysseyBorder
+                }
+                val editButtonIcon = if (overviewEditMode) primaryContentColor() else Color(0xFF8E7BF5)
+                Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (overviewEditMode) primaryColor() else tintedSurfaceColor())
                         .semantics {
                             contentDescription = overviewEditContentDescription
                             role = Role.Button
-                        },
+                        }
+                        .clickable { overviewEditMode = !overviewEditMode },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = if (overviewEditMode) Icons.Filled.Check else Icons.Outlined.Edit,
-                        contentDescription = null,
-                        tint = primaryColor(),
-                        modifier = Modifier.size(22.dp),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(editButtonShape)
+                            .background(editButtonBackground)
+                            .border(1.dp, editButtonBorder, editButtonShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (overviewEditMode) Icons.Filled.Check else Icons.Outlined.Edit,
+                            contentDescription = null,
+                            tint = editButtonIcon,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
                 }
             } else {
                 Spacer(Modifier.width(48.dp))
@@ -6269,33 +6293,36 @@ private fun openSightPhotoConnection(photoUrl: String): HttpURLConnection =
         connectTimeout = 8_000
         readTimeout = 8_000
         requestMethod = "GET"
+        useCaches = false
+        instanceFollowRedirects = true
         setRequestProperty("Accept", "image/*")
+        setRequestProperty("Accept-Encoding", "identity")
         setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
     }
 
 private fun decodeSightBitmap(photoUrl: String): Bitmap? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    val boundsConnection = openSightPhotoConnection(photoUrl)
+    val connection = openSightPhotoConnection(photoUrl)
     try {
-        boundsConnection.inputStream.use { BitmapFactory.decodeStream(it, null, bounds) }
-    } finally {
-        boundsConnection.disconnect()
-    }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        if (connection.responseCode !in 200..299) return null
+        if (connection.contentType?.startsWith("image/", ignoreCase = true) != true) return null
+        val bytes = connection.inputStream.use { it.readBytes() }
+        if (bytes.isEmpty()) return null
 
-    var sampleSize = 1
-    while (bounds.outWidth / sampleSize > MaxSightBitmapDimension || bounds.outHeight / sampleSize > MaxSightBitmapDimension) {
-        sampleSize *= 2
-    }
-    val options = BitmapFactory.Options().apply {
-        inSampleSize = sampleSize
-        inPreferredConfig = Bitmap.Config.RGB_565
-    }
-    val imageConnection = openSightPhotoConnection(photoUrl)
-    return try {
-        imageConnection.inputStream.use { BitmapFactory.decodeStream(it, null, options) }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sampleSize = 1
+        while (bounds.outWidth / sampleSize > MaxSightBitmapDimension || bounds.outHeight / sampleSize > MaxSightBitmapDimension) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     } finally {
-        imageConnection.disconnect()
+        connection.disconnect()
     }
 }
 

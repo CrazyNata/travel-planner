@@ -80,7 +80,19 @@ document.addEventListener('DOMContentLoaded', async function() {
       .replaceAll("Одиссею", "Ramingo")
       .replaceAll("Одиссее", "Ramingo")
       .replaceAll("Odyssey", "Ramingo")
-      .replaceAll(">O<", ">R<");
+      .replaceAll(">O<", ">R<")
+      .replace(
+        '          <div style="width:40px;height:40px;flex-shrink:0"></div>\n        </sc-if>\n      </div>\n\n      <!-- SCROLL CONTENT -->',
+        '          <button sc-camel-on-click="{{ openTripEdit }}" aria-label="Редактировать путешествие" style="width:40px;height:40px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);color:#8E7BF5;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 10px rgba(15,16,23,.12);transition:background .2s ease,transform .2s ease">\n            <svg width="19" height="19" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>\n          </button>\n        </sc-if>\n      </div>\n\n      <!-- SCROLL CONTENT -->'
+      )
+      .replace(
+        '      tripEditOpen: !!S.tripEdit,\n      closeTripEdit:',
+        '      tripEditOpen: !!S.tripEdit,\n      openTripEdit:()=>this.setState({tripEdit:true, teTitle:trip.title, teDates:trip.dates, teSeed:trip.seed}),\n      closeTripEdit:'
+      )
+      .replace(
+        "state = { platform:'ios', screen:null,",
+        "state = { theme:'dark', platform:'ios', screen:null,"
+      );
 
     // Nested page bundles (iframe targets). Each ships ONCE, in the ROOT
     // document's manifest; frame srcs carry an about:blank#<uuid> marker
