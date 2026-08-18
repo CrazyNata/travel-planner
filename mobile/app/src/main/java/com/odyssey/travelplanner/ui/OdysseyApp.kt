@@ -5851,6 +5851,7 @@ private fun TripTabs(selected: String, onSelect: (String) -> Unit) {
 private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onSightUpdated: () -> Unit) {
     val context = LocalContext.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
     val sights = overview.sights.sortedWith(compareBy<com.odyssey.travelplanner.data.Sight> { sightRouteDay(it.walkDay) }.thenBy { it.walkOrder })
     val initialRouteCity = listOf(
@@ -6210,6 +6211,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                 city = selectedDayCity,
                 sights = visibleSightsWithDescriptions,
                 allSights = sights,
+                darkTheme = darkTheme,
                 onClose = { editingDay = false },
                 onSaved = onSightUpdated,
                 onDeleted = {
@@ -6557,6 +6559,7 @@ private fun EditDaySheet(
     city: String,
     sights: List<Sight>,
     allSights: List<Sight>,
+    darkTheme: Boolean,
     onClose: () -> Unit,
     onSaved: () -> Unit,
     onDeleted: () -> Unit,
@@ -6570,24 +6573,27 @@ private fun EditDaySheet(
     var message by remember { mutableStateOf<String?>(null) }
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
+    val sheetContentTextColor = if (darkTheme) OdysseyDarkText else OdysseyText
+    val sheetSecondaryTextColor = if (darkTheme) OdysseyDarkSubtext else OdysseySubtext
+    val sheetSecondarySurfaceColor = if (darkTheme) OdysseyDarkSurface2 else OdysseySurface2
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(localized("Редактировать день", "Edit day", "Editar día", "Tag bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.5.sp)
+            Text(localized("Редактировать день", "Edit day", "Editar día", "Tag bearbeiten"), color = sheetContentTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.5.sp)
             Spacer(Modifier.weight(1f))
-            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(secondarySurfaceColor()).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(18.dp)) }
+            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(sheetSecondarySurfaceColor).clickable { onClose() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = sheetSecondaryTextColor, modifier = Modifier.size(18.dp)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RouteEditorField(localized("День №", "Day no.", "Día nº", "Tag Nr."), day.toString(), {}, Modifier.width(74.dp))
             RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), localizedCityName(city), {}, Modifier.weight(1f))
         }
-        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
+        Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = sheetSecondaryTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
         if (message != null) {
             Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
         sights.forEach { sight ->
-            Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(secondarySurfaceColor()).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(sheetSecondarySurfaceColor).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
-                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.name, sight.description, sight.category), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
+                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = sheetContentTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.name, sight.description, sight.category), color = sheetSecondaryTextColor, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
                 Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(dangerSurfaceColor()).clickable(enabled = deletingSightId == null) {
                     deletingSightId = sight.id
                     message = null
