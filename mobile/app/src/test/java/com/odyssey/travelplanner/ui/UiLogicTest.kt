@@ -2,11 +2,11 @@ package com.odyssey.travelplanner.ui
 
 import com.odyssey.travelplanner.ui.i18n.localizedCountWord
 import com.odyssey.travelplanner.ui.i18n.localizedRouteSummary
-import com.odyssey.travelplanner.ui.screen.trip.route.RouteTiming
-import com.odyssey.travelplanner.ui.screen.trip.route.normalizeAccommodationStatus
-import com.odyssey.travelplanner.ui.screen.trip.route.routeTiming
-import com.odyssey.travelplanner.ui.screen.trip.sights.daySightNamesToSave
-import com.odyssey.travelplanner.ui.screen.trip.sights.isAlreadyRegisteredAuthError
+import com.odyssey.travelplanner.ui.domain.RouteTiming
+import com.odyssey.travelplanner.ui.domain.daySightNamesToSave
+import com.odyssey.travelplanner.ui.domain.isAlreadyRegisteredAuthError
+import com.odyssey.travelplanner.ui.domain.normalizeAccommodationStatus
+import com.odyssey.travelplanner.ui.domain.routeTiming
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

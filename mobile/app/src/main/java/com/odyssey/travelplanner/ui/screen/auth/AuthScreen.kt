@@ -69,10 +69,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.R
-import com.odyssey.travelplanner.BuildConfig
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.RememberedAccount
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -80,9 +76,13 @@ import io.github.jan.supabase.auth.providers.Google
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import com.odyssey.travelplanner.BuildConfig
+import com.odyssey.travelplanner.R
+import com.odyssey.travelplanner.data.RememberedAccount
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.ui.domain.isAlreadyRegisteredAuthError
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.normalizeLanguage
-import com.odyssey.travelplanner.ui.screen.trip.sights.isAlreadyRegisteredAuthError
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope

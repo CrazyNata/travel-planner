@@ -77,15 +77,21 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.launch
+import com.odyssey.travelplanner.data.CityCatalogRepository
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripOverview
-import com.odyssey.travelplanner.data.CityCatalogRepository
 import com.odyssey.travelplanner.data.cityFlag
 import com.odyssey.travelplanner.data.countryFlag
-import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.ui.common.RouteEditorDateField
-import com.odyssey.travelplanner.ui.common.cityFilterKey
+import com.odyssey.travelplanner.ui.domain.cityFilterKey
+import com.odyssey.travelplanner.ui.domain.routeDateParts
+import com.odyssey.travelplanner.ui.domain.routeDurationDays
+import com.odyssey.travelplanner.ui.domain.routeEditorDateIso
+import com.odyssey.travelplanner.ui.domain.routeEditorDateLabel
+import com.odyssey.travelplanner.ui.domain.routeEditorDateValues
+import com.odyssey.travelplanner.ui.domain.routeTiming
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.i18n.localizedRouteSummary
@@ -546,18 +552,6 @@ internal fun RouteEditorField(
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = contentBorderColor(), unfocusedBorderColor = contentBorderColor(), focusedContainerColor = cardSurfaceColor(), unfocusedContainerColor = cardSurfaceColor()),
             modifier = Modifier.fillMaxWidth().height(if (includeFontPadding) 54.dp else 50.dp),
         )
-    }
-}
-
-internal data class RouteTiming(val isCheckOut: Boolean, val value: String)
-
-internal fun routeTiming(checkIn: String, checkOut: String): RouteTiming {
-    val normalizedCheckIn = checkIn.trim()
-    val normalizedCheckOut = checkOut.trim()
-    return when {
-        normalizedCheckIn.isNotBlank() -> RouteTiming(isCheckOut = false, value = normalizedCheckIn)
-        normalizedCheckOut.isNotBlank() -> RouteTiming(isCheckOut = true, value = normalizedCheckOut)
-        else -> RouteTiming(isCheckOut = false, value = "—")
     }
 }
 

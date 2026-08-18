@@ -40,20 +40,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.SupabaseTripRepository
-import com.odyssey.travelplanner.data.TripOverview
-import com.odyssey.travelplanner.data.ExchangeRateRepository
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonPrimitive
-import java.time.temporal.ChronoUnit
+import com.odyssey.travelplanner.data.ExchangeRateRepository
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.TripOverview
+import com.odyssey.travelplanner.ui.domain.budgetCurrencyCode
+import com.odyssey.travelplanner.ui.domain.budgetScopeValue
+import com.odyssey.travelplanner.ui.domain.budgetTripDayCount
+import com.odyssey.travelplanner.ui.domain.formatBudgetInput
+import com.odyssey.travelplanner.ui.domain.formatBudgetRateInput
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.screen.auth.AuthField
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDialog
-import com.odyssey.travelplanner.ui.screen.tripedit.parseTripDateRange
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
@@ -664,13 +667,6 @@ internal data class BudgetCategoryStyle(
 
 internal data class BudgetCurrencyStyle(val code: String, val symbol: String)
 
-internal fun budgetCurrencyCode(value: String): String = when (value.trim().uppercase(java.util.Locale.ROOT)) {
-    "RUB", "₽" -> "RUB"
-    "EUR", "€" -> "EUR"
-    "CZK", "KČ", "Kč" -> "CZK"
-    else -> "RUB"
-}
-
 @Composable
 internal fun localizedBudgetExpenseName(value: String): String {
     val normalized = value.trim().lowercase(Locale.ROOT)
@@ -687,34 +683,6 @@ internal fun localizedBudgetExpenseName(value: String): String {
         else -> value
     }
 }
-
-internal fun budgetScopeValue(value: String): String = when (value.trim().lowercase(java.util.Locale.ROOT)) {
-    "семья", "family" -> "семья"
-    "личный", "личное", "personal" -> "личный"
-    else -> "общий"
-}
-
-internal fun budgetTripDayCount(value: String): Int {
-    parseTripDateRange(value)?.let { (start, end) ->
-        return (ChronoUnit.DAYS.between(start, end).toInt() + 1).coerceAtLeast(1)
-    }
-    val match = Regex("""(\d+)\s*(?:дн\w*|day\w*|día\w*|tag\w*)""", RegexOption.IGNORE_CASE).find(value)
-    return match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
-}
-
-internal fun formatBudgetRate(value: Double): String {
-    val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {
-        groupingSeparator = '\u00A0'
-        decimalSeparator = ','
-    }
-    return java.text.DecimalFormat("#,##0.####", symbols).format(value)
-}
-
-internal fun formatBudgetRateInput(value: Double): String =
-    java.text.DecimalFormat("0.####", java.text.DecimalFormatSymbols(java.util.Locale.US)).format(value)
-
-internal fun formatBudgetInput(value: Double, conversionRate: Double): String =
-    java.text.DecimalFormat("0.##", java.text.DecimalFormatSymbols(java.util.Locale.US)).format(value * conversionRate)
 
 internal fun formatBudgetAmount(value: Double, currencySymbol: String, conversionRate: Double): String {
     val symbols = java.text.DecimalFormatSymbols(java.util.Locale("ru", "RU")).apply {

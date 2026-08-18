@@ -62,12 +62,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripOverview
-import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.ui.common.EmptyStateCard
-import com.odyssey.travelplanner.ui.common.cityFilterKey
+import com.odyssey.travelplanner.ui.domain.cityFilterKey
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityFilter
 import com.odyssey.travelplanner.ui.i18n.localizedCityName

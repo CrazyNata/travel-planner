@@ -49,13 +49,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.SupabaseTripRepository
+import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SightCatalogEntry
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
-import kotlinx.coroutines.launch
+import com.odyssey.travelplanner.ui.domain.daySightNamesToSave
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.i18n.localizedSightInfo

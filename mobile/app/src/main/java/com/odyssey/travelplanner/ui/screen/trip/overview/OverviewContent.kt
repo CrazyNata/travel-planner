@@ -84,26 +84,28 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import com.odyssey.travelplanner.data.CityLocation
+import com.odyssey.travelplanner.data.CoverPhoto
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.WeatherSnapshot
-import com.odyssey.travelplanner.data.CoverPhoto
-import com.odyssey.travelplanner.data.CityLocation
 import com.odyssey.travelplanner.data.cityFlag
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.JsonPrimitive
 import com.odyssey.travelplanner.ui.common.EmptyStateCard
 import com.odyssey.travelplanner.ui.common.WeatherPlaceholder
-import com.odyssey.travelplanner.ui.common.cityFilterKey
-import com.odyssey.travelplanner.ui.common.mapCoordinate
+import com.odyssey.travelplanner.ui.domain.cityFilterKey
+import com.odyssey.travelplanner.ui.domain.coverPhotoForCity
+import com.odyssey.travelplanner.ui.domain.mapCoordinate
+import com.odyssey.travelplanner.ui.domain.normalizedOverviewBlocks
+import com.odyssey.travelplanner.ui.domain.toggleOverviewCity
 import com.odyssey.travelplanner.ui.i18n.labelMapboxAccessibility
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.i18n.localizedLegsAndCitiesSummary
 import com.odyssey.travelplanner.ui.i18n.mapLocale
-import com.odyssey.travelplanner.ui.photo.coverPhotoForCity
 import com.odyssey.travelplanner.ui.screen.trip.sights.keepMapGesturesInsideMap
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
@@ -117,19 +119,7 @@ import com.odyssey.travelplanner.ui.theme.primaryContentColor
 import com.odyssey.travelplanner.ui.theme.secondaryTextColor
 import com.odyssey.travelplanner.ui.theme.tintedSurfaceColor
 
-internal val DefaultOverviewBlocks = listOf("photo", "map", "weather")
-
 internal enum class OverviewEditSheet { MAP, WEATHER }
-
-internal fun normalizedOverviewBlocks(value: List<String>): List<String> =
-    (value.filter { it in DefaultOverviewBlocks } + DefaultOverviewBlocks.filterNot(value::contains)).distinct()
-
-internal fun List<String>.toggleOverviewCity(city: String): List<String> =
-    if (any { cityFilterKey(it) == cityFilterKey(city) }) {
-        filterNot { cityFilterKey(it) == cityFilterKey(city) }
-    } else {
-        this + city
-    }
 
 @Composable
 internal fun OverviewContent(

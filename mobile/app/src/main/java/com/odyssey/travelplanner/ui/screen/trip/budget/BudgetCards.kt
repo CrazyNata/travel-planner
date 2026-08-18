@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
+import com.odyssey.travelplanner.ui.domain.formatBudgetRate
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedBudgetCategory
 import com.odyssey.travelplanner.ui.icons.OdysseyEditIcon

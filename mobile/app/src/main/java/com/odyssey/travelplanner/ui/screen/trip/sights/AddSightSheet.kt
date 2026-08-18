@@ -70,13 +70,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
+import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
-import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
-import kotlinx.coroutines.launch
-import com.odyssey.travelplanner.ui.common.formatSightCoordinate
-import com.odyssey.travelplanner.ui.common.mapCoordinate
+import com.odyssey.travelplanner.ui.domain.formatSightCoordinate
+import com.odyssey.travelplanner.ui.domain.mapCoordinate
 import com.odyssey.travelplanner.ui.i18n.labelMapboxAccessibility
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName

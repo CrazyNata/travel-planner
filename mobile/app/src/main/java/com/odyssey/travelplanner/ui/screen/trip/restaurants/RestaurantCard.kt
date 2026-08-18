@@ -61,11 +61,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.odyssey.travelplanner.data.CityLocation
 import java.net.URL
+import com.odyssey.travelplanner.data.CityLocation
 import com.odyssey.travelplanner.ui.common.FullScreenPhotoViewer
-import com.odyssey.travelplanner.ui.common.mapCoordinate
-import com.odyssey.travelplanner.ui.common.restaurantLinkUri
+import com.odyssey.travelplanner.ui.domain.mapCoordinate
+import com.odyssey.travelplanner.ui.domain.restaurantLinkUri
 import com.odyssey.travelplanner.ui.i18n.labelMapboxAccessibility
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName

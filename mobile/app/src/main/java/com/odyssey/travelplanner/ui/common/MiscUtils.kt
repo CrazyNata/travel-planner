@@ -1,6 +1,5 @@
 package com.odyssey.travelplanner.ui.common
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
-import com.mapbox.geojson.Point
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.CityLocation
-import com.odyssey.travelplanner.data.cityCatalogEntry
-import java.util.Locale
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.icons.OdysseyCalendarIcon
 import com.odyssey.travelplanner.ui.theme.Manrope
@@ -36,15 +31,6 @@ import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
 import com.odyssey.travelplanner.ui.theme.secondaryTextColor
-
-internal fun cityFilterKey(city: String): String {
-    val point = mapCoordinate(city)
-    return if (point != null) {
-        "point:${String.format(Locale.US, "%.4f:%.4f", point.longitude(), point.latitude())}"
-    } else {
-        city.substringBefore(",").substringBefore(" — ").trim().lowercase(Locale.ROOT)
-    }
-}
 
 @Composable
 internal fun RouteEditorDateField(
@@ -82,27 +68,4 @@ internal fun RouteEditorDateField(
         }
     }
 }
-
-internal fun mapCoordinate(city: String, cityCoordinates: Map<String, CityLocation> = emptyMap()): Point? {
-    cityCoordinates[city]?.let { return Point.fromLngLat(it.longitude, it.latitude) }
-    val cityPart = city.substringBefore(" — ").trim()
-    cityCatalogEntry(cityPart)?.let { entry ->
-        return Point.fromLngLat(entry.longitude, entry.latitude)
-    }
-    return null
-}
-
-internal fun restaurantLinkUri(value: String): String? {
-    val raw = value.trim()
-    if (raw.isBlank()) return null
-    return if (raw.startsWith("http://", ignoreCase = true) || raw.startsWith("https://", ignoreCase = true)) {
-        raw
-    } else {
-        "https://www.google.com/maps/search/?api=1&query=${Uri.encode(raw)}"
-    }
-}
-
-internal fun formatSightCoordinate(point: Point): String =
-    String.format(Locale.US, "%.5f, %.5f", point.latitude(), point.longitude())
-
 

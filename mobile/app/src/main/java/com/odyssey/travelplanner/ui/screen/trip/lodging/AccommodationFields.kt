@@ -41,10 +41,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import com.odyssey.travelplanner.ui.domain.accommodationDateCalendar
+import com.odyssey.travelplanner.ui.domain.accommodationDateIso
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.icons.OdysseyCalendarIcon
-import com.odyssey.travelplanner.ui.screen.trip.route.accommodationDateCalendar
-import com.odyssey.travelplanner.ui.screen.trip.route.accommodationDateIso
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding

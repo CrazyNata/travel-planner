@@ -48,21 +48,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.launch
+import java.util.Locale
+import kotlinx.serialization.json.JsonPrimitive
+import java.time.LocalDate
+import java.time.YearMonth
 import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripCard
-import kotlinx.coroutines.launch
-import java.util.Locale
-import kotlinx.serialization.json.JsonPrimitive
-import java.util.Calendar
-import java.time.LocalDate
-import java.time.YearMonth
+import com.odyssey.travelplanner.ui.domain.tripCalendarMonthLabel
+import com.odyssey.travelplanner.ui.domain.tripCalendarWeekdays
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityList
 import com.odyssey.travelplanner.ui.i18n.localizedTripDateText
 import com.odyssey.travelplanner.ui.i18n.localizedTripTitle
-import com.odyssey.travelplanner.ui.i18n.normalizeLanguage
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
@@ -214,28 +214,6 @@ internal fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
         .toList()
     val start = humanDates.firstOrNull() ?: return null
     return start to humanDates.getOrElse(1) { start }
-}
-
-internal fun calendarForTripDate(date: LocalDate): Calendar = Calendar.getInstance().apply {
-    set(date.year, date.monthValue - 1, date.dayOfMonth, 0, 0, 0)
-    set(Calendar.MILLISECOND, 0)
-}
-
-internal fun tripCalendarMonthLabel(month: YearMonth, language: String): String {
-    val names = when (normalizeLanguage(language)) {
-        "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
-        "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
-        "DE" -> listOf("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
-        else -> listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
-    }
-    return "${names[month.monthValue - 1]} ${month.year}"
-}
-
-internal fun tripCalendarWeekdays(language: String): List<String> = when (normalizeLanguage(language)) {
-    "EN" -> listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
-    "ES" -> listOf("Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do")
-    "DE" -> listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
-    else -> listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 }
 
 @Composable
