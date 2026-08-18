@@ -79,7 +79,11 @@ import com.odyssey.travelplanner.ui.icons.OdysseyPlusIcon
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDialog
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadowSoft
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -241,9 +245,9 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
                     modifier = Modifier
                         .weight(1.31f)
                         .fillMaxHeight()
-                        .shadow(5.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7))
+                        .shadow(5.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = OdysseyPurpleShadowSoft, spotColor = OdysseyPurpleShadowSoft)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                         .clickable { cityMenuOpen = !cityMenuOpen }
                         .padding(horizontal = 13.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -346,7 +350,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
         }
         if (actionMessage != null) {
             item {
-                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                Text(actionMessage!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
             }
         }
         item {
@@ -397,7 +401,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             dragHandle = null,
         ) {
@@ -416,7 +420,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -438,7 +442,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -475,7 +479,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -576,7 +580,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -601,7 +605,7 @@ internal fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit:
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {

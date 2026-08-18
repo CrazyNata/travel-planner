@@ -103,6 +103,7 @@ import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkMuted
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkTint
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
@@ -427,7 +428,7 @@ internal fun CreateTripScreen(
             )
 
             if (message != null) {
-                Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+                Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
             }
             Button(
                 onClick = ::save,

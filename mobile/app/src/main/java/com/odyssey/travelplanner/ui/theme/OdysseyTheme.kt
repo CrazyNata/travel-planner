@@ -35,6 +35,27 @@ internal val OdysseyDarkSubtext = Color(0xFFD9DBE6)
 internal val OdysseyDarkBorder = Color(0xFF697084)
 internal val OdysseyDarkTint = Color(0xFF332F50)
 internal val OdysseyDarkMuted = Color(0xFFA8ADBC)
+
+// Semantic tokens for colours that were repeated as raw literals across the UI.
+// Values are unchanged; these names only remove the duplication.
+internal val OdysseyError = Color(0xFFE0524B)
+internal val OdysseySheetScrim = Color(0x730F0F19)
+internal val OdysseyPurpleShadow = Color(0x4D6C5CE7)
+internal val OdysseyPurpleGradientEnd = Color(0xFF7D6CF0)
+internal val OdysseySuccess = Color(0xFF22B07D)
+internal val OdysseyDangerBright = Color(0xFFFF6B65)
+internal val OdysseyDanger = Color(0xFFE85B56)
+internal val OdysseyDangerDeep = Color(0xFFD9534F)
+internal val OdysseyScrimStrong = Color(0x990F0F19)
+internal val OdysseyShadowFaint = Color(0x0F141428)
+internal val OdysseyWarning = Color(0xFFF5A623)
+internal val OdysseyScrimHeavy = Color(0xAA0F0F19)
+internal val OdysseyWarningDeep = Color(0xFFE29B32)
+internal val OdysseyScrimSoft = Color(0x8C141419)
+internal val OdysseyPurpleShadowSoft = Color(0x476C5CE7)
+internal val OdysseyShadowBlack = Color(0x1A000000)
+internal val OdysseyCardShadow = Color(0x19141428)
+
 internal val OdysseyLightColors = lightColorScheme(
     primary = OdysseyPurple,
     onPrimary = Color.White,
@@ -45,7 +66,7 @@ internal val OdysseyLightColors = lightColorScheme(
     surfaceVariant = OdysseySurface2,
     onSurfaceVariant = OdysseySubtext,
     outline = OdysseyBorder,
-    error = Color(0xFFE0524B),
+    error = OdysseyError,
 )
 internal val OdysseyDarkColors = darkColorScheme(
     primary = OdysseyDarkPrimary,

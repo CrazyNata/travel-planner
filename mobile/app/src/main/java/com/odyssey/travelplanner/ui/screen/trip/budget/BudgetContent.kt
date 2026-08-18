@@ -59,7 +59,13 @@ import com.odyssey.travelplanner.ui.screen.auth.AuthField
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDialog
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerDeep
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurple
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
@@ -81,9 +87,9 @@ internal fun BudgetContent(
     val expenses = overview.budgetExpenses
     val total = expenses.sumOf { it.amount }
     val categoryStyles = listOf(
-        BudgetCategoryStyle("Жильё", "Жильё", Color(0xFF6C5CE7), setOf("жильё", "жилье", "проживание")),
-        BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), setOf("транспорт")),
-        BudgetCategoryStyle("Еда и рестораны", "Питание", Color(0xFF22B07D), setOf("еда и рестораны", "питание", "еда")),
+        BudgetCategoryStyle("Жильё", "Жильё", OdysseyPurple, setOf("жильё", "жилье", "проживание")),
+        BudgetCategoryStyle("Транспорт", "Транспорт", OdysseyWarning, setOf("транспорт")),
+        BudgetCategoryStyle("Еда и рестораны", "Питание", OdysseySuccess, setOf("еда и рестораны", "питание", "еда")),
         BudgetCategoryStyle("Активности и билеты", "Развлечения", Color(0xFF4AA3F0), setOf("активности и билеты", "развлечения", "активности")),
         BudgetCategoryStyle("Прочее", "Прочее", Color(0xFFEE6C8A), setOf("прочее")),
     )
@@ -429,7 +435,7 @@ internal fun BudgetContent(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             dragHandle = null,
         ) {
@@ -527,7 +533,7 @@ internal fun BudgetContent(
                         fontWeight = FontWeight.W600,
                     )
                     deleteExpenseError?.let { error ->
-                        Text(error, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                        Text(error, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     }
                 }
             },
@@ -561,7 +567,7 @@ internal fun BudgetContent(
                         }
                     },
                     enabled = !deleting,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = OdysseyDangerDeep),
                 ) {
                     Text(
                         if (deleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
@@ -624,7 +630,7 @@ internal fun BudgetContent(
                         onValueChange = { rateInput = it },
                     )
                     rateError?.let {
-                        Text(it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                        Text(it, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     }
                     if (manualRates.containsKey(code)) {
                         TextButton(onClick = ::resetManualRate, enabled = !savingRate) {

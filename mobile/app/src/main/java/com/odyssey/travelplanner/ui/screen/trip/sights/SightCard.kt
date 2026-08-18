@@ -45,13 +45,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.SupabaseTripRepository
-import com.odyssey.travelplanner.data.Sight
-import com.odyssey.travelplanner.data.SightCatalogEntry
-import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.odyssey.travelplanner.data.Sight
+import com.odyssey.travelplanner.data.SightCatalogEntry
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.i18n.localizedSightCategory
@@ -62,6 +62,7 @@ import com.odyssey.travelplanner.ui.screen.auth.AuthField
 import com.odyssey.travelplanner.ui.screen.trip.route.RouteEditorField
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
@@ -295,7 +296,7 @@ internal fun EditSightPanel(
             modifier = Modifier.fillMaxWidth(),
             placeholder = "https://maps.app.goo.gl/...",
         )
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
             Button(onClick = {

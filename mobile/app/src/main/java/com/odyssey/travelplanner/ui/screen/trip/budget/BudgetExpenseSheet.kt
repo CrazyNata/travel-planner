@@ -43,16 +43,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
-import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.screen.auth.AuthField
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationEditDateField
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationEditTextField
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -206,7 +210,7 @@ internal fun BudgetExpenseSheet(
             message?.let {
                 Text(
                     text = it,
-                    color = Color(0xFFE0524B),
+                    color = OdysseyError,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
@@ -246,9 +250,9 @@ internal fun BudgetExpenseSheet(
                     modifier = Modifier
                         .width(d(183.422f))
                         .fillMaxHeight()
-                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = OdysseyPurpleShadow, spotColor = OdysseyPurpleShadow)
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                         .clickable(enabled = !saving, onClick = onSave),
                 ) {
                     Text(
@@ -284,7 +288,7 @@ internal fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpe
         AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
         AuthField(localized("Кто оплатил", "Paid by", "Pagado por", "Bezahlt von"), localized("Имя", "Name", "Nombre", "Name"), paidBy) { paidBy = it }
         AuthField(localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"), localized("общий / семья / личный", "shared / family / personal", "compartido / familiar / personal", "gemeinsam / Familie / privat"), scopeName) { scopeName = it }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable {
                 scope.launch {
@@ -295,7 +299,7 @@ internal fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpe
                     saving = false
                 }
             }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(19.dp))
+                Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = OdysseyDangerBright, modifier = Modifier.size(19.dp))
             }
             Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
             Button(onClick = {

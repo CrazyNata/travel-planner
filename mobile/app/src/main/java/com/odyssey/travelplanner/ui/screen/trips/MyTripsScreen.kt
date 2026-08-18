@@ -55,13 +55,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.AuthRestoreResult
-import com.odyssey.travelplanner.data.AccountRepository
-import com.odyssey.travelplanner.data.SupabaseTripRepository
-import com.odyssey.travelplanner.data.TripCard
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
+import com.odyssey.travelplanner.data.AccountRepository
+import com.odyssey.travelplanner.data.AuthRestoreResult
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.ui.common.EmptyStateCard
 import com.odyssey.travelplanner.ui.common.NewTripCard
 import com.odyssey.travelplanner.ui.common.TripListCard
@@ -72,7 +72,9 @@ import com.odyssey.travelplanner.ui.screen.auth.RamingoBrand
 import com.odyssey.travelplanner.ui.screen.tripedit.EditTripPanel
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyBackground
+import com.odyssey.travelplanner.ui.theme.OdysseyDanger
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -292,7 +294,7 @@ internal fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit,
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0x730F0F19)),
+                        .background(OdysseySheetScrim),
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
@@ -416,7 +418,7 @@ internal fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit,
                         if (accountMessage != null) {
                             Text(
                                 accountMessage!!,
-                                color = Color(0xFFE85B56),
+                                color = OdysseyDanger,
                                 fontFamily = Manrope,
                                 fontWeight = FontWeight.W700,
                                 fontSize = 12.sp,
@@ -447,7 +449,7 @@ internal fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit,
                     ) {
                         Text(
                             if (accountDeleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…") else localized("Удалить", "Delete", "Eliminar", "Löschen"),
-                            color = Color(0xFFE85B56),
+                            color = OdysseyDanger,
                             fontFamily = Manrope,
                             fontWeight = FontWeight.W800,
                         )

@@ -59,7 +59,12 @@ import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.icons.OdysseyChevronDown
 import com.odyssey.travelplanner.ui.icons.OdysseyPlusIcon
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseyScrimSoft
+import com.odyssey.travelplanner.ui.theme.OdysseyShadowBlack
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -244,7 +249,7 @@ internal fun RestaurantAddSheet(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(start = d(8f), top = d(8f))
-                                    .background(Color(0x8C141419), RoundedCornerShape(d(20f)))
+                                    .background(OdysseyScrimSoft, RoundedCornerShape(d(20f)))
                                     .padding(horizontal = d(7f), vertical = d(3f)),
                             )
                         }
@@ -275,7 +280,7 @@ internal fun RestaurantAddSheet(
                                     modifier = Modifier
                                         .align(Alignment.TopStart)
                                         .padding(start = d(8f), top = d(8f))
-                                        .background(Color(0x8C141419), RoundedCornerShape(d(20f)))
+                                        .background(OdysseyScrimSoft, RoundedCornerShape(d(20f)))
                                         .padding(horizontal = d(7f), vertical = d(3f)),
                                 )
                             }
@@ -433,7 +438,7 @@ internal fun RestaurantAddSheet(
                 if (message != null) {
                     Text(
                         text = message,
-                        color = Color(0xFFE0524B),
+                        color = OdysseyError,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W700,
                         fontSize = s(11f),
@@ -469,9 +474,9 @@ internal fun RestaurantAddSheet(
                         .offset(x = d(162.3f), y = d(855f))
                         .width(d(174.7f))
                         .height(d(53f))
-                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                        .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = OdysseyPurpleShadow, spotColor = OdysseyPurpleShadow)
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                         .clickable(enabled = !saving, onClick = onSave),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -634,7 +639,7 @@ internal fun RestaurantAddPriceField(
                     modifier = Modifier
                         .weight(1f)
                         .height(d(43f))
-                        .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
+                        .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = OdysseyShadowBlack, spotColor = OdysseyShadowBlack)
                         .clip(RoundedCornerShape(d(11f)))
                         .background(if (active) cardSurfaceColor() else Color.Transparent)
                         .clickable { onSelect(option) },

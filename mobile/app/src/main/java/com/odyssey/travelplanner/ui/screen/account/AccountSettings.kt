@@ -79,6 +79,7 @@ import com.odyssey.travelplanner.ui.i18n.splitStoredCityList
 import com.odyssey.travelplanner.ui.screen.auth.AuthField
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyBackground
+import com.odyssey.travelplanner.ui.theme.OdysseyDanger
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkMuted
@@ -264,7 +265,7 @@ internal fun AccountSettingsScreen(
                         }
                     },
                 ) {
-                    Text(if (accountDeleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…") else localized("Удалить", "Delete", "Eliminar", "Löschen"), color = Color(0xFFE85B56), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                    Text(if (accountDeleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…") else localized("Удалить", "Delete", "Eliminar", "Löschen"), color = OdysseyDanger, fontFamily = Manrope, fontWeight = FontWeight.W800)
                 }
             },
             dismissButton = {
@@ -463,10 +464,10 @@ internal fun AccountSettingsSheet(
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(Icons.Outlined.Image, localized("Сменить фото", "Change photo", "Cambiar foto", "Foto ändern")) { onPhotoPick() }
                 AccountSettingsDivider(dividerColor)
-                AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), Color(0xFFE85B56)) { onDeleteAccount() }
+                AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), OdysseyDanger) { onDeleteAccount() }
             }
             accountMessage?.let {
-                Text(it, color = if (it.contains("Не удалось") || it.contains("не совпадают") || it.contains("минимум")) Color(0xFFE85B56) else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                Text(it, color = if (it.contains("Не удалось") || it.contains("не совпадают") || it.contains("минимум")) OdysseyDanger else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
             }
             Text(localized("Версия приложения · ${BuildConfig.VERSION_NAME}", "App version · ${BuildConfig.VERSION_NAME}", "Versión de la aplicación · ${BuildConfig.VERSION_NAME}", "App-Version · ${BuildConfig.VERSION_NAME}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 13.dp))
             TextButton(onClick = onSignOut, modifier = Modifier.align(Alignment.CenterHorizontally)) {
@@ -500,7 +501,7 @@ internal fun AccountIconTile(icon: androidx.compose.ui.graphics.vector.ImageVect
             .clip(RoundedCornerShape(9.dp))
             .background(if (danger) dangerSurfaceColor() else tintedSurfaceColor()),
     ) {
-        Icon(icon, contentDescription = null, tint = if (danger) Color(0xFFE85B56) else primaryColor(), modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = if (danger) OdysseyDanger else primaryColor(), modifier = Modifier.size(18.dp))
     }
 }
 

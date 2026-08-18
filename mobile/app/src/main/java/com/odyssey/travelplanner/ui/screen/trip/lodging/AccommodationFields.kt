@@ -48,6 +48,8 @@ import com.odyssey.travelplanner.ui.icons.OdysseyCalendarIcon
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -248,7 +250,7 @@ internal fun AccommodationCalendarDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x730F0F19)),
+                .background(OdysseySheetScrim),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -400,7 +402,7 @@ internal fun AccommodationCalendarDialog(
                             .weight(1.3f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(15.dp))
-                            .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                            .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                             .clickable { onConfirm(accommodationDateIso(selectedYear, selectedMonth, selectedDay)) },
                     ) {
                         Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))

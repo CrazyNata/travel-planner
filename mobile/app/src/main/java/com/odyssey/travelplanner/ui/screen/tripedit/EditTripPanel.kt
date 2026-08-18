@@ -66,8 +66,11 @@ import com.odyssey.travelplanner.ui.i18n.localizedTripTitle
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerDeep
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkText
+import com.odyssey.travelplanner.ui.theme.OdysseyError
+import com.odyssey.travelplanner.ui.theme.OdysseyLabel
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -90,7 +93,7 @@ internal fun CompactTripEditField(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             label,
-            color = if (darkTheme) OdysseyDarkText else Color(0xFF3A3A42),
+            color = if (darkTheme) OdysseyDarkText else OdysseyLabel,
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = 12.sp,
@@ -135,7 +138,7 @@ internal fun CompactTripDateField(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             label,
-            color = if (darkTheme) OdysseyDarkText else Color(0xFF3A3A42),
+            color = if (darkTheme) OdysseyDarkText else OdysseyLabel,
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
             fontSize = 12.sp,
@@ -693,7 +696,7 @@ internal fun EditTripPanel(
                 }
             }
         }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
             Button(onClick = {
@@ -733,13 +736,13 @@ internal fun EditTripPanel(
                     .clip(RoundedCornerShape(9.dp))
                     .background(Color(0xFFFFE9E7)),
             ) {
-                Icon(if (trip.isOwner) Icons.Outlined.Delete else Icons.Outlined.Logout, contentDescription = null, tint = Color(0xFFD9534F), modifier = Modifier.size(17.dp))
+                Icon(if (trip.isOwner) Icons.Outlined.Delete else Icons.Outlined.Logout, contentDescription = null, tint = OdysseyDangerDeep, modifier = Modifier.size(17.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     if (trip.isOwner) localized("Удалить путешествие", "Delete trip", "Eliminar viaje", "Reise löschen")
                     else localized("Выйти из путешествия", "Leave trip", "Salir del viaje", "Reise verlassen"),
-                    color = Color(0xFFD9534F),
+                    color = OdysseyDangerDeep,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 13.sp,
@@ -820,7 +823,7 @@ internal fun EditTripPanel(
                 TextButton(
                     onClick = ::deleteTrip,
                     enabled = !deleting,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = OdysseyDangerDeep),
                 ) {
                     Text(
                         if (deleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
@@ -859,7 +862,7 @@ internal fun EditTripPanel(
                 TextButton(
                     onClick = ::leaveTrip,
                     enabled = !leaving,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = OdysseyDangerDeep),
                 ) {
                     Text(
                         if (leaving) localized("Выходим…", "Leaving…", "Saliendo…", "Wird verlassen…")

@@ -90,6 +90,10 @@ import com.odyssey.travelplanner.ui.theme.OdysseyBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkText
+import com.odyssey.travelplanner.ui.theme.OdysseyError
+import com.odyssey.travelplanner.ui.theme.OdysseyLabel
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -484,7 +488,7 @@ internal fun AuthScreen(
                 .padding(top = 18.dp)
                 .height(56.dp)
                 .background(
-                    Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))),
+                    Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)),
                     RoundedCornerShape(15.dp),
                 ),
         ) {
@@ -498,7 +502,7 @@ internal fun AuthScreen(
         if (message != null) {
             Text(
                 text = message!!,
-                color = if (message == "Вход выполнен" || message?.startsWith("Проверьте") == true || message?.contains("отправлено", true) == true || message?.contains("sent", true) == true || message?.contains("enviado", true) == true || message?.contains("gesendet", true) == true) Color(0xFF22B07D) else Color(0xFFE0524B),
+                color = if (message == "Вход выполнен" || message?.startsWith("Проверьте") == true || message?.contains("отправлено", true) == true || message?.contains("sent", true) == true || message?.contains("enviado", true) == true || message?.contains("gesendet", true) == true) OdysseySuccess else OdysseyError,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
                 fontSize = 13.sp,
@@ -672,7 +676,7 @@ internal fun RememberedAccountsPanel(
                                 Box(
                                     modifier = Modifier
                                         .size(6.dp)
-                                        .background(Color(0xFF22B07D), CircleShape),
+                                        .background(OdysseySuccess, CircleShape),
                                 )
                                 Text(
                                     text = localized(
@@ -681,7 +685,7 @@ internal fun RememberedAccountsPanel(
                                         "Guardado en este dispositivo",
                                         "Auf diesem Gerät gespeichert",
                                     ),
-                                    color = Color(0xFF22B07D),
+                                    color = OdysseySuccess,
                                     fontFamily = Manrope,
                                     fontWeight = FontWeight.W800,
                                     fontSize = 10.sp,
@@ -761,7 +765,7 @@ internal fun RememberedAccountsPanel(
                 .padding(top = 18.dp)
                 .height(56.dp)
                 .background(
-                    Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))),
+                    Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)),
                     RoundedCornerShape(15.dp),
                 ),
         ) {
@@ -864,7 +868,7 @@ internal fun RememberedAccountsPanel(
                 ) {
                     Text(
                         text = localized("Удалить", "Remove", "Eliminar", "Entfernen"),
-                        color = Color(0xFFE0524B),
+                        color = OdysseyError,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                     )
@@ -899,7 +903,7 @@ internal fun AuthField(
     var passwordVisible by remember { mutableStateOf(false) }
     Text(
         text = label,
-        color = if (darkTheme) OdysseyDarkText else Color(0xFF3A3A42),
+        color = if (darkTheme) OdysseyDarkText else OdysseyLabel,
         fontFamily = Manrope,
         fontWeight = FontWeight.W800,
         fontSize = 13.sp,

@@ -77,7 +77,12 @@ import com.odyssey.travelplanner.ui.icons.OdysseyExternalLinkIcon
 import com.odyssey.travelplanner.ui.screen.trip.sights.keepMapGesturesInsideMap
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyCardShadow
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyScrimStrong
+import com.odyssey.travelplanner.ui.theme.OdysseyShadowFaint
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -128,7 +133,7 @@ internal fun RestaurantCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(cardSurfaceColor())
-            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428))
+            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = OdysseyShadowFaint, spotColor = OdysseyShadowFaint)
             .padding(12.dp),
     ) {
         Row(
@@ -156,7 +161,7 @@ internal fun RestaurantCard(
                             .padding(start = 4.dp)
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color(0x990F0F19))
+                            .background(OdysseyScrimStrong)
                             .clickable {
                                 photoIndex = (activePhotoIndex - 1 + photos.size) % photos.size
                             },
@@ -175,7 +180,7 @@ internal fun RestaurantCard(
                             .padding(end = 4.dp)
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Color(0x990F0F19))
+                            .background(OdysseyScrimStrong)
                             .clickable {
                                 photoIndex = (activePhotoIndex + 1) % photos.size
                             },
@@ -193,7 +198,7 @@ internal fun RestaurantCard(
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 4.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0x990F0F19))
+                            .background(OdysseyScrimStrong)
                             .padding(horizontal = 5.dp, vertical = 2.dp),
                     ) {
                         Text(
@@ -252,7 +257,7 @@ internal fun RestaurantCard(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text("★", color = Color(0xFFF5A623), fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                            Text("★", color = OdysseyWarning, fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                             Text(it.toString(), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                         }
                     }
@@ -281,8 +286,8 @@ internal fun RestaurantCard(
         ) {
             if (booked || visited) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OdysseyCalendarIcon(14.dp, if (booked) Color(0xFF22B07D) else secondaryTextColor())
-                    Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reservation, color = if (booked) Color(0xFF22B07D) else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    OdysseyCalendarIcon(14.dp, if (booked) OdysseySuccess else secondaryTextColor())
+                    Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reservation, color = if (booked) OdysseySuccess else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             } else {
                 Text(
@@ -429,7 +434,7 @@ internal fun RestaurantMapCard(
         modifier = modifier
             .fillMaxWidth()
             .height(150.dp)
-            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x19141428), spotColor = Color(0x19141428))
+            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = OdysseyCardShadow, spotColor = OdysseyCardShadow)
             .clip(RoundedCornerShape(22.dp))
             .background(cardSurfaceColor()),
     ) {

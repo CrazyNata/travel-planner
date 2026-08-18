@@ -73,7 +73,12 @@ import com.odyssey.travelplanner.ui.icons.OdysseyPlusIcon
 import com.odyssey.travelplanner.ui.screen.trip.route.accommodationDateParts
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseyScrimSoft
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -495,11 +500,11 @@ internal fun AccommodationEditSheet(
                             d(8f),
                             RoundedCornerShape(d(15f)),
                             clip = false,
-                            ambientColor = Color(0x4D6C5CE7),
-                            spotColor = Color(0x4D6C5CE7),
+                            ambientColor = OdysseyPurpleShadow,
+                            spotColor = OdysseyPurpleShadow,
                         )
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                         .clickable(enabled = !saving && !photoBusy) {
                             scope.launch {
                                 saving = true
@@ -544,7 +549,7 @@ internal fun AccommodationEditSheet(
             message?.let {
                 Text(
                     text = it,
-                    color = Color(0xFFE0524B),
+                    color = OdysseyError,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
@@ -569,7 +574,7 @@ internal fun AccommodationEditSheet(
                 message?.let {
                     Text(
                         text = it,
-                        color = Color(0xFFE0524B),
+                        color = OdysseyError,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W700,
                         fontSize = s(11f),
@@ -597,7 +602,7 @@ internal fun AccommodationEditSheet(
                         Icon(
                             Icons.Outlined.Delete,
                             contentDescription = localized("Удалить жильё", "Delete lodging", "Eliminar alojamiento", "Unterkunft löschen"),
-                            tint = Color(0xFFFF6B65),
+                            tint = OdysseyDangerBright,
                             modifier = Modifier.size(d(20f)),
                         )
                     }
@@ -630,11 +635,11 @@ internal fun AccommodationEditSheet(
                                 d(8f),
                                 RoundedCornerShape(d(15f)),
                                 clip = false,
-                                ambientColor = Color(0x4D6C5CE7),
-                                spotColor = Color(0x4D6C5CE7),
+                                ambientColor = OdysseyPurpleShadow,
+                                spotColor = OdysseyPurpleShadow,
                             )
                             .clip(RoundedCornerShape(d(15f)))
-                            .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                            .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                             .clickable(enabled = !formBusy, onClick = ::saveAccommodation),
                     ) {
                         Text(
@@ -705,7 +710,7 @@ internal fun AccommodationEditSheet(
                     Text(
                         if (deletingAccommodation) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")
                         else localized("Удалить", "Delete", "Eliminar", "Löschen"),
-                        color = Color(0xFFE0524B),
+                        color = OdysseyError,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
                     )
@@ -885,7 +890,7 @@ internal fun AccommodationEditPhotoTile(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(start = d(8f), top = d(8f))
-                    .background(Color(0x8C141419), RoundedCornerShape(d(20f)))
+                    .background(OdysseyScrimSoft, RoundedCornerShape(d(20f)))
                     .padding(horizontal = d(7f), vertical = d(3f)),
             )
         }
@@ -901,7 +906,7 @@ internal fun AccommodationEditPhotoTile(
         ) {
             if (deletingIndex == photoIndex) {
                 CircularProgressIndicator(
-                    color = Color(0xFFE0524B),
+                    color = OdysseyError,
                     strokeWidth = d(2f),
                     modifier = Modifier.size(d(17f)),
                 )
@@ -909,7 +914,7 @@ internal fun AccommodationEditPhotoTile(
                 Icon(
                     Icons.Outlined.Delete,
                     contentDescription = localized("Удалить фото", "Delete photo", "Eliminar foto", "Foto löschen"),
-                    tint = Color(0xFFE0524B),
+                    tint = OdysseyError,
                     modifier = Modifier.size(d(17f)),
                 )
             }

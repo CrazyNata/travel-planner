@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyPurple
 import com.odyssey.travelplanner.ui.theme.primaryColor
 
 @Composable
@@ -73,7 +74,7 @@ internal fun RamingoSplash(
             .fillMaxSize()
             .background(
                 Brush.linearGradient(
-                    colors = listOf(Color(0xFF4C39B8), Color(0xFF6C5CE7), Color(0xFF9D8FF4)),
+                    colors = listOf(Color(0xFF4C39B8), OdysseyPurple, Color(0xFF9D8FF4)),
                 ),
             ),
     ) {

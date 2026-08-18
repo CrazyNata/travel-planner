@@ -85,7 +85,12 @@ import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyScrimStrong
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -192,7 +197,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
     ) {
         if (actionMessage != null) {
             item {
-                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(actionMessage!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
         if (overview.accommodations.isEmpty()) {
@@ -259,7 +264,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             dragHandle = null,
         ) {
@@ -288,7 +293,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             dragHandle = null,
         ) {
@@ -369,7 +374,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -395,7 +400,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -417,7 +422,7 @@ internal fun AccommodationContent(tripId: String, overview: TripOverview, canEdi
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {
@@ -528,7 +533,7 @@ internal fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acc
                         .padding(start = 10.dp)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0x990F0F19))
+                        .background(OdysseyScrimStrong)
                         .clickable {
                             photoIndex = (activePhotoIndex - 1 + photos.size) % photos.size
                         },
@@ -547,7 +552,7 @@ internal fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acc
                         .padding(end = 10.dp)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0x990F0F19))
+                        .background(OdysseyScrimStrong)
                         .clickable {
                             photoIndex = (activePhotoIndex + 1) % photos.size
                         },
@@ -566,7 +571,7 @@ internal fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acc
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 10.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0x990F0F19))
+                        .background(OdysseyScrimStrong)
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                 ) {
                     Text(
@@ -595,7 +600,7 @@ internal fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acc
             }
             accommodation.rating?.let { rating ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 11.5.dp).height(17.dp)) {
-                    Text("★", color = Color(0xFFF5A623), fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    Text("★", color = OdysseyWarning, fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                     Text("· ${rating.toString().removeSuffix(".0")} / 10", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                     accommodation.reviewCount?.let { count ->
                         Text("· ${catalogRatingCountLabel(count, language)}", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -609,8 +614,8 @@ internal fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Acc
             }
             if (accommodation.deadline.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp).height(17.dp)) {
-                    Text("✓", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.width(14.dp))
-                    Text(localized("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline, language)}", "Free cancellation until ${formatAccommodationDeadline(accommodation.deadline, language)}", "Cancelación gratuita hasta ${formatAccommodationDeadline(accommodation.deadline, language)}", "Kostenlose Stornierung bis ${formatAccommodationDeadline(accommodation.deadline, language)}"), color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("✓", color = OdysseySuccess, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.width(14.dp))
+                    Text(localized("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline, language)}", "Free cancellation until ${formatAccommodationDeadline(accommodation.deadline, language)}", "Cancelación gratuita hasta ${formatAccommodationDeadline(accommodation.deadline, language)}", "Kostenlose Stornierung bis ${formatAccommodationDeadline(accommodation.deadline, language)}"), color = OdysseySuccess, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {

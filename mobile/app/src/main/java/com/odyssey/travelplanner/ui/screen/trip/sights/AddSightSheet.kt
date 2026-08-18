@@ -84,6 +84,7 @@ import com.odyssey.travelplanner.ui.i18n.mapLocale
 import com.odyssey.travelplanner.ui.screen.trip.route.RouteEditorField
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
@@ -166,7 +167,7 @@ internal fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () -
             onClick = { locationPickerOpen = true },
             modifier = Modifier.fillMaxWidth(),
         )
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(
             onClick = {
                 scope.launch {
@@ -516,7 +517,7 @@ internal fun SightLocationPickerSheet(
             ) {
                 Text(
                     localized("Очистить", "Clear", "Borrar", "Löschen"),
-                    color = if (selectedPoint != null) Color(0xFFE0524B) else secondaryTextColor(),
+                    color = if (selectedPoint != null) OdysseyError else secondaryTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                 )

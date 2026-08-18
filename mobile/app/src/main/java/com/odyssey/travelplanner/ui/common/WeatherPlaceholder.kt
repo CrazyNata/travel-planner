@@ -22,12 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.CoverPhoto
+import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.i18n.localizedWeatherCondition
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyPurple
 
 @Composable
 internal fun WeatherPlaceholder(
@@ -45,7 +46,7 @@ internal fun WeatherPlaceholder(
         weather?.condition?.let { localizedWeatherCondition(it) }
     }
     Box(
-        modifier = Modifier.width(120.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
+        modifier = Modifier.width(120.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).background(OdysseyPurple),
     ) {
         if (photo != null) {
             AsyncImage(

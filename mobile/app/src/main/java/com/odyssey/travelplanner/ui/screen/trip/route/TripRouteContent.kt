@@ -98,6 +98,8 @@ import com.odyssey.travelplanner.ui.i18n.localizedRouteSummary
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDialog
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
@@ -253,7 +255,7 @@ internal fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: B
         }
         if (actionMessage != null) {
             item {
-                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(actionMessage!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
         if (overview.routeLegs.isEmpty()) {
@@ -492,11 +494,11 @@ internal fun RouteLegEditorSheet(
             placeholder = "https://maps.app.goo.gl/...",
             includeFontPadding = true,
         )
-        if (message != null) Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             if (canDelete) {
                 Box(modifier = Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(dangerSurfaceColor()).clickable { onDelete() }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(22.dp))
+                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = OdysseyDangerBright, modifier = Modifier.size(22.dp))
                 }
             }
             Button(onClick = onCancel, modifier = Modifier.height(54.dp).weight(1f), colors = ButtonDefaults.buttonColors(containerColor = cardSurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(14.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }

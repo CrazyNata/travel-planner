@@ -47,6 +47,7 @@ import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
@@ -59,7 +60,7 @@ internal fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit:
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
     val isDraft = trip.status.contains("чернов", ignoreCase = true)
-    val statusColor = if (isDraft) Color(0xFFE0A34B) else Color(0xFF22B07D)
+    val statusColor = if (isDraft) Color(0xFFE0A34B) else OdysseySuccess
     Column(
         modifier = Modifier
             .fillMaxWidth()

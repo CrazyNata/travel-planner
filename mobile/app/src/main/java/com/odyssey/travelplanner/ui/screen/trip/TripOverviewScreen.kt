@@ -64,13 +64,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.odyssey.travelplanner.data.CityCatalogRepository
+import com.odyssey.travelplanner.data.CityLocation
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
-import com.odyssey.travelplanner.data.CityCatalogRepository
-import com.odyssey.travelplanner.data.CityLocation
 import com.odyssey.travelplanner.data.cityCatalogEntry
 import com.odyssey.travelplanner.ui.common.TripOverviewLoading
 import com.odyssey.travelplanner.ui.i18n.localized
@@ -89,6 +89,7 @@ import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyBackground
 import com.odyssey.travelplanner.ui.theme.OdysseyBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseySurface2
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
@@ -292,7 +293,7 @@ internal fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: 
         } else if (overview == null) {
             Text(
                 text = loadError ?: localized("Путешествие не найдено", "Trip not found", "Viaje no encontrado", "Reise nicht gefunden"),
-                color = Color(0xFFE0524B),
+                color = OdysseyError,
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
                 modifier = Modifier.padding(18.dp),

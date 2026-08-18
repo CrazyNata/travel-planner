@@ -51,6 +51,9 @@ import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
 import com.odyssey.travelplanner.ui.theme.primaryContentColor
@@ -113,7 +116,7 @@ internal fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Bool
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .clip(RoundedCornerShape(11.dp))
-                            .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                            .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                             .shadow(5.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x426C5CE7), spotColor = Color(0x426C5CE7))
                             .clickable(enabled = !uploading) { picker.launch("image/*") }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
@@ -129,14 +132,14 @@ internal fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Bool
                 }
             }
         }
-        if (message != null) item { Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
+        if (message != null) item { Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
         if (groupedPhotos.isEmpty()) {
             item { Text(localized("Фотографии пока не добавлены", "No photos added yet", "Aún no se han añadido fotos", "Noch keine Fotos hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
             itemsIndexed(groupedPhotos, key = { _, group -> group.first }) { index, (city, cityPhotos) ->
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).background(Brush.linearGradient(listOf(Color(0xFFF5A623), Color(0xFFF77F4B))), CircleShape)) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).background(Brush.linearGradient(listOf(OdysseyWarning, Color(0xFFF77F4B))), CircleShape)) {
                             Text(photoGroupDay(city, overview, index + 1).toString(), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
                         }
                     Text(localizedCityName(city), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))

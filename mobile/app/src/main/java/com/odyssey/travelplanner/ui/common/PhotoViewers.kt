@@ -45,6 +45,7 @@ import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedSightName
 import com.odyssey.travelplanner.ui.screen.trip.sights.rememberSightBitmap
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyScrimHeavy
 import com.odyssey.travelplanner.ui.theme.primaryContentColor
 
 @Composable
@@ -87,7 +88,7 @@ internal fun FullScreenSightPhotoViewer(
                         .align(Alignment.TopEnd)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xAA0F0F19))
+                        .background(OdysseyScrimHeavy)
                         .clickable { onDismiss() },
                 ) {
                     Icon(
@@ -174,7 +175,7 @@ internal fun FullScreenPhotoViewer(
                         .align(Alignment.TopEnd)
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xAA0F0F19))
+                        .background(OdysseyScrimHeavy)
                         .clickable { onDismiss(photoIndex) },
                 ) {
                     Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = Color.White, modifier = Modifier.size(22.dp))
@@ -188,7 +189,7 @@ internal fun FullScreenPhotoViewer(
                         .padding(start = 14.dp)
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xAA0F0F19))
+                        .background(OdysseyScrimHeavy)
                         .clickable { photoIndex = (photoIndex - 1 + photos.size) % photos.size },
                 ) {
                     Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto"), tint = Color.White, modifier = Modifier.size(22.dp))
@@ -200,7 +201,7 @@ internal fun FullScreenPhotoViewer(
                         .padding(end = 14.dp)
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xAA0F0F19))
+                        .background(OdysseyScrimHeavy)
                         .clickable { photoIndex = (photoIndex + 1) % photos.size },
                 ) {
                     Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Следующее фото", "Next photo", "Foto siguiente", "Nächstes Foto"), tint = Color.White, modifier = Modifier.size(22.dp).graphicsLayer(rotationZ = 180f))
@@ -214,7 +215,7 @@ internal fun FullScreenPhotoViewer(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 22.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
-                        .background(Color(0xAA0F0F19), RoundedCornerShape(16.dp))
+                        .background(OdysseyScrimHeavy, RoundedCornerShape(16.dp))
                         .padding(horizontal = 11.dp, vertical = 6.dp),
                 )
             }

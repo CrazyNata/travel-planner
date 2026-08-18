@@ -65,9 +65,12 @@ import com.odyssey.travelplanner.ui.screen.trip.route.RouteEditorField
 import com.odyssey.travelplanner.ui.screen.trip.route.RouteOrderButton
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerDeep
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSubtext
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface2
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkText
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
 import com.odyssey.travelplanner.ui.theme.OdysseySubtext
 import com.odyssey.travelplanner.ui.theme.OdysseySurface2
@@ -128,11 +131,11 @@ internal fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () 
                         reordered.add(index + 1, moved)
                         placeNames = reordered
                     }
-                    Text("×", color = Color(0xFFFF6B65), fontSize = 22.sp, modifier = Modifier.padding(start = 4.dp).clickable { placeNames = placeNames.filterIndexed { itemIndex, _ -> itemIndex != index } })
+                    Text("×", color = OdysseyDangerBright, fontSize = 22.sp, modifier = Modifier.padding(start = 4.dp).clickable { placeNames = placeNames.filterIndexed { itemIndex, _ -> itemIndex != index } })
                 }
             }
         }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(onClick = {
             scope.launch {
                 saving = true
@@ -192,7 +195,7 @@ internal fun EditDaySheet(
         }
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = sheetSecondaryTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
         if (message != null) {
-            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
         sights.forEach { sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(sheetSecondarySurfaceColor).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -210,7 +213,7 @@ internal fun EditDaySheet(
                         deletingSightId = null
                     }
                 }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = OdysseyDangerBright, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -262,8 +265,8 @@ internal fun EditDaySheet(
                 contentAlignment = Alignment.Center,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(18.dp))
-                    Text(localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), color = Color(0xFFFF6B65), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                    Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = OdysseyDangerBright, modifier = Modifier.size(18.dp))
+                    Text(localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), color = OdysseyDangerBright, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
                 }
             }
         }
@@ -313,7 +316,7 @@ internal fun EditDaySheet(
                         fontFamily = Manrope,
                     )
                     deleteDayError?.let { error ->
-                        Text(error, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                        Text(error, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     }
                 }
             },
@@ -340,7 +343,7 @@ internal fun EditDaySheet(
                         }
                     },
                     enabled = !deletingDay,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = OdysseyDangerDeep),
                 ) {
                     Text(
                         if (deletingDay) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…")

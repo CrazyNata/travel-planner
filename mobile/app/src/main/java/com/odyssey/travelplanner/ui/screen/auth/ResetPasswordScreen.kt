@@ -32,15 +32,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.AccountRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
+import com.odyssey.travelplanner.data.AccountRepository
+import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyBackground
+import com.odyssey.travelplanner.ui.theme.OdysseyDanger
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBackground
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
@@ -86,7 +87,7 @@ internal fun ResetPasswordScreen(onFinished: () -> Unit, onCancel: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         AuthField(localized("Повторите пароль", "Repeat password", "Repita la contraseña", "Passwort wiederholen"), "••••••••", repeatedPassword, password = true) { repeatedPassword = it }
         message?.let {
-            Text(it, color = Color(0xFFE85B56), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+            Text(it, color = OdysseyDanger, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
         }
         Button(
             enabled = !saving,

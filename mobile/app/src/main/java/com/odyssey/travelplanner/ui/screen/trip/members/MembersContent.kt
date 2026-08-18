@@ -51,17 +51,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.TripOverview
-import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerDeep
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkBorder
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkTint
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadowSoft
+import com.odyssey.travelplanner.ui.theme.OdysseyShadowFaint
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -112,7 +117,7 @@ internal fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boo
         }
         if (actionMessage != null) {
             item {
-                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(actionMessage!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
         if (overview.members.isEmpty()) {
@@ -144,7 +149,7 @@ internal fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boo
         }
         if (canEdit) item {
             if (adding) {
-                Column(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(horizontal = 15.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = OdysseyShadowFaint, spotColor = OdysseyShadowFaint).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(horizontal = 15.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     InviteMemberField(localized("Имя участника", "Member name", "Nombre", "Name"), name) { name = it }
                     InviteMemberField("e-mail ${localized("нового участника", "of new member", "del nuevo participante", "des neuen Mitglieds")}", email) { email = it }
                     Row(
@@ -161,12 +166,12 @@ internal fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boo
                             }
                         }
                     }
-                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                    if (message != null) Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).clip(RoundedCornerShape(13.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp)).clickable { adding = false; message = null }) {
                             Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
                         }
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).shadow(6.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7)).clip(RoundedCornerShape(13.dp)).background(primaryColor()).clickable(enabled = !saving) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).height(47.dp).shadow(6.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = OdysseyPurpleShadowSoft, spotColor = OdysseyPurpleShadowSoft).clip(RoundedCornerShape(13.dp)).background(primaryColor()).clickable(enabled = !saving) {
                             scope.launch {
                                 saving = true
                                 runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addMember(tripId, name, email, role) }
@@ -234,7 +239,7 @@ internal fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boo
                         fontWeight = FontWeight.W600,
                     )
                     deleteMemberError?.let { error ->
-                        Text(error, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                        Text(error, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     }
                 }
             },
@@ -269,7 +274,7 @@ internal fun MembersContent(tripId: String, overview: TripOverview, canEdit: Boo
                         }
                     },
                     enabled = !deleting,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                    colors = ButtonDefaults.textButtonColors(contentColor = OdysseyDangerDeep),
                 ) {
                     Text(
                         if (deleting) localized("Удаляем…", "Removing…", "Eliminando…", "Wird entfernt…")
@@ -354,11 +359,11 @@ internal fun MemberCard(member: com.odyssey.travelplanner.data.TripMember, savin
     }
     val roleColor = when (member.role) {
         "Владелец" -> primaryColor()
-        "Редактор" -> Color(0xFF22B07D)
+        "Редактор" -> OdysseySuccess
         else -> secondaryTextColor()
     }
     Column(
-        modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x0F141428), spotColor = Color(0x0F141428)).clip(RoundedCornerShape(18.dp)).background(surface).padding(horizontal = 15.dp, vertical = 13.dp),
+        modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = OdysseyShadowFaint, spotColor = OdysseyShadowFaint).clip(RoundedCornerShape(18.dp)).background(surface).padding(horizontal = 15.dp, vertical = 13.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(avatarColor)) {

@@ -54,6 +54,9 @@ import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityFilter
 import com.odyssey.travelplanner.ui.theme.Manrope
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseyShadowBlack
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -323,9 +326,9 @@ internal fun RestaurantFilterSheet(
                     .offset(x = d(16f), y = d(532f))
                     .width(contentWidth)
                     .height(d(54f))
-                    .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
+                    .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = OdysseyPurpleShadow, spotColor = OdysseyPurpleShadow)
                     .clip(RoundedCornerShape(d(15f)))
-                    .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                    .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                     .clickable(onClick = onApply),
             ) {
                 Text(
@@ -358,7 +361,7 @@ internal fun RestaurantFilterTypeButton(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(d(15f)))
-            .background(if (selected) Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))) else Brush.linearGradient(listOf(cardSurfaceColor(), cardSurfaceColor())))
+            .background(if (selected) Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)) else Brush.linearGradient(listOf(cardSurfaceColor(), cardSurfaceColor())))
             .border(d(1.6f), if (selected) primaryColor() else contentBorderColor(), RoundedCornerShape(d(15f)))
             .clickable(onClick = onClick)
             .padding(top = d(14f), bottom = d(14f)),
@@ -437,7 +440,7 @@ internal fun RestaurantFilterSegmentedRow(
                 modifier = Modifier
                     .weight(1f)
                     .height(d(43f))
-                    .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = Color(0x1A000000), spotColor = Color(0x1A000000))
+                    .shadow(if (active) d(2f) else 0.dp, RoundedCornerShape(d(11f)), clip = false, ambientColor = OdysseyShadowBlack, spotColor = OdysseyShadowBlack)
                     .clip(RoundedCornerShape(d(11f)))
                     .background(if (active) cardSurfaceColor() else Color.Transparent)
                     .clickable { onSelect(option) },

@@ -80,7 +80,10 @@ import com.odyssey.travelplanner.ui.screen.trip.overview.OverviewMapCard
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -254,7 +257,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(13.dp),
             ) {
-                Box(modifier = Modifier.size(46.dp).shadow(4.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7)).clip(RoundedCornerShape(13.dp)).background(primaryColor()), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(46.dp).shadow(4.dp, RoundedCornerShape(13.dp), clip = false, ambientColor = OdysseyPurpleShadow, spotColor = OdysseyPurpleShadow).clip(RoundedCornerShape(13.dp)).background(primaryColor()), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Text(
                             routeDay.toString(),
@@ -420,7 +423,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
         }
         if (message != null) {
             item {
-                Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+                Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
         if (visibleSights.isEmpty()) {
@@ -446,7 +449,7 @@ internal fun SightsContent(tripId: String, overview: TripOverview, canEdit: Bool
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
             dragHandle = null,
         ) {

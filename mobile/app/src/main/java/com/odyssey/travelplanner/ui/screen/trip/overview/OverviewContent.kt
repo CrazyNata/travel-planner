@@ -110,7 +110,9 @@ import com.odyssey.travelplanner.ui.screen.trip.sights.keepMapGesturesInsideMap
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyCardShadow
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface2
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -275,7 +277,7 @@ internal fun OverviewContent(
                 }
             }
             if (actionMessage != null) {
-                Text(actionMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                Text(actionMessage!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             }
         }
         orderedBlocks.forEach { block ->
@@ -514,7 +516,7 @@ internal fun OverviewCitySelectionSheet(
                     modifier = Modifier.padding(top = 5.dp),
                 )
                 addCityMessage?.let { message ->
-                    Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text(message, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }
             if (cities.isEmpty()) {
@@ -685,7 +687,7 @@ internal fun OverviewMapCard(
     }
 
     val cardModifier = if (cardShadow != null) {
-        Modifier.fillMaxWidth().shadow(cardShadow, cardShape, clip = false, ambientColor = Color(0x19141428), spotColor = Color(0x19141428))
+        Modifier.fillMaxWidth().shadow(cardShadow, cardShape, clip = false, ambientColor = OdysseyCardShadow, spotColor = OdysseyCardShadow)
     } else {
         Modifier.fillMaxWidth()
     }

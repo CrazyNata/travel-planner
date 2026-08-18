@@ -53,9 +53,13 @@ import com.odyssey.travelplanner.ui.icons.OdysseyEditIcon
 import com.odyssey.travelplanner.ui.icons.OdysseyPlusIcon
 import com.odyssey.travelplanner.ui.theme.LocalDarkTheme
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkSurface2
 import com.odyssey.travelplanner.ui.theme.OdysseyDarkTint
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurple
+import com.odyssey.travelplanner.ui.theme.OdysseySuccess
+import com.odyssey.travelplanner.ui.theme.OdysseyWarning
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -487,10 +491,10 @@ internal fun BudgetExpenseRow(
     onDelete: () -> Unit,
 ) {
     val categoryStyle = when (expense.category.trim().lowercase(java.util.Locale.ROOT)) {
-        "проживание" -> BudgetCategoryStyle("Жильё", "Проживание", Color(0xFF6C5CE7), emptySet())
-        "жильё", "жилье" -> BudgetCategoryStyle("Жильё", "Проживание", Color(0xFF6C5CE7), emptySet())
-        "транспорт" -> BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), emptySet())
-        "еда и рестораны", "еда", "питание" -> BudgetCategoryStyle("Еда и рестораны", "Питание", Color(0xFF22B07D), emptySet())
+        "проживание" -> BudgetCategoryStyle("Жильё", "Проживание", OdysseyPurple, emptySet())
+        "жильё", "жилье" -> BudgetCategoryStyle("Жильё", "Проживание", OdysseyPurple, emptySet())
+        "транспорт" -> BudgetCategoryStyle("Транспорт", "Транспорт", OdysseyWarning, emptySet())
+        "еда и рестораны", "еда", "питание" -> BudgetCategoryStyle("Еда и рестораны", "Питание", OdysseySuccess, emptySet())
         "активности и билеты", "активности", "развлечения" -> BudgetCategoryStyle("Активности и билеты", "Развлечения", Color(0xFF4AA3F0), emptySet())
         else -> BudgetCategoryStyle("Прочее", "Прочее", Color(0xFFEE6C8A), emptySet())
     }
@@ -545,7 +549,7 @@ internal fun BudgetExpenseRow(
                         background = Color(0xFFFFE9E8),
                         onClick = onDelete,
                         enabled = !deleting,
-                    ) { Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(16.dp)) }
+                    ) { Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = OdysseyDangerBright, modifier = Modifier.size(16.dp)) }
                 }
             } else {
                 Text(

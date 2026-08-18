@@ -51,14 +51,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.RestaurantCatalogEntry
-import com.odyssey.travelplanner.data.RestaurantCatalogRepository
 import io.github.jan.supabase.auth.providers.Google
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.withPermit
 import kotlin.coroutines.cancellation.CancellationException
 import java.util.Locale
+import com.odyssey.travelplanner.data.RestaurantCatalogEntry
+import com.odyssey.travelplanner.data.RestaurantCatalogRepository
+import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.ui.common.FullScreenPhotoViewer
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
@@ -67,6 +67,8 @@ import com.odyssey.travelplanner.ui.screen.trip.sights.FastCatalogImage
 import com.odyssey.travelplanner.ui.screen.trip.sights.restaurantPhotoLoadGate
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
+import com.odyssey.travelplanner.ui.theme.OdysseyWarningDeep
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -235,7 +237,7 @@ internal fun RestaurantCatalogSheet(
                                 Text(localized("Сначала лучшие", "Best first", "Mejor valorados", "Beste zuerst"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp)
                             }
                         },
-                        leadingIcon = { Text("★", color = Color(0xFFE29B32), fontSize = 18.sp) },
+                        leadingIcon = { Text("★", color = OdysseyWarningDeep, fontSize = 18.sp) },
                         trailingIcon = if (sortMode == "rating") {
                             { Icon(Icons.Filled.Check, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(18.dp)) }
                         } else null,
@@ -289,7 +291,7 @@ internal fun RestaurantCatalogSheet(
             )
         }
         if (message != null) {
-            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
         if (loading) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -395,7 +397,7 @@ internal fun RestaurantCatalogSheet(
                                 if (entry.rating != null) {
                                     Text(
                                         text = "★ ${entry.rating.toString().removeSuffix(".0")}",
-                                        color = Color(0xFFE29B32),
+                                        color = OdysseyWarningDeep,
                                         fontFamily = Manrope,
                                         fontWeight = FontWeight.W800,
                                         fontSize = 11.5.sp,

@@ -55,21 +55,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import com.odyssey.travelplanner.data.SupabaseProvider
-import com.odyssey.travelplanner.data.SupabaseTripRepository
-import com.odyssey.travelplanner.data.Sight
-import com.odyssey.travelplanner.data.SightCatalogEntry
-import com.odyssey.travelplanner.data.SightCatalogRepository
 import io.github.jan.supabase.auth.providers.Google
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.withPermit
 import kotlin.coroutines.cancellation.CancellationException
 import java.util.Locale
+import com.odyssey.travelplanner.data.Sight
+import com.odyssey.travelplanner.data.SightCatalogEntry
+import com.odyssey.travelplanner.data.SightCatalogRepository
+import com.odyssey.travelplanner.data.SupabaseProvider
+import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
 import com.odyssey.travelplanner.ui.theme.primaryColor
@@ -225,7 +226,7 @@ internal fun SightCatalogSheet(
             }
         }
         if (message != null) {
-            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            Text(message!!, color = OdysseyError, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
         if (loading) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

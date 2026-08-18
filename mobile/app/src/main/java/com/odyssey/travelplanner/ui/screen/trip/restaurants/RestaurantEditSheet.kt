@@ -47,15 +47,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.SupabaseTripRepository
-import kotlinx.coroutines.launch
 import com.odyssey.travelplanner.ui.i18n.localized
 import com.odyssey.travelplanner.ui.i18n.localizedCityName
 import com.odyssey.travelplanner.ui.screen.trip.lodging.AccommodationCalendarDialog
 import com.odyssey.travelplanner.ui.theme.LocalLanguage
 import com.odyssey.travelplanner.ui.theme.Manrope
+import com.odyssey.travelplanner.ui.theme.OdysseyDangerBright
+import com.odyssey.travelplanner.ui.theme.OdysseyError
 import com.odyssey.travelplanner.ui.theme.OdysseyNoFontPadding
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleGradientEnd
+import com.odyssey.travelplanner.ui.theme.OdysseyPurpleShadow
+import com.odyssey.travelplanner.ui.theme.OdysseySheetScrim
 import com.odyssey.travelplanner.ui.theme.cardSurfaceColor
 import com.odyssey.travelplanner.ui.theme.contentBorderColor
 import com.odyssey.travelplanner.ui.theme.contentTextColor
@@ -367,7 +372,7 @@ internal fun RestaurantEditSheet(
                     Icon(
                         Icons.Outlined.Delete,
                         contentDescription = localized("\u0423\u0434\u0430\u043b\u0438\u0442\u044c", "Delete", "Eliminar", "L\u00f6schen"),
-                        tint = Color(0xFFFF6B65),
+                        tint = OdysseyDangerBright,
                         modifier = Modifier.size(d(19f)),
                     )
                 }
@@ -400,11 +405,11 @@ internal fun RestaurantEditSheet(
                             d(8f),
                             RoundedCornerShape(d(15f)),
                             clip = false,
-                            ambientColor = Color(0x4D6C5CE7),
-                            spotColor = Color(0x4D6C5CE7),
+                            ambientColor = OdysseyPurpleShadow,
+                            spotColor = OdysseyPurpleShadow,
                         )
                         .clip(RoundedCornerShape(d(15f)))
-                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .background(Brush.linearGradient(listOf(primaryColor(), OdysseyPurpleGradientEnd)))
                         .clickable(enabled = !busy) {
                             scope.launch {
                                 saving = true
@@ -448,7 +453,7 @@ internal fun RestaurantEditSheet(
             message?.let {
                 Text(
                     text = it,
-                    color = Color(0xFFE0524B),
+                    color = OdysseyError,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W700,
                     fontSize = s(11f),
@@ -478,7 +483,7 @@ internal fun RestaurantEditSheet(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
-            scrimColor = Color(0x730F0F19),
+            scrimColor = OdysseySheetScrim,
             shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
             dragHandle = null,
         ) {
