@@ -110,6 +110,12 @@ object SupabaseProvider {
     // Auth sessions are kept independently of the "remember credentials"
     // checkbox. This lets Android recreate the activity/process after the
     // screen is locked without treating that as an explicit logout.
+    //
+    // Written from IO coroutines at fourteen call sites and read from the main
+    // thread by clientForCurrentAuthFlow(); @Volatile is what makes a write on
+    // one thread visible to the next read on another. Without it a restored
+    // session could still be read as the previous client.
+    @Volatile
     private var activeClient: SupabaseClient = persistentClient
 
     private fun credentialsKey(): SecretKey {
@@ -427,9 +433,12 @@ object SupabaseProvider {
         }
         synchronized(rememberedClients) {
             rememberedClients.remove(accountId)
-        }
-        if (activeClient === client) {
-            activeClient = persistentClient
+            // Check-and-swap under the same lock that guards rememberedClients,
+            // so a concurrent activation cannot slip between the two lines and
+            // leave the removed account's client active.
+            if (activeClient === client) {
+                activeClient = persistentClient
+            }
         }
     }
 

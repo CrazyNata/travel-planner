@@ -12,7 +12,7 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import kotlin.time.Duration.Companion.hours
 
-private const val TRIP_PHOTO_BUCKET = "trip-photos"
+internal const val TRIP_PHOTO_BUCKET = "trip-photos"
 private const val TRIP_PHOTO_REFERENCE_PREFIX = "storage://$TRIP_PHOTO_BUCKET/"
 private const val SIGNED_URL_CACHE_TTL_MILLIS = 55 * 60 * 1000L
 private val photoUrlResolveSemaphore = Semaphore(6)

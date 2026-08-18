@@ -15,15 +15,11 @@ private const val SEARCH_LIMIT = 36
 private const val SEARCH_SEPARATOR = '\u0001'
 private const val SEARCH_CHECK_INTERVAL = 1024
 
-class CityCatalogRepository(private val assets: AssetManager) {
-    private data class ScoredEntry(
-        val score: Int,
-        val population: Long,
-        val normalizedName: String,
-        val entry: CityCatalogEntry,
-    )
-
-    private val localEntries = cityCatalog.map { entry ->
+// Both of these derive only from bundled assets, never from the session, and the
+// UI remembers a repository per screen. Holding them per instance meant the
+// ~19 MB catalogue was decompressed again for every screen that searched cities.
+private val sharedLocalEntries: List<Pair<CityCatalogEntry, String>> by lazy {
+    cityCatalog.map { entry ->
         entry to cityCatalogSearchText(
             entry.aliases +
                 entry.countryName +
@@ -33,12 +29,32 @@ class CityCatalogRepository(private val assets: AssetManager) {
                 entry.localized("DE"),
         )
     }
+}
+
+@Volatile
+private var catalogTextCache: String? = null
+private val catalogTextLock = Any()
+
+private fun sharedCatalogText(assets: AssetManager): String =
+    catalogTextCache ?: synchronized(catalogTextLock) {
+        catalogTextCache ?: GZIPInputStream(assets.open(CITY_CATALOG_ASSET))
+            .use { it.readBytes().toString(Charsets.UTF_8) }
+            .also { catalogTextCache = it }
+    }
+
+class CityCatalogRepository(private val assets: AssetManager) {
+    private data class ScoredEntry(
+        val score: Int,
+        val population: Long,
+        val normalizedName: String,
+        val entry: CityCatalogEntry,
+    )
+
+    private val localEntries get() = sharedLocalEntries
 
     // Keep only the decompressed text, not 150k Kotlin objects and strings.
     // Searching the text by field offsets is much cheaper on a mobile device.
-    private val catalogText: String by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        GZIPInputStream(assets.open(CITY_CATALOG_ASSET)).use { it.readBytes().toString(Charsets.UTF_8) }
-    }
+    private val catalogText: String get() = sharedCatalogText(assets)
 
     suspend fun search(query: String, language: String, limit: Int = SEARCH_LIMIT): List<CityCatalogEntry> = withContext(Dispatchers.IO) {
         val normalizedQuery = normalizeCityAlias(query)

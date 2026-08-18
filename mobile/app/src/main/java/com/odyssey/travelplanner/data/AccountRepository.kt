@@ -76,7 +76,7 @@ class AccountRepository(private val client: SupabaseClient) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val path = "$userId/profile/${UUID.randomUUID()}.jpg"
-        client.storage.from("trip-photos").upload(path, bytes)
+        client.storage.from(TRIP_PHOTO_BUCKET).upload(path, bytes)
         val reference = storedTripPhotoReference(path)
         return client.resolveTripPhotoReference(reference) ?: error("Не удалось открыть изображение")
     }

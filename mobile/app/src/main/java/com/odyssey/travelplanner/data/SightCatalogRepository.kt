@@ -165,7 +165,9 @@ private fun SightCatalogRow.toEntry() = SightCatalogEntry(
 )
 
 class SightCatalogRepository(private val client: SupabaseClient) {
-    private val photoCache = ConcurrentHashMap<String, SightPhotoResult>()
+    // Process-wide: the UI builds a fresh repository per call site, so a
+    // per-instance cache would start empty every time and never hit.
+    private val photoCache get() = sharedPhotoCache
 
     suspend fun search(city: String, query: String, limit: Int = 200): List<SightCatalogEntry> {
         val cityName = catalogCityName(city)
@@ -366,6 +368,8 @@ class SightCatalogRepository(private val client: SupabaseClient) {
         return cached + resolved
     }
 }
+
+private val sharedPhotoCache = ConcurrentHashMap<String, SightPhotoResult>()
 
 private fun sightMatchScore(entry: SightCatalogEntry, live: SightCatalogEntry): Int {
     val liveName = normalizeCatalogText(live.nameEn.ifBlank { live.nameRu })

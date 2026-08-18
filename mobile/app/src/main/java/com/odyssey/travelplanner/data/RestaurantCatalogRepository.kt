@@ -170,7 +170,9 @@ private fun RestaurantCatalogRow.toEntry() = RestaurantCatalogEntry(
 )
 
 class RestaurantCatalogRepository(private val client: SupabaseClient) {
-    private val photoCache = ConcurrentHashMap<String, RestaurantPhotoResult>()
+    // Process-wide: the UI builds a fresh repository per call site, so a
+    // per-instance cache would start empty every time and never hit.
+    private val photoCache get() = sharedRestaurantPhotoCache
 
     suspend fun search(city: String, query: String, limit: Int = 120): List<RestaurantCatalogEntry> {
         val cityName = catalogCityName(city)
@@ -355,6 +357,8 @@ class RestaurantCatalogRepository(private val client: SupabaseClient) {
         return cached + resolved
     }
 }
+
+private val sharedRestaurantPhotoCache = ConcurrentHashMap<String, RestaurantPhotoResult>()
 
 private fun placesLanguageCode(language: String): String = when (
     language.trim().uppercase(Locale.ROOT).substringBefore('-')
