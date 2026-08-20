@@ -1409,13 +1409,17 @@ function StaticTripMap({
   coordinates,
   activeDay,
   focusIndex,
+  mapClassName = "map",
+  markerClassName = "map-marker",
 }: {
   coordinates: [number, number][];
   activeDay?: number;
   focusIndex?: number;
+  mapClassName?: string;
+  markerClassName?: string;
 }) {
   if (!coordinates.length) {
-    return <div className="map map-unavailable">Добавьте города или места, чтобы увидеть их на карте.</div>;
+    return <div className={`${mapClassName} map-unavailable`}>Добавьте города или места, чтобы увидеть их на карте.</div>;
   }
   const focusCoordinates =
     focusIndex !== undefined && coordinates.length > 1
@@ -1454,7 +1458,7 @@ function StaticTripMap({
   }).filter((tile): tile is { key: string; src: string; left: number; top: number } => Boolean(tile));
 
   return (
-    <div className="map">
+    <div className={mapClassName}>
       <div className="static-map" aria-label="Карта путешествия">
         <div className="static-map-tiles" aria-hidden="true">
           {tiles.map((tile) => (
@@ -1477,7 +1481,7 @@ function StaticTripMap({
         </svg>
         {positionedPoints.map(([x, y], index) => (
           <span
-            className={`map-marker static-map-marker${index === activeDay ? " active" : ""}`}
+            className={`${markerClassName} static-map-marker${index === activeDay ? " active" : ""}`}
             key={`${x}-${y}-${index}`}
             style={{ left: `${(x / STATIC_MAP_WIDTH) * 100}%`, top: `${(y / STATIC_MAP_HEIGHT) * 100}%` }}
           >
@@ -11540,6 +11544,26 @@ function WalkingMap({
   }, [sights]);
   const hours = stats ? Math.floor(stats.duration / 3600) : 0;
   const minutes = stats ? Math.round((stats.duration % 3600) / 60) : 0;
+  const staticActiveIndex = activeSightId
+    ? sightPoints.findIndex(({ sight }) => sight.id === activeSightId)
+    : -1;
+  if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+    return (
+      <div className="walking-map-wrap">
+        <StaticTripMap
+          coordinates={coordinates}
+          activeDay={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
+          focusIndex={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
+          mapClassName="walking-map"
+          markerClassName="sight-map-marker"
+        />
+        <footer>
+          <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
+          <b>{`${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}</b>
+        </footer>
+      </div>
+    );
+  }
   return (
     <div className="walking-map-wrap">
       <div className="walking-map" ref={container} />
