@@ -8064,7 +8064,10 @@ function AccommodationForm({
   );
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState([false, false, false]);
+  const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
+  const [deletingPhotos, setDeletingPhotos] = useState(false);
   const isUploading = uploadingPhotos.some(Boolean);
+  const isBusy = isUploading || deletingPhotos;
   const uploadPhoto = async (file: File | undefined, index: number) => {
     if (!file) return;
     if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
@@ -8120,14 +8123,40 @@ function AccommodationForm({
       return next;
     });
   };
+  const removePhoto = (index: number) => {
+    const photo = photos[index];
+    const path = photo ? tripPhotoPath(photo) : null;
+    if (path) {
+      setPhotosToDelete((current) =>
+        current.includes(path) ? current : [...current, path],
+      );
+    }
+    setPhotos((current) =>
+      current.map((item, photoIndex) => (photoIndex === index ? "" : item)),
+    );
+  };
   return (
     <div className="accommodation-modal-backdrop">
       <form
         className="accommodation-modal"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          if (isUploading) return;
+          if (isBusy) return;
           const data = new FormData(event.currentTarget);
+          if (photosToDelete.length) {
+            setDeletingPhotos(true);
+            try {
+              const { error } = await supabase.storage
+                .from("trip-photos")
+                .remove(photosToDelete);
+              if (error) throw error;
+            } catch {
+              setDeletingPhotos(false);
+              window.alert("Не удалось удалить фотографию. Попробуйте ещё раз.");
+              return;
+            }
+            setDeletingPhotos(false);
+          }
           const cancellation: SavedAccommodation = {
             id: initial?.id || crypto.randomUUID(),
             name: name || "Новое жильё",
@@ -8159,11 +8188,11 @@ function AccommodationForm({
               type="button"
               className="accommodation-header-catalog-button"
               onClick={() => setCatalogOpen(true)}
-              disabled={isUploading}
+              disabled={isBusy}
             >
               ＋ Добавить из каталога
             </button>
-            <button type="button" onClick={onClose} disabled={isUploading} aria-label="Закрыть">
+            <button type="button" onClick={onClose} disabled={isBusy} aria-label="Закрыть">
               ×
             </button>
           </div>
@@ -8202,13 +8231,32 @@ function AccommodationForm({
                   }}
                 />
                 {photo ? (
-                  <span
-                    className="accommodation-preview-frame"
-                    style={{
-                      backgroundImage: `url(${photo})`,
-                      backgroundPosition: `${photoTransforms[index].offsetX}% ${photoTransforms[index].offsetY}%`,
-                    }}
-                  />
+                  <>
+                    <span
+                      className="accommodation-preview-frame"
+                      style={{
+                        backgroundImage: `url(${photo})`,
+                        backgroundPosition: `${photoTransforms[index].offsetX}% ${photoTransforms[index].offsetY}%`,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="accommodation-photo-remove"
+                      aria-label={`Удалить фото ${index + 1}`}
+                      disabled={isBusy}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        removePhoto(index);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </>
                 ) : (
                   <>
                     <span className="accommodation-upload-icon" aria-hidden="true">
@@ -8345,7 +8393,7 @@ function AccommodationForm({
             <button
               type="button"
               className="accommodation-delete-button"
-              disabled={isUploading}
+              disabled={isBusy}
               onClick={() => {
                 if (window.confirm(`Удалить жильё «${name || "без названия"}»? Это действие нельзя отменить.`)) {
                   onDelete();
@@ -8355,11 +8403,15 @@ function AccommodationForm({
               Удалить жильё
             </button>
           )}
-          <button type="button" onClick={onClose} disabled={isUploading}>
+          <button type="button" onClick={onClose} disabled={isBusy}>
             Отмена
           </button>
-          <button className="accent" disabled={isUploading}>
-            {isUploading ? "Загружаем фото..." : "Сохранить жильё"}
+          <button className="accent" disabled={isBusy}>
+            {deletingPhotos
+              ? "Удаляем фото..."
+              : isUploading
+                ? "Загружаем фото..."
+                : "Сохранить жильё"}
           </button>
         </footer>
       </form>
