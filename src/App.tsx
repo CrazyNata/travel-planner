@@ -3631,6 +3631,7 @@ type GoogleSightCatalogPlace = {
   photo_url?: unknown;
   photo_names?: unknown;
   google_maps_url?: unknown;
+  website?: unknown;
   latitude?: unknown;
   longitude?: unknown;
 };
@@ -3688,7 +3689,7 @@ async function fetchGoogleSightCatalog(city: string, signal: AbortSignal) {
       lnglat: coordinate,
       googleRating: Number.isFinite(rating) ? rating : undefined,
       googleReviews: Number.isFinite(reviews) ? Math.trunc(reviews) : undefined,
-      link: String(place.google_maps_url || "").trim() || undefined,
+      link: String(place.website || place.google_maps_url || "").trim() || undefined,
     } satisfies StoredSight];
   });
 }
@@ -7988,7 +7989,19 @@ function AccommodationCatalog({
                     </span>
                   )}
                   <p>{stay.description || stay.address || "Адрес будет добавлен после выбора"}</p>
-                  <button type="button" onClick={() => onPick(stay)}>Выбрать</button>
+                  <div className="accommodation-catalog-card-actions">
+                    <button type="button" onClick={() => onPick(stay)}>Выбрать</button>
+                    {stay.link && (
+                      <a
+                        className="accommodation-catalog-card-link"
+                        href={externalUrl(stay.link)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Открыть ссылку →
+                      </a>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}

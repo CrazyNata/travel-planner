@@ -1844,8 +1844,11 @@ button {
 .accommodation-catalog-rating { display: block; margin-top: 5px; color: #b7791f; font-size: 11px; line-height: 1.25; }
 .accommodation-catalog-rating b { font-weight: 800; }
 .accommodation-catalog-card-body p { display: -webkit-box; overflow: hidden; margin: 7px 0 0; color: #777188; font-size: 11px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.accommodation-catalog-card-body button { margin-top: 10px; border: 0; border-radius: 8px; background: #eeeaff; padding: 7px 10px; color: var(--accent); font: 800 11px Manrope, sans-serif; cursor: pointer; }
+.accommodation-catalog-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.accommodation-catalog-card-body button { margin-top: 0; border: 0; border-radius: 8px; background: #eeeaff; padding: 7px 10px; color: var(--accent); font: 800 11px Manrope, sans-serif; cursor: pointer; }
 .accommodation-catalog-card-body button:hover { background: #ded9ff; }
+.accommodation-catalog-card-link { color: var(--accent); font-size: 10px; font-weight: 800; text-decoration: none; }
+.accommodation-catalog-card-link:hover { text-decoration: underline; }
 .accommodation-catalog-footer { display: flex; align-items: center; margin-top: 18px; }
 .accommodation-catalog-footer span { margin-right: auto; color: #8b8797; font-size: 11px; }
 .accommodation-catalog-footer button { border: 1px solid var(--accent); border-radius: 11px; background: var(--accent); padding: 12px 18px; color: #fff; font-weight: 800; cursor: pointer; }
