@@ -8108,17 +8108,6 @@ function AccommodationForm({
       return next;
     });
   };
-  const updatePhotoTransform = (
-    index: number,
-    field: "offsetX" | "offsetY",
-    value: number,
-  ) => {
-    setPhotoTransforms((current) =>
-      current.map((transform, transformIndex) =>
-        transformIndex === index ? { ...transform, [field]: value } : transform,
-      ),
-    );
-  };
   return (
     <div className="accommodation-modal-backdrop">
       <form
@@ -8253,38 +8242,6 @@ function AccommodationForm({
                       >
                         →
                       </button>
-                      <label>
-                        По горизонтали
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={photoTransforms[index].offsetX}
-                          onChange={(event) =>
-                            updatePhotoTransform(
-                              index,
-                              "offsetX",
-                              Number(event.target.value),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        По вертикали
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={photoTransforms[index].offsetY}
-                          onChange={(event) =>
-                            updatePhotoTransform(
-                              index,
-                              "offsetY",
-                              Number(event.target.value),
-                            )
-                          }
-                        />
-                      </label>
                     </div>
                   ),
               )}
