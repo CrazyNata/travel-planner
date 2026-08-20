@@ -5815,6 +5815,7 @@ function DraftRouteCard({
   day,
   index,
   editing,
+  dragDisabled,
   selected,
   dragging,
   dropTarget,
@@ -5832,6 +5833,7 @@ function DraftRouteCard({
   day: DraftDay;
   index: number;
   editing: boolean;
+  dragDisabled: boolean;
   selected: boolean;
   dragging: boolean;
   dropTarget: boolean;
@@ -5875,18 +5877,21 @@ function DraftRouteCard({
   ];
   return (
     <article
-      className={`draft-route-card${selected ? " selected" : ""}${dragging ? " dragging" : ""}${dropTarget ? " drop-target" : ""}`}
-      draggable
+      className={`draft-route-card${selected ? " selected" : ""}${dragging ? " dragging" : ""}${dropTarget ? " drop-target" : ""}${dragDisabled ? " drag-disabled" : ""}`}
+      draggable={!dragDisabled}
       onDragStart={(event) => {
+        if (dragDisabled) return;
         event.dataTransfer.effectAllowed = "move";
         onDragStart();
       }}
       onDragOver={(event) => {
+        if (dragDisabled) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
         onDragOver();
       }}
       onDrop={(event) => {
+        if (dragDisabled) return;
         event.preventDefault();
         onDrop();
       }}
@@ -6074,11 +6079,16 @@ function RouteTab({
               day={draftDay}
               index={index}
               editing={editingRoadDay === index}
+              dragDisabled={editingRoadDay !== null}
               selected={selectedRouteDay === index}
               dragging={draggedDay === index}
               dropTarget={dropTargetDay === index && draggedDay !== index}
               onSelect={() => setSelectedRouteDay(index)}
-              onEdit={() => onEditingRoadDayChange?.(index)}
+              onEdit={() => {
+                setDraggedDay(null);
+                setDropTargetDay(null);
+                onEditingRoadDayChange?.(index);
+              }}
               onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })}
               onSave={(roadLeg) => {
                 onUpdateDraftDay?.(index, { roadLeg });

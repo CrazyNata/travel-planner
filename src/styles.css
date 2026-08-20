@@ -2967,6 +2967,8 @@ button {
   transition: border-color .18s ease, box-shadow .18s ease, opacity .18s ease, transform .18s ease;
 }
 .draft-route-card:active { cursor: grabbing; }
+.draft-route-card.drag-disabled,
+.draft-route-card.drag-disabled:active { cursor: default; }
 .draft-route-card.dragging { opacity: .45; }
 .draft-route-card.drop-target {
   border-color: var(--accent2);
