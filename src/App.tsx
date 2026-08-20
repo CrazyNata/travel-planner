@@ -1489,7 +1489,10 @@ function StaticTripMap({
             </>
           )}
           {focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
-            <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
+            <>
+              <polyline className="active-halo" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
+            </>
           )}
         </svg>
         {positionedPoints.map(([x, y], index) => (

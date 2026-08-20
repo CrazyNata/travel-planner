@@ -4019,6 +4019,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   stroke-width: 6;
   stroke-opacity: .95;
 }
+.static-map-route polyline.active-halo {
+  stroke: #fff;
+  stroke-width: 12;
+  stroke-opacity: .95;
+}
 .walking-map .static-map-route polyline.overview {
   stroke: #ef7b48;
   stroke-opacity: .9;
