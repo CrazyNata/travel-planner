@@ -3970,6 +3970,61 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   overflow: hidden;
   background: #e4eae4;
 }
+.static-map {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: #dce8dc;
+}
+.static-map-tiles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #dce8dc;
+}
+.static-map-tiles img {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+.static-map-route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.static-map-route polyline {
+  fill: none;
+  stroke: #4c46d6;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: .86;
+  vector-effect: non-scaling-stroke;
+}
+.static-map-marker {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+}
+.static-map-marker.active {
+  transform: translate(-50%, -50%) scale(1.24);
+}
+.static-map-attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 3;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #ffffffcf;
+  color: #59625b;
+  font-size: 9px;
+}
 .map-unavailable {
   display: grid;
   place-items: center;

@@ -1376,6 +1376,110 @@ function routeSegment(coordinates: [number, number][], day: number) {
   return coordinates.slice(day, day + 2);
 }
 
+const STATIC_MAP_WIDTH = 338;
+const STATIC_MAP_HEIGHT = 420;
+
+function staticMapWorldPoint(
+  coordinate: [number, number],
+  zoom: number,
+): [number, number] {
+  const scale = 256 * 2 ** zoom;
+  const latitude = Math.max(-85.05112878, Math.min(85.05112878, coordinate[1]));
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  return [
+    ((coordinate[0] + 180) / 360) * scale,
+    ((1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) / 2) * scale,
+  ];
+}
+
+function staticMapZoom(coordinates: [number, number][]) {
+  if (coordinates.length < 2) return 12;
+  const zooms = Array.from({ length: 11 }, (_, index) => index + 2).reverse();
+  return (
+    zooms.find((zoom) => {
+      const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
+      const xSpan = Math.max(...points.map(([x]) => x)) - Math.min(...points.map(([x]) => x));
+      const ySpan = Math.max(...points.map(([, y]) => y)) - Math.min(...points.map(([, y]) => y));
+      return xSpan <= STATIC_MAP_WIDTH - 54 && ySpan <= STATIC_MAP_HEIGHT - 54;
+    }) || 2
+  );
+}
+
+function StaticTripMap({
+  coordinates,
+  activeDay,
+}: {
+  coordinates: [number, number][];
+  activeDay?: number;
+}) {
+  if (!coordinates.length) {
+    return <div className="map map-unavailable">Добавьте города или места, чтобы увидеть их на карте.</div>;
+  }
+  const zoom = staticMapZoom(coordinates);
+  const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
+  const minX = Math.min(...points.map(([x]) => x));
+  const maxX = Math.max(...points.map(([x]) => x));
+  const minY = Math.min(...points.map(([, y]) => y));
+  const maxY = Math.max(...points.map(([, y]) => y));
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const positionedPoints = points.map(([x, y]) => [
+    STATIC_MAP_WIDTH / 2 + x - centerX,
+    STATIC_MAP_HEIGHT / 2 + y - centerY,
+  ]);
+  const tileCenterX = Math.floor(centerX / 256);
+  const tileCenterY = Math.floor(centerY / 256);
+  const tileCount = 5;
+  const tileLimit = 2 ** zoom;
+  const tiles = Array.from({ length: tileCount * tileCount }, (_, index) => {
+    const offsetX = (index % tileCount) - 2;
+    const offsetY = Math.floor(index / tileCount) - 2;
+    const x = tileCenterX + offsetX;
+    const y = tileCenterY + offsetY;
+    if (y < 0 || y >= tileLimit) return null;
+    const wrappedX = ((x % tileLimit) + tileLimit) % tileLimit;
+    return {
+      key: `${zoom}-${wrappedX}-${y}`,
+      src: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
+      left: x * 256 - centerX,
+      top: y * 256 - centerY,
+    };
+  }).filter((tile): tile is { key: string; src: string; left: number; top: number } => Boolean(tile));
+
+  return (
+    <div className="map">
+      <div className="static-map" aria-label="Карта путешествия">
+        <div className="static-map-tiles" aria-hidden="true">
+          {tiles.map((tile) => (
+            <img
+              key={tile.key}
+              src={tile.src}
+              alt=""
+              draggable={false}
+              style={{ left: `calc(50% + ${tile.left}px)`, top: `calc(50% + ${tile.top}px)` }}
+            />
+          ))}
+        </div>
+        <svg className="static-map-route" viewBox={`0 0 ${STATIC_MAP_WIDTH} ${STATIC_MAP_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
+          {positionedPoints.length > 1 && (
+            <polyline points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+          )}
+        </svg>
+        {positionedPoints.map(([x, y], index) => (
+          <span
+            className={`map-marker static-map-marker${index === activeDay ? " active" : ""}`}
+            key={`${x}-${y}-${index}`}
+            style={{ left: `${(x / STATIC_MAP_WIDTH) * 100}%`, top: `${(y / STATIC_MAP_HEIGHT) * 100}%` }}
+          >
+            {index + 1}
+          </span>
+        ))}
+        <small className="static-map-attribution">© OpenStreetMap contributors</small>
+      </div>
+    </div>
+  );
+}
+
 const winterPhotoCaptions = [
   [
     "Мюнхен",
@@ -4306,6 +4410,18 @@ function TripMap({
   const markerElements = useRef<HTMLSpanElement[]>([]);
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
+  const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
+  const fallbackCoordinates = routeCoordinates.length > 1
+    ? routeCoordinates
+    : location && places.length
+      ? places.map(
+          (_, index) =>
+            [
+              location[0] + (index - 2) * 0.012,
+              location[1] + (index % 2 ? 1 : -1) * (index + 1) * 0.006,
+            ] as [number, number],
+        )
+      : [];
   const routeKey = displayedRouteDays
     .map((day) =>
       [
@@ -4321,7 +4437,7 @@ function TripMap({
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    if (!container.current) return;
+    if (!container.current || !token) return;
     let disposed = false;
     let map: Map | undefined;
     let resizeObserver: ResizeObserver | undefined;
@@ -4329,7 +4445,6 @@ function TripMap({
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       if (token) mapboxgl.accessToken = token;
-      const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
@@ -4405,13 +4520,7 @@ function TripMap({
           map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
         });
       } else if (location && places.length) {
-        const coordinates = places.map(
-          (_, index) =>
-            [
-              location[0] + (index - 2) * 0.012,
-              location[1] + (index % 2 ? 1 : -1) * (index + 1) * 0.006,
-            ] as [number, number],
-        );
+        const coordinates = fallbackCoordinates;
         coordinates.forEach((coordinate, index) => {
           const element = document.createElement("span");
           element.className = "map-marker";
@@ -4479,6 +4588,8 @@ function TripMap({
       });
   }, [activeDay, routeKey]);
 
+  if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
+    return <StaticTripMap coordinates={fallbackCoordinates} activeDay={activeDay} />;
   return (
     <div
       ref={container}
