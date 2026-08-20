@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type InputHTMLAttributes,
   type ReactNode,
 } from "react";
 import type { Map } from "mapbox-gl";
@@ -53,6 +54,86 @@ type CoverPhoto = {
   textColor?: string;
 };
 let weatherCoverPhotos: CoverPhoto[] = [];
+const tripPhotoUrlLifetimeSeconds = 24 * 60 * 60;
+
+function tripPhotoPath(url: string) {
+  try {
+    const pathname = new URL(url).pathname;
+    const match = pathname.match(
+      /\/storage\/v1\/object\/(?:public|sign)\/trip-photos\/(.+)$/,
+    );
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapTripPhotoUrls<T>(
+  value: T,
+  mapUrl: (url: string, path: string) => string,
+): T {
+  if (typeof value === "string") {
+    const path = tripPhotoPath(value);
+    return (path ? mapUrl(value, path) : value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => mapTripPhotoUrls(item, mapUrl)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        mapTripPhotoUrls(item, mapUrl),
+      ]),
+    ) as T;
+  }
+  return value;
+}
+
+function collectTripPhotoPaths(value: unknown, paths = new Set<string>()) {
+  if (typeof value === "string") {
+    const path = tripPhotoPath(value);
+    if (path) paths.add(path);
+  } else if (Array.isArray(value)) {
+    value.forEach((item) => collectTripPhotoPaths(item, paths));
+  } else if (value && typeof value === "object") {
+    Object.values(value).forEach((item) => collectTripPhotoPaths(item, paths));
+  }
+  return paths;
+}
+
+async function signTripPhotoUrls<T>(value: T): Promise<T> {
+  const paths = [...collectTripPhotoPaths(value)];
+  if (!paths.length) return value;
+  const { data, error } = await supabase.storage
+    .from("trip-photos")
+    .createSignedUrls(paths, tripPhotoUrlLifetimeSeconds);
+  if (error) {
+    console.error("Could not load private trip photos.", error);
+    return value;
+  }
+  const signedUrls = new globalThis.Map(
+    (data || []).flatMap((item) =>
+      item.signedUrl ? [[item.path, item.signedUrl] as const] : [],
+    ),
+  );
+  return mapTripPhotoUrls(value, (url, path) => signedUrls.get(path) || url);
+}
+
+function canonicalTripPhotoUrls<T>(value: T): T {
+  return mapTripPhotoUrls(value, (_url, path) =>
+    supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl,
+  );
+}
+
+async function signedTripPhotoUrl(path: string) {
+  const { data, error } = await supabase.storage
+    .from("trip-photos")
+    .createSignedUrl(path, tripPhotoUrlLifetimeSeconds);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 const defaultSightPhotos = [
   "/sight-photos/munich-square.png",
   "/sight-photos/munich-street.png",
@@ -65,6 +146,10 @@ type TripMember = {
   email: string;
   role: "Владелец" | "Редактор" | "Читатель";
   tone: "sand" | "green" | "blue";
+};
+type RememberedAccount = {
+  email: string;
+  name: string;
 };
 type TripSummary = {
   id: string;
@@ -115,6 +200,8 @@ type SavedAccommodation = {
   bookingUrl: string;
   details: string;
   photos: string[];
+  googleRating?: number;
+  googleReviews?: number;
   photoTransforms?: {
     offsetX?: number;
     offsetY?: number;
@@ -122,22 +209,65 @@ type SavedAccommodation = {
     scaleY?: number;
   }[];
 };
+type ImportedAccommodation = {
+  id: string;
+  name: string;
+  city: string;
+  address?: string;
+  description?: string;
+  link?: string;
+  googleRating?: number;
+  googleReviews?: number;
+  photos?: string[];
+  photoNames?: string[];
+  placeType?: string;
+};
 type ImportedRestaurant = {
   id: string;
   name: string;
   city: string;
+  lnglat?: [number, number];
   status: string;
+  cuisine?: string;
   note?: string;
   link?: string;
   price?: string;
   googleRating?: number;
   googleReviews?: number;
   photos?: string[];
+  photoNames?: string[];
   placeType?: string;
   categories?: string[];
   priority?: boolean;
   dogFriendly?: boolean;
 };
+const restaurantCuisineOptions = [
+  "Итальянская",
+  "Тоскана",
+  "Тосканская",
+  "Римская",
+  "Средиземноморская",
+  "Европейская",
+  "Французская",
+  "Испанская",
+  "Чешская",
+  "Австрийская",
+  "Немецкая",
+  "Баварская",
+  "Японская",
+  "Китайская",
+  "Тайская",
+  "Индийская",
+  "Мексиканская",
+  "Американская",
+  "Грузинская",
+  "Турецкая",
+  "Морепродукты",
+  "Пицца",
+  "Стейкхаус",
+  "Вегетарианская",
+  "Кофейня и выпечка",
+];
 type BudgetScope = "общий" | "семья" | "личный";
 type BudgetCurrency = "EUR" | "RUB" | "CZK";
 type BudgetExpense = {
@@ -193,11 +323,123 @@ type StoredSight = {
   subcategory?: string;
   description?: string;
   duration?: string;
+  googleRating?: number;
+  googleReviews?: number;
+  link?: string;
+  photoNames?: string[];
 };
 type DayPlaceDraft = Pick<
   StoredSight,
-  "name" | "subcategory" | "description" | "photo" | "photoPosition"
+  | "name"
+  | "subcategory"
+  | "description"
+  | "photo"
+  | "photoPosition"
+  | "lnglat"
+  | "googleRating"
+  | "googleReviews"
 >;
+type SightRating = { score: number; reviews: number };
+
+const sightRatingPresets: { match: RegExp; score: number; reviews: number }[] = [
+  { match: /marienplatz/i, score: 4.7, reviews: 37200 },
+  { match: /neues rathaus|новая ратуш/i, score: 4.7, reviews: 29400 },
+  { match: /frauenkirche/i, score: 4.7, reviews: 16800 },
+  { match: /piazza bra|пьяцца бра/i, score: 4.7, reviews: 31200 },
+  { match: /piazza delle erbe|пьяцца делле эрбе/i, score: 4.6, reviews: 18900 },
+  { match: /casa di giulietta|дом джульетты|дворик джульетты/i, score: 4.4, reviews: 16400 },
+  { match: /ponte pietra|понте пьетра/i, score: 4.7, reviews: 8700 },
+  { match: /colosse|колиз|colosseo/i, score: 4.8, reviews: 336000 },
+  { match: /trevi|треви/i, score: 4.8, reviews: 112000 },
+  { match: /pantheon|пантеон/i, score: 4.8, reviews: 82000 },
+  { match: /venice|венеци|san marco|сан марко/i, score: 4.7, reviews: 90000 },
+  { match: /pražský hrad|пражск.*град|charles bridge|карлов.*мост/i, score: 4.8, reviews: 78000 },
+];
+
+function sightRatingFor(sight: StoredSight): SightRating {
+  if (typeof sight.googleRating === "number" && Number.isFinite(sight.googleRating)) {
+    return {
+      score: sight.googleRating,
+      reviews: typeof sight.googleReviews === "number" && Number.isFinite(sight.googleReviews)
+        ? Math.trunc(sight.googleReviews)
+        : 0,
+    };
+  }
+  const preset = sightRatingPresets.find(({ match }) => match.test(sight.name));
+  if (preset) return { score: preset.score, reviews: preset.reviews };
+  let hash = 0;
+  for (const character of `${sight.city}:${sight.name}`) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return {
+    score: 4.5 + (hash % 5) / 10,
+    reviews: 1200 + (hash % 23800),
+  };
+}
+
+function formatSightReviews(reviews: number) {
+  return reviews.toLocaleString("ru-RU");
+}
+
+const sightDescriptionPresets: { match: RegExp; text: string }[] = [
+  { match: /piazza navona/i, text: "Барочная площадь Рима с фонтаном Четырёх рек, дворцами и уличными кафе." },
+  { match: /fontana dei quattro fiumi|фонтан четыр[ёе]х рек/i, text: "Знаменитый барочный фонтан Бернини в центре площади Навона." },
+  { match: /sant['’]?agnese|chiesa.*agnese/i, text: "Барочная церковь на площади Навона с выразительным фасадом и богатым интерьером." },
+  { match: /piazza venezia/i, text: "Монументальная площадь в центре Рима у Витториано и главных исторических улиц." },
+  { match: /arena di verona|арена вероны/i, text: "Римский амфитеатр, где проходят оперные спектакли и большие городские события." },
+  { match: /charles bridge|карлов.*мост|praz(?:sky|ský) hrad|пражск.*мост/i, text: "Средневековый мост через Влтаву со статуями и видами на исторический центр." },
+  { match: /marienplatz/i, text: "Главная площадь Мюнхена с Новой ратушей, часами Глокеншпиля и рождественской ярмаркой." },
+];
+
+function sightDescriptionFor(sight: StoredSight) {
+  if (sight.description?.trim()) return sight.description.trim();
+  const label = `${sight.name} ${sight.city}`.toLowerCase();
+  const preset = sightDescriptionPresets.find(({ match }) => match.test(label));
+  if (preset) return preset.text;
+  if (/площад|piazza|square/.test(label)) {
+    return "Историческая площадь с красивой архитектурой, городской жизнью и местами для прогулки.";
+  }
+  if (/собор|церк|базилик|kirche|duomo|basilica|church|chiesa/.test(label)) {
+    return "Исторический храм с выразительным фасадом, интересным интерьером и атмосферой старого города.";
+  }
+  if (/ярмарк|рынок|market|christkindlmarkt|елк|подсветк|lights/.test(label)) {
+    return "Праздничная локация с огнями, ярмарочными домиками, местными угощениями и сувенирами.";
+  }
+  if (/улиц|via |corso|straß|strasse|street|квартал/.test(label)) {
+    return "Прогулочная улица с историческими фасадами, магазинами, кафе и атмосферой центра города.";
+  }
+  if (/мост|ponte|bridge/.test(label)) {
+    return "Живописная точка маршрута с исторической архитектурой и видами на воду и старый город.";
+  }
+  if (/замок|дворец|palazzo|residenz|castle|palace/.test(label)) {
+    return "Исторический комплекс с парадными залами, красивыми дворами и архитектурными деталями.";
+  }
+  if (/фонтан|fontan/.test(label)) {
+    return "Знаковая городская достопримечательность с выразительной скульптурой и историей.";
+  }
+  if (/парк|сад|garden|parco|hofgarten/.test(label)) {
+    return "Спокойное место для прогулки среди зелени, архитектуры и городских видов.";
+  }
+  if (/набереж|реки|канал|canal|tiber|arno|lagoon|берег/.test(label)) {
+    return "Живописная прогулка вдоль воды с видами на город, мосты и исторические здания.";
+  }
+  if (/башн|tower|torre/.test(label)) {
+    return "Историческая башня с характерным силуэтом и красивым видом на город.";
+  }
+  if (/смотров|панорам|вид|view|panorama/.test(label)) {
+    return "Смотровая точка с панорамой города и отличными возможностями для фотографий.";
+  }
+  if (/музе|museum/.test(label)) {
+    return "Место для знакомства с историей, искусством и культурой города.";
+  }
+  if (/театр|теат|scala/.test(label)) {
+    return "Знаковое культурное место с богатой историей, красивым фасадом и особой атмосферой.";
+  }
+  if (/монумент|стату|statue|monument/.test(label)) {
+    return "Памятник, который помогает лучше почувствовать историю и характер города.";
+  }
+  return `Историческая достопримечательность «${sight.name}» в городе ${sight.city}: архитектура, история и место для прогулки.`;
+}
 type StoredTripPayload = {
   data?: {
     days?: StoredDay[];
@@ -253,6 +495,25 @@ function formatTripDates(start?: string, end?: string) {
   return `${range} · ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
 }
 
+function parseTripDateRange(value: string) {
+  const months: Record<string, number> = {
+    январь: 1, января: 1, февраль: 2, февраля: 2, март: 3, марта: 3,
+    апрель: 4, апреля: 4, май: 5, мая: 5, июнь: 6, июня: 6,
+    июль: 7, июля: 7, август: 8, августа: 8, сентябрь: 9, сентября: 9,
+    октябрь: 10, октября: 10, ноябрь: 11, ноября: 11, декабрь: 12, декабря: 12,
+  };
+  const match = value.toLowerCase().match(
+    /(\d{1,2})\s+([а-яё]+)\s+(\d{4})\s*[–—-]\s*(\d{1,2})\s+([а-яё]+)\s+(\d{4})/,
+  );
+  if (!match) return null;
+  const startMonth = months[match[2]];
+  const endMonth = months[match[5]];
+  if (!startMonth || !endMonth) return null;
+  const iso = (year: string, month: number, day: string) =>
+    `${year}-${String(month).padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return [iso(match[3], startMonth, match[1]), iso(match[6], endMonth, match[4])] as const;
+}
+
 function normalizeTripDates(dates: string) {
   const match = dates.match(
     /^(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})$/,
@@ -261,25 +522,76 @@ function normalizeTripDates(dates: string) {
 }
 
 function cityFlag(city: string) {
-  if (city.includes("Прага")) return "🇨🇿";
-  if (city.includes("Зальцбург")) return "🇦🇹";
-  if (city.includes("Мюнхен") || city.includes("Равенсбург")) return "🇩🇪";
-  if (
+  const country = city.includes("Прага")
+    ? "cz"
+    : city.includes("Зальцбург")
+      ? "at"
+      : city.includes("Мюнхен") || city.includes("Равенсбург")
+        ? "de"
+        : city.includes("Сан-Марино")
+          ? "sm"
+          : (
     [
       "Верона",
       "Рим",
       "Пиза",
       "Фильине",
-      "Сан-Марино",
       "Кьоджа",
       "Милан",
       "Вальдидентро",
       "Флоренция",
       "Венеция",
     ].some((name) => city.includes(name))
-  )
-    return "🇮🇹";
-  return "";
+            ? "it"
+            : null);
+  if (!country) return null;
+  const labels = {
+    cz: "Чехия",
+    at: "Австрия",
+    de: "Германия",
+    sm: "Сан-Марино",
+    it: "Италия",
+  };
+  return (
+    <span className="city-flag" role="img" aria-label={labels[country]}>
+      <svg viewBox="0 0 24 16" aria-hidden="true">
+        {country === "cz" && (
+          <>
+            <path fill="#fff" d="M0 0h24v8H0z" />
+            <path fill="#d7141a" d="M0 8h24v8H0z" />
+            <path fill="#11457e" d="m0 0 10 8-10 8z" />
+          </>
+        )}
+        {country === "at" && (
+          <>
+            <path fill="#ed2939" d="M0 0h24v16H0z" />
+            <path fill="#fff" d="M0 5.33h24v5.34H0z" />
+          </>
+        )}
+        {country === "de" && (
+          <>
+            <path fill="#151515" d="M0 0h24v5.34H0z" />
+            <path fill="#d00" d="M0 5.33h24v5.34H0z" />
+            <path fill="#ffce00" d="M0 10.66h24V16H0z" />
+          </>
+        )}
+        {country === "it" && (
+          <>
+            <path fill="#009246" d="M0 0h8v16H0z" />
+            <path fill="#fff" d="M8 0h8v16H8z" />
+            <path fill="#ce2b37" d="M16 0h8v16h-8z" />
+          </>
+        )}
+        {country === "sm" && (
+          <>
+            <path fill="#fff" d="M0 0h24v8H0z" />
+            <path fill="#5eb6e4" d="M0 8h24v8H0z" />
+            <circle cx="12" cy="8" r="2.3" fill="#f5c242" stroke="#55764f" strokeWidth=".7" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
 }
 
 type PhotoMetadata = { date?: string; city?: string };
@@ -499,11 +811,36 @@ function saveTripToSupabase(trip: TripSummary) {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user) return;
-      const { error } = await supabase.from("trips").upsert(
-        { id: trip.id, owner_id: session.user.id, payload: trip },
-        { onConflict: "id" },
-      );
-      if (error) throw error;
+      const payload = canonicalTripPhotoUrls(trip);
+      const { data: updated, error: updateError } = await supabase
+        .from("trips")
+        .update({ payload })
+        .eq("id", trip.id)
+        .select("id");
+      if (updateError) throw updateError;
+      if (updated?.length) return;
+
+      const { data: membership, error: membershipError } = await supabase
+        .from("trip_collaborators")
+        .select("role")
+        .eq("trip_id", trip.id)
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (membershipError) throw membershipError;
+      if (membership) {
+        throw new Error(
+          membership.role === "Читатель"
+            ? "Trip is read-only for this user."
+            : "Could not update the shared trip.",
+        );
+      }
+
+      const { error: insertError } = await supabase.from("trips").insert({
+        id: trip.id,
+        owner_id: session.user.id,
+        payload,
+      });
+      if (insertError) throw insertError;
     })
     .catch((error) => console.error("Could not save the trip.", error))
     .finally(() => {
@@ -661,6 +998,58 @@ const accommodationCities = [
   "Флоренция, Италия",
   "Цюрих, Швейцария",
   "Зальцбург, Австрия",
+  "Аликанте, Испания",
+  "Афины, Греция",
+  "Братислава, Словакия",
+  "Брюссель, Бельгия",
+  "Варшава, Польша",
+  "Глазго, Великобритания",
+  "Грац, Австрия",
+  "Дрезден, Германия",
+  "Дубровник, Хорватия",
+  "Женева, Швейцария",
+  "Загреб, Хорватия",
+  "Инсбрук, Австрия",
+  "Копенгаген, Дания",
+  "Краков, Польша",
+  "Лион, Франция",
+  "Любляна, Словения",
+  "Марсель, Франция",
+  "Ницца, Франция",
+  "Осло, Норвегия",
+  "Порту, Португалия",
+  "Пиза, Италия",
+  "Рига, Латвия",
+  "Севилья, Испания",
+  "София, Болгария",
+  "Стокгольм, Швеция",
+  "Таллин, Эстония",
+  "Тбилиси, Грузия",
+  "Токио, Япония",
+  "Хельсинки, Финляндия",
+  "Валенсия, Испания",
+  "Вильнюс, Литва",
+  "Чикаго, США",
+  "Эдинбург, Великобритания",
+  "Кейптаун, ЮАР",
+  "Киото, Япония",
+  "Майами, США",
+  "Мельбурн, Австралия",
+  "Москва, Россия",
+  "Монреаль, Канада",
+  "Нью-Йорк, США",
+  "Сингапур, Сингапур",
+  "Сидней, Австралия",
+  "Санкт-Петербург, Россия",
+  "Казань, Россия",
+  "Сочи, Россия",
+  "Екатеринбург, Россия",
+  "Новосибирск, Россия",
+  "Торонто, Канада",
+  "Ванкувер, Канада",
+  "Вашингтон, США",
+  "Кастель-Гандольфо, Италия",
+  "Озеро Комо, Италия",
 ];
 
 function externalUrl(value: string) {
@@ -697,16 +1086,93 @@ function formatAccommodationDates(value: string) {
   return `${range} · ${nights} ${nightLabel}`;
 }
 
+type AccommodationCurrency =
+  | "EUR"
+  | "USD"
+  | "GBP"
+  | "RUB"
+  | "CZK"
+  | "PLN"
+  | "CHF"
+  | "HUF"
+  | "TRY"
+  | "JPY";
+
+const accommodationCurrencies: {
+  value: AccommodationCurrency;
+  label: string;
+  symbol: string;
+}[] = [
+  { value: "EUR", label: "EUR", symbol: "€" },
+  { value: "USD", label: "USD", symbol: "$" },
+  { value: "GBP", label: "GBP", symbol: "£" },
+  { value: "RUB", label: "RUB", symbol: "₽" },
+  { value: "CZK", label: "CZK", symbol: "Kč" },
+  { value: "PLN", label: "PLN", symbol: "zł" },
+  { value: "CHF", label: "CHF", symbol: "CHF" },
+  { value: "HUF", label: "HUF", symbol: "Ft" },
+  { value: "TRY", label: "TRY", symbol: "₺" },
+  { value: "JPY", label: "JPY", symbol: "¥" },
+];
+
+function parseAccommodationPrice(value?: string) {
+  const input = value?.trim() || "";
+  if (!input) return { amount: "", currency: "EUR" as AccommodationCurrency };
+  const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const currency = accommodationCurrencies.find(({ symbol, value: code }) => {
+    const escapedSymbol = escapeRegExp(symbol);
+    return new RegExp(`^(?:${escapedSymbol}|${code})\\s*`, "i").test(input) ||
+      new RegExp(`\\s*(?:${escapedSymbol}|${code})$`, "i").test(input);
+  });
+  if (!currency) return { amount: input, currency: "EUR" as AccommodationCurrency };
+  const currencyPattern = `(?:${escapeRegExp(currency.symbol)}|${currency.value})`;
+  const withoutPrefix = input.replace(
+    new RegExp(`^${currencyPattern}\\s*`, "i"),
+    "",
+  );
+  return {
+    amount: withoutPrefix.replace(
+      new RegExp(`\\s*${currencyPattern}$`, "i"),
+      "",
+    ).trim(),
+    currency: currency.value,
+  };
+}
+
+function formatAccommodationPriceValue(
+  amount: string,
+  currency: AccommodationCurrency,
+) {
+  const normalizedAmount = amount.trim();
+  if (!normalizedAmount) return "";
+  return `${accommodationCurrencies.find((item) => item.value === currency)?.symbol || "€"}${normalizedAmount}`;
+}
+
 function formatAccommodationPrice(value: string) {
-  const amount = value.trim();
-  if (!amount) return "";
-  return /^[€$£₽]/.test(amount) || /[€$£₽]$/.test(amount)
-    ? amount
-    : `€${amount}`;
+  const parsed = parseAccommodationPrice(value);
+  return formatAccommodationPriceValue(parsed.amount, parsed.currency);
 }
 
 function mapStyle() {
-  return "mapbox://styles/mapbox/streets-v12";
+  return {
+    version: 8 as const,
+    sources: {
+      openstreetmap: {
+        type: "raster" as const,
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
+    },
+    layers: [
+      {
+        id: "openstreetmap",
+        type: "raster" as const,
+        source: "openstreetmap",
+      },
+    ],
+  };
 }
 
 const sightImageCache = new globalThis.Map<string, string>();
@@ -2943,6 +3409,747 @@ const pragueDayThirteenSights: StoredSight[] = [
   },
 ];
 
+const attractionCatalog: StoredSight[] = Array.from(
+  new globalThis.Map(
+    [
+      ...munichDayOneSights,
+      ...veronaDayTwoSights,
+      ...romeDayThreeSights,
+      ...romeDayFourSights,
+      ...romeDayFiveSights,
+      ...sanMarinoDaySixSights,
+      ...pisaDaySixSights,
+      ...chioggiaDayEightSights,
+      ...veniceDayNineSights,
+      ...milanDayTenSights,
+      ...ravensburgDayElevenSights,
+      ...pragueDayTwelveSights,
+      ...pragueDayThirteenSights,
+      ...pragueDayFourteenSights,
+    ].map((sight) => [sight.id, sight] as const),
+  ).values(),
+);
+
+type WikipediaAttractionPage = {
+  pageid?: number;
+  title?: string;
+  extract?: string;
+  fullurl?: string;
+  thumbnail?: { source?: string };
+  coordinates?: { lat?: number; lon?: number }[];
+};
+
+async function fetchWikipediaAttractions(city: string, signal: AbortSignal) {
+  const sources = [
+    {
+      endpoint: "https://ru.wikipedia.org/w/api.php",
+      search: `${city} достопримечательности`,
+    },
+    {
+      endpoint: "https://en.wikipedia.org/w/api.php",
+      search: `${city} attractions`,
+    },
+  ];
+  const results = await Promise.all(
+    sources.map(async ({ endpoint, search }) => {
+      const params = new URLSearchParams({
+        action: "query",
+        format: "json",
+        formatversion: "2",
+        origin: "*",
+        generator: "search",
+        gsrsearch: search,
+        gsrnamespace: "0",
+        gsrlimit: "12",
+        prop: "pageimages|extracts|coordinates|info",
+        piprop: "thumbnail|original",
+        pithumbsize: "480",
+        pilimit: "12",
+        exintro: "1",
+        explaintext: "1",
+        exsentences: "2",
+        inprop: "url",
+      });
+      const response = await fetch(`${endpoint}?${params}`, { signal });
+      if (!response.ok) throw new Error("Wikipedia catalog request failed");
+      const data = await response.json() as {
+        query?: { pages?: WikipediaAttractionPage[] };
+      };
+      return data.query?.pages || [];
+    }),
+  );
+  const normalizedCity = city.toLocaleLowerCase();
+  const cityTokens = normalizedCity
+    .split(/[\s,·-]+/)
+    .filter((token) => token.length >= 3)
+    .map((token) => token.slice(0, Math.max(3, token.length - 2)));
+  const requireCityMention = /[А-Яа-яЁё]/.test(city);
+  const unique = new globalThis.Map<string, StoredSight>();
+  results.flat().forEach((page) => {
+    const name = page.title?.trim();
+    const photo = page.thumbnail?.source?.trim();
+    if (!name || !photo || unique.has(name.toLocaleLowerCase())) return;
+    if (
+      requireCityMention &&
+      !cityTokens.some((token) =>
+        `${name} ${page.extract || ""}`.toLocaleLowerCase().includes(token),
+      )
+    ) return;
+    const coordinate = page.coordinates?.[0];
+    unique.set(name.toLocaleLowerCase(), {
+      id: `wikipedia-${page.pageid || crypto.randomUUID()}`,
+      name,
+      city,
+      group: "Достопримечательность",
+      subcategory: "Каталог · Wikipedia",
+      description: page.extract?.trim() || undefined,
+      photo,
+      lnglat:
+        typeof coordinate?.lat === "number" && typeof coordinate.lon === "number"
+          ? [coordinate.lon, coordinate.lat]
+          : undefined,
+    });
+  });
+  return [...unique.values()];
+}
+
+type GoogleSightCatalogPlace = {
+  place_id?: unknown;
+  name?: unknown;
+  address?: unknown;
+  category?: unknown;
+  type?: unknown;
+  rating?: unknown;
+  rating_count?: unknown;
+  description?: unknown;
+  photo_url?: unknown;
+  photo_names?: unknown;
+  google_maps_url?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+};
+
+async function fetchGoogleSightCatalog(city: string, signal: AbortSignal) {
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  if (!publishableKey || !city.trim()) throw new Error("Google Places is not configured");
+  const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
+    method: "POST",
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${publishableKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      category: "sight",
+      city: restaurantCitySearchName(city),
+      limit: 60,
+      languageCode: "ru",
+    }),
+  });
+  if (!response.ok) throw new Error("Google sight catalog request failed");
+  const data = await response.json().catch(() => null) as {
+    sights?: GoogleSightCatalogPlace[];
+  } | null;
+  const places = Array.isArray(data?.sights) ? data.sights : [];
+  return places.flatMap((place, index) => {
+    const name = String(place.name || "").trim();
+    if (!name) return [];
+    const latitude = typeof place.latitude === "number" ? place.latitude : Number(place.latitude);
+    const longitude = typeof place.longitude === "number" ? place.longitude : Number(place.longitude);
+    const coordinate = Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? [longitude, latitude] as [number, number]
+      : undefined;
+    const rating = typeof place.rating === "number" ? place.rating : Number(place.rating);
+    const reviews = typeof place.rating_count === "number"
+      ? place.rating_count
+      : place.rating_count === null || place.rating_count === undefined
+        ? NaN
+        : Number(place.rating_count);
+    const photoNames = Array.isArray(place.photo_names)
+      ? place.photo_names.filter((item): item is string => typeof item === "string")
+      : [];
+    const photo = String(place.photo_url || "").trim();
+    return [{
+      id: `google-sight-${String(place.place_id || index)}`,
+      name,
+      city,
+      group: "Достопримечательность",
+      subcategory: String(place.type || place.category || "Достопримечательность").trim() || "Достопримечательность",
+      description: String(place.description || place.address || "").trim() || undefined,
+      photo: photo || undefined,
+      photoNames,
+      lnglat: coordinate,
+      googleRating: Number.isFinite(rating) ? rating : undefined,
+      googleReviews: Number.isFinite(reviews) ? Math.trunc(reviews) : undefined,
+      link: String(place.google_maps_url || "").trim() || undefined,
+    } satisfies StoredSight];
+  });
+}
+
+async function fetchSightCatalog(city: string, signal: AbortSignal) {
+  try {
+    const googleItems = await fetchGoogleSightCatalog(city, signal);
+    if (googleItems.length) return googleItems;
+  } catch (error) {
+    if (signal.aborted) throw error;
+  }
+  return fetchWikipediaAttractions(city, signal);
+}
+
+type GoogleAccommodationCatalogPlace = {
+  place_id?: unknown;
+  name?: unknown;
+  address?: unknown;
+  category?: unknown;
+  type?: unknown;
+  rating?: unknown;
+  rating_count?: unknown;
+  description?: unknown;
+  photo_url?: unknown;
+  photo_names?: unknown;
+  google_maps_url?: unknown;
+};
+
+async function fetchGoogleAccommodationCatalog(
+  city: string,
+  query: string,
+  signal: AbortSignal,
+) {
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  if (!publishableKey || !city.trim()) throw new Error("Google Places is not configured");
+  const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
+    method: "POST",
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${publishableKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      category: "accommodation",
+      city: restaurantCitySearchName(city),
+      query: query.trim(),
+      limit: 60,
+      languageCode: "ru",
+    }),
+  });
+  if (!response.ok) throw new Error("Google accommodation catalog request failed");
+  const data = await response.json().catch(() => null) as {
+    accommodations?: GoogleAccommodationCatalogPlace[];
+  } | null;
+  const places = Array.isArray(data?.accommodations) ? data.accommodations : [];
+  return places.flatMap((place, index) => {
+    const name = String(place.name || "").trim();
+    if (!name) return [];
+    const rating = typeof place.rating === "number" ? place.rating : Number(place.rating);
+    const reviews = typeof place.rating_count === "number" ? place.rating_count : Number(place.rating_count);
+    const photoNames = Array.isArray(place.photo_names)
+      ? place.photo_names.filter((item): item is string => typeof item === "string")
+      : [];
+    const photo = String(place.photo_url || "").trim();
+    return [{
+      id: `google-accommodation-${String(place.place_id || index)}`,
+      name,
+      city,
+      address: String(place.address || "").trim() || undefined,
+      description: String(place.description || place.address || "").trim() || undefined,
+      link: String(place.google_maps_url || "").trim() || undefined,
+      googleRating: Number.isFinite(rating) ? rating : undefined,
+      googleReviews: Number.isFinite(reviews) ? Math.trunc(reviews) : undefined,
+      photos: photo ? [photo] : [],
+      photoNames,
+      placeType: String(place.type || place.category || "Жильё").trim() || "Жильё",
+    } satisfies ImportedAccommodation];
+  });
+}
+
+type MapboxRestaurantFeature = {
+  id?: string;
+  text?: string;
+  place_name?: string;
+  center?: [number, number];
+  geometry?: { coordinates?: [number, number] };
+  properties?: { category?: string; cuisine?: string; image?: string; website?: string };
+};
+
+type PhotonRestaurantFeature = {
+  properties?: {
+    osm_type?: string;
+    osm_id?: number;
+    name?: string;
+    city?: string;
+    country?: string;
+    street?: string;
+    housenumber?: string;
+    osm_value?: string;
+    cuisine?: string;
+    image?: string;
+    website?: string;
+  };
+  geometry?: { coordinates?: [number, number] };
+};
+
+type RestaurantWikiPage = {
+  title?: string;
+  extract?: string;
+  fullurl?: string;
+  thumbnail?: { source?: string };
+};
+
+type CommonsRestaurantPage = {
+  imageinfo?: { thumburl?: string; url?: string }[];
+};
+
+type GoogleRestaurantCatalogPlace = {
+  place_id?: unknown;
+  name?: unknown;
+  address?: unknown;
+  cuisine?: unknown;
+  category?: unknown;
+  type?: unknown;
+  rating?: unknown;
+  rating_count?: unknown;
+  price_level?: unknown;
+  description?: unknown;
+  photo_url?: unknown;
+  photo_name?: unknown;
+  photo_names?: unknown;
+  google_maps_url?: unknown;
+  website?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+};
+
+function restaurantPriceFromGoogle(value: unknown) {
+  const level = typeof value === "number" && Number.isFinite(value)
+    ? Math.trunc(value)
+    : 0;
+  return level >= 1 && level <= 4 ? "€".repeat(level) : "€€";
+}
+
+function restaurantCuisineFromCatalog(value: unknown, name: string, city: string) {
+  const text = `${String(value || "")} ${name} ${city}`.toLocaleLowerCase();
+  const matches: [RegExp, string][] = [
+    [/pizza|pizzeria|italian|итал|рим|rome|trattoria|osteria/, "Итальянская"],
+    [/sushi|ramen|japan|япон/, "Японская"],
+    [/thai|тайск/, "Тайская"],
+    [/indian|индий/, "Индийская"],
+    [/mexican|мексик/, "Мексиканская"],
+    [/chinese|китай/, "Китайская"],
+    [/french|француз/, "Французская"],
+    [/spanish|испан/, "Испанская"],
+    [/czech|чеш|prague|прага/, "Чешская"],
+    [/german|немец|munich|мюнх|salzburg|зальцбург/, "Европейская"],
+    [/seafood|fish|морепродукт/, "Морепродукты"],
+    [/steak|стейк/, "Стейкхаус"],
+    [/coffee|cafe|кафе|кофейн/, "Кофейня и выпечка"],
+  ];
+  return matches.find(([pattern]) => pattern.test(text))?.[1] || "Европейская";
+}
+
+function googleFunctionUrl(functionName: string) {
+  const baseUrl = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  return `${baseUrl}/functions/v1/${functionName}`;
+}
+
+async function fetchGoogleRestaurantPhotoUrls(
+  photoNames: string[],
+  signal: AbortSignal,
+) {
+  if (!photoNames.length) return new globalThis.Map<string, string>();
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  if (!publishableKey) return new globalThis.Map<string, string>();
+  const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
+    method: "POST",
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${publishableKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ photoNames: photoNames.slice(0, 24) }),
+  });
+  if (!response.ok) return new globalThis.Map<string, string>();
+  const data = await response.json().catch(() => null) as {
+    photos?: { photo_name?: unknown; photo_url?: unknown }[];
+  } | null;
+  return new globalThis.Map<string, string>(
+    (data?.photos || [])
+      .filter((photo) => typeof photo.photo_name === "string" && typeof photo.photo_url === "string")
+      .map((photo) => [String(photo.photo_name), String(photo.photo_url)] as [string, string]),
+  );
+}
+
+async function fetchGoogleRestaurantCatalog(
+  city: string,
+  query: string,
+  signal: AbortSignal,
+): Promise<ImportedRestaurant[]> {
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  if (!publishableKey || !city.trim()) return [];
+  const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
+    method: "POST",
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${publishableKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      category: "restaurant",
+      city: restaurantCitySearchName(city),
+      query: query.trim(),
+      limit: 60,
+      languageCode: "ru",
+    }),
+  });
+  if (!response.ok) throw new Error("Google restaurant catalog request failed");
+  const data = await response.json().catch(() => null) as {
+    restaurants?: GoogleRestaurantCatalogPlace[];
+  } | null;
+  const places = Array.isArray(data?.restaurants) ? data.restaurants : [];
+  return places.map((place, index) => {
+    const name = String(place.name || "Ресторан").trim() || "Ресторан";
+    const photo = String(place.photo_url || "");
+    const latitude = typeof place.latitude === "number" ? place.latitude : Number(place.latitude);
+    const longitude = typeof place.longitude === "number" ? place.longitude : Number(place.longitude);
+    const coordinate = Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? [longitude, latitude] as [number, number]
+      : undefined;
+    const rating = typeof place.rating === "number" ? place.rating : Number(place.rating);
+    const reviews = typeof place.rating_count === "number" ? place.rating_count : Number(place.rating_count);
+    const photoNames = Array.isArray(place.photo_names)
+      ? place.photo_names.filter((item): item is string => typeof item === "string")
+      : [];
+    return {
+      id: `google-restaurant-${String(place.place_id || index)}`,
+      name,
+      city,
+      lnglat: coordinate,
+      status: "хочу",
+      cuisine: restaurantCuisineFromCatalog(place.cuisine, name, city),
+      note: String(place.description || place.address || "").trim() || undefined,
+      link: String(place.google_maps_url || place.website || "").trim() || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, ${city}`)}`,
+      price: restaurantPriceFromGoogle(place.price_level),
+      googleRating: Number.isFinite(rating) ? rating : undefined,
+      googleReviews: Number.isFinite(reviews) ? Math.trunc(reviews) : undefined,
+      photos: photo ? [photo] : [],
+      photoNames,
+      placeType: String(place.type || "Ресторан").trim() || "Ресторан",
+      categories: [String(place.category || "Ресторан").trim() || "Ресторан"],
+    } satisfies ImportedRestaurant;
+  });
+}
+
+async function enrichRestaurantCatalogPhotos(
+  restaurants: ImportedRestaurant[],
+  signal: AbortSignal,
+) {
+  const photoNames = restaurants
+    .filter((restaurant) => !restaurant.photos?.length)
+    .map((restaurant) => restaurant.photoNames?.[0] || "")
+    .filter(Boolean);
+  if (!photoNames.length) return restaurants;
+  // Google Places accepts a limited number of photo names per request. Resolve
+  // the whole catalog in small parallel batches so cards beyond the first
+  // viewport also get their real photos, while the catalog itself remains
+  // usable as soon as the restaurant list arrives.
+  const photoUrls = new globalThis.Map<string, string>();
+  const batchSize = 24;
+  const batches: string[][] = [];
+  for (let index = 0; index < photoNames.length; index += batchSize) {
+    batches.push(photoNames.slice(index, index + batchSize));
+  }
+  const resolvedBatches = await Promise.all(
+    batches.map((batch) => fetchGoogleRestaurantPhotoUrls(batch, signal)),
+  );
+  resolvedBatches.forEach((batch) => {
+    batch.forEach((url, name) => photoUrls.set(name, url));
+  });
+  if (!photoUrls.size) return restaurants;
+  return restaurants.map((restaurant) => {
+    if (restaurant.photos?.length || !restaurant.photoNames?.[0]) return restaurant;
+    const photo = photoUrls.get(restaurant.photoNames[0]);
+    return photo ? { ...restaurant, photos: [photo] } : restaurant;
+  });
+}
+
+async function enrichSightCatalogPhotos(
+  sights: StoredSight[],
+  signal: AbortSignal,
+) {
+  const photoNames = sights
+    .filter((sight) => !sight.photo)
+    .map((sight) => sight.photoNames?.[0] || "")
+    .filter(Boolean);
+  if (!photoNames.length) return sights;
+  const photoUrls = new globalThis.Map<string, string>();
+  const batchSize = 24;
+  const batches: string[][] = [];
+  for (let index = 0; index < photoNames.length; index += batchSize) {
+    batches.push(photoNames.slice(index, index + batchSize));
+  }
+  const resolvedBatches = await Promise.all(
+    batches.map((batch) => fetchGoogleRestaurantPhotoUrls(batch, signal)),
+  );
+  resolvedBatches.forEach((batch) => {
+    batch.forEach((url, name) => photoUrls.set(name, url));
+  });
+  if (!photoUrls.size) return sights;
+  return sights.map((sight) => {
+    if (sight.photo || !sight.photoNames?.[0]) return sight;
+    const photo = photoUrls.get(sight.photoNames[0]);
+    return photo ? { ...sight, photo } : sight;
+  });
+}
+
+async function enrichAccommodationCatalogPhotos(
+  stays: ImportedAccommodation[],
+  signal: AbortSignal,
+) {
+  const photoNames = stays
+    .filter((stay) => !stay.photos?.length)
+    .map((stay) => stay.photoNames?.[0] || "")
+    .filter(Boolean);
+  if (!photoNames.length) return stays;
+  const photoUrls = new globalThis.Map<string, string>();
+  const batchSize = 24;
+  const batches: string[][] = [];
+  for (let index = 0; index < photoNames.length; index += batchSize) {
+    batches.push(photoNames.slice(index, index + batchSize));
+  }
+  const resolvedBatches = await Promise.all(
+    batches.map((batch) => fetchGoogleRestaurantPhotoUrls(batch, signal)),
+  );
+  resolvedBatches.forEach((batch) => {
+    batch.forEach((url, name) => photoUrls.set(name, url));
+  });
+  if (!photoUrls.size) return stays;
+  return stays.map((stay) => {
+    if (stay.photos?.length || !stay.photoNames?.[0]) return stay;
+    const photo = photoUrls.get(stay.photoNames[0]);
+    return photo ? { ...stay, photos: [photo] } : stay;
+  });
+}
+
+function restaurantCitySearchName(city: string) {
+  const name = city.toLocaleLowerCase();
+  const aliases: [RegExp, string][] = [
+    [/зальцбург|salzburg/, "Salzburg"],
+    [/мюнхен|munich/, "Munich"],
+    [/прага|prague/, "Prague"],
+    [/рим|rome/, "Rome"],
+    [/флоренц|флоренция|florence/, "Florence"],
+    [/венеци|venice/, "Venice"],
+    [/верона|verona/, "Verona"],
+    [/милан|milan/, "Milan"],
+    [/пиза|pisa/, "Pisa"],
+  ];
+  return aliases.find(([pattern]) => pattern.test(name))?.[1] || city.split(",")[0].trim();
+}
+
+function cleanRestaurantName(name: string) {
+  return name.replace(/^(restaurant|ristorante|restaurace|cafe|café|bar)\s+/i, "").trim();
+}
+
+async function fetchCommonsRestaurantPhoto(name: string, city: string, signal: AbortSignal) {
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    formatversion: "2",
+    origin: "*",
+    generator: "search",
+    gsrsearch: `${cleanRestaurantName(name)} ${restaurantCitySearchName(city)}`,
+    gsrnamespace: "6",
+    gsrlimit: "3",
+    prop: "imageinfo",
+    iiprop: "url",
+    iiurlwidth: "640",
+  });
+  const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { signal });
+  if (!response.ok) throw new Error("Commons photo request failed");
+  const data = await response.json() as { query?: { pages?: CommonsRestaurantPage[] } };
+  return data.query?.pages
+    ?.map((page) => page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url)
+    .find(Boolean);
+}
+
+async function fetchRestaurantWikiInfo(
+  name: string,
+  city: string,
+  signal: AbortSignal,
+) {
+  const searches = [
+    { endpoint: "https://ru.wikipedia.org/w/api.php", search: `${cleanRestaurantName(name)} ${city}` },
+    { endpoint: "https://en.wikipedia.org/w/api.php", search: `${cleanRestaurantName(name)} ${restaurantCitySearchName(city)}` },
+  ];
+  const pageResults = await Promise.all(
+    searches.map(async ({ endpoint, search }) => {
+      try {
+        const params = new URLSearchParams({
+          action: "query",
+          format: "json",
+          formatversion: "2",
+          origin: "*",
+          generator: "search",
+          gsrsearch: search,
+          gsrnamespace: "0",
+          gsrlimit: "3",
+          prop: "pageimages|extracts|info",
+          piprop: "thumbnail|original",
+          pithumbsize: "640",
+          pilimit: "3",
+          exintro: "1",
+          explaintext: "1",
+          exsentences: "2",
+          inprop: "url",
+        });
+        const response = await fetch(`${endpoint}?${params}`, { signal });
+        if (!response.ok) return [];
+        const data = await response.json() as { query?: { pages?: RestaurantWikiPage[] } };
+        return data.query?.pages || [];
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const pages = pageResults.flat();
+  const tokens = name
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token.length >= 4);
+  const candidates = pages.flat().filter((page) => {
+    const text = `${page.title || ""} ${page.extract || ""}`.toLocaleLowerCase();
+    return tokens.length === 0 || tokens.some((token) => text.includes(token));
+  });
+  const restaurantWords = /restaurant|ristorante|restaurace|cafe|café|bar|keller|trattoria|pizzeria|gelateria|bistro|brasserie|gasthaus|brewery|pub|hotel|кафе|бар|ресторан|пиццер|траттор/i;
+  const relevantPages = candidates.filter((item) =>
+    restaurantWords.test(`${item.title || ""} ${item.extract || ""}`),
+  );
+  const page = relevantPages.find((item) => item.thumbnail?.source) || relevantPages[0];
+  let commonsPhoto: string | undefined;
+  try {
+    commonsPhoto = await fetchCommonsRestaurantPhoto(name, city, signal);
+  } catch {
+    commonsPhoto = undefined;
+  }
+  if (!page && !commonsPhoto) return undefined;
+  return {
+    photo: page?.thumbnail?.source?.trim() || commonsPhoto,
+    note: page.extract?.trim(),
+    link: page.fullurl,
+  };
+}
+
+async function fetchRestaurantCatalog(
+  city: string,
+  query: string,
+  signal: AbortSignal,
+): Promise<ImportedRestaurant[]> {
+  if (!city.trim()) return [];
+  try {
+    const googleRestaurants = await fetchGoogleRestaurantCatalog(city, query, signal);
+    if (googleRestaurants.length) return googleRestaurants;
+  } catch {
+    // Keep the catalog usable when Google Places is unavailable or rate-limited.
+  }
+  let features: MapboxRestaurantFeature[] = [];
+  if (!features.length) {
+    const base = mapLocation(city);
+    let center = base;
+    if (!center) {
+      try {
+        const geocodeParams = new URLSearchParams({ q: city, limit: "1" });
+        const geocodeResponse = await fetch(`https://photon.komoot.io/api/?${geocodeParams}`, { signal });
+        if (geocodeResponse.ok) {
+          const geocodeData = await geocodeResponse.json() as { features?: PhotonRestaurantFeature[] };
+          center = geocodeData.features?.[0]?.geometry?.coordinates;
+        }
+      } catch {
+        // The catalog will show its empty state below.
+      }
+    }
+    if (center) {
+      const [longitude, latitude] = center;
+      const bbox = [longitude - 0.22, latitude - 0.16, longitude + 0.22, latitude + 0.16].join(",");
+      const photonParams = new URLSearchParams({
+        q: query.trim() || "restaurant",
+        limit: "24",
+        bbox,
+      });
+      const photonResponse = await fetch(`https://photon.komoot.io/api/?${photonParams}`, { signal });
+      if (photonResponse.ok) {
+        const photonData = await photonResponse.json() as { features?: PhotonRestaurantFeature[] };
+        features = (photonData.features || []).map((feature) => {
+          const properties = feature.properties || {};
+          const address = [
+            properties.street && `${properties.street} ${properties.housenumber || ""}`.trim(),
+            properties.city,
+            properties.country,
+          ].filter(Boolean).join(", ");
+          return {
+            id: `photon-${properties.osm_type || "place"}-${properties.osm_id || crypto.randomUUID()}`,
+            text: properties.name,
+            place_name: address || city,
+            center: feature.geometry?.coordinates,
+            properties: {
+              category: properties.osm_value || "restaurant",
+              cuisine: properties.cuisine,
+              image: properties.image,
+              website: properties.website,
+            },
+          } satisfies MapboxRestaurantFeature;
+        });
+      }
+    }
+  }
+  const foodWords = /restaurant|cafe|bar|food|pizzeria|pizza|sushi|thai|burger|ramen|steak|indian|mexican|trattoria|osteria|ristorante|пицц|кафе|ресторан|бар|столов/i;
+  const unique = new globalThis.Map<string, MapboxRestaurantFeature>();
+  features.forEach((feature) => {
+    const name = feature.text?.trim() || feature.place_name?.split(",")[0]?.trim();
+    if (!name) return;
+    const category = `${feature.properties?.category || ""} ${name}`;
+    if (!foodWords.test(category) && !query.trim()) return;
+    const key = name.toLocaleLowerCase();
+    if (!unique.has(key)) unique.set(key, feature);
+  });
+  const selectedFeatures = [...unique.values()].slice(0, 60);
+  const enriched = await Promise.all(
+    selectedFeatures.map(async (feature) => {
+      const name = feature.text?.trim() || feature.place_name?.split(",")[0]?.trim() || "Ресторан";
+      let wiki: Awaited<ReturnType<typeof fetchRestaurantWikiInfo>>;
+      try {
+        wiki = await fetchRestaurantWikiInfo(name, city, signal);
+      } catch {
+        wiki = undefined;
+      }
+      const coordinate = feature.center || feature.geometry?.coordinates;
+      const category = feature.properties?.cuisine?.split(",")[0]?.trim() || feature.properties?.category?.split(",")[0]?.trim();
+      const placeName = feature.place_name?.trim() || city;
+      return {
+        id: `mapbox-restaurant-${feature.id || crypto.randomUUID()}`,
+        name,
+        city,
+        lnglat: coordinate,
+        status: "хочу",
+        cuisine: category || "Европейская",
+        note: wiki?.note || placeName,
+        link: wiki?.link || feature.properties?.website || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, ${city}`)}`,
+        price: "€€",
+        photos: wiki?.photo || feature.properties?.image ? [wiki?.photo || feature.properties?.image || ""] : [],
+        placeType: "ресторан",
+        categories: category ? [category] : [],
+      } satisfies ImportedRestaurant;
+    }),
+  );
+  return enriched;
+}
+
+function catalogPhotoFor(sight: StoredSight, index: number) {
+  return sight.photo || defaultSightPhotos[index % defaultSightPhotos.length];
+}
+
 function compressCoverPhoto(file: File) {
   return new Promise<string>((resolve, reject) => {
     const source = URL.createObjectURL(file);
@@ -2997,21 +4204,21 @@ function TripMap({
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    if (!container.current || !token) return;
+    if (!container.current) return;
     let disposed = false;
     let map: Map | undefined;
     let resizeObserver: ResizeObserver | undefined;
 
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
-      mapboxgl.accessToken = token;
+      if (token) mapboxgl.accessToken = token;
       const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
         center: routeCoordinates[0] ?? location ?? mapLocations["Москва"],
         zoom: routeCoordinates.length ? 5 : location ? 12 : 3,
-        attributionControl: false,
+        attributionControl: true,
       });
       mapRef.current = map;
       resizeObserver = new ResizeObserver(() => map?.resize());
@@ -3155,14 +4362,6 @@ function TripMap({
       });
   }, [activeDay, routeKey]);
 
-  if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
-    return (
-      <div className="map map-unavailable">
-        Карта станет доступна после настройки Mapbox.
-      </div>
-    );
-  }
-
   return (
     <div
       ref={container}
@@ -3186,25 +4385,73 @@ function DatePicker({
   label,
   value,
   onChange,
+  name,
+  className,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  name?: string;
+  className?: string;
 }) {
   const selected = value ? new Date(`${value}T12:00:00`) : null;
   const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [popoverStyle, setPopoverStyle] = useState<{
+    position: "fixed";
+    left: number;
+    right: "auto";
+    top: number;
+    bottom: "auto";
+    width: number;
+    transform?: string;
+  }>();
   const [month, setMonth] = useState(() =>
     selected
       ? new Date(selected.getFullYear(), selected.getMonth(), 1)
       : new Date(),
   );
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const updatePopoverPosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(306, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+      const showAbove = rect.top > 438;
+      setPopoverStyle({
+        position: "fixed",
+        left,
+        right: "auto",
+        top: showAbove ? rect.top - 8 : rect.bottom + 8,
+        bottom: "auto",
+        width,
+        ...(showAbove ? { transform: "translateY(-100%)" } : {}),
+      });
+    };
+    updatePopoverPosition();
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (selected) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+  }, [value]);
   const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
   const monthStart = (month.getDay() + 6) % 7;
-  const daysInMonth = new Date(
-    month.getFullYear(),
-    month.getMonth() + 1,
-    0,
-  ).getDate();
   const formatted = selected
     ? new Intl.DateTimeFormat("ru-RU", {
         day: "numeric",
@@ -3212,18 +4459,28 @@ function DatePicker({
         year: "numeric",
       }).format(selected)
     : "Выберите дату";
-  const chooseDay = (day: number) => {
-    const next = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const today = new Date();
+  const isSameDay = (first: Date | null, second: Date) =>
+    Boolean(
+      first &&
+        first.getFullYear() === second.getFullYear() &&
+        first.getMonth() === second.getMonth() &&
+        first.getDate() === second.getDate(),
+    );
+  const chooseDate = (date: Date) => {
+    const next = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     onChange(next);
     setOpen(false);
   };
   return (
-    <label className="date-field">
+    <label className={`date-field${className ? ` ${className}` : ""}`}>
       {label}
-      <div className="date-picker">
+      {name && <input type="hidden" name={name} value={value} />}
+      <div className="date-picker" ref={pickerRef}>
         <button
           type="button"
           className="date-trigger"
+          ref={triggerRef}
           onClick={() => setOpen(!open)}
         >
           <span className={value ? "" : "placeholder"}>{formatted}</span>
@@ -3233,7 +4490,7 @@ function DatePicker({
           </svg>
         </button>
         {open && (
-          <div className="calendar-popover">
+          <div className="calendar-popover" style={popoverStyle}>
             <div className="calendar-header">
               <button
                 type="button"
@@ -3268,31 +4525,277 @@ function DatePicker({
               ))}
             </div>
             <div className="calendar-grid">
-              {Array.from({ length: monthStart }, (_, index) => (
-                <span key={`empty-${index}`} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, index) => {
-                const day = index + 1;
-                const isSelected =
-                  selected?.getFullYear() === month.getFullYear() &&
-                  selected?.getMonth() === month.getMonth() &&
-                  selected?.getDate() === day;
+              {Array.from({ length: 42 }, (_, index) => {
+                const date = new Date(
+                  month.getFullYear(),
+                  month.getMonth(),
+                  index - monthStart + 1,
+                );
+                const isCurrentMonth = date.getMonth() === month.getMonth();
                 return (
                   <button
                     type="button"
-                    className={isSelected ? "selected" : ""}
-                    onClick={() => chooseDay(day)}
-                    key={day}
+                    className={`${isCurrentMonth ? "" : "outside-month "}${isSameDay(selected, date) ? "selected " : ""}${isSameDay(today, date) ? "today" : ""}`}
+                    onClick={() => chooseDate(date)}
+                    key={date.toISOString()}
                   >
-                    {day}
+                    {date.getDate()}
                   </button>
                 );
               })}
+            </div>
+            <div className="calendar-footer">
+              <button type="button" onClick={() => { onChange(""); setOpen(false); }}>
+                Очистить
+              </button>
+              <button type="button" onClick={() => chooseDate(today)}>
+                Сегодня
+              </button>
             </div>
           </div>
         )}
       </div>
     </label>
+  );
+}
+
+function AccommodationCityPicker({
+  value,
+  onChange,
+  cities = accommodationCities,
+  placeholder = "Начните вводить город",
+  allOption,
+  className = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  cities?: string[];
+  placeholder?: string;
+  allOption?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(allOption && value === allOption ? "" : value);
+  const [remoteOptions, setRemoteOptions] = useState<string[]>([]);
+  const [searching, setSearching] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(
+    () => setQuery(allOption && value === allOption ? "" : value),
+    [allOption, value],
+  );
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open]);
+  useEffect(() => {
+    const search = query.trim();
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    if (!open || search.length < 2) {
+      setRemoteOptions([]);
+      setSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        let remoteCities: string[] = [];
+        if (token) {
+          const params = new URLSearchParams({
+            access_token: token,
+            autocomplete: "true",
+            language: "ru,en",
+            limit: "8",
+            types: "place,locality",
+          });
+          const response = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(search)}.json?${params}`,
+            { signal: controller.signal },
+          );
+          if (response.ok) {
+            const data = await response.json() as {
+              features?: { place_name?: string; text?: string }[];
+            };
+            remoteCities = (data.features || [])
+              .map((feature) => feature.place_name || feature.text || "")
+              .filter(Boolean);
+          }
+        }
+        if (!remoteCities.length) {
+          const photonParams = new URLSearchParams({
+            q: search,
+            limit: "8",
+          });
+          const response = await fetch(
+            `https://photon.komoot.io/api/?${photonParams}`,
+            { signal: controller.signal },
+          );
+          if (!response.ok) throw new Error("City search failed");
+          const data = await response.json() as {
+            features?: {
+              properties?: {
+                name?: string;
+                country?: string;
+                type?: string;
+              };
+            }[];
+          };
+          remoteCities = (data.features || [])
+            .filter((feature) =>
+              ["city", "town", "village", "municipality"].includes(feature.properties?.type || ""),
+            )
+            .map((feature) => {
+              const name = feature.properties?.name?.trim() || "";
+              const country = feature.properties?.country?.trim() || "";
+              return name && country && !name.includes(country)
+                ? `${name}, ${country}`
+                : name;
+            })
+            .filter(Boolean);
+        }
+        setRemoteOptions(remoteCities);
+      } catch {
+        if (!controller.signal.aborted) setRemoteOptions([]);
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 260);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [open, query]);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const localOptions = Array.from(new Set(cities.filter(Boolean)))
+    .filter((city) => !normalizedQuery || city.toLocaleLowerCase().includes(normalizedQuery));
+  const visibleLocalOptions = normalizedQuery ? localOptions : localOptions.slice(0, 8);
+  const filteredRemoteOptions = normalizedQuery
+    ? remoteOptions.filter((city) => {
+      const cityName = city.split(",")[0]?.trim().toLocaleLowerCase() || city.toLocaleLowerCase();
+      return cityName.includes(normalizedQuery) || normalizedQuery.includes(cityName);
+    })
+    : [];
+  const hasExactLocalMatch = localOptions.some(
+    (city) => city.trim().toLocaleLowerCase() === normalizedQuery,
+  );
+  const options = Array.from(new Set([
+    ...(allOption ? [allOption] : []),
+    ...(hasExactLocalMatch ? [] : filteredRemoteOptions),
+    ...visibleLocalOptions,
+  ]))
+    .sort((first, second) => first.localeCompare(second, "ru"))
+    .slice(0, 12);
+  const chooseCity = (city: string) => {
+    setQuery(allOption && city === allOption ? "" : city);
+    onChange(city);
+    setOpen(false);
+  };
+  return (
+    <div className={`accommodation-city-picker ${className}`.trim()} ref={pickerRef}>
+      <input
+        name="city"
+        value={!open && allOption && value === allOption ? allOption : query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => {
+          if (allOption && value === allOption) setQuery("");
+          setOpen(true);
+        }}
+        onClick={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+          if (event.key === "Enter" && options[0]) {
+            event.preventDefault();
+            chooseCity(options[0]);
+          }
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="accommodation-city-options"
+      />
+      <button
+        type="button"
+        className="accommodation-city-chevron"
+        aria-label={open ? "Скрыть список городов" : "Открыть список городов"}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((current) => !current)}
+      >
+        ⌄
+      </button>
+      {open && (
+        <div
+          id="accommodation-city-options"
+          className="accommodation-city-suggestions"
+          role="listbox"
+        >
+          {options.length ? options.map((city) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === city}
+              className={value === city ? "selected" : ""}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => chooseCity(city)}
+              key={city}
+            >
+              {city}
+            </button>
+          )) : searching ? (
+            <p>Ищем города…</p>
+          ) : (
+            <p>Город будет сохранён как введён</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountSettingIcon({
+  name,
+}: {
+  name: "language" | "theme" | "password" | "photo" | "delete";
+}) {
+  const paths = {
+    language: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" />
+      </>
+    ),
+    theme: <path d="M20 15.4A8 8 0 0 1 8.6 4a8.5 8.5 0 1 0 11.4 11.4Z" />,
+    password: (
+      <>
+        <rect x="5" y="10" width="14" height="10" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
+      </>
+    ),
+    photo: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="8.5" cy="9" r="1.5" />
+        <path d="m4.5 17 4-4 3 3 2.5-2.5 5.5 5.5" />
+      </>
+    ),
+    delete: (
+      <>
+        <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+      </>
+    ),
+  };
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {paths[name]}
+    </svg>
   );
 }
 
@@ -3302,15 +4805,57 @@ function Sidebar({
   open,
   close,
   profileName,
+  tripCount,
+  cityCount,
 }: {
   view: View;
   go: (view: View) => void;
   open: boolean;
   close: () => void;
   profileName: string;
+  tripCount: number;
+  cityCount: number;
 }) {
   const [settings, setSettings] = useState(false);
-  const [panel, setPanel] = useState<"photo" | "password" | null>(null);
+  const [panel, setPanel] = useState<"language" | "photo" | "password" | null>(null);
+  const [darkSettings, setDarkSettings] = useState(false);
+  const [interfaceLanguage, setInterfaceLanguage] = useState<"ru" | "en" | "es" | "de">("ru");
+  const interfaceLanguages = [
+    ["ru", "Русский", "RU"],
+    ["en", "English", "EN"],
+    ["es", "Español", "ES"],
+    ["de", "Deutsch", "DE"],
+  ] as const;
+  const profileHandle = profileName.includes("@")
+    ? profileName.split("@")[0]
+    : profileName;
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: preference, error } = await supabase
+        .from("user_data")
+        .select("value")
+        .eq("user_id", data.session.user.id)
+        .eq("key", "interface-language")
+        .maybeSingle();
+      if (error) {
+        console.error("Could not load interface language.", error);
+        return;
+      }
+      const value = preference?.value;
+      if (
+        active &&
+        (value === "ru" || value === "en" || value === "es" || value === "de")
+      ) {
+        setInterfaceLanguage(value);
+        document.documentElement.lang = value;
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const closeSettings = () => {
     setSettings(false);
     setPanel(null);
@@ -3347,72 +4892,164 @@ function Sidebar({
           >
             <i>◇</i>Мои путешествия
           </button>
-          <button
-            className={view === "catalog" || view === "public" ? "active" : ""}
-            onClick={() => go("catalog")}
-          >
-            <i>✦</i>Каталог маршрутов
-          </button>
         </nav>
         <div className="account-wrap">
           {settings && (
-            <div className="settings-popover">
+            <>
               <button
-                className="settings-close"
+                className="settings-scrim"
+                type="button"
                 onClick={closeSettings}
-                aria-label="Закрыть настройки"
+                aria-label="Закрыть личный кабинет"
+              />
+              <section
+                className={`settings-popover ${darkSettings ? "dark" : ""}`}
+                aria-label="Личный кабинет"
               >
-                ×
-              </button>
-              <b>Язык интерфейса</b>
-              <div className="language-switch">
-                <button className="active">RU</button>
-                <button>EN</button>
-                <button>ES</button>
-                <button>DE</button>
-              </div>
-              <button
-                onClick={() => setPanel(panel === "photo" ? null : "photo")}
-              >
-                ▦ Сменить фото профиля
-              </button>
-              {panel === "photo" && (
-                <div className="settings-panel">
-                  <div className="mini-upload">
-                    ↑<small>Перетащите фото</small>
+                <div className="settings-handle" />
+                <header className="settings-profile">
+                  <div className="settings-avatar">
+                    {profileHandle.slice(0, 1).toUpperCase()}
                   </div>
-                  <button className="accent">Сохранить фото</button>
+                  <div>
+                    <h2>{profileHandle}</h2>
+                    <p>Личный кабинет · Ramingo</p>
+                  </div>
+                  <button
+                    className="settings-close"
+                    type="button"
+                    onClick={closeSettings}
+                    aria-label="Закрыть настройки"
+                  >
+                    ×
+                  </button>
+                </header>
+
+                <div className="settings-stats">
+                  <div>
+                    <b>{tripCount}</b>
+                    <span>поездки</span>
+                  </div>
+                  <div>
+                    <b>{cityCount}</b>
+                    <span>городов</span>
+                  </div>
+                  <div>
+                    <b>—</b>
+                    <span>км</span>
+                  </div>
                 </div>
-              )}
-              <button
-                onClick={() =>
-                  setPanel(panel === "password" ? null : "password")
-                }
-              >
-                ⚿ Сменить пароль
-              </button>
-              {panel === "password" && (
-                <div className="settings-panel">
-                  <input type="password" placeholder="Текущий пароль" />
-                  <input type="password" placeholder="Новый пароль" />
-                  <button className="accent">Обновить пароль</button>
+
+                <p className="settings-label">Настройки аккаунта</p>
+                <div className="settings-list">
+                  <button
+                    className="settings-row"
+                    type="button"
+                    onClick={() => setPanel(panel === "language" ? null : "language")}
+                    aria-expanded={panel === "language"}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="language" /></span>
+                    <b>Языки</b>
+                    <small>
+                      {interfaceLanguages.find(([value]) => value === interfaceLanguage)?.[1]}
+                    </small>
+                    <i>›</i>
+                  </button>
+                  {panel === "language" && (
+                    <div className="settings-language-panel">
+                      {interfaceLanguages.map(([value, _label, code]) => (
+                        <button
+                          className={interfaceLanguage === value ? "selected" : ""}
+                          type="button"
+                          onClick={() => {
+                            setInterfaceLanguage(value);
+                            document.documentElement.lang = value;
+                            void saveUserData("interface-language", value);
+                          }}
+                          key={value}
+                        >
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    className="settings-row"
+                    type="button"
+                    onClick={() => setDarkSettings((value) => !value)}
+                    aria-pressed={darkSettings}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="theme" /></span>
+                    <b>Тёмная тема</b>
+                    <span className={`settings-toggle ${darkSettings ? "on" : ""}`}>
+                      <i />
+                    </span>
+                  </button>
+                  <button
+                    className="settings-row"
+                    type="button"
+                    onClick={() =>
+                      setPanel(panel === "password" ? null : "password")
+                    }
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="password" /></span>
+                    <b>Сменить пароль</b>
+                    <i>›</i>
+                  </button>
+                  {panel === "password" && (
+                    <div className="settings-panel">
+                      <PasswordField placeholder="Текущий пароль" autoComplete="current-password" />
+                      <PasswordField placeholder="Новый пароль" autoComplete="new-password" />
+                      <button className="accent" type="button">Обновить пароль</button>
+                    </div>
+                  )}
+                  <button
+                    className="settings-row"
+                    type="button"
+                    onClick={() => setPanel(panel === "photo" ? null : "photo")}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="photo" /></span>
+                    <b>Сменить фото</b>
+                    <i>›</i>
+                  </button>
+                  {panel === "photo" && (
+                    <div className="settings-panel">
+                      <div className="mini-upload">
+                        ↑<small>Перетащите фото</small>
+                      </div>
+                      <button className="accent" type="button">Сохранить фото</button>
+                    </div>
+                  )}
+                  <button
+                    className="settings-row danger"
+                    type="button"
+                    onClick={() => {
+                      closeSettings();
+                      close();
+                      go("delete-account");
+                    }}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="delete" /></span>
+                    <b>Удалить аккаунт</b>
+                    <i>›</i>
+                  </button>
                 </div>
-              )}
-              <hr />
-              <button>◷ Часовой пояс и валюта</button>
-              <button>◔ Уведомления</button>
-              <button
-                className="logout"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  setSettings(false);
-                  close();
-                  go("auth");
-                }}
-              >
-                → Выйти
-              </button>
-            </div>
+
+                <p className="settings-version">Версия приложения · 0.2.18-beta</p>
+                <button
+                  className="settings-logout"
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setSettings(false);
+                    close();
+                    go("auth");
+                  }}
+                >
+                  Выйти из аккаунта
+                </button>
+              </section>
+            </>
           )}
           <button
             className="account"
@@ -3447,15 +5084,18 @@ function Trips({
   drafts,
   onOpenTrip,
   onUpdateTrip,
+  onDeleteTrip,
+  onLeaveTrip,
 }: {
   go: (view: View) => void;
   profileName: string;
   drafts: TripSummary[];
   onOpenTrip: (trip: TripSummary) => void;
   onUpdateTrip: (trip: TripSummary) => void;
+  onDeleteTrip: (trip: TripSummary) => Promise<void>;
+  onLeaveTrip: (trip: TripSummary) => Promise<void>;
 }) {
   const [filter, setFilter] = useState("all");
-  const [cardMenuTripId, setCardMenuTripId] = useState<string | null>(null);
   const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
   const allTrips = drafts;
   const filters = [
@@ -3480,9 +5120,6 @@ function Trips({
           <p>Добро пожаловать, {profileName.split(" ")[0]}</p>
           <h1>Мои путешествия</h1>
         </div>
-        <button className="secondary" onClick={() => go("create")}>
-          ＋ Создать
-        </button>
       </header>
       <div className="chips">
         {filters.map(([value, label]) => (
@@ -3517,32 +5154,14 @@ function Trips({
                 <button
                   type="button"
                   className="trip-card-menu-trigger"
-                  onClick={() =>
-                    setCardMenuTripId((id) => (id === trip.id ? null : trip.id))
-                  }
+                  onClick={() => setEditingTrip(trip)}
                   aria-label={`Настройки: ${trip.title}`}
-                  aria-expanded={cardMenuTripId === trip.id}
-                  aria-haspopup="menu"
+                  aria-haspopup="dialog"
                 >
                   <i />
                   <i />
                   <i />
                 </button>
-                {cardMenuTripId === trip.id && (
-                  <div className="trip-card-menu" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setCardMenuTripId(null);
-                        setEditingTrip(trip);
-                      }}
-                    >
-                      <span>Редактировать</span>
-                      <small>Название, даты и обложка</small>
-                    </button>
-                  </div>
-                )}
               </div>
               <span className="status">● {trip.status}</span>
             </div>
@@ -3574,6 +5193,8 @@ function Trips({
         <TripCardEditor
           trip={editingTrip}
           onUpdateTrip={onUpdateTrip}
+          onDeleteTrip={onDeleteTrip}
+          onLeaveTrip={onLeaveTrip}
           onClose={() => setEditingTrip(null)}
         />
       )}
@@ -3861,11 +5482,13 @@ function RoadLegEditor({
   onChange,
   onSave,
   onCancel,
+  onDelete,
 }: {
   roadLeg?: RoadLeg;
   onChange: (roadLeg: RoadLeg) => void;
   onSave: (roadLeg: RoadLeg) => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const [from, setFrom] = useState(roadLeg?.from || "");
   const [to, setTo] = useState(roadLeg?.to || "");
@@ -4030,6 +5653,9 @@ function RoadLegEditor({
       </label>
       {routeMapsUrl && <GoogleMapsLink url={routeMapsUrl} />}
       <div className="road-leg-actions">
+        <button type="button" className="road-leg-delete" onClick={onDelete}>
+          Удалить день
+        </button>
         <button type="button" className="secondary" onClick={onCancel}>
           Отмена
         </button>
@@ -4065,21 +5691,35 @@ function DraftRouteCard({
   index,
   editing,
   selected,
+  dragging,
+  dropTarget,
   onSelect,
   onEdit,
   onChange,
   onSave,
   onCancel,
+  onDelete,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   day: DraftDay;
   index: number;
   editing: boolean;
   selected: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onChange: (roadLeg: RoadLeg) => void;
   onSave: (roadLeg: RoadLeg) => void;
   onCancel: () => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
   const roadLeg = day.roadLeg;
   const routeMapsUrl = roadLeg
@@ -4110,7 +5750,22 @@ function DraftRouteCard({
   ];
   return (
     <article
-      className={selected ? "draft-route-card selected" : "draft-route-card"}
+      className={`draft-route-card${selected ? " selected" : ""}${dragging ? " dragging" : ""}${dropTarget ? " drop-target" : ""}`}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        onDragOver();
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop();
+      }}
+      onDragEnd={onDragEnd}
     >
       <header onClick={onSelect}>
         <div className="draft-day-number">
@@ -4149,6 +5804,7 @@ function DraftRouteCard({
           onChange={onChange}
           onSave={onSave}
           onCancel={onCancel}
+          onDelete={onDelete}
         />
       ) : roadLeg ? (
         <>
@@ -4182,7 +5838,6 @@ function DraftRouteCard({
               </p>
             )}
           </div>
-          <GoogleMapsLink url={routeMapsUrl} />
         </>
       ) : (
         <div className="route-card-empty">
@@ -4200,6 +5855,8 @@ function RouteTab({
   onEditingRoadDayChange,
   onAddDraftDay,
   onUpdateDraftDay,
+  onDeleteDraftDay,
+  onReorderDraftDays,
 }: {
   isDraft?: boolean;
   draftDays?: DraftDay[];
@@ -4207,9 +5864,13 @@ function RouteTab({
   onEditingRoadDayChange?: (day: number | null) => void;
   onAddDraftDay?: () => void;
   onUpdateDraftDay?: (day: number, changes: Partial<DraftDay>) => void;
+  onDeleteDraftDay?: (day: number) => void;
+  onReorderDraftDays?: (from: number, to: number) => void;
 }) {
   const [day, setDay] = useState(0);
   const [selectedRouteDay, setSelectedRouteDay] = useState(0);
+  const [draggedDay, setDraggedDay] = useState<number | null>(null);
+  const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<{
     distance: number;
     duration: number;
@@ -4289,6 +5950,8 @@ function RouteTab({
               index={index}
               editing={editingRoadDay === index}
               selected={selectedRouteDay === index}
+              dragging={draggedDay === index}
+              dropTarget={dropTargetDay === index && draggedDay !== index}
               onSelect={() => setSelectedRouteDay(index)}
               onEdit={() => onEditingRoadDayChange?.(index)}
               onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })}
@@ -4297,6 +5960,22 @@ function RouteTab({
                 onEditingRoadDayChange?.(null);
               }}
               onCancel={() => onEditingRoadDayChange?.(null)}
+              onDelete={() => onDeleteDraftDay?.(index)}
+              onDragStart={() => {
+                setDraggedDay(index);
+                setDropTargetDay(index);
+              }}
+              onDragOver={() => setDropTargetDay(index)}
+              onDrop={() => {
+                if (draggedDay !== null && draggedDay !== index)
+                  onReorderDraftDays?.(draggedDay, index);
+                setDraggedDay(null);
+                setDropTargetDay(null);
+              }}
+              onDragEnd={() => {
+                setDraggedDay(null);
+                setDropTargetDay(null);
+              }}
               key={draftDay.id}
             />
           ))}
@@ -4424,17 +6103,139 @@ function RouteTab({
   );
 }
 
+function RestaurantMap({
+  places,
+  activeRestaurantId,
+  onSelect,
+}: {
+  places: ImportedRestaurant[];
+  activeRestaurantId?: string;
+  onSelect: (restaurantId: string) => void;
+}) {
+  const container = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<Map | null>(null);
+  const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
+  const points = places.map((place, index) => {
+    const base = place.lnglat || mapLocation(place.city) || mapLocations["Рим"];
+    if (place.lnglat) {
+      return { place, coordinate: place.lnglat };
+    }
+    const sameCityIndex = places
+      .slice(0, index)
+      .filter((item) => item.city === place.city).length;
+    const radius = sameCityIndex ? 0.018 + (sameCityIndex % 3) * 0.008 : 0;
+    const angle = sameCityIndex * 2.4;
+    return {
+      place,
+      coordinate: [
+        base[0] + Math.cos(angle) * radius,
+        base[1] + Math.sin(angle) * radius,
+      ] as [number, number],
+    };
+  });
+  const routePoints = Array.from(
+    new globalThis.Map(
+      places.flatMap((place) => {
+        const coordinate = place.lnglat || mapLocation(place.city);
+        return coordinate ? [[place.city, coordinate] as const] : [];
+      }),
+    ).values(),
+  );
+  const mapKey = points.map(({ place, coordinate }) => `${place.id}:${coordinate.join(",")}`).join(";");
+  useEffect(() => {
+    if (!container.current || !points.length) return;
+    let disposed = false;
+    let map: Map | undefined;
+    void import("mapbox-gl").then(({ default: mapboxgl }) => {
+      if (disposed || !container.current) return;
+      const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+      if (token) mapboxgl.accessToken = token;
+      map = new mapboxgl.Map({
+        container: container.current,
+        style: mapStyle(),
+        center: points[0].coordinate,
+        zoom: routePoints.length > 1 ? 5 : 12,
+        attributionControl: true,
+      });
+      mapRef.current = map;
+      markerElements.current.clear();
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+      points.forEach(({ place, coordinate }, index) => {
+        const marker = document.createElement("span");
+        marker.className = "sight-map-marker restaurant-map-marker";
+        marker.textContent = String(index + 1);
+        marker.title = place.name;
+        marker.addEventListener("click", () => onSelect(place.id));
+        markerElements.current.set(place.id, marker);
+        new mapboxgl.Marker({ element: marker }).setLngLat(coordinate).addTo(map!);
+      });
+      map.on("load", () => {
+        if (routePoints.length > 1) {
+          map!.addSource("restaurant-route", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: { type: "LineString", coordinates: routePoints },
+            },
+          });
+          map!.addLayer({
+            id: "restaurant-route",
+            type: "line",
+            source: "restaurant-route",
+            paint: {
+              "line-color": "#5e55df",
+              "line-width": 3,
+              "line-opacity": 0.72,
+              "line-dasharray": [1.2, 1.2],
+            },
+          });
+        }
+        const bounds = new mapboxgl.LngLatBounds(points[0].coordinate, points[0].coordinate);
+        points.slice(1).forEach(({ coordinate }) => bounds.extend(coordinate));
+        map!.fitBounds(bounds, { padding: 54, maxZoom: routePoints.length > 1 ? 8 : 14 });
+      });
+    });
+    return () => {
+      disposed = true;
+      map?.remove();
+      mapRef.current = null;
+      markerElements.current.clear();
+    };
+  }, [mapKey]);
+  useEffect(() => {
+    if (!activeRestaurantId) return;
+    const marker = markerElements.current.get(activeRestaurantId);
+    const point = points.find(({ place }) => place.id === activeRestaurantId);
+    if (!marker || !point) return;
+    marker.classList.remove("bounce");
+    void marker.offsetWidth;
+    marker.classList.add("bounce");
+    mapRef.current?.flyTo({ center: point.coordinate, zoom: routePoints.length > 1 ? 11 : 14, duration: 650, essential: true });
+  }, [activeRestaurantId, mapKey]);
+  if (!places.length) {
+    return <div className="restaurant-map-empty">Добавленные рестораны появятся здесь автоматически.</div>;
+  }
+  return <div className="restaurant-map" ref={container} aria-label="Карта ресторанов" />;
+}
+
 function RestaurantPage({
   places,
   onChange,
+  availableCities = [],
 }: {
   places: ImportedRestaurant[];
   onChange: (restaurants: ImportedRestaurant[]) => void;
+  availableCities?: string[];
 }) {
-  const [city, setCity] = useState("Все города");
-  const [status, setStatus] = useState("Все статусы");
+  const [filterCity, setFilterCity] = useState("Все города");
+  const [filterCuisine, setFilterCuisine] = useState("Все кухни");
+  const [filterRating, setFilterRating] = useState("Любой рейтинг");
+  const [filterPrice, setFilterPrice] = useState("Все цены");
+  const [filterStatus, setFilterStatus] = useState("Все статусы");
   const [query, setQuery] = useState("");
-  const [openFilter, setOpenFilter] = useState<"city" | "status" | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
     photos: string[];
@@ -4442,24 +6243,69 @@ function RestaurantPage({
   } | null>(null);
   const [editing, setEditing] = useState<ImportedRestaurant | null>(null);
   const cities = Array.from(
-    new Set(places.map((place) => place.city).filter(Boolean)),
+    new Set([
+      ...availableCities,
+      ...places.map((place) => place.city),
+    ].filter(Boolean)),
   ).sort();
+  const cuisines = Array.from(
+    new Set([
+      ...restaurantCuisineOptions,
+      ...places.map((place) => place.cuisine || ""),
+    ].filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "ru"));
   const statusLabels: Record<string, string> = {
     "Все статусы": "Все статусы",
     хочу: "Хочу",
     бронь: "Забронировано",
     были: "Были",
   };
+  const ratingOptions = [
+    { value: "Любой рейтинг", label: "Любой рейтинг", min: 0 },
+    { value: "4.0", label: "★ 4,0+", min: 4 },
+    { value: "4.5", label: "★ 4,5+", min: 4.5 },
+    { value: "4.7", label: "★ 4,7+", min: 4.7 },
+    { value: "5.0", label: "★ 5,0", min: 5 },
+  ];
+  const cuisineFor = (place: ImportedRestaurant) => {
+    const explicit = place.cuisine?.trim() ||
+      place.categories?.find((category) => restaurantCuisineOptions.includes(category));
+    if (explicit) return explicit;
+    const text = `${place.name} ${place.city} ${place.note || ""}`.toLowerCase();
+    if (/sushi|ramen|izakaya|япон/.test(text)) return "Японская";
+    if (/pizza|pizzeria|trattoria|osteria|italian|итальян|рим|флоренц|венеци|верон|милан|пиза/.test(text)) return "Итальянская";
+    if (/prague|прага|чеш|koleno|piv|beer|пиво/.test(text)) return "Чешская";
+    if (/munich|мюнх|german|немец|salzburg|зальцбург|австр/.test(text)) return "Европейская";
+    if (/морепродукт|seafood|fish|рыб/.test(text)) return "Морепродукты";
+    return "Европейская";
+  };
+  const selectedRating = ratingOptions.find((item) => item.value === filterRating) || ratingOptions[0];
+  const activeFilterCount = [
+    filterCity !== "Все города",
+    filterCuisine !== "Все кухни",
+    filterRating !== "Любой рейтинг",
+    filterPrice !== "Все цены",
+    filterStatus !== "Все статусы",
+  ].filter(Boolean).length;
   const visible = places.filter(
-    (place) =>
-      (city === "Все города" || place.city === city) &&
-      (status === "Все статусы" || place.status === status) &&
-      `${place.name} ${place.city}`.toLowerCase().includes(query.trim().toLowerCase()),
+    (place) => {
+      const rating = place.googleRating || 0;
+      return (
+        (filterCity === "Все города" || place.city === filterCity) &&
+        (filterCuisine === "Все кухни" || cuisineFor(place) === filterCuisine) &&
+        (selectedRating.min === 0 || rating >= selectedRating.min) &&
+        (filterPrice === "Все цены" || place.price === filterPrice) &&
+        (filterStatus === "Все статусы" || place.status === filterStatus) &&
+        `${place.name} ${place.city}`.toLowerCase().includes(query.trim().toLowerCase())
+      );
+    },
   );
-  const choose = (kind: "city" | "status", value: string) => {
-    if (kind === "city") setCity(value);
-    else setStatus(value);
-    setOpenFilter(null);
+  const resetFilters = () => {
+    setFilterCity("Все города");
+    setFilterCuisine("Все кухни");
+    setFilterRating("Любой рейтинг");
+    setFilterPrice("Все цены");
+    setFilterStatus("Все статусы");
   };
   const preloadPhotos = (photos: string[]) => {
     photos.forEach((photo) => {
@@ -4488,58 +6334,7 @@ function RestaurantPage({
           <h2>Рестораны</h2>
         </div>
       </header>
-      <div className="restaurant-dropdowns">
-        <div className="restaurant-dropdown">
-          <span>ГОРОД</span>
-          <button
-            className="restaurant-dropdown-trigger"
-            aria-expanded={openFilter === "city"}
-            onClick={() => setOpenFilter(openFilter === "city" ? null : "city")}
-          >
-            {city}
-            <i>⌄</i>
-          </button>
-          {openFilter === "city" && (
-            <div className="restaurant-dropdown-menu">
-              {["Все города", ...cities].map((item) => (
-                <button
-                  className={city === item ? "active" : ""}
-                  onClick={() => choose("city", item)}
-                  key={item}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="restaurant-dropdown">
-          <span>ФИЛЬТРЫ</span>
-          <button
-            className="restaurant-dropdown-trigger"
-            aria-expanded={openFilter === "status"}
-            onClick={() =>
-              setOpenFilter(openFilter === "status" ? null : "status")
-            }
-          >
-            {statusLabels[status]}
-            <i>⌄</i>
-          </button>
-          {openFilter === "status" && (
-            <div className="restaurant-dropdown-menu">
-              {Object.keys(statusLabels).map((item) => (
-                <button
-                  className={status === item ? "active" : ""}
-                  onClick={() => choose("status", item)}
-                  key={item}
-                >
-                  {statusLabels[item]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        </div>
+      <div className="restaurant-controls">
         <label className="restaurant-search">
           <span>⌕</span>
           <input
@@ -4548,7 +6343,97 @@ function RestaurantPage({
             placeholder="Поиск по ресторану или городу"
           />
         </label>
-        <div className="restaurant-grid">
+        <div className="restaurant-filter-wrap">
+          <button
+            type="button"
+            className="restaurant-filter-button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <span>{activeFilterCount || "☷"}</span>
+            Фильтр
+            <i>⌄</i>
+          </button>
+          {filtersOpen && (
+            <div className="restaurant-filter-popover">
+              <div className="restaurant-filter-head">
+                <b>Фильтры</b>
+                <button type="button" onClick={resetFilters}>Сбросить</button>
+              </div>
+              <label className="restaurant-filter-field">
+                Город
+                <AccommodationCityPicker
+                  value={filterCity}
+                  onChange={setFilterCity}
+                  cities={cities}
+                  allOption="Все города"
+                  placeholder="Все города"
+                  className="restaurant-filter-city-picker"
+                />
+              </label>
+              <label className="restaurant-filter-field">
+                Кухня
+                <select value={filterCuisine} onChange={(event) => setFilterCuisine(event.target.value)}>
+                  <option>Все кухни</option>
+                  {cuisines.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <div className="restaurant-filter-field">
+                <span>Рейтинг</span>
+                <div className="restaurant-filter-options rating-options">
+                  {ratingOptions.slice(1).map((item) => (
+                    <button
+                      type="button"
+                      className={filterRating === item.value ? "selected" : ""}
+                      onClick={() => setFilterRating(filterRating === item.value ? "Любой рейтинг" : item.value)}
+                      key={item.value}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="restaurant-filter-field">
+                <span>Цена</span>
+                <div className="restaurant-filter-options price-filter-options">
+                  {["€", "€€", "€€€", "€€€€"].map((item) => (
+                    <button
+                      type="button"
+                      className={filterPrice === item ? "selected" : ""}
+                      onClick={() => setFilterPrice(filterPrice === item ? "Все цены" : item)}
+                      key={item}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="restaurant-filter-field restaurant-filter-status">
+                Статус
+                <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
+                  {Object.keys(statusLabels).map((item) => (
+                    <option value={item} key={item}>{statusLabels[item]}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="restaurant-filter-apply"
+                onClick={() => setFiltersOpen(false)}
+              >
+                Показать {visible.length} ресторанов
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="restaurants-map-layout">
+        <div className="restaurant-list-column">
+          <div className="restaurant-list-head">
+            <span>{visible.length} {visible.length === 1 ? "место" : visible.length < 5 ? "места" : "мест"}</span>
+            <span>Нажмите на карточку, чтобы увидеть точку на карте</span>
+          </div>
+          <div className="restaurant-grid">
         {visible.map((place, index) => {
           const photos = place.photos?.filter(Boolean) || [];
           const photoIndex = (activePhotos[place.id] || 0) % Math.max(photos.length, 1);
@@ -4560,7 +6445,11 @@ function RestaurantPage({
             }));
           };
           return (
-            <article className={`restaurant-card c${index % 6}`} key={place.id}>
+            <article
+              className={`restaurant-card c${index % 6}${activeRestaurantId === place.id ? " active" : ""}`}
+              key={place.id}
+              onClick={() => setActiveRestaurantId(place.id)}
+            >
             <div
               className="restaurant-photo"
               onMouseEnter={() => preloadPhotos(photos)}
@@ -4644,6 +6533,19 @@ function RestaurantPage({
             </article>
           );
         })}
+          </div>
+        </div>
+        <aside className="restaurants-map-panel">
+          <header>
+            <span>Карта ресторанов</span>
+            <b>{visible.length} точек</b>
+          </header>
+          <RestaurantMap
+            places={visible}
+            activeRestaurantId={activeRestaurantId || undefined}
+            onSelect={setActiveRestaurantId}
+          />
+        </aside>
       </div>
     </section>
     {expandedPhoto && (
@@ -4699,6 +6601,7 @@ function RestaurantPage({
     {editing && (
       <RestaurantEditor
         restaurant={editing}
+        cities={cities}
         onClose={() => setEditing(null)}
         onSave={saveRestaurant}
         onDelete={() => deleteRestaurant(editing.id)}
@@ -4708,11 +6611,35 @@ function RestaurantPage({
   );
 }
 
-function RestaurantForm({ onClose }: { onClose: () => void }) {
+function RestaurantForm({
+  onClose,
+  onSave,
+  cities,
+}: {
+  onClose: () => void;
+  onSave: (restaurant: ImportedRestaurant) => void;
+  cities: string[];
+}) {
+  const [name, setName] = useState("Trattoria Mario");
+  const [city, setCity] = useState(cities[0] || "Рим");
   const [status, setStatus] = useState("хочу");
   const [priority, setPriority] = useState(false);
   const [price, setPrice] = useState("€€");
+  const [cuisine, setCuisine] = useState("Тоскана");
+  const [note, setNote] = useState("");
+  const [link, setLink] = useState("");
+  const [cuisineFocused, setCuisineFocused] = useState(false);
   const [photos, setPhotos] = useState(["", "", ""]);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const matchingCuisines = restaurantCuisineOptions
+    .filter((item) =>
+      item.toLocaleLowerCase().includes(cuisine.trim().toLocaleLowerCase()),
+    )
+    .slice(0, 8);
+  const chooseCuisine = (value: string) => {
+    setCuisine(value);
+    setCuisineFocused(false);
+  };
   const selectPhoto = (file: File | undefined, index: number) => {
     if (!file) return;
     if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
@@ -4726,18 +6653,52 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
       ),
     );
   };
+  const chooseFromCatalog = (restaurant: ImportedRestaurant) => {
+    setName(restaurant.name);
+    setCity(restaurant.city);
+    setCuisine(restaurant.cuisine || "");
+    setNote(restaurant.note || "");
+    setLink(restaurant.link || "");
+    setPrice(restaurant.price || "€€");
+    setPhotos([...(restaurant.photos || []), "", "", ""].slice(0, 3));
+    setCatalogOpen(false);
+  };
   return (
     <div className="restaurant-modal-backdrop" onClick={onClose}>
       <form
         className="restaurant-modal restaurant-full-form"
         onSubmit={(event) => {
           event.preventDefault();
+          const nextRestaurant: ImportedRestaurant = {
+            id: crypto.randomUUID(),
+            name: name.trim() || "Новый ресторан",
+            city: city.trim() || cities[0] || "Рим",
+            status,
+            priority,
+            price,
+            cuisine: cuisine.trim() || undefined,
+            note: note.trim() || undefined,
+            link: link.trim() || undefined,
+            // Local previews are intentionally not persisted as restaurant data.
+            // Uploaded photos can be added later from the editor.
+            photos: photos.filter((photo) => photo && !photo.startsWith("blob:")),
+          };
+          onSave(nextRestaurant);
           onClose();
         }}
         onClick={(event) => event.stopPropagation()}
       >
         <header>
-          <h2>Новый ресторан</h2>
+          <div className="restaurant-form-title">
+            <h2>Новый ресторан</h2>
+            <button
+              type="button"
+              className="restaurant-form-catalog-button"
+              onClick={() => setCatalogOpen(true)}
+            >
+              Каталог
+            </button>
+          </div>
           <button type="button" onClick={onClose}>
             ×
           </button>
@@ -4772,22 +6733,62 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
             </label>
           ))}
         </div>
+        <button
+          type="button"
+          className="restaurant-form-catalog-wide"
+          onClick={() => setCatalogOpen(true)}
+        >
+          ＋ Выбрать ресторан из каталога
+        </button>
         <label>
           Название
-          <input defaultValue="Trattoria Mario" />
+          <input value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <div className="restaurant-form-grid">
           <label>
             Город
-            <select defaultValue="Флоренция">
-              <option>Флоренция</option>
-              <option>Рим</option>
-              <option>Венеция</option>
-            </select>
+            <AccommodationCityPicker
+              value={city}
+              onChange={setCity}
+              cities={cities}
+              placeholder="Начните вводить город"
+            />
           </label>
           <label>
             Кухня
-            <input defaultValue="Тоскана" />
+            <div className="restaurant-cuisine-field">
+              <input
+                value={cuisine}
+                onChange={(event) => setCuisine(event.target.value)}
+                onFocus={() => setCuisineFocused(true)}
+                onBlur={() => window.setTimeout(() => setCuisineFocused(false), 120)}
+                aria-label="Кухня"
+                aria-autocomplete="list"
+                aria-controls="restaurant-cuisine-suggestions"
+                placeholder="Начните вводить кухню"
+              />
+              {cuisineFocused && matchingCuisines.length > 0 && (
+                <div
+                  id="restaurant-cuisine-suggestions"
+                  className="restaurant-cuisine-suggestions"
+                  role="listbox"
+                  aria-label="Варианты кухни"
+                >
+                  {matchingCuisines.map((item) => (
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={cuisine === item}
+                      key={item}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => chooseCuisine(item)}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </label>
           <label>
             Дата и время
@@ -4800,7 +6801,7 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
           <label>
             Средний чек
             <div className="price-options">
-              {["€€", "€€€", "€€€€"].map((item) => (
+              {["€", "€€", "€€€", "€€€€"].map((item) => (
                 <button
                   type="button"
                   className={price === item ? "selected" : ""}
@@ -4815,7 +6816,20 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
         </div>
         <label>
           Адрес
-          <input defaultValue="Via Rosina, 2" />
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Например, Via Rosina, 2"
+          />
+        </label>
+        <label>
+          Ссылка Google Maps
+          <input
+            type="url"
+            value={link}
+            onChange={(event) => setLink(event.target.value)}
+            placeholder="https://maps.google.com/..."
+          />
         </label>
         <section className="restaurant-status">
           <b>Статус</b>
@@ -4846,17 +6860,26 @@ function RestaurantForm({ onClose }: { onClose: () => void }) {
           <button className="accent">Сохранить</button>
         </footer>
       </form>
+      {catalogOpen && (
+        <RestaurantCatalog
+          cities={cities}
+          onClose={() => setCatalogOpen(false)}
+          onPick={chooseFromCatalog}
+        />
+      )}
     </div>
   );
 }
 
 function RestaurantEditor({
   restaurant,
+  cities,
   onClose,
   onSave,
   onDelete,
 }: {
   restaurant: ImportedRestaurant;
+  cities: string[];
   onClose: () => void;
   onSave: (restaurant: ImportedRestaurant) => void;
   onDelete: () => void;
@@ -4896,7 +6919,7 @@ function RestaurantEditor({
         upsert: false,
       });
       if (error) throw error;
-      const url = supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl;
+      const url = await signedTripPhotoUrl(path);
       setPhotos((current) => current.map((photo, photoIndex) => photoIndex === index ? url : photo));
     } catch {
       window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
@@ -4939,7 +6962,15 @@ function RestaurantEditor({
           <button type="button" onClick={onClose}>×</button>
         </header>
         <label>Название<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label>Город<input value={city} onChange={(event) => setCity(event.target.value)} /></label>
+        <label>
+          Город
+          <AccommodationCityPicker
+            value={city}
+            onChange={setCity}
+            cities={cities}
+            placeholder="Начните вводить город"
+          />
+        </label>
         <label>Кухня / что заказать<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <label>Ссылка Google Maps<input type="url" value={link} onChange={(event) => setLink(event.target.value)} /></label>
         <section className="restaurant-editor-options">
@@ -4973,6 +7004,168 @@ function RestaurantEditor({
   );
 }
 
+function RestaurantCatalog({
+  cities,
+  onClose,
+  onAdd,
+  onPick,
+}: {
+  cities: string[];
+  onClose: () => void;
+  onAdd?: (restaurant: ImportedRestaurant) => void;
+  onPick?: (restaurant: ImportedRestaurant) => void;
+}) {
+  const [city, setCity] = useState("");
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<ImportedRestaurant[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [addedIds, setAddedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const selectedCity = city.trim();
+    if (selectedCity.length < 2) {
+      setItems([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const nextItems = await fetchRestaurantCatalog(selectedCity, query, controller.signal);
+        setItems(nextItems);
+        void enrichRestaurantCatalogPhotos(nextItems, controller.signal)
+          .then((enrichedItems) => {
+            if (controller.signal.aborted || enrichedItems === nextItems) return;
+            const byId = new globalThis.Map(enrichedItems.map((item) => [item.id, item]));
+            setItems((current) => current.map((item) => byId.get(item.id) || item));
+          })
+          .catch(() => {
+            // Photo enrichment is optional; the catalog cards are already usable.
+          });
+        if (!nextItems.length) {
+          setError("По этому городу пока не нашли рестораны. Попробуйте уточнить поиск.");
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setItems([]);
+          setError("Каталог временно недоступен. Проверьте подключение и попробуйте ещё раз.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 360);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [city, query]);
+
+  const selectRestaurant = (restaurant: ImportedRestaurant) => {
+    if (onPick) {
+      onPick(restaurant);
+      return;
+    }
+    if (!onAdd) return;
+    onAdd({ ...restaurant, id: crypto.randomUUID() });
+    setAddedIds((current) => [...current, restaurant.id]);
+  };
+
+  return (
+    <div className="restaurant-modal-backdrop" onClick={onClose}>
+      <section
+        className="restaurant-modal restaurant-catalog-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restaurant-catalog-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <p className="restaurant-catalog-eyebrow">КАТАЛОГ РЕСТОРАНОВ</p>
+            <h2 id="restaurant-catalog-title">Добавить ресторан</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Закрыть">×</button>
+        </header>
+        <div className="restaurant-catalog-toolbar">
+          <label>
+            Город
+            <AccommodationCityPicker
+              value={city}
+              onChange={setCity}
+              cities={cities}
+              placeholder="Начните вводить город"
+            />
+          </label>
+          <label className="restaurant-catalog-search">
+            Поиск
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Например, пицца или trattoria"
+            />
+          </label>
+        </div>
+        <p className="restaurant-catalog-source">
+          Google Places: до 60 ресторанов с рейтингом, отзывами, фотографиями и точками на карте.
+        </p>
+        {loading && <div className="restaurant-catalog-state">Загружаем рестораны…</div>}
+        {!loading && error && <div className="restaurant-catalog-state is-error">{error}</div>}
+        {!loading && !error && !items.length && (
+          <div className="restaurant-catalog-state">
+            Выберите город, чтобы загрузить рестораны.
+          </div>
+        )}
+        {!loading && !error && items.length > 0 && (
+          <div className="restaurant-catalog-grid">
+            {items.map((restaurant) => {
+              const added = addedIds.includes(restaurant.id);
+              return (
+                <article className="restaurant-catalog-card" key={restaurant.id}>
+                  <div className="restaurant-catalog-card-photo">
+                    {restaurant.photos?.[0] ? (
+                      <img src={restaurant.photos[0]} alt="" loading="lazy" />
+                    ) : (
+                      <span aria-hidden="true">🍽</span>
+                    )}
+                  </div>
+                  <div className="restaurant-catalog-card-body">
+                    <p>{restaurant.placeType || "Ресторан"}</p>
+                    <h3>{restaurant.name}</h3>
+                    <span className="restaurant-catalog-card-city">{restaurant.city}</span>
+                    {restaurant.googleRating !== undefined && (
+                      <span className="restaurant-catalog-rating">
+                        <b>★ {restaurant.googleRating.toFixed(1)}</b>
+                        {restaurant.googleReviews !== undefined && ` · ${restaurant.googleReviews.toLocaleString("ru-RU")} отзывов`}
+                      </span>
+                    )}
+                    {restaurant.note && <small>{restaurant.note}</small>}
+                    <button
+                      type="button"
+                      className={added && !onPick ? "added" : ""}
+                      disabled={added && !onPick}
+                      onClick={() => selectRestaurant(restaurant)}
+                    >
+                      {added && !onPick ? "Добавлено" : onPick ? "Выбрать" : "＋ Добавить"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+        <footer className="restaurant-catalog-footer">
+          <span>{items.length ? `${items.length} мест найдено` : ""}</span>
+          <button type="button" onClick={onClose}>Готово</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function Restaurants({
   trip,
   onUpdateTrip,
@@ -4981,20 +7174,43 @@ function Restaurants({
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
+  const restaurantCities = Array.from(
+    new Set(
+      [
+        ...(trip.cities || "").split(/[·,]/).map((city) => city.trim()),
+        ...(trip.days || []).flatMap((day) =>
+          day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+        ),
+      ].filter(Boolean),
+    ),
+  );
   return (
     <div className="restaurants-with-add">
       <RestaurantPage
         places={trip.restaurants || []}
+        availableCities={restaurantCities}
         onChange={(restaurants) => onUpdateTrip({ ...trip, restaurants })}
       />
-      <button
-        className="restaurant-add-button"
-        onClick={() => setAddingRestaurant(true)}
-      >
-        ＋ Добавить
-      </button>
+      <div className="restaurant-actions">
+        <button
+          className="restaurant-add-button"
+          type="button"
+          onClick={() => setAddingRestaurant(true)}
+        >
+          ＋ Добавить
+        </button>
+      </div>
       {addingRestaurant && (
-        <RestaurantForm onClose={() => setAddingRestaurant(false)} />
+        <RestaurantForm
+          cities={restaurantCities}
+          onSave={(restaurant) =>
+            onUpdateTrip({
+              ...trip,
+              restaurants: [...(trip.restaurants || []), restaurant],
+            })
+          }
+          onClose={() => setAddingRestaurant(false)}
+        />
       )}
     </div>
   );
@@ -5371,7 +7587,7 @@ function LegacyAccommodation() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Ссылка на Букинг →
+                    Ссылка на жильё →
                   </a>
                   <button>удалить</button>
                 </footer>
@@ -5486,12 +7702,13 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
         </section>
         <label>
           Название
-          <input defaultValue="La mia casa al @Pigneto" />
+          <input placeholder="Например, Hotel Artemide" />
         </label>
         <div className="accommodation-form-grid">
           <label>
             Город
-            <select defaultValue="Рим, Италия">
+            <select defaultValue="">
+              <option value="">Выберите город</option>
               <option>Рим, Италия</option>
               <option>Флоренция, Италия</option>
               <option>Венеция, Италия</option>
@@ -5499,11 +7716,12 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
           </label>
           <label>
             Цена
-            <input defaultValue="€434,98" />
+            <input placeholder="Например, €434" />
           </label>
           <label>
             Заезд
-            <select defaultValue="27 сен">
+            <select defaultValue="">
+              <option value="">Выберите дату</option>
               <option>27 сен</option>
               <option>28 сен</option>
               <option>29 сен</option>
@@ -5511,7 +7729,8 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
           </label>
           <label>
             Выезд
-            <select defaultValue="30 сен">
+            <select defaultValue="">
+              <option value="">Выберите дату</option>
               <option>30 сен</option>
               <option>1 окт</option>
               <option>2 окт</option>
@@ -5519,12 +7738,12 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
           </label>
         </div>
         <label>
-          Ссылка на Booking
-          <input defaultValue="https://booking.com/..." />
+          Ссылка на жильё
+          <input placeholder="https://..." />
         </label>
         <label>
           Адрес / заметка
-          <textarea defaultValue="Апартаменты с 1 спальней, до 4 гостей." />
+          <textarea placeholder="Адрес, условия или заметка" />
         </label>
         <footer>
           <button type="button" onClick={onClose}>
@@ -5537,19 +7756,169 @@ function LegacyAccommodationForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+function AccommodationCatalog({
+  cities,
+  onClose,
+  onPick,
+}: {
+  cities: string[];
+  onClose: () => void;
+  onPick: (stay: ImportedAccommodation) => void;
+}) {
+  const [city, setCity] = useState("");
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<ImportedAccommodation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const selectedCity = city.trim();
+    if (selectedCity.length < 2) {
+      setItems([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const nextItems = await fetchGoogleAccommodationCatalog(
+          selectedCity,
+          query,
+          controller.signal,
+        );
+        setItems(nextItems);
+        void enrichAccommodationCatalogPhotos(nextItems, controller.signal)
+          .then((enrichedItems) => {
+            if (controller.signal.aborted || enrichedItems === nextItems) return;
+            const byId = new globalThis.Map(enrichedItems.map((item) => [item.id, item]));
+            setItems((current) => current.map((item) => byId.get(item.id) || item));
+          })
+          .catch(() => {
+            // Photos are optional enrichment; cards remain usable without them.
+          });
+        if (!nextItems.length) setError("По этому городу пока ничего не нашли.");
+      } catch {
+        if (!controller.signal.aborted) {
+          setItems([]);
+          setError("Каталог временно недоступен. Попробуйте ещё раз.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 360);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [city, query]);
+
+  return (
+    <div className="restaurant-modal-backdrop accommodation-catalog-backdrop" onClick={onClose}>
+      <section
+        className="restaurant-modal accommodation-catalog-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="accommodation-catalog-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <p className="accommodation-catalog-eyebrow">КАТАЛОГ ЖИЛЬЯ</p>
+            <h2 id="accommodation-catalog-title">Выбрать жильё</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Закрыть">×</button>
+        </header>
+        <div className="accommodation-catalog-toolbar">
+          <label>
+            Город
+            <AccommodationCityPicker
+              value={city}
+              onChange={setCity}
+              cities={cities}
+              placeholder="Начните вводить город"
+            />
+          </label>
+          <label>
+            Поиск
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Например, hotel или apartment"
+            />
+          </label>
+        </div>
+        <p className="accommodation-catalog-source">
+          Google Places: жильё с фотографиями, рейтингом, отзывами и адресом.
+        </p>
+        {loading && <div className="accommodation-catalog-state">Загружаем варианты…</div>}
+        {!loading && error && <div className="accommodation-catalog-state is-error">{error}</div>}
+        {!loading && !error && !items.length && (
+          <div className="accommodation-catalog-state">Выберите город, чтобы загрузить жильё.</div>
+        )}
+        {!loading && !error && items.length > 0 && (
+          <div className="accommodation-catalog-grid">
+            {items.map((stay) => (
+              <article className="accommodation-catalog-card" key={stay.id}>
+                <div className="accommodation-catalog-card-photo">
+                  {stay.photos?.[0] ? <img src={stay.photos[0]} alt="" loading="lazy" /> : <span aria-hidden="true">⌂</span>}
+                </div>
+                <div className="accommodation-catalog-card-body">
+                  <small>{stay.placeType || "Жильё"}</small>
+                  <h3>{stay.name}</h3>
+                  <span className="accommodation-catalog-card-city">{stay.city}</span>
+                  {stay.googleRating !== undefined && (
+                    <span className="accommodation-catalog-rating">
+                      <b>★ {stay.googleRating.toFixed(1)}</b>
+                      {stay.googleReviews !== undefined && ` · ${stay.googleReviews.toLocaleString("ru-RU")} отзывов`}
+                    </span>
+                  )}
+                  <p>{stay.description || stay.address || "Адрес будет добавлен после выбора"}</p>
+                  <button type="button" onClick={() => onPick(stay)}>Выбрать</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+        <footer className="accommodation-catalog-footer">
+          <span>{items.length ? `${items.length} вариантов найдено` : ""}</span>
+          <button type="button" onClick={onClose}>Готово</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function AccommodationForm({
   onClose,
   onSaved,
   initial,
+  cities = accommodationCities,
 }: {
   onClose: () => void;
   onSaved?: (accommodation: SavedAccommodation) => void;
   initial?: SavedAccommodation;
+  cities?: string[];
 }) {
-  const dateParts = accommodationDateParts(initial?.dates);
+  const dateParts = initial
+    ? accommodationDateParts(initial.dates)
+    : { checkIn: "", checkOut: "" };
+  const [checkIn, setCheckIn] = useState(dateParts.checkIn);
+  const [checkOut, setCheckOut] = useState(dateParts.checkOut);
+  const [freeCancellation, setFreeCancellation] = useState(initial?.deadline || "");
   const [status, setStatus] = useState(initial?.status || "бронь");
-  const [name, setName] = useState(initial?.name || "La mia casa al @Pigneto");
-  const [city, setCity] = useState(initial?.city || "Рим, Италия");
+  const [name, setName] = useState(initial?.name || "");
+  const [city, setCity] = useState(initial?.city || "");
+  const [bookingUrl, setBookingUrl] = useState(initial?.bookingUrl || "");
+  const [details, setDetails] = useState(initial?.details || "");
+  const [googleRating, setGoogleRating] = useState(initial?.googleRating);
+  const [googleReviews, setGoogleReviews] = useState(initial?.googleReviews);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const parsedPrice = parseAccommodationPrice(initial?.price);
+  const [price, setPrice] = useState(parsedPrice.amount);
+  const [priceCurrency, setPriceCurrency] = useState<AccommodationCurrency>(parsedPrice.currency);
   const [photos, setPhotos] = useState(() => [
     ...(initial?.photos || []),
     ...Array(3).fill(""),
@@ -5589,8 +7958,7 @@ function AccommodationForm({
           upsert: false,
         });
       if (error) throw error;
-      const publicUrl = supabase.storage.from("trip-photos").getPublicUrl(path)
-        .data.publicUrl;
+      const publicUrl = await signedTripPhotoUrl(path);
       setPhotos((current) =>
         current.map((photo, photoIndex) =>
           photoIndex === index ? publicUrl : photo,
@@ -5656,10 +8024,12 @@ function AccommodationForm({
             deadline: String(data.get("freeCancellation") || ""),
             progress: 42,
             status,
-            price: String(data.get("price") || ""),
-            bookingUrl: String(data.get("bookingUrl") || ""),
-            details: String(data.get("details") || ""),
+            price: formatAccommodationPriceValue(price, priceCurrency),
+            bookingUrl,
+            details,
             photos: photos.filter(Boolean),
+            googleRating,
+            googleReviews,
             photoTransforms: photos.flatMap((photo, index) =>
               photo ? [photoTransforms[index]] : [],
             ),
@@ -5671,9 +8041,19 @@ function AccommodationForm({
       >
         <header>
           <h2>{initial ? "Редактировать жильё" : "Новое жильё"}</h2>
-          <button type="button" onClick={onClose} disabled={isUploading}>
-            ×
-          </button>
+          <div className="accommodation-modal-header-actions">
+            <button
+              type="button"
+              className="accommodation-header-catalog-button"
+              onClick={() => setCatalogOpen(true)}
+              disabled={isUploading}
+            >
+              ＋ Добавить из каталога
+            </button>
+            <button type="button" onClick={onClose} disabled={isUploading} aria-label="Закрыть">
+              ×
+            </button>
+          </div>
         </header>
         <section>
           <b>Фотографии</b>
@@ -5718,7 +8098,13 @@ function AccommodationForm({
                   />
                 ) : (
                   <>
-                    ▧
+                    <span className="accommodation-upload-icon" aria-hidden="true">
+                      <svg viewBox="0 0 32 28" focusable="false">
+                        <rect x="2" y="3" width="28" height="22" rx="3" />
+                        <circle cx="10" cy="10" r="2.5" />
+                        <path d="m5 22 7-7 5 5 3-3 7 5" />
+                      </svg>
+                    </span>
                     <span>
                       {uploadingPhotos[index]
                         ? "Загружаем..."
@@ -5808,61 +8194,96 @@ function AccommodationForm({
             ))}
           </div>
         </section>
+        {catalogOpen && (
+          <AccommodationCatalog
+            cities={cities}
+            onClose={() => setCatalogOpen(false)}
+            onPick={(stay) => {
+              setName(stay.name);
+              setCity(stay.city);
+              setBookingUrl(stay.link || "");
+              setDetails(stay.address || stay.description || "");
+              setGoogleRating(stay.googleRating);
+              setGoogleReviews(stay.googleReviews);
+              setPhotos([...(stay.photos || []), "", ""].slice(0, 3));
+              setCatalogOpen(false);
+            }}
+          />
+        )}
         <label>
           Название
           <input
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
+            placeholder="Например, Hotel Artemide"
           />
         </label>
         <div className="accommodation-form-grid">
           <label>
             Город
-            <input
-              name="city"
-              list="accommodation-cities"
+            <AccommodationCityPicker
               value={city}
-              onChange={(event) => setCity(event.target.value)}
-              placeholder="Начните вводить город"
-              autoComplete="off"
+              onChange={setCity}
+              cities={cities}
             />
-            <datalist id="accommodation-cities">
-              {accommodationCities.map((item) => (
-                <option value={item} key={item} />
-              ))}
-            </datalist>
           </label>
           <label>
             Цена
-            <input name="price" defaultValue={initial?.price || "€434,98"} />
+            <div className="accommodation-price-field">
+              <input
+                name="price"
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                placeholder="Например, 434"
+                inputMode="decimal"
+              />
+              <select
+                value={priceCurrency}
+                onChange={(event) => setPriceCurrency(event.target.value as AccommodationCurrency)}
+                aria-label="Валюта цены"
+              >
+                {accommodationCurrencies.map((currency) => (
+                  <option value={currency.value} key={currency.value}>
+                    {currency.symbol} {currency.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </label>
-          <label>
-            Заезд
-            <input name="checkIn" type="date" defaultValue={dateParts.checkIn} />
-          </label>
-          <label>
-            Выезд
-            <input name="checkOut" type="date" defaultValue={dateParts.checkOut} />
-          </label>
-        </div>
-        <label>
-          Бесплатная отмена до
-          <input
-            name="freeCancellation"
-            type="date"
-            defaultValue={initial?.deadline || "2026-08-25"}
+          <DatePicker
+            label="Заезд"
+            name="checkIn"
+            value={checkIn}
+            onChange={setCheckIn}
+            className="accommodation-date-picker"
           />
-        </label>
+          <DatePicker
+            label="Выезд"
+            name="checkOut"
+            value={checkOut}
+            onChange={setCheckOut}
+            className="accommodation-date-picker"
+          />
+        </div>
+        <DatePicker
+          label="Бесплатная отмена до"
+          name="freeCancellation"
+          value={freeCancellation}
+          onChange={setFreeCancellation}
+          className="accommodation-date-picker"
+        />
         <label>
-          Ссылка на Booking
-          <input name="bookingUrl" defaultValue={initial?.bookingUrl || "https://booking.com/..."} />
+          Ссылка на жильё
+          <input name="bookingUrl" value={bookingUrl} onChange={(event) => setBookingUrl(event.target.value)} placeholder="https://..." />
         </label>
         <label>
           Адрес / заметка
           <textarea
             name="details"
-            defaultValue={initial?.details || "Апартаменты с 1 спальней, до 4 гостей."}
+            value={details}
+            onChange={(event) => setDetails(event.target.value)}
+            placeholder="Адрес, условия или заметка"
           />
         </label>
         <footer>
@@ -5881,9 +8302,11 @@ function AccommodationForm({
 function AccommodationList({
   stays,
   onChange,
+  cities = accommodationCities,
 }: {
   stays: SavedAccommodation[];
   onChange: (accommodations: SavedAccommodation[]) => void;
+  cities?: string[];
 }) {
   const [filter, setFilter] = useState("Все");
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
@@ -6019,6 +8442,12 @@ function AccommodationList({
                   {cityFlag(stay.city)} {stay.city}
                 </p>
                 <h3>{stay.name}</h3>
+                {stay.googleRating !== undefined && (
+                  <div className="stay-rating">
+                    <span>★</span> {stay.googleRating.toFixed(1)}
+                    {stay.googleReviews !== undefined && ` · ${stay.googleReviews.toLocaleString("ru-RU")} отзывов`}
+                  </div>
+                )}
                 <div className="stay-price">
                   <span>{formatAccommodationDates(stay.dates)}</span>
                   <b>{formatAccommodationPrice(stay.price)}</b>
@@ -6045,7 +8474,7 @@ function AccommodationList({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Ссылка на Букинг →
+                    Ссылка на жильё →
                   </a>
                   <button
                     type="button"
@@ -6071,6 +8500,7 @@ function AccommodationList({
       </section>
       {adding && (
         <AccommodationForm
+          cities={cities}
           onClose={() => setAdding(false)}
           onSaved={(stay) => {
             saveStay(stay);
@@ -6079,6 +8509,7 @@ function AccommodationList({
       )}
       {editing && (
         <AccommodationForm
+          cities={cities}
           initial={editing}
           onClose={() => setEditing(null)}
           onSaved={(stay) => {
@@ -6164,6 +8595,7 @@ function CancellationPage({
   onShowList: () => void;
   onAdd: () => void;
 }) {
+  const [nearestFirst, setNearestFirst] = useState(true);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const cancellationList = accommodations
@@ -6185,7 +8617,9 @@ function CancellationPage({
         progress: Math.max(5, Math.min(100, (days / 90) * 100)),
       };
     })
-    .sort((first, second) => first.days - second.days);
+    .sort((first, second) =>
+      nearestFirst ? first.days - second.days : second.days - first.days,
+    );
   const freeCount = cancellationList.filter((stay) => stay.days > 7).length;
   const soonCount = cancellationList.filter(
     (stay) => stay.days > 0 && stay.days <= 7,
@@ -6207,7 +8641,13 @@ function CancellationPage({
         <p>
           Сроки бесплатной отмены по каждому жилью — по возрастанию срочности.
         </p>
-        <button>↕ Сначала ближайшие</button>
+        <button
+          type="button"
+          aria-pressed={nearestFirst}
+          onClick={() => setNearestFirst((current) => !current)}
+        >
+          ↕ {nearestFirst ? "Сначала ближайшие" : "Сначала дальние"}
+        </button>
       </div>
       <div className="cancellation-summary">
         <article>
@@ -6263,6 +8703,15 @@ function Accommodation({
 }) {
   const [showCancellation, setShowCancellation] = useState(false);
   const [adding, setAdding] = useState(false);
+  const tripCityOptions = Array.from(
+    new Set([
+      ...accommodationCities,
+      ...(trip.cities || "").split("·").map((city) => city.trim()),
+      ...(trip.days || []).flatMap((day) =>
+        day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+      ),
+    ].filter(Boolean)),
+  );
   if (showCancellation)
     return (
       <>
@@ -6273,7 +8722,12 @@ function Accommodation({
             onAdd={() => setAdding(true)}
           />
         }
-        {adding && <AccommodationForm onClose={() => setAdding(false)} />}
+        {adding && (
+          <AccommodationForm
+            cities={tripCityOptions}
+            onClose={() => setAdding(false)}
+          />
+        )}
       </>
     );
   return (
@@ -6289,6 +8743,7 @@ function Accommodation({
     >
       <AccommodationList
         stays={trip.accommodations || []}
+        cities={tripCityOptions}
         onChange={(accommodations) =>
           onUpdateTrip({ ...trip, accommodations })
         }
@@ -7084,18 +9539,48 @@ function Members({
 function TripCardEditor({
   trip,
   onUpdateTrip,
+  onDeleteTrip,
+  onLeaveTrip,
   onClose,
 }: {
   trip: TripSummary;
   onUpdateTrip: (trip: TripSummary) => void;
+  onDeleteTrip: (trip: TripSummary) => Promise<void>;
+  onLeaveTrip: (trip: TripSummary) => Promise<void>;
   onClose: () => void;
 }) {
+  const parsedDates = parseTripDateRange(trip.dates);
   const photoInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(trip.title);
-  const [startDate, setStartDate] = useState(trip.startDate || "");
-  const [endDate, setEndDate] = useState(trip.endDate || "");
+  const [cities, setCities] = useState(trip.cities);
+  const [startDate, setStartDate] = useState(trip.startDate || parsedDates?.[0] || "");
+  const [endDate, setEndDate] = useState(trip.endDate || parsedDates?.[1] || "");
+  const [status, setStatus] = useState(trip.status);
   const [coverImage, setCoverImage] = useState(trip.coverImage || "");
   const [coverChanged, setCoverChanged] = useState(false);
+  const [accessKind, setAccessKind] = useState<"loading" | "owner" | "collaborator">("loading");
+  const [actionBusy, setActionBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session?.user) return;
+      const { data: membership, error } = await supabase
+        .from("trip_collaborators")
+        .select("role")
+        .eq("trip_id", trip.id)
+        .eq("user_id", data.session.user.id)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        console.error("Could not determine trip access.", error);
+        return;
+      }
+      setAccessKind(membership ? "collaborator" : "owner");
+    });
+    return () => {
+      active = false;
+    };
+  }, [trip.id]);
   const selectCover = (file?: File) => {
     if (!file?.type.startsWith("image/")) return;
     void compressCoverPhoto(file)
@@ -7117,17 +9602,40 @@ function TripCardEditor({
     onUpdateTrip({
       ...trip,
       title: title.trim() || "Без названия",
+      cities: cities.trim(),
       startDate,
       endDate,
       dates: startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates,
+      status,
+      isDraft: status === "Черновик",
       coverImage,
       coverPhotos: coverChanged
-        ? coverImage
-          ? [{ id: crypto.randomUUID(), image: coverImage }]
-          : []
+        ? [{ id: crypto.randomUUID(), image: coverImage }]
         : trip.coverPhotos,
     });
     onClose();
+  };
+  const remove = async () => {
+    const isCollaborator = accessKind === "collaborator";
+    const confirmation = isCollaborator
+      ? `Выйти из путешествия «${trip.title}»? Вы потеряете к нему доступ.`
+      : `Удалить путешествие «${trip.title}»? Это действие нельзя отменить.`;
+    if (!window.confirm(confirmation)) {
+      return;
+    }
+    setActionBusy(true);
+    try {
+      if (isCollaborator) await onLeaveTrip(trip);
+      else await onDeleteTrip(trip);
+      onClose();
+    } catch {
+      window.alert(
+        isCollaborator
+          ? "Не удалось выйти из путешествия. Попробуйте ещё раз."
+          : "Не удалось удалить путешествие. Попробуйте ещё раз.",
+      );
+      setActionBusy(false);
+    }
   };
   return (
     <div className="overview-editor-backdrop" onClick={onClose}>
@@ -7139,12 +9647,24 @@ function TripCardEditor({
         onClick={(event) => event.stopPropagation()}
       >
         <header>
-          <h2 id="trip-card-editor-title">Редактирование путешествия</h2>
+          <div>
+            <small>Настройки поездки</small>
+            <h2 id="trip-card-editor-title">{trip.title}</h2>
+          </div>
           <button type="button" onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </header>
-        <div>
+        <div className="trip-card-editor-body">
+          <div className="trip-editor-summary">
+            <span>R</span>
+            <div>
+              <b>{status === "Черновик" ? "Черновик" : status === "Завершённое" ? "Прошедшее путешествие" : "Предстоящее путешествие"}</b>
+              <small>{startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates}</small>
+            </div>
+          </div>
+
+          <p className="trip-editor-section-label">Основное</p>
           <label>
             Название путешествия
             <input
@@ -7153,49 +9673,120 @@ function TripCardEditor({
               placeholder="Название путешествия"
             />
           </label>
-          <section>
-            <DatePicker
-              label="Дата начала"
-              value={startDate}
-              onChange={setStartDate}
+
+          <label>
+            Маршрут
+            <span className="trip-editor-input-with-icon">
+              <i aria-hidden="true">⌖</i>
+              <input
+                value={cities}
+                onChange={(event) => setCities(event.target.value)}
+                placeholder="Города путешествия"
+              />
+            </span>
+          </label>
+
+          <div className="trip-editor-cover-field">
+            <p>Фото путешествия</p>
+            <input
+              ref={photoInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                selectCover(event.target.files?.[0]);
+                event.target.value = "";
+              }}
             />
-            <DatePicker
-              label="Дата окончания"
-              value={endDate}
-              onChange={setEndDate}
-            />
-          </section>
-          {!startDate && !endDate && trip.dates && (
-            <small>Текущие даты: {trip.dates}</small>
+            <button
+              type="button"
+              onClick={() => photoInput.current?.click()}
+            >
+              <span
+                className={coverImage ? "has-image" : ""}
+                style={coverImage ? { backgroundImage: `url(${coverImage})` } : undefined}
+              >
+                {!coverImage && "R"}
+              </span>
+              <span>
+                <b>{coverImage ? "Изменить фото" : "Добавить фото"}</b>
+                <small>JPG, PNG или WebP</small>
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="trip-editor-dates">
+            <p>Даты поездки</p>
+            <div>
+              <DatePicker
+                label="Начало"
+                value={startDate}
+                onChange={setStartDate}
+              />
+              <DatePicker
+                label="Окончание"
+                value={endDate}
+                onChange={setEndDate}
+              />
+            </div>
+          </div>
+
+          <div className="trip-editor-status-group">
+            <p>Статус</p>
+            <div className="trip-editor-status">
+              {[
+                ["Предстоящее", "Предстоящие"],
+                ["Черновик", "Черновики"],
+                ["Завершённое", "Прошедшие"],
+              ].map(([value, label]) => (
+                <button
+                  className={status === value ? "selected" : ""}
+                  type="button"
+                  onClick={() => setStatus(value)}
+                  key={value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <footer>
+            <button type="button" onClick={onClose}>Отмена</button>
+            <button className="accent" type="button" onClick={save}>Сохранить</button>
+          </footer>
+
+          {accessKind !== "loading" && (
+            <button
+              className={`trip-editor-delete ${accessKind === "collaborator" ? "leave" : ""}`}
+              type="button"
+              onClick={() => void remove()}
+              disabled={actionBusy}
+            >
+              <span aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  {accessKind === "collaborator" ? (
+                    <path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 8l4 4-4 4M8 12h10" />
+                  ) : (
+                    <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+                  )}
+                </svg>
+              </span>
+              <b>
+                {actionBusy
+                  ? accessKind === "collaborator" ? "Выходим…" : "Удаляем…"
+                  : accessKind === "collaborator" ? "Выйти из путешествия" : "Удалить путешествие"}
+              </b>
+              <small>
+                {accessKind === "collaborator"
+                  ? "Доступ к поездке будет закрыт"
+                  : "Удаление нельзя отменить"}
+              </small>
+            </button>
           )}
-          <input
-            ref={photoInput}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => {
-              selectCover(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-          <button
-            type="button"
-            className={`trip-cover-picker ${coverImage ? "has-image" : ""}`}
-            style={
-              coverImage ? { backgroundImage: `url(${coverImage})` } : undefined
-            }
-            onClick={() => photoInput.current?.click()}
-          >
-            <span>{coverImage ? "Изменить обложку" : "Добавить обложку"}</span>
-          </button>
         </div>
-        <footer>
-          <button type="button" onClick={onClose}>
-            Отмена
-          </button>
-          <button className="accent" type="button" onClick={save}>
-            Сохранить
-          </button>
-        </footer>
       </section>
     </div>
   );
@@ -7898,6 +10489,7 @@ function TripOverview({
 }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [expandedPhoto, setExpandedPhoto] = useState<number | null>(null);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<{
     distance: number;
@@ -7984,6 +10576,28 @@ function TripOverview({
   weatherCoverPhotos = coverPhotos;
   const activeCover =
     coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
+  useEffect(() => {
+    if (expandedPhoto === null) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedPhoto(null);
+      if (event.key === "ArrowLeft" && coverPhotos.length > 1)
+        setExpandedPhoto(
+          (current) =>
+            ((current ?? 0) - 1 + coverPhotos.length) % coverPhotos.length,
+        );
+      if (event.key === "ArrowRight" && coverPhotos.length > 1)
+        setExpandedPhoto(
+          (current) => ((current ?? 0) + 1) % coverPhotos.length,
+        );
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedPhoto, coverPhotos.length]);
   const uploadCoverPhoto = async (file: Blob, extension: string) => {
     const {
       data: { session },
@@ -7998,8 +10612,7 @@ function TripOverview({
         contentType: file.type || "image/jpeg",
       });
     if (error) throw error;
-    return supabase.storage.from("trip-photos").getPublicUrl(path).data
-      .publicUrl;
+    return signedTripPhotoUrl(path);
   };
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -8131,11 +10744,12 @@ function TripOverview({
     );
   if (trip.isDraft)
     return (
-      <div className="trip-overview">
-        <div className="overview-draft">
-          <div className="cover-photo-stack">
-            <section
-              className={activeCover ? "has-draft-cover" : ""}
+      <>
+        <div className="trip-overview">
+          <div className="overview-draft">
+            <div className="cover-photo-stack">
+              <section
+              className={activeCover ? "has-draft-cover cover-photo-preview" : ""}
               style={
                 activeCover
                   ? {
@@ -8143,6 +10757,29 @@ function TripOverview({
                     }
                   : undefined
               }
+              role={activeCover ? "button" : undefined}
+              tabIndex={activeCover ? 0 : undefined}
+              aria-label={activeCover ? "Увеличить фотографию" : undefined}
+              onClick={(event) => {
+                if (
+                  activeCover &&
+                  !(event.target as HTMLElement).closest("button, input")
+                )
+                  setExpandedPhoto(
+                    Math.min(activePhoto, Math.max(0, coverPhotos.length - 1)),
+                  );
+              }}
+              onKeyDown={(event) => {
+                if (
+                  activeCover &&
+                  (event.key === "Enter" || event.key === " ")
+                ) {
+                  event.preventDefault();
+                  setExpandedPhoto(
+                    Math.min(activePhoto, Math.max(0, coverPhotos.length - 1)),
+                  );
+                }
+              }}
             >
               <input
                 ref={photoInputRef}
@@ -8209,9 +10846,9 @@ function TripOverview({
                   </button>
                 </>
               )}
-            </section>
-            {coverPhotos.length > 1 && (
-              <div className="cover-order">
+              </section>
+              {coverPhotos.length > 1 && (
+                <div className="cover-order">
                 <p>Перетащите фото в порядке городов маршрута</p>
                 <div>
                   {coverPhotos.map((photo, index) => (
@@ -8235,19 +10872,72 @@ function TripOverview({
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+            <aside className="map-card">
+              <TripMap routeDays={trip.days} />
+              <footer>
+                <span>Общий маршрут</span>
+                <b>{routeSummary}</b>
+              </footer>
+            </aside>
           </div>
-          <aside className="map-card">
-            <TripMap routeDays={trip.days} />
-            <footer>
-              <span>Общий маршрут</span>
-              <b>{routeSummary}</b>
-            </footer>
-          </aside>
+          <WeatherOverview cities={overviewCities} tripDates={trip.dates} />
         </div>
-        <WeatherOverview cities={overviewCities} tripDates={trip.dates} />
-      </div>
+        {expandedPhoto !== null && coverPhotos[expandedPhoto] && (
+          <div
+            className="accommodation-photo-lightbox cover-photo-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Просмотр фотографии путешествия"
+            onClick={() => setExpandedPhoto(null)}
+          >
+            <img
+              src={coverPhotos[expandedPhoto].image}
+              alt={coverPhotos[expandedPhoto].city || "Фотография путешествия"}
+              onClick={(event) => event.stopPropagation()}
+            />
+            {coverPhotos.length > 1 && (
+              <>
+                <button
+                  className="lightbox-previous"
+                  type="button"
+                  aria-label="Предыдущее фото"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setExpandedPhoto(
+                      (expandedPhoto - 1 + coverPhotos.length) %
+                        coverPhotos.length,
+                    );
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  className="lightbox-next"
+                  type="button"
+                  aria-label="Следующее фото"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setExpandedPhoto((expandedPhoto + 1) % coverPhotos.length);
+                  }}
+                >
+                  ›
+                </button>
+              </>
+            )}
+            <button
+              className="lightbox-close"
+              type="button"
+              aria-label="Закрыть"
+              onClick={() => setExpandedPhoto(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </>
     );
   const cities = [
     {
@@ -8328,13 +11018,34 @@ function WalkingMap({
   const [routeCoordinates, setRouteCoordinates] = useState<
     [number, number][] | null
   >(null);
-  const coordinates = sights
-    .map((sight) => sight.lnglat)
-    .filter((coordinate): coordinate is [number, number] =>
-      Boolean(coordinate),
+  const sightPoints = sights
+    .map((sight, index) => {
+      const base = sight.lnglat || mapLocation(sight.city) || (city ? mapLocation(city) : undefined);
+      if (!base) return null;
+      const sameCityFallbackIndex = sights
+        .slice(0, index)
+        .filter((item) => !item.lnglat && item.city === sight.city).length;
+      const radius = sight.lnglat
+        ? 0
+        : sameCityFallbackIndex
+          ? 0.004 + (sameCityFallbackIndex % 3) * 0.002
+          : 0;
+      const angle = sameCityFallbackIndex * 2.4;
+      return {
+        sight,
+        coordinate: [
+          base[0] + Math.cos(angle) * radius,
+          base[1] + Math.sin(angle) * radius,
+        ] as [number, number],
+      };
+    })
+    .filter(
+      (point): point is { sight: StoredSight; coordinate: [number, number] } =>
+        Boolean(point),
     );
-  const routeKey = sights
-    .map((sight) => `${sight.id}:${sight.lnglat?.join(",") || ""}`)
+  const coordinates = sightPoints.map((point) => point.coordinate);
+  const routeKey = sightPoints
+    .map(({ sight, coordinate }) => `${sight.id}:${coordinate.join(",")}`)
     .join(";");
 
   useEffect(() => {
@@ -8372,19 +11083,19 @@ function WalkingMap({
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const fallbackLocation = city ? mapLocation(city) : undefined;
-    if (!container.current || !token || (!coordinates.length && !fallbackLocation))
+    if (!container.current || (!coordinates.length && !fallbackLocation))
       return;
     let map: Map | undefined;
     let disposed = false;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
-      mapboxgl.accessToken = token;
+      if (token) mapboxgl.accessToken = token;
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
         center: coordinates[0] || fallbackLocation!,
         zoom: coordinates.length ? 13 : 11,
-        attributionControl: false,
+        attributionControl: true,
       });
       mapRef.current = map;
       markerElements.current.clear();
@@ -8392,14 +11103,13 @@ function WalkingMap({
         new mapboxgl.NavigationControl({ showCompass: false }),
         "top-right",
       );
-      sights.forEach((sight, index) => {
-        if (!sight.lnglat) return;
+      sightPoints.forEach(({ sight, coordinate }, index) => {
         const marker = document.createElement("span");
         marker.className = "sight-map-marker";
         marker.textContent = String(index + 1);
         markerElements.current.set(sight.id, marker);
         new mapboxgl.Marker({ element: marker })
-          .setLngLat(sight.lnglat)
+          .setLngLat(coordinate)
           .addTo(map!);
       });
       map.on("load", () => {
@@ -8444,13 +11154,13 @@ function WalkingMap({
   useEffect(() => {
     if (!activeSightId) return;
     const marker = markerElements.current.get(activeSightId);
-    const sight = sights.find((item) => item.id === activeSightId);
-    if (!marker || !sight?.lnglat) return;
+    const point = sightPoints.find(({ sight }) => sight.id === activeSightId);
+    if (!marker || !point) return;
     marker.classList.remove("bounce");
     void marker.offsetWidth;
     marker.classList.add("bounce");
     mapRef.current?.flyTo({
-      center: sight.lnglat,
+      center: point.coordinate,
       zoom: 15,
       duration: 700,
       essential: true,
@@ -8460,13 +11170,13 @@ function WalkingMap({
     const focusSight = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
       const marker = markerElements.current.get(id);
-      const sight = sights.find((item) => item.id === id);
-      if (!marker || !sight?.lnglat) return;
+      const point = sightPoints.find(({ sight }) => sight.id === id);
+      if (!marker || !point) return;
       marker.classList.remove("bounce");
       void marker.offsetWidth;
       marker.classList.add("bounce");
       mapRef.current?.flyTo({
-        center: sight.lnglat,
+        center: point.coordinate,
         zoom: 15,
         duration: 700,
         essential: true,
@@ -8500,6 +11210,7 @@ function Sights({
   onAddDay,
   onCreateDay,
   onRenameDay,
+  onDeleteDay,
 }: {
   sights: StoredSight[];
   days: { id: string; title: string; photo?: string; photoPosition?: number }[];
@@ -8508,6 +11219,7 @@ function Sights({
   onAddDay: (title: string) => void;
   onCreateDay: (dayIndex: number, city: string, places: DayPlaceDraft[]) => void;
   onRenameDay: (id: string, title: string) => void;
+  onDeleteDay: (id: string, dayIndex: number) => void;
 }) {
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
@@ -8515,6 +11227,17 @@ function Sights({
   const [selectedDay, setSelectedDay] = useState(0);
   const [activeSightId, setActiveSightId] = useState<string | null>(null);
   const [expandedSightId, setExpandedSightId] = useState<string | null>(null);
+  const [expandedPhoto, setExpandedPhoto] = useState<{
+    url: string;
+    alt: string;
+  } | null>(null);
+  const [newDayCity, setNewDayCity] = useState("");
+  const [editingDay, setEditingDay] = useState<{
+    id: string;
+    index: number;
+    title: string;
+  } | null>(null);
+  const [editingDayTitle, setEditingDayTitle] = useState("");
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -8530,6 +11253,11 @@ function Sights({
       );
   }, [selectedDay, days]);
   const cities = Array.from(new Set(sights.map((sight) => sight.city))).sort();
+  const cityOptions = Array.from(new Set([
+    ...cities,
+    ...days.map((day) => day.title),
+    defaultCity || "",
+  ].filter(Boolean))).sort((first, second) => first.localeCompare(second, "ru"));
   if (!cities.length && defaultCity) cities.push(defaultCity);
   const [city, setCity] = useState(cities[0] || "");
   useEffect(() => {
@@ -8571,53 +11299,7 @@ function Sights({
     if (category.includes("переезд") || category.includes("прогул")) return "walk";
     return "sight";
   };
-  const shortDescriptionFor = (sight: StoredSight) => {
-    if (sight.description?.trim()) return sight.description.trim();
-    const label = `${sight.name} ${sight.city}`.toLowerCase();
-    if (/площад|piazza|square/.test(label)) {
-      return "Историческая площадь с красивой архитектурой и атмосферой старого города.";
-    }
-    if (/собор|церк|базилик|kirche|duomo|basilica|church/.test(label)) {
-      return "Исторический храм с выразительным фасадом и красивыми интерьерами.";
-    }
-    if (/ярмарк|рынок|market|christkindlmarkt|елк|подсветк|lights/.test(label)) {
-      return "Праздничная локация с огнями, ярмарочными домиками и угощениями.";
-    }
-    if (/улиц|via |corso|straß|strasse|street|квартал/.test(label)) {
-      return "Прогулочная улица с историческими фасадами, магазинами и кафе.";
-    }
-    if (/мост|ponte|bridge/.test(label)) {
-      return "Живописная точка с видами на воду и старый город.";
-    }
-    if (/замок|дворец|palazzo|residenz|castle|palace/.test(label)) {
-      return "Исторический комплекс с красивыми дворами и архитектурными деталями.";
-    }
-    if (/фонтан|fontan/.test(label)) {
-      return "Знаковая городская достопримечательность и популярное место для фото.";
-    }
-    if (/парк|сад|garden|parco|hofgarten/.test(label)) {
-      return "Спокойное место для прогулки среди зелени и городской архитектуры.";
-    }
-    if (/набереж|реки|канал|canal|tiber|arno|lagoon|берег/.test(label)) {
-      return "Живописная прогулка вдоль воды с видами на город.";
-    }
-    if (/башн|tower|torre/.test(label)) {
-      return "Историческая башня с характерным силуэтом и видом на город.";
-    }
-    if (/смотров|панорам|вид|view|panorama/.test(label)) {
-      return "Смотровая точка с красивой панорамой города.";
-    }
-    if (/музе|museum/.test(label)) {
-      return "Место для знакомства с историей, искусством и культурой города.";
-    }
-    if (/театр|теат|scala/.test(label)) {
-      return "Знаковое культурное место с богатой историей и красивым фасадом.";
-    }
-    if (/монумент|стату|statue|monument/.test(label)) {
-      return "Памятник, который помогает лучше почувствовать историю города.";
-    }
-    return `Интересная точка маршрута в городе ${sight.city}.`;
-  };
+  const shortDescriptionFor = (sight: StoredSight) => sightDescriptionFor(sight);
   const focusSight = (sight: StoredSight) => {
     setActiveSightId(sight.id);
     window.dispatchEvent(new CustomEvent("ramingo-focus-sight", { detail: sight.id }));
@@ -8671,10 +11353,8 @@ function Sights({
                       type="button"
                       className="sights-day-rename"
                       onClick={() => {
-                        const title = window
-                          .prompt("Название дня", day.title)
-                          ?.trim();
-                        if (title) onRenameDay(day.id, title);
+                        setEditingDay({ id: day.id, index, title: day.title });
+                        setEditingDayTitle(day.title);
                       }}
                       aria-label={`Переименовать день ${index + 1}`}
                     >
@@ -8689,15 +11369,20 @@ function Sights({
                 className="sights-add-day-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const title = String(
-                    new FormData(event.currentTarget).get("title") || "",
-                  ).trim();
+                  const title = newDayCity.trim();
                   if (!title) return;
                   onAddDay(title);
+                  setNewDayCity("");
                   setAddingDay(false);
                 }}
               >
-                <input name="title" placeholder="Например, Рим" autoFocus />
+                <AccommodationCityPicker
+                  value={newDayCity}
+                  onChange={setNewDayCity}
+                  cities={cityOptions}
+                  placeholder="Например, Рим"
+                  className="sights-city-picker"
+                />
                 <button type="submit" className="accent">Добавить</button>
               </form>
             ) : (
@@ -8722,6 +11407,7 @@ function Sights({
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
                   const photoUrl = sight.photo || defaultSightPhotos[(sightNumber - 1) % defaultSightPhotos.length];
                   const description = shortDescriptionFor(sight);
+                  const rating = sightRatingFor(sight);
                   return (
                     <article
                       className={
@@ -8735,8 +11421,26 @@ function Sights({
                         {sightNumber}
                       </span>
                       <div className="sights-timeline-card has-photo">
-                        <img className="sights-event-thumb" src={photoUrl} alt="" loading="lazy" />
+                        <button
+                          type="button"
+                          className="sights-event-photo-button"
+                          aria-label={`Увеличить фото: ${sight.name}`}
+                          onClick={() =>
+                            setExpandedPhoto({
+                              url: photoUrl,
+                              alt: sight.name,
+                            })
+                          }
+                        >
+                          <img
+                            className="sights-event-thumb"
+                            src={photoUrl}
+                            alt=""
+                            loading="lazy"
+                          />
+                        </button>
                         <div className="sights-timeline-card-content">
+                          <small className="sights-event-category">{categoryFor(sight)}</small>
                           <div className="sights-event-top">
                             <button
                               type="button"
@@ -8761,6 +11465,9 @@ function Sights({
                             >
                               ···
                             </button>
+                          </div>
+                          <div className="sights-event-rating" aria-label={`Рейтинг ${rating.score.toFixed(1)} из 5, ${formatSightReviews(rating.reviews)} оценок`}>
+                            <span>★</span> {rating.score.toFixed(1)} <small>· {formatSightReviews(rating.reviews)} оценок</small>
                           </div>
                           <p className={`sights-event-description${expandedSightId === sight.id ? " expanded" : ""}`}>
                             {expandedSightId === sight.id && sight.description?.trim()
@@ -8849,16 +11556,102 @@ function Sights({
           </aside>
         </div>
       </section>
+      {editingDay && (
+        <div
+          className="sights-day-dialog-backdrop"
+          onClick={() => setEditingDay(null)}
+        >
+          <form
+            className="sights-day-dialog"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const title = editingDayTitle.trim();
+              if (!title) return;
+              onRenameDay(editingDay.id, title);
+              setEditingDay(null);
+            }}
+          >
+            <header>
+              <div>
+                <small>ДЕНЬ {editingDay.index + 1}</small>
+                <h2>Настройки дня</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Закрыть"
+                onClick={() => setEditingDay(null)}
+              >
+                ×
+              </button>
+            </header>
+            <label>
+              Название дня
+              <input
+                value={editingDayTitle}
+                onChange={(event) => setEditingDayTitle(event.target.value)}
+                autoFocus
+              />
+            </label>
+            <footer>
+              <button
+                type="button"
+                className="sights-day-dialog-delete"
+                onClick={() => {
+                  if (days.length <= 1) {
+                    window.alert("Нельзя удалить последний день путешествия.");
+                    return;
+                  }
+                  onDeleteDay(editingDay.id, editingDay.index);
+                  setEditingDay(null);
+                }}
+              >
+                Удалить день
+              </button>
+              <button type="button" onClick={() => setEditingDay(null)}>
+                Отмена
+              </button>
+              <button className="accent" type="submit">
+                Сохранить
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
       {dayEditorOpen && (
         <DayEditor
           dayNumber={selectedDay + 1}
-          defaultCity={days[selectedDay]?.title || city}
+          defaultCity=""
+          cities={cityOptions}
           onClose={() => setDayEditorOpen(false)}
           onSave={(nextCity, places) => {
             onCreateDay(selectedDay, nextCity, places);
             setDayEditorOpen(false);
           }}
         />
+      )}
+      {expandedPhoto && (
+        <div
+          className="accommodation-photo-lightbox sights-photo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Просмотр фото: ${expandedPhoto.alt}`}
+          onClick={() => setExpandedPhoto(null)}
+        >
+          <img
+            src={expandedPhoto.url}
+            alt={expandedPhoto.alt}
+            onClick={(event) => event.stopPropagation()}
+          />
+          <button
+            className="lightbox-close"
+            type="button"
+            aria-label="Закрыть"
+            onClick={() => setExpandedPhoto(null)}
+          >
+            ×
+          </button>
+        </div>
       )}
     </>
   );
@@ -8867,14 +11660,17 @@ function Sights({
 function DayEditor({
   dayNumber,
   defaultCity,
+  cities = accommodationCities,
   onClose,
   onSave,
 }: {
   dayNumber: number;
   defaultCity: string;
+  cities?: string[];
   onClose: () => void;
   onSave: (city: string, places: DayPlaceDraft[]) => void;
 }) {
+  const [city, setCity] = useState(defaultCity);
   const [places, setPlaces] = useState<DayPlaceDraft[]>([]);
   const [place, setPlace] = useState("");
   const [placeDescription, setPlaceDescription] = useState("");
@@ -8884,6 +11680,85 @@ function DayEditor({
   const [draggingPlacePhoto, setDraggingPlacePhoto] = useState(false);
   const placePhotoDrag = useRef<{ y: number; position: number } | null>(null);
   const [uploadingPlacePhoto, setUploadingPlacePhoto] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [remoteCatalog, setRemoteCatalog] = useState<StoredSight[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  useEffect(() => {
+    const searchCity = city.trim();
+    if (!catalogOpen || searchCity.length < 2) {
+      setRemoteCatalog([]);
+      setCatalogLoading(false);
+      setCatalogError("");
+      return;
+    }
+    const controller = new AbortController();
+    setCatalogLoading(true);
+    setCatalogError("");
+    void fetchSightCatalog(searchCity, controller.signal)
+      .then((items) => {
+        setRemoteCatalog(items);
+        void enrichSightCatalogPhotos(items, controller.signal)
+          .then((enrichedItems) => {
+            if (controller.signal.aborted || enrichedItems === items) return;
+            const byId = new globalThis.Map(enrichedItems.map((item) => [item.id, item]));
+            setRemoteCatalog((current) => current.map((item) => byId.get(item.id) || item));
+          })
+          .catch(() => {
+            // Photos are optional enrichment; the catalog remains usable.
+          });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setRemoteCatalog([]);
+        setCatalogError("Внешний каталог временно недоступен");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      });
+    return () => controller.abort();
+  }, [catalogOpen, city]);
+  const cityCatalog = attractionCatalog.filter(
+    (sight) =>
+      !city ||
+      sight.city.toLowerCase().includes(city.toLowerCase()) ||
+      city.toLowerCase().includes(sight.city.toLowerCase()),
+  );
+  const localCatalog = cityCatalog.length ? cityCatalog : attractionCatalog;
+  const catalogItems = Array.from(
+    new globalThis.Map(
+      [...remoteCatalog, ...localCatalog].map((item) => [item.name.toLowerCase(), item]),
+    ).values(),
+  )
+    .filter((sight) => {
+      const query = catalogQuery.trim().toLowerCase();
+      return (
+        !query ||
+        `${sight.name} ${sight.city} ${sightDescriptionFor(sight)}`
+          .toLowerCase()
+          .includes(query)
+      );
+    })
+    .slice(0, 24);
+  const addCatalogPlace = (sight: StoredSight, index: number) => {
+    setPlaces((current) => {
+      if (current.some((item) => item.name === sight.name)) return current;
+      return [
+        ...current,
+        {
+          name: sight.name,
+          subcategory: sight.subcategory || sight.group || "Достопримечательность",
+          description: sightDescriptionFor(sight),
+          photo: catalogPhotoFor(sight, index),
+          photoPosition: sight.photoPosition,
+          lnglat: sight.lnglat,
+          googleRating: sight.googleRating,
+          googleReviews: sight.googleReviews,
+        },
+      ];
+    });
+  };
   const addPlace = async () => {
     const value = place.trim();
     if (!value) return;
@@ -8917,7 +11792,7 @@ function DayEditor({
         upsert: false,
       });
       if (error) throw error;
-      return supabase.storage.from("trip-photos").getPublicUrl(path).data.publicUrl;
+      return await signedTripPhotoUrl(path);
     } catch {
       window.alert("Не удалось загрузить фото. Попробуйте ещё раз.");
       return null;
@@ -8932,10 +11807,9 @@ function DayEditor({
         onClick={(event) => event.stopPropagation()}
         onSubmit={async (event) => {
           event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          const city = String(data.get("city") || "").trim();
-          if (!city) return;
-          onSave(city, places);
+          const nextCity = city.trim();
+          if (!nextCity) return;
+          onSave(nextCity, places);
         }}
       >
         <header>
@@ -8949,11 +11823,12 @@ function DayEditor({
         </header>
         <label>
           Город
-          <input
-            name="city"
-            defaultValue={defaultCity}
+          <AccommodationCityPicker
+            value={city}
+            onChange={setCity}
+            cities={cities}
             placeholder="Напр. Болонья"
-            autoFocus
+            className="day-editor-city-picker"
           />
         </label>
         <section>
@@ -8984,6 +11859,63 @@ function DayEditor({
               {placePhoto ? <img className={draggingPlacePhoto ? "dragging" : ""} src={placePhoto} alt="Фото места" style={{ objectPosition: `center ${placePhotoPosition}%` }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); placePhotoDrag.current = { y: event.clientY, position: placePhotoPosition }; setDraggingPlacePhoto(true); }} onPointerMove={(event) => { const start = placePhotoDrag.current; if (!start) return; const height = event.currentTarget.getBoundingClientRect().height; const next = start.position - ((event.clientY - start.y) / height) * 100; setPlacePhotoPosition(Math.max(0, Math.min(100, next))); }} onPointerUp={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} onPointerCancel={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} /> : <span>＋ Добавить фото</span>}
               {placePhoto && <small>Перетащите фото, чтобы выбрать кадр</small>}
             </label>
+          </div>
+          <div className="day-place-catalog">
+            <button
+              type="button"
+              className="day-place-catalog-toggle"
+              onClick={() => setCatalogOpen((open) => !open)}
+            >
+              {catalogOpen ? "Скрыть каталог" : "＋ Выбрать из каталога"}
+            </button>
+            {catalogOpen && (
+              <div className="day-place-catalog-panel">
+                <input
+                  value={catalogQuery}
+                  onChange={(event) => setCatalogQuery(event.target.value)}
+                  placeholder="Поиск достопримечательности..."
+                  aria-label="Поиск в каталоге"
+                />
+                {catalogLoading && <p className="day-place-catalog-status">Загружаем места для города…</p>}
+                {catalogError && <p className="day-place-catalog-status error">{catalogError}. Показываем сохранённый каталог.</p>}
+                <div className="day-place-catalog-list">
+                  {catalogItems.map((item, index) => {
+                    const added = places.some((place) => place.name === item.name);
+                    const rating = sightRatingFor(item);
+                    return (
+                      <button
+                        type="button"
+                        className={added ? "added" : ""}
+                        disabled={added}
+                        onClick={() => addCatalogPlace(item, index)}
+                        key={item.id}
+                      >
+                        <img
+                          src={catalogPhotoFor(item, index)}
+                          alt=""
+                          loading="lazy"
+                        />
+                        <span>
+                          <small className="catalog-place-category">
+                            {item.subcategory || item.group || "Достопримечательность"}
+                          </small>
+                          <b>{item.name}</b>
+                          <small className="catalog-place-rating">
+                            <span>★</span> {rating.score.toFixed(1)} · {formatSightReviews(rating.reviews)} оценок
+                          </small>
+                          <small>
+                            {sightDescriptionFor(item)}
+                          </small>
+                        </span>
+                        <i>{added ? "Добавлено" : "＋"}</i>
+                      </button>
+                    );
+                  })}
+                  {!catalogItems.length && !catalogLoading && <p>Ничего не найдено.</p>}
+                </div>
+                <small className="day-place-catalog-source">Google Places: фото, рейтинг, отзывы и точки на карте. Wikipedia используется как резервный источник.</small>
+              </div>
+            )}
           </div>
           {places.length > 0 && (
             <ol>
@@ -9428,6 +12360,28 @@ function Workspace({
                 ),
               })
             }
+            onDeleteDraftDay={(day) => {
+              if (!window.confirm("Удалить этот день маршрута?")) return;
+              setEditingRoadDay(null);
+              onUpdateTrip({
+                ...trip,
+                places: undefined,
+                days: draftDays.filter((_, index) => index !== day),
+              });
+            }}
+            onReorderDraftDays={(from, to) => {
+              if (from === to) return;
+              const nextDays = [...draftDays];
+              const [movedDay] = nextDays.splice(from, 1);
+              if (!movedDay) return;
+              nextDays.splice(to, 0, movedDay);
+              setEditingRoadDay(null);
+              onUpdateTrip({
+                ...trip,
+                places: undefined,
+                days: nextDays,
+              });
+            }}
           />
         )}
         {tab === "sights" && (
@@ -9476,6 +12430,9 @@ function Workspace({
                     id: crypto.randomUUID(),
                     ...place,
                     city,
+                    // Catalog places keep their exact coordinates; custom places
+                    // are placed automatically at the selected city's center.
+                    lnglat: place.lnglat || mapLocation(city),
                     walkDay: dayNumber,
                     walkOrder: index,
                   }));
@@ -9497,6 +12454,25 @@ function Workspace({
                   ),
                 })
               }
+              onDeleteDay={(id, dayIndex) => {
+                if (sightDays.length <= 1) return;
+                const removedDayNumber = dayIndex + 1;
+                const nextSightNotes = { ...trip.sightNotes };
+                delete nextSightNotes[id];
+                onUpdateTrip({
+                  ...trip,
+                  sightDaysVersion: 1,
+                  sightDays: sightDays.filter((day) => day.id !== id),
+                  sights: (trip.sights || [])
+                    .filter((sight) => sight.walkDay !== removedDayNumber)
+                    .map((sight) =>
+                      sight.walkDay && sight.walkDay > removedDayNumber
+                        ? { ...sight, walkDay: sight.walkDay - 1 }
+                        : sight,
+                    ),
+                  sightNotes: nextSightNotes,
+                });
+              }}
             />
             <SightNotes
               value={
@@ -9661,17 +12637,74 @@ function PublicRoute({ go }: { go: (view: View) => void }) {
   );
 }
 
+function PasswordField({ className = "", ...inputProps }: InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className={`password-field${className ? ` ${className}` : ""}`}>
+      <input {...inputProps} type={visible ? "text" : "password"} />
+      <button
+        type="button"
+        className="password-visibility"
+        aria-label={visible ? "Скрыть пароль" : "Показать пароль"}
+        aria-pressed={visible}
+        onClick={() => setVisible((current) => !current)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+          <circle cx="12" cy="12" r="2.8" />
+          {!visible && <path className="password-visibility-slash" d="m4 4 16 16" />}
+        </svg>
+      </button>
+    </span>
+  );
+}
+
 function Auth({
   go,
   onAuthorized,
+  rememberedAccounts,
+  onRememberedAccount,
 }: {
   go: (view: View) => void;
   onAuthorized: (name: string) => void;
+  rememberedAccounts: RememberedAccount[];
+  onRememberedAccount: (account: RememberedAccount) => void;
 }) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [message, setMessage] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+  const [email, setEmail] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState<RememberedAccount | null>(null);
+  const [accountListOpen, setAccountListOpen] = useState(false);
+  const [manualEmail, setManualEmail] = useState(true);
   const isRegister = mode === "register";
+  const canUseRememberedAccount = !isRegister && rememberedAccounts.length > 0 && !manualEmail;
+  const accountInitial = (account: RememberedAccount) =>
+    account.name.trim().charAt(0).toLocaleUpperCase() || account.email.charAt(0).toLocaleUpperCase();
+  const enterRegistration = () => {
+    setMode("register");
+    setMessage("");
+    setAccountListOpen(false);
+    setManualEmail(true);
+    setSelectedAccount(null);
+    setEmail("");
+  };
+  const enterLogin = () => {
+    const firstAccount = rememberedAccounts[0] || null;
+    setMode("login");
+    setMessage("");
+    setSelectedAccount(firstAccount);
+    setEmail(firstAccount?.email || "");
+    setManualEmail(!firstAccount);
+    setAccountListOpen(Boolean(firstAccount));
+  };
+  const chooseRememberedAccount = (account: RememberedAccount) => {
+    setSelectedAccount(account);
+    setEmail(account.email);
+    setManualEmail(false);
+    setAccountListOpen(false);
+    setMessage("");
+  };
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -9719,6 +12752,7 @@ function Auth({
         return;
       }
       onAuthorized(name);
+      onRememberedAccount({ email, name });
       setMessage("Аккаунт создан. Открываем ваши путешествия...");
       window.setTimeout(() => go("trips"), 500);
       return;
@@ -9738,6 +12772,12 @@ function Auth({
     onAuthorized(
       data.user.user_metadata.full_name || data.user.email || "Путешественник",
     );
+    if (rememberMe) {
+      onRememberedAccount({
+        email,
+        name: data.user.user_metadata.full_name || data.user.email || "Путешественник",
+      });
+    }
     setMessage("Вход выполнен. Открываем ваши путешествия...");
     window.setTimeout(() => go("trips"), 500);
   };
@@ -9752,19 +12792,13 @@ function Auth({
           <div className="auth-switch">
             <button
               className={isRegister ? "active" : ""}
-              onClick={() => {
-                setMode("register");
-                setMessage("");
-              }}
+              onClick={enterRegistration}
             >
               Регистрация
             </button>
             <button
               className={!isRegister ? "active" : ""}
-              onClick={() => {
-                setMode("login");
-                setMessage("");
-              }}
+              onClick={enterLogin}
             >
               Вход
             </button>
@@ -9779,9 +12813,6 @@ function Auth({
             <button>
               <b className="google-mark">G</b> Google
             </button>
-            <button>
-              <b className="apple-mark">●</b> Apple
-            </button>
           </div>
           <div className="auth-divider">
             <span>или через e-mail</span>
@@ -9795,20 +12826,74 @@ function Auth({
                 autoComplete={isRegister ? "off" : "name"}
               />
             </label>
-            <label>
-              E-mail
-              <input
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                autoComplete={isRegister ? "off" : "email"}
-              />
-            </label>
+            {canUseRememberedAccount ? (
+              <label className="auth-account-picker">
+                Аккаунт
+                <button
+                  type="button"
+                  className="auth-account-trigger"
+                  aria-expanded={accountListOpen}
+                  onClick={() => setAccountListOpen((open) => !open)}
+                >
+                  <span className="auth-account-avatar">{selectedAccount ? accountInitial(selectedAccount) : "?"}</span>
+                  <span>
+                    <strong>{selectedAccount?.name}</strong>
+                    <small>{selectedAccount?.email}</small>
+                  </span>
+                  <i>{accountListOpen ? "⌃" : "⌄"}</i>
+                </button>
+                {accountListOpen && (
+                  <div className="auth-account-list" role="listbox" aria-label="Сохранённые аккаунты">
+                    {rememberedAccounts.map((account, index) => (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selectedAccount?.email === account.email}
+                        className={selectedAccount?.email === account.email ? "active" : ""}
+                        key={account.email}
+                        onClick={() => chooseRememberedAccount(account)}
+                      >
+                        <span className="auth-account-avatar">{accountInitial(account)}</span>
+                        <span>
+                          <strong>{account.name}</strong>
+                          <small>{account.email}</small>
+                        </span>
+                        {index === 0 && <em>последний</em>}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="auth-account-manual"
+                      onClick={() => {
+                        setManualEmail(true);
+                        setAccountListOpen(false);
+                        setSelectedAccount(null);
+                        setEmail("");
+                      }}
+                    >
+                      Войти с другим аккаунтом
+                    </button>
+                  </div>
+                )}
+                <input type="hidden" name="email" value={email} />
+              </label>
+            ) : (
+              <label>
+                E-mail
+                <input
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete={isRegister ? "off" : "email"}
+                />
+              </label>
+            )}
             <label>
               Пароль
-              <input
+              <PasswordField
                 name="password"
-                type="password"
                 placeholder={
                   isRegister ? "Минимум 8 символов" : "Введите пароль"
                 }
@@ -9847,8 +12932,8 @@ function Auth({
             {isRegister ? "Уже есть аккаунт?" : "Впервые в Ramingo?"}{" "}
             <button
               onClick={() => {
-                setMode(isRegister ? "login" : "register");
-                setMessage("");
+                if (isRegister) enterLogin();
+                else enterRegistration();
               }}
             >
               {isRegister ? "Войти" : "Зарегистрироваться"}
@@ -10088,10 +13173,9 @@ function AccountDeletionPage() {
             </label>
             <label>
               Пароль
-              <input
+              <PasswordField
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                type="password"
                 autoComplete="current-password"
                 placeholder="Введите пароль"
               />
@@ -10164,6 +13248,14 @@ export function App() {
   const [profileName, setProfileName] = useState("Путешественник");
   const [authReady, setAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([]);
+  const rememberAccount = (account: RememberedAccount) => {
+    if (!account.email.trim()) return;
+    setRememberedAccounts((current) => [
+      account,
+      ...current.filter((item) => item.email.toLowerCase() !== account.email.toLowerCase()),
+    ].slice(0, 5));
+  };
   const go = (next: View, tripId = activeTrip.id) => {
     const paths: Record<Exclude<View, "trip">, string> = {
       auth: "/auth",
@@ -10208,9 +13300,12 @@ export function App() {
       const payload = data?.payload as StoredTripPayload | undefined;
       const trip = payload && savedTrip(payload);
       if (!payload || !trip) return;
+      const signedTrip = await signTripPhotoUrls(trip);
       setStoredPayload(payload);
       setDrafts((items) =>
-        items.some((item) => item.id === trip.id) ? items : [...items, trip],
+        items.some((item) => item.id === signedTrip.id)
+          ? items
+          : [...items, signedTrip],
       );
     };
     const loadUserData = async (userId: string) => {
@@ -10221,9 +13316,12 @@ export function App() {
         console.error("Could not load trips.", error);
         return;
       }
-      const remoteDrafts = ((data || []) as TripRow[])
+      const parsedRemoteDrafts = ((data || []) as TripRow[])
         .map(tripFromRow)
         .filter((trip): trip is TripSummary => trip !== null);
+      const remoteDrafts = await Promise.all(
+        parsedRemoteDrafts.map((trip) => signTripPhotoUrls(trip)),
+      );
       setDrafts((current) => [
         ...remoteDrafts,
         ...current.filter(
@@ -10250,6 +13348,10 @@ export function App() {
       }
       setIsAuthenticated(true);
       setAuthenticatedUser(data.session.user, true);
+      rememberAccount({
+        email: data.session.user.email || "",
+        name: data.session.user.user_metadata.full_name || data.session.user.email || "Путешественник",
+      });
       void loadUserData(data.session.user.id);
       void loadSavedTrip();
     });
@@ -10305,7 +13407,7 @@ export function App() {
         })),
       };
     });
-    const nextPayload: StoredTripPayload = {
+    const nextPayload: StoredTripPayload = canonicalTripPhotoUrls({
       ...storedPayload,
       data: {
         ...storedPayload.data,
@@ -10330,7 +13432,7 @@ export function App() {
           published: trip.published,
         },
       },
-    };
+    });
     setStoredPayload(nextPayload);
     void supabase
       .from("trip_state")
@@ -10339,6 +13441,26 @@ export function App() {
       .then(({ error }) => {
         if (error) console.error("Could not save the trip.", error);
       });
+  };
+  const deleteTrip = async (trip: TripSummary) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error("Not authenticated");
+    const { error } = await supabase
+      .from("trips")
+      .delete()
+      .eq("id", trip.id)
+      .eq("owner_id", session.user.id);
+    if (error) throw error;
+    setDrafts((items) => items.filter((item) => item.id !== trip.id));
+  };
+  const leaveTrip = async (trip: TripSummary) => {
+    const { error } = await supabase.functions.invoke("leave-trip", {
+      body: { tripId: trip.id },
+    });
+    if (error) throw error;
+    setDrafts((items) => items.filter((item) => item.id !== trip.id));
   };
   const toggleSight = (id: string) => {
     if (!storedPayload?.data?.sights) return;
@@ -10378,13 +13500,15 @@ export function App() {
   if (view === "housing-preview") return <AccommodationPrototype />;
   if (view === "auth")
     return (
-      <Auth
-        go={go}
-        onAuthorized={(name) => {
-          setProfileName(name);
-          setIsAuthenticated(true);
-        }}
-      />
+        <Auth
+          go={go}
+          onAuthorized={(name) => {
+            setProfileName(name);
+            setIsAuthenticated(true);
+          }}
+          rememberedAccounts={rememberedAccounts}
+          onRememberedAccount={rememberAccount}
+        />
     );
   return (
     <div className="app">
@@ -10394,6 +13518,17 @@ export function App() {
         open={menu}
         close={() => setMenu(false)}
         profileName={profileName}
+        tripCount={drafts.length}
+        cityCount={
+          new Set(
+            drafts.flatMap((trip) =>
+              trip.cities
+                .split(/[,·]/)
+                .map((city) => city.trim())
+                .filter(Boolean),
+            ),
+          ).size
+        }
       />
       <div className="main">
         <button className="menu-button" onClick={() => setMenu(true)}>
@@ -10405,6 +13540,8 @@ export function App() {
             profileName={profileName}
             drafts={drafts}
             onUpdateTrip={updateTrip}
+            onDeleteTrip={deleteTrip}
+            onLeaveTrip={leaveTrip}
             onOpenTrip={(trip) => {
               setActiveTrip(trip);
               go("trip", trip.id);
