@@ -4006,6 +4006,14 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   stroke-opacity: .86;
   vector-effect: non-scaling-stroke;
 }
+.static-map-route polyline.overview {
+  stroke-opacity: .38;
+}
+.static-map-route polyline.active {
+  stroke: #ff7a45;
+  stroke-width: 6;
+  stroke-opacity: .95;
+}
 .static-map-marker {
   position: absolute;
   z-index: 2;

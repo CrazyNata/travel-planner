@@ -1408,19 +1408,26 @@ function staticMapZoom(coordinates: [number, number][]) {
 function StaticTripMap({
   coordinates,
   activeDay,
+  focusIndex,
 }: {
   coordinates: [number, number][];
   activeDay?: number;
+  focusIndex?: number;
 }) {
   if (!coordinates.length) {
     return <div className="map map-unavailable">Добавьте города или места, чтобы увидеть их на карте.</div>;
   }
-  const zoom = staticMapZoom(coordinates);
+  const focusCoordinates =
+    focusIndex !== undefined && coordinates.length > 1
+      ? coordinates.slice(focusIndex, focusIndex + 2)
+      : coordinates;
+  const zoom = staticMapZoom(focusCoordinates);
   const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
-  const minX = Math.min(...points.map(([x]) => x));
-  const maxX = Math.max(...points.map(([x]) => x));
-  const minY = Math.min(...points.map(([, y]) => y));
-  const maxY = Math.max(...points.map(([, y]) => y));
+  const focusPoints = focusCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
+  const minX = Math.min(...focusPoints.map(([x]) => x));
+  const maxX = Math.max(...focusPoints.map(([x]) => x));
+  const minY = Math.min(...focusPoints.map(([, y]) => y));
+  const maxY = Math.max(...focusPoints.map(([, y]) => y));
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
   const positionedPoints = points.map(([x, y]) => [
@@ -1462,7 +1469,10 @@ function StaticTripMap({
         </div>
         <svg className="static-map-route" viewBox={`0 0 ${STATIC_MAP_WIDTH} ${STATIC_MAP_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {positionedPoints.length > 1 && (
-            <polyline points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+            <polyline className="overview" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+          )}
+          {focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
+            <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
           )}
         </svg>
         {positionedPoints.map(([x, y], index) => (
@@ -4422,6 +4432,14 @@ function TripMap({
             ] as [number, number],
         )
       : [];
+  const previousActiveDay = useRef<number | undefined>(activeDay);
+  const shouldFocusStaticMap =
+    activeDay !== undefined &&
+    previousActiveDay.current !== undefined &&
+    activeDay !== previousActiveDay.current;
+  useEffect(() => {
+    previousActiveDay.current = activeDay;
+  }, [activeDay]);
   const routeKey = displayedRouteDays
     .map((day) =>
       [
@@ -4589,7 +4607,13 @@ function TripMap({
   }, [activeDay, routeKey]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
-    return <StaticTripMap coordinates={fallbackCoordinates} activeDay={activeDay} />;
+    return (
+      <StaticTripMap
+        coordinates={fallbackCoordinates}
+        activeDay={activeDay}
+        focusIndex={shouldFocusStaticMap ? activeDay : undefined}
+      />
+    );
   return (
     <div
       ref={container}
