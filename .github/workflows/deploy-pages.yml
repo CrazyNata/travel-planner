@@ -35,12 +35,12 @@ jobs:
           VITE_LEGAL_ENTITY_NAME: ${{ vars.VITE_LEGAL_ENTITY_NAME }}
           VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
           VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
-      - name: Add the verified Android release
+      - name: Verify the bundled Android download
         shell: bash
         run: |
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
-            --output dist/travel-planner.apk \
-            https://github.com/CrazyNata/travel-planner/releases/latest/download/travel-planner.apk
+          # Vite copies public/travel-planner.apk into dist during the build.
+          # Keep the website deploy independent from GitHub release asset names.
+          test -s public/travel-planner.apk
           test -s dist/travel-planner.apk
           mkdir -p dist/.well-known
           cp public/.well-known/assetlinks.json dist/.well-known/assetlinks.json
