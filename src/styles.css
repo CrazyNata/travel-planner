@@ -4006,6 +4006,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   stroke-opacity: .86;
   vector-effect: non-scaling-stroke;
 }
+.static-map-route polyline.halo {
+  stroke: #fff;
+  stroke-width: 9;
+  stroke-opacity: .92;
+}
 .static-map-route polyline.overview {
   stroke-opacity: .38;
 }
@@ -4017,6 +4022,11 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .walking-map .static-map-route polyline.overview {
   stroke: #ef7b48;
   stroke-opacity: .9;
+}
+.walking-map .sight-map-marker.active {
+  z-index: 4;
+  background: #ff7657;
+  box-shadow: 0 3px 12px #ff765799;
 }
 .static-map-marker {
   position: absolute;

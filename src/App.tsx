@@ -1394,7 +1394,7 @@ function staticMapWorldPoint(
 
 function staticMapZoom(coordinates: [number, number][]) {
   if (coordinates.length < 2) return 12;
-  const zooms = Array.from({ length: 11 }, (_, index) => index + 2).reverse();
+  const zooms = Array.from({ length: 15 }, (_, index) => index + 2).reverse();
   return (
     zooms.find((zoom) => {
       const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
@@ -1483,7 +1483,10 @@ function StaticTripMap({
         </div>
         <svg className="static-map-route" viewBox={`0 0 ${STATIC_MAP_WIDTH} ${STATIC_MAP_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {positionedPoints.length > 1 && (
-            <polyline className="overview" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+            <>
+              <polyline className="halo" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="overview" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+            </>
           )}
           {focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
             <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
@@ -11814,12 +11817,13 @@ function Sights({
                           type="button"
                           className="sights-event-photo-button"
                           aria-label={`Увеличить фото: ${sight.name}`}
-                          onClick={() =>
+                          onClick={() => {
+                            focusSight(sight);
                             setExpandedPhoto({
                               url: photoUrl,
                               alt: sight.name,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <img
                             className="sights-event-thumb"
@@ -11834,10 +11838,7 @@ function Sights({
                             <button
                               type="button"
                               className="sights-event-name"
-                              onClick={() => {
-                                focusSight(sight);
-                                onToggle(sight.id);
-                              }}
+                              onClick={() => focusSight(sight)}
                             >
                               {sight.name}
                             </button>
