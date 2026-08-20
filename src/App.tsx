@@ -1075,10 +1075,98 @@ function externalUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
+const accommodationMonthNumbers: Record<string, number> = {
+  янв: 1,
+  января: 1,
+  январь: 1,
+  feb: 2,
+  фев: 2,
+  февраля: 2,
+  февраль: 2,
+  mar: 3,
+  мар: 3,
+  марта: 3,
+  март: 3,
+  apr: 4,
+  апр: 4,
+  апреля: 4,
+  апрель: 4,
+  may: 5,
+  май: 5,
+  мая: 5,
+  июн: 6,
+  июня: 6,
+  июнь: 6,
+  jun: 6,
+  июл: 7,
+  июля: 7,
+  июль: 7,
+  jul: 7,
+  авг: 8,
+  августа: 8,
+  август: 8,
+  aug: 8,
+  сен: 9,
+  сент: 9,
+  сентября: 9,
+  сентябрь: 9,
+  sep: 9,
+  окт: 10,
+  октября: 10,
+  октябрь: 10,
+  oct: 10,
+  ноя: 11,
+  ноября: 11,
+  ноябрь: 11,
+  nov: 11,
+  дек: 12,
+  декабря: 12,
+  декабрь: 12,
+  dec: 12,
+};
+
 function accommodationDateParts(value?: string) {
-  const [checkIn = "2026-09-27", checkOut = "2026-09-30"] =
-    value?.split(/\s+[–-]\s+/) || [];
-  return { checkIn, checkOut };
+  const raw = value?.trim() || "";
+  if (!raw) return { checkIn: "", checkOut: "" };
+
+  // Keep the canonical values already stored by the date picker unchanged.
+  const isoDates = raw.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [];
+  if (isoDates.length >= 2) {
+    return { checkIn: isoDates[0] || "", checkOut: isoDates[1] || "" };
+  }
+  if (isoDates.length === 1) return { checkIn: isoDates[0] || "", checkOut: "" };
+
+  // Imported/catalogue stays can use a display range such as
+  // "25–26 сен · 1 ночь" or "30 сен–1 окт · 1 ночь". Convert it to the
+  // value expected by <input type="date"> instead of passing "25" to Date.
+  const range = raw.match(
+    /^\s*(\d{1,2})(?:\s+([A-Za-zА-Яа-яЁё]+))?\s*[–-]\s*(\d{1,2})(?:\s+([A-Za-zА-Яа-яЁё]+))?/,
+  );
+  if (!range) return { checkIn: "", checkOut: "" };
+
+  const firstMonth = range[2]
+    ? accommodationMonthNumbers[range[2].toLowerCase().replace(/\.$/, "")]
+    : undefined;
+  const secondMonth = range[4]
+    ? accommodationMonthNumbers[range[4].toLowerCase().replace(/\.$/, "")]
+    : undefined;
+  const monthForFirst = firstMonth || secondMonth;
+  const monthForSecond = secondMonth || firstMonth;
+  if (!monthForFirst || !monthForSecond) return { checkIn: "", checkOut: "" };
+
+  const year = Number(raw.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear());
+  const secondYear = secondMonth && firstMonth && secondMonth < firstMonth ? year + 1 : year;
+  const toIso = (day: string, month: number, dateYear: number) => {
+    const date = new Date(Date.UTC(dateYear, month - 1, Number(day)));
+    return date.getUTCDate() === Number(day) && date.getUTCMonth() === month - 1
+      ? date.toISOString().slice(0, 10)
+      : "";
+  };
+
+  return {
+    checkIn: toIso(range[1], monthForFirst, year),
+    checkOut: toIso(range[3], monthForSecond, secondYear),
+  };
 }
 
 function formatAccommodationDates(value: string) {
@@ -4412,7 +4500,13 @@ function DatePicker({
   name?: string;
   className?: string;
 }) {
-  const selected = value ? new Date(`${value}T12:00:00`) : null;
+  const parsedSelected = value ? new Date(`${value}T12:00:00`) : null;
+  // Existing trips may contain a display-only date range. Treat an invalid
+  // value as empty so opening an editor never crashes the whole page.
+  const selected =
+    parsedSelected && !Number.isNaN(parsedSelected.getTime())
+      ? parsedSelected
+      : null;
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
