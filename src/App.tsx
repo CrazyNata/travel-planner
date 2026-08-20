@@ -8086,15 +8086,6 @@ function AccommodationForm({
       );
     }
   };
-  const movePhoto = (from: number, direction: -1 | 1) => {
-    const to = from + direction;
-    if (to < 0 || to >= photos.length || !photos[from] || !photos[to]) return;
-    setPhotos((current) => {
-      const next = [...current];
-      [next[from], next[to]] = [next[to], next[from]];
-      return next;
-    });
-  };
   const swapPhotos = (from: number, to: number) => {
     if (from === to || !photos[from] || !photos[to]) return;
     setPhotos((current) => {
@@ -8220,33 +8211,6 @@ function AccommodationForm({
               </label>
             ))}
           </div>
-          {photos.some(Boolean) && (
-            <div className="accommodation-photo-order">
-              {photos.map(
-                (photo, index) =>
-                  photo && (
-                    <div key={photo}>
-                      <img src={photo} alt={`Фото ${index + 1}`} />
-                      <span>{index === 0 ? "Обложка" : `Фото ${index + 1}`}</span>
-                      <button
-                        type="button"
-                        onClick={() => movePhoto(index, -1)}
-                        disabled={index === 0 || !photos[index - 1]}
-                      >
-                        ←
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => movePhoto(index, 1)}
-                        disabled={index === photos.length - 1 || !photos[index + 1]}
-                      >
-                        →
-                      </button>
-                    </div>
-                  ),
-              )}
-            </div>
-          )}
         </section>
         <section>
           <b>Статус</b>
