@@ -8143,12 +8143,15 @@ function AccommodationForm({
           event.preventDefault();
           if (isBusy) return;
           const data = new FormData(event.currentTarget);
-          if (photosToDelete.length) {
+          const storagePathsToDelete = photosToDelete.filter(
+            (path) => path.split("/")[1] === tripId,
+          );
+          if (storagePathsToDelete.length) {
             setDeletingPhotos(true);
             try {
               const { error } = await supabase.storage
                 .from("trip-photos")
-                .remove(photosToDelete);
+                .remove(storagePathsToDelete);
               if (error) throw error;
             } catch {
               setDeletingPhotos(false);
