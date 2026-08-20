@@ -1192,6 +1192,12 @@ function formatAccommodationDates(value: string) {
   return `${range} · ${nights} ${nightLabel}`;
 }
 
+function accommodationStartTime(stay: SavedAccommodation) {
+  const start = accommodationDateParts(stay.dates).checkIn;
+  const timestamp = Date.parse(`${start}T00:00:00Z`);
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
 type AccommodationCurrency =
   | "EUR"
   | "USD"
@@ -8434,6 +8440,7 @@ function AccommodationList({
   cities?: string[];
 }) {
   const [filter, setFilter] = useState("Все");
+  const [orderMode, setOrderMode] = useState<"date" | "manual">("date");
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
     photos: string[];
@@ -8444,6 +8451,8 @@ function AccommodationList({
   );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedAccommodation | null>(null);
+  const [draggedStayId, setDraggedStayId] = useState<string | null>(null);
+  const [dropTargetStayId, setDropTargetStayId] = useState<string | null>(null);
   const saveStay = (stay: SavedAccommodation) => {
     const index = stays.findIndex((item) => item.id === stay.id);
     onChange(
@@ -8453,9 +8462,30 @@ function AccommodationList({
     );
     setStatuses((current) => ({ ...current, [stay.name]: stay.status }));
   };
-  const visible = stays.filter(
+  const orderedStays = orderMode === "date"
+    ? stays
+        .map((stay, index) => ({ stay, index }))
+        .sort((first, second) =>
+          accommodationStartTime(first.stay) - accommodationStartTime(second.stay) ||
+          first.index - second.index,
+        )
+        .map(({ stay }) => stay)
+    : stays;
+  const visible = orderedStays.filter(
     (stay) => filter === "Все" || statuses[stay.name] === filter,
   );
+  const canReorder = orderMode === "manual" && filter === "Все";
+  const reorderStays = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const fromIndex = stays.findIndex((stay) => stay.id === fromId);
+    const toIndex = stays.findIndex((stay) => stay.id === toId);
+    if (fromIndex === -1 || toIndex === -1) return;
+    const next = [...stays];
+    const [moved] = next.splice(fromIndex, 1);
+    if (!moved) return;
+    next.splice(toIndex, 0, moved);
+    onChange(next);
+  };
   const statusLabels = ["хочу", "бронь", "оплачено", "пожили"];
   return (
     <>
@@ -8485,6 +8515,25 @@ function AccommodationList({
             </button>
           ))}
         </div>
+        <div className="accommodation-order-controls" aria-label="Порядок жилья">
+          <span>Порядок:</span>
+          <button
+            className={orderMode === "date" ? "active" : ""}
+            onClick={() => {
+              setOrderMode("date");
+              setDraggedStayId(null);
+              setDropTargetStayId(null);
+            }}
+          >
+            По датам
+          </button>
+          <button
+            className={orderMode === "manual" ? "active" : ""}
+            onClick={() => setOrderMode("manual")}
+          >
+            Вручную
+          </button>
+        </div>
         <div className="accommodation-grid">
           {visible.map((stay, index) => {
             const photos = stay.photos || [];
@@ -8502,8 +8551,30 @@ function AccommodationList({
             };
             return (
               <article
-                className={`accommodation-card c${index % 6}`}
+                className={`accommodation-card c${index % 6}${canReorder ? " is-draggable" : ""}${draggedStayId === stay.id ? " is-dragging" : ""}${dropTargetStayId === stay.id ? " is-drop-target" : ""}`}
                 key={stay.name}
+                draggable={canReorder}
+                onDragStart={(event) => {
+                  if (!canReorder) return;
+                  event.dataTransfer.effectAllowed = "move";
+                  setDraggedStayId(stay.id);
+                }}
+                onDragOver={(event) => {
+                  if (!canReorder || !draggedStayId || draggedStayId === stay.id) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTargetStayId(stay.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (canReorder && draggedStayId) reorderStays(draggedStayId, stay.id);
+                  setDraggedStayId(null);
+                  setDropTargetStayId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedStayId(null);
+                  setDropTargetStayId(null);
+                }}
               >
               <div
                 className="accommodation-photo"

@@ -1951,8 +1951,10 @@ button {
 .accommodation-filters { display: flex; flex-wrap: wrap; gap: 9px; margin: 27px 0 26px; }
 .accommodation-filters button { border: 1px solid #e2e4ea; border-radius: 999px; background: #fff; padding: 8px 15px; color: #788196; font-size: 12px; font-weight: 800; }
 .accommodation-filters button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.accommodation-order-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -12px 0 24px; color: #8d94a5; font-size: 11px; font-weight: 800; }
+.accommodation-order-controls button { border: 1px solid #e2e4ea; border-radius: 999px; background: #fff; padding: 7px 12px; color: #788196; font: inherit; cursor: pointer; }.accommodation-order-controls button.active { border-color: var(--accent); background: #eeeaff; color: var(--accent); }
 .accommodation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.accommodation-card { overflow: hidden; border-radius: 17px; background: #fff; box-shadow: 0 8px 22px #25233414; }
+.accommodation-card { overflow: hidden; border-radius: 17px; background: #fff; box-shadow: 0 8px 22px #25233414; transition: opacity .18s, transform .18s, box-shadow .18s; }.accommodation-card.is-draggable { cursor: grab; }.accommodation-card.is-draggable:active { cursor: grabbing; }.accommodation-card.is-dragging { opacity: .48; }.accommodation-card.is-drop-target { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--accent), 0 12px 28px #4c46d633; }
 .accommodation-photo { position: relative; height: 230px; overflow: hidden; background-color: #c3ad91; background-position: center 60%; background-size: cover; cursor: zoom-in; }
 .accommodation-photo-image { position: absolute; width: 100%; height: 100%; object-fit: cover; transform-origin: center; pointer-events: none; }
 .accommodation-preview-frame { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background-color: #c3ad91; background-repeat: no-repeat; background-size: cover; }
