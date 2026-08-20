@@ -8025,12 +8025,14 @@ function AccommodationForm({
   onSaved,
   onDelete,
   initial,
+  tripId,
   cities = accommodationCities,
 }: {
   onClose: () => void;
   onSaved?: (accommodation: SavedAccommodation) => void;
   onDelete?: () => void;
   initial?: SavedAccommodation;
+  tripId: string;
   cities?: string[];
 }) {
   const dateParts = initial
@@ -8080,7 +8082,7 @@ function AccommodationForm({
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${session.user.id}/accommodations/${crypto.randomUUID()}.${extension}`;
+      const path = `${session.user.id}/${tripId}/accommodations/${crypto.randomUUID()}.${extension}`;
       const { error } = await supabase.storage
         .from("trip-photos")
         .upload(path, file, {
@@ -8368,10 +8370,12 @@ function AccommodationForm({
 function AccommodationList({
   stays,
   onChange,
+  tripId,
   cities = accommodationCities,
 }: {
   stays: SavedAccommodation[];
   onChange: (accommodations: SavedAccommodation[]) => void;
+  tripId: string;
   cities?: string[];
 }) {
   const [filter, setFilter] = useState("Все");
@@ -8566,6 +8570,7 @@ function AccommodationList({
       </section>
       {adding && (
         <AccommodationForm
+          tripId={tripId}
           cities={cities}
           onClose={() => setAdding(false)}
           onSaved={(stay) => {
@@ -8575,6 +8580,7 @@ function AccommodationList({
       )}
       {editing && (
         <AccommodationForm
+          tripId={tripId}
           cities={cities}
           initial={editing}
           onClose={() => setEditing(null)}
@@ -8794,6 +8800,7 @@ function Accommodation({
         }
         {adding && (
           <AccommodationForm
+            tripId={trip.id}
             cities={tripCityOptions}
             onClose={() => setAdding(false)}
           />
@@ -8813,6 +8820,7 @@ function Accommodation({
     >
       <AccommodationList
         stays={trip.accommodations || []}
+        tripId={trip.id}
         cities={tripCityOptions}
         onChange={(accommodations) =>
           onUpdateTrip({ ...trip, accommodations })
