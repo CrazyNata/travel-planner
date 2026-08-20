@@ -527,7 +527,9 @@ function cityFlag(city: string) {
     ? "cz"
     : city.includes("Зальцбург")
       ? "at"
-      : city.includes("Мюнхен") || city.includes("Равенсбург")
+      : city.includes("Мюнхен") || city.includes("Равенсбург") ||
+        city.includes("Инцелль") || city.includes("Инцель") ||
+        city.includes("Германия")
         ? "de"
         : city.includes("Сан-Марино")
           ? "sm"
