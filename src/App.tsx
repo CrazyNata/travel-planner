@@ -8023,11 +8023,13 @@ function AccommodationCatalog({
 function AccommodationForm({
   onClose,
   onSaved,
+  onDelete,
   initial,
   cities = accommodationCities,
 }: {
   onClose: () => void;
   onSaved?: (accommodation: SavedAccommodation) => void;
+  onDelete?: () => void;
   initial?: SavedAccommodation;
   cities?: string[];
 }) {
@@ -8337,6 +8339,20 @@ function AccommodationForm({
           />
         </label>
         <footer>
+          {initial && onDelete && (
+            <button
+              type="button"
+              className="accommodation-delete-button"
+              disabled={isUploading}
+              onClick={() => {
+                if (window.confirm(`Удалить жильё «${name || "без названия"}»? Это действие нельзя отменить.`)) {
+                  onDelete();
+                }
+              }}
+            >
+              Удалить жильё
+            </button>
+          )}
           <button type="button" onClick={onClose} disabled={isUploading}>
             Отмена
           </button>
@@ -8562,6 +8578,10 @@ function AccommodationList({
           cities={cities}
           initial={editing}
           onClose={() => setEditing(null)}
+          onDelete={() => {
+            onChange(stays.filter((item) => item.id !== editing.id));
+            setEditing(null);
+          }}
           onSaved={(stay) => {
             saveStay(stay);
             setEditing(null);
