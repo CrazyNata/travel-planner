@@ -1412,6 +1412,7 @@ function StaticTripMap({
   focusIndex,
   mapClassName = "map",
   markerClassName = "map-marker",
+  onMarkerClick,
 }: {
   coordinates: [number, number][];
   routeCoordinates?: [number, number][];
@@ -1419,6 +1420,7 @@ function StaticTripMap({
   focusIndex?: number;
   mapClassName?: string;
   markerClassName?: string;
+  onMarkerClick?: (index: number) => void;
 }) {
   if (!coordinates.length) {
     return <div className={`${mapClassName} map-unavailable`}>Добавьте города или места, чтобы увидеть их на карте.</div>;
@@ -1496,13 +1498,16 @@ function StaticTripMap({
           )}
         </svg>
         {positionedPoints.map(([x, y], index) => (
-          <span
+          <button
+            type="button"
             className={`${markerClassName} static-map-marker${index === activeDay ? " active" : ""}`}
             key={`${x}-${y}-${index}`}
             style={{ left: `${(x / STATIC_MAP_WIDTH) * 100}%`, top: `${(y / STATIC_MAP_HEIGHT) * 100}%` }}
+            onClick={() => onMarkerClick?.(index)}
+            aria-label={`Показать место ${index + 1} на карте`}
           >
             {index + 1}
-          </span>
+          </button>
         ))}
         <small className="static-map-attribution">© OpenStreetMap contributors</small>
       </div>
@@ -11375,11 +11380,13 @@ function WalkingMap({
   city,
   activeSightId,
   travelMode = "walking",
+  onFocusSight,
 }: {
   sights: StoredSight[];
   city?: string;
   activeSightId?: string;
   travelMode?: "walking" | "driving";
+  onFocusSight?: (sight: StoredSight) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -11481,6 +11488,7 @@ function WalkingMap({
         const marker = document.createElement("span");
         marker.className = "sight-map-marker";
         marker.textContent = String(index + 1);
+        marker.addEventListener("click", () => onFocusSight?.(sight));
         markerElements.current.set(sight.id, marker);
         new mapboxgl.Marker({ element: marker })
           .setLngLat(coordinate)
@@ -11524,7 +11532,7 @@ function WalkingMap({
       mapRef.current = null;
       markerElements.current.clear();
     };
-  }, [routeKey, city, routeCoordinates]);
+  }, [routeKey, city, routeCoordinates, onFocusSight]);
   useEffect(() => {
     if (!activeSightId) return;
     const marker = markerElements.current.get(activeSightId);
@@ -11574,6 +11582,10 @@ function WalkingMap({
           focusIndex={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
           mapClassName="walking-map"
           markerClassName="sight-map-marker"
+          onMarkerClick={(index) => {
+            const sight = sightPoints[index]?.sight;
+            if (sight) onFocusSight?.(sight);
+          }}
         />
         <footer>
           <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
@@ -11815,7 +11827,14 @@ function Sights({
                       <span className={`sights-timeline-marker ${tone}`} aria-hidden="true">
                         {sightNumber}
                       </span>
-                      <div className="sights-timeline-card has-photo">
+                      <div
+                        className="sights-timeline-card has-photo"
+                        onClick={(event) => {
+                          const target = event.target as HTMLElement;
+                          if (target.closest("button, input, label, a")) return;
+                          focusSight(sight);
+                        }}
+                      >
                         <button
                           type="button"
                           className="sights-event-photo-button"
@@ -11940,6 +11959,7 @@ function Sights({
               sights={routeSights}
               city={city}
               activeSightId={activeSightId || undefined}
+              onFocusSight={focusSight}
               travelMode={
                 routeSights.some((sight) => sight.id.startsWith("stelvio_"))
                   ? "driving"

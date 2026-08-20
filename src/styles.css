@@ -4037,6 +4037,9 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   position: absolute;
   z-index: 2;
   transform: translate(-50%, -50%);
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 .static-map-marker.active {
   transform: translate(-50%, -50%) scale(1.24);
