@@ -13299,10 +13299,19 @@ export function App() {
         user.user_metadata.full_name || user.email || "Путешественник",
       );
       if (!shouldNavigate) return;
-      const nextPath = new URLSearchParams(window.location.search).get("next");
+      const nextPath = new URLSearchParams(
+        location.search || window.location.search,
+      ).get("next");
       const inviteTrip = nextPath && matchPath("/trips/:tripId/:tab?", nextPath);
+      // Supabase magic/invite links can return with auth data in the hash.
+      // HashRouter temporarily sees that hash as a route, so do not require
+      // the pathname to be `/` or `/auth` before opening the invited trip.
+      if (inviteTrip) {
+        navigate(nextPath, { replace: true });
+        return;
+      }
       if (location.pathname === "/auth" || location.pathname === "/") {
-        navigate(inviteTrip ? nextPath : "/trips", { replace: true });
+        navigate("/trips", { replace: true });
       }
     };
     const loadSavedTrip = async () => {
