@@ -12682,11 +12682,17 @@ function Auth({
   onAuthorized,
   rememberedAccounts,
   onRememberedAccount,
+  inviteSetup = false,
+  inviteNextPath,
+  onInviteComplete,
 }: {
   go: (view: View) => void;
   onAuthorized: (name: string) => void;
   rememberedAccounts: RememberedAccount[];
   onRememberedAccount: (account: RememberedAccount) => void;
+  inviteSetup?: boolean;
+  inviteNextPath?: string;
+  onInviteComplete?: (nextPath?: string) => void;
 }) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [message, setMessage] = useState("");
@@ -12716,6 +12722,13 @@ function Auth({
     setManualEmail(!firstAccount);
     setAccountListOpen(Boolean(firstAccount));
   };
+  useEffect(() => {
+    if (!inviteSetup) return;
+    void supabase.auth.getUser().then(({ data }) => {
+      const invitedEmail = data.user?.email || "";
+      if (invitedEmail) setEmail(invitedEmail);
+    });
+  }, [inviteSetup]);
   const chooseRememberedAccount = (account: RememberedAccount) => {
     setSelectedAccount(account);
     setEmail(account.email);
@@ -12743,6 +12756,28 @@ function Auth({
           ? "Заполните все поля, пароль должен содержать не менее 8 символов."
           : "Введите e-mail и пароль.",
       );
+      return;
+    }
+
+    if (inviteSetup) {
+      setAuthSessionPersistence(true);
+      const { data, error } = await supabase.auth.updateUser({
+        password,
+        data: { full_name: name, invite_pending: false },
+      });
+      if (error || !data.user) {
+        setMessage(error?.message || "Не удалось завершить регистрацию.");
+        return;
+      }
+      onAuthorized(
+        data.user.user_metadata.full_name || data.user.email || name,
+      );
+      onRememberedAccount({
+        email: data.user.email || email,
+        name: data.user.user_metadata.full_name || name,
+      });
+      setMessage("Регистрация завершена. Открываем поездку...");
+      window.setTimeout(() => onInviteComplete?.(inviteNextPath), 350);
       return;
     }
 
@@ -12807,7 +12842,7 @@ function Auth({
             <span>R</span>
             <b>Ramingo</b>
           </div>
-          <div className="auth-switch">
+          {!inviteSetup && <div className="auth-switch">
             <button
               className={isRegister ? "active" : ""}
               onClick={enterRegistration}
@@ -12820,21 +12855,23 @@ function Auth({
             >
               Вход
             </button>
-          </div>
-          <h1>{isRegister ? "Создайте аккаунт" : "С возвращением"}</h1>
+          </div>}
+          <h1>{inviteSetup ? "Завершите регистрацию" : isRegister ? "Создайте аккаунт" : "С возвращением"}</h1>
           <p>
-            {isRegister
+            {inviteSetup
+              ? "Создайте пароль, чтобы войти в приглашённое путешествие."
+              : isRegister
               ? "Начните планировать первое путешествие за пару минут."
               : "Войдите, чтобы продолжить планирование путешествий."}
           </p>
-          <div className="auth-providers">
+          {!inviteSetup && <><div className="auth-providers">
             <button>
               <b className="google-mark">G</b> Google
             </button>
           </div>
           <div className="auth-divider">
             <span>или через e-mail</span>
-          </div>
+          </div></>}
           <form autoComplete={isRegister ? "off" : "on"} onSubmit={handleSubmit}>
             <label className={isRegister ? "" : "hidden"}>
               Имя
@@ -12905,6 +12942,7 @@ function Auth({
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   autoComplete={isRegister ? "off" : "email"}
+                  readOnly={inviteSetup}
                 />
               </label>
             )}
@@ -12938,7 +12976,7 @@ function Auth({
               </label>
             )}
             <button className="auth-submit">
-              {isRegister ? "Создать аккаунт" : "Войти"}
+              {inviteSetup ? "Завершить регистрацию" : isRegister ? "Создать аккаунт" : "Войти"}
             </button>
           </form>
           {message && (
@@ -12946,7 +12984,7 @@ function Auth({
               {message}
             </p>
           )}
-          <div className="auth-footer">
+          {!inviteSetup && <div className="auth-footer">
             {isRegister ? "Уже есть аккаунт?" : "Впервые в Ramingo?"}{" "}
             <button
               onClick={() => {
@@ -12956,7 +12994,7 @@ function Auth({
             >
               {isRegister ? "Войти" : "Зарегистрироваться"}
             </button>
-          </div>
+          </div>}
         </div>
         <aside className="auth-promo">
           <div>
@@ -13223,6 +13261,11 @@ function AccountDeletionPage() {
 export function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const authSearch = new URLSearchParams(
+    location.search || window.location.search,
+  );
+  const inviteSetup = authSearch.get("inviteSetup") === "1";
+  const inviteNextPath = authSearch.get("next") || undefined;
   const tripMatch = matchPath("/trips/:tripId/:tab?", location.pathname);
   const routeTripId = tripMatch?.params.tripId;
   const routeTab = ([
@@ -13292,13 +13335,21 @@ export function App() {
   };
   useEffect(() => {
     const setAuthenticatedUser = (
-      user: { email?: string; user_metadata: { full_name?: string } },
+      user: {
+        email?: string;
+        user_metadata: {
+          full_name?: string;
+          invite_pending?: boolean;
+          invite_trip_id?: string;
+        };
+      },
       shouldNavigate = false,
     ) => {
       setProfileName(
         user.user_metadata.full_name || user.email || "Путешественник",
       );
       if (!shouldNavigate) return;
+      if (inviteSetup) return;
       const nextPath = new URLSearchParams(
         location.search || window.location.search,
       ).get("next");
@@ -13306,6 +13357,17 @@ export function App() {
       // Supabase magic/invite links can return with auth data in the hash.
       // HashRouter temporarily sees that hash as a route, so do not require
       // the pathname to be `/` or `/auth` before opening the invited trip.
+      const pendingInvite =
+        inviteTrip &&
+        user.user_metadata.invite_pending === true &&
+        user.user_metadata.invite_trip_id === inviteTrip.params.tripId;
+      if (pendingInvite) {
+        navigate(
+          `/auth?inviteSetup=1&next=${encodeURIComponent(nextPath)}`,
+          { replace: true },
+        );
+        return;
+      }
       if (inviteTrip) {
         navigate(nextPath, { replace: true });
         return;
@@ -13522,7 +13584,7 @@ export function App() {
       view !== "delete-account" &&
       view !== "privacy" &&
       view !== "terms") ||
-    (isAuthenticated && view === "auth")
+    (isAuthenticated && view === "auth" && !inviteSetup)
   ) {
     return null;
   }
@@ -13540,6 +13602,11 @@ export function App() {
           }}
           rememberedAccounts={rememberedAccounts}
           onRememberedAccount={rememberAccount}
+          inviteSetup={inviteSetup}
+          inviteNextPath={inviteNextPath}
+          onInviteComplete={(nextPath) =>
+            navigate(nextPath || "/trips", { replace: true })
+          }
         />
     );
   return (

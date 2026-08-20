@@ -7650,6 +7650,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .auth-form label.hidden { display: none; }
 .auth-form label > input:not([type="checkbox"]),
 .auth-form label > .password-field input { width: 100%; border: 1px solid #d9dce4; border-radius: 11px; background: #fbfbfc; padding: 12px 14px; color: #1b1c1f; font-size: 14px; outline: none; }
+.auth-form label > input[readonly] { background: #f1effc; color: #5f57c8; }
 .auth-form label > input:focus,
 .auth-form label > .password-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(76, 70, 214, 0.12); }
 .auth-account-picker { position: relative; }

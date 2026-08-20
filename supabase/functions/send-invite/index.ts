@@ -189,7 +189,12 @@ Deno.serve(async (request) => {
       type: "invite",
       email,
       options: {
-        data: { full_name: inviteeName },
+        data: {
+          full_name: inviteeName,
+          invite_pending: true,
+          invite_trip_id: tripId,
+          invite_role: inviteeRole,
+        },
         redirectTo,
       },
     });
@@ -229,6 +234,12 @@ Deno.serve(async (request) => {
   ).slice(0, 180);
   const inviterAddedVerb = /(?:а|я)$/i.test(inviterName) ? "добавила" : "добавил";
   const safeActionLink = escapeHtml(actionLink);
+  const actionLabel = existingUser
+    ? "Войти и присоединиться"
+    : "Создать аккаунт и присоединиться";
+  const actionHint = existingUser
+    ? "Откройте ссылку — Ramingo выполнит вход и откроет поездку."
+    : "Откройте ссылку, придумайте пароль и завершите регистрацию в Ramingo.";
   // Supplied reference layout: compass mark, centered hero, sender card, facts and CTA.
   const html = `<!doctype html>
 <html lang="ru">
@@ -278,7 +289,7 @@ Deno.serve(async (request) => {
                     </td>
                   </tr>
                 </table>
-                <p style="max-width:510px;margin:27px auto 24px;color:#333749;font-size:16px;line-height:1.7;text-align:center">Откройте Ramingo, чтобы увидеть общий маршрут, заметки и планы путешествия.</p>
+                <p style="max-width:510px;margin:27px auto 24px;color:#333749;font-size:16px;line-height:1.7;text-align:center">${escapeHtml(actionHint)}</p>
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                   <tr>
                     <td width="32%" valign="top" style="padding:16px 12px;border:1px solid #e8e6f3;border-radius:14px;background:#ffffff">
@@ -301,8 +312,8 @@ Deno.serve(async (request) => {
             </tr>
             <tr>
               <td align="center" style="padding:2px 42px 38px;background:#ffffff;text-align:center">
-                <a href="${safeActionLink}" style="display:inline-block;border-radius:13px;padding:15px 28px;color:#ffffff;background:#6c5ce7;box-shadow:0 9px 20px #6c5ce744;font-size:14px;font-weight:800;text-decoration:none">Присоединиться к поездке</a>
-                <p style="max-width:470px;margin:15px auto 0;color:#969aaa;font-size:11px;line-height:1.55">Нажмите кнопку, чтобы открыть поездку в Ramingo.</p>
+                <a href="${safeActionLink}" style="display:inline-block;border-radius:13px;padding:15px 28px;color:#ffffff;background:#6c5ce7;box-shadow:0 9px 20px #6c5ce744;font-size:14px;font-weight:800;text-decoration:none">${escapeHtml(actionLabel)}</a>
+                <p style="max-width:470px;margin:15px auto 0;color:#969aaa;font-size:11px;line-height:1.55">Ссылка безопасна и действует только для этого приглашения.</p>
               </td>
             </tr>
             <tr>
