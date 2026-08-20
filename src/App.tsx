@@ -186,6 +186,7 @@ type TripSummary = {
 type TripRow = {
   id: string;
   payload: TripSummary;
+  owner_id?: string;
 };
 type SavedAccommodation = {
   id: string;
@@ -786,6 +787,23 @@ function tripFromRow(row: TripRow): TripSummary | null {
     dates: normalizeTripDates(row.payload.dates),
     isDraft: true,
   } satisfies TripSummary;
+}
+
+function markTripOwner(trip: TripSummary, ownerId?: string) {
+  if (!trip.members?.length) return trip;
+  if (trip.members.some((member) => member.role === "Владелец")) return trip;
+
+  // Older trips did not persist the owner role in their payload. The
+  // owner_id column is the source of truth; member ids may differ between
+  // legacy and current invitations, so fall back to the first (owner) row.
+  const owner = trip.members.find((member) => member.id === ownerId) || trip.members[0];
+
+  return {
+    ...trip,
+    members: trip.members.map((member) =>
+      member.id === owner.id ? { ...member, role: "Владелец" as const } : member,
+    ),
+  };
 }
 
 async function saveUserData(key: string, value: unknown) {
@@ -13308,16 +13326,21 @@ export function App() {
           : [...items, signedTrip],
       );
     };
-    const loadUserData = async (userId: string) => {
+    const loadUserData = async () => {
       const { data, error } = await supabase
         .from("trips")
-        .select("id,payload");
+        .select("id,payload,owner_id");
       if (error) {
         console.error("Could not load trips.", error);
         return;
       }
       const parsedRemoteDrafts = ((data || []) as TripRow[])
-        .map(tripFromRow)
+        .map((row) => {
+          const trip = tripFromRow(row);
+          return trip
+            ? markTripOwner(trip, row.owner_id)
+            : null;
+        })
         .filter((trip): trip is TripSummary => trip !== null);
       const remoteDrafts = await Promise.all(
         parsedRemoteDrafts.map((trip) => signTripPhotoUrls(trip)),
@@ -13352,7 +13375,7 @@ export function App() {
         email: data.session.user.email || "",
         name: data.session.user.user_metadata.full_name || data.session.user.email || "Путешественник",
       });
-      void loadUserData(data.session.user.id);
+      void loadUserData();
       void loadSavedTrip();
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
@@ -13362,7 +13385,7 @@ export function App() {
           setIsAuthenticated(true);
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
           if (event === "SIGNED_IN") {
-            void loadUserData(session.user.id);
+            void loadUserData();
             void loadSavedTrip();
           }
         } else if (event === "SIGNED_OUT") {
