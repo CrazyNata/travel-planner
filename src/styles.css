@@ -7278,6 +7278,16 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   box-shadow: 0 8px 18px #4c46d619;
   transform: translateX(2px);
 }
+.sights-timeline-event.focused .sights-timeline-card {
+  border-color: #756de2;
+  box-shadow: 0 10px 24px #4c46d633;
+  animation: sight-card-focus .72s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes sight-card-focus {
+  0%, 100% { transform: translateX(0) translateY(0) scale(1); }
+  35% { transform: translateX(3px) translateY(-8px) scale(1.015); }
+  60% { transform: translateX(2px) translateY(2px) scale(.995); }
+}
 .sights-timeline-event.done .sights-timeline-card {
   opacity: .62;
 }

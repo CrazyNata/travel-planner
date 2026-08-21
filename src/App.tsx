@@ -11635,6 +11635,7 @@ function Sights({
   const [routeCopied, setRouteCopied] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [activeSightId, setActiveSightId] = useState<string | null>(null);
+  const [focusVersion, setFocusVersion] = useState(0);
   const [expandedSightId, setExpandedSightId] = useState<string | null>(null);
   const [expandedPhoto, setExpandedPhoto] = useState<{
     url: string;
@@ -11711,6 +11712,7 @@ function Sights({
   const shortDescriptionFor = (sight: StoredSight) => sightDescriptionFor(sight);
   const focusSight = (sight: StoredSight) => {
     setActiveSightId(sight.id);
+    setFocusVersion((current) => current + 1);
     window.dispatchEvent(new CustomEvent("ramingo-focus-sight", { detail: sight.id }));
   };
   const activeDayTitle = days[selectedDay]?.title || city || "Маршрут";
@@ -11820,11 +11822,9 @@ function Sights({
                   return (
                     <article
                       className={
-                        sight.done
-                          ? "sights-timeline-event done"
-                          : "sights-timeline-event"
+                        `${sight.done ? "sights-timeline-event done" : "sights-timeline-event"}${activeSightId === sight.id ? " focused" : ""}`
                       }
-                      key={sight.id}
+                      key={`${sight.id}-${activeSightId === sight.id ? focusVersion : 0}`}
                     >
                       <span className={`sights-timeline-marker ${tone}`} aria-hidden="true">
                         {sightNumber}
