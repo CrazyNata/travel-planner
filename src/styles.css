@@ -6176,6 +6176,551 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   }
 }
 
+/* Last-in-file web breakpoint: these values intentionally win over the
+   desktop reference sizing declared earlier in this stylesheet. */
+@media (max-width: 760px) {
+  html,
+  body,
+  #root,
+  .app,
+  .main {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body { min-width: 0; }
+  .main { margin-left: 0; overflow-x: clip; }
+
+  .trip-header {
+    width: 100%;
+    padding: max(58px, calc(env(safe-area-inset-top) + 44px)) 12px 0;
+  }
+
+  .trip-header > .back-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .trip-heading {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    margin: 10px 0 0;
+  }
+
+  .trip-title-block { width: 100%; min-width: 0; }
+
+  .trip-heading h1 {
+    display: flex;
+    max-width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: clamp(22px, 7.5vw, 31px);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .status-picker { margin: 0; padding: 5px 9px; font-size: 11px; }
+  .trip-heading p { max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.45; }
+
+  .share {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .share > button { min-height: 40px; padding: 9px 11px; }
+
+  .tabs {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    gap: 16px;
+    margin: 16px 0 0;
+    padding: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 0 0 auto; min-height: 42px; padding: 0 2px 12px; font-size: 12px; }
+
+  .workspace,
+  .page,
+  .page.wide {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .workspace { padding-top: 16px; padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .page { padding-top: max(62px, calc(env(safe-area-inset-top) + 48px)); padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .workspace > *, .page > *, .page.wide > * { min-width: 0; max-width: 100%; }
+
+  .page h1,
+  .page-title h1 {
+    max-width: 100%;
+    font-size: clamp(24px, 8vw, 32px);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .route-layout,
+  .draft-route-with-map,
+  .walking-layout,
+  .feed-layout,
+  .tab-layout {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .route-layout > *, .draft-route-with-map > *, .walking-layout > *, .feed-layout > *, .tab-layout > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .map-card,
+  .restaurants-map-panel {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 14px;
+  }
+
+  .map { height: 290px; max-width: 100%; }
+  .ticket-grid { grid-template-columns: 1fr; }
+
+  /* Participants are a two-line card on phones: identity first, controls
+     second. This prevents role and delete controls from being squeezed off
+     the viewport. */
+  .members { width: 100%; max-width: none; min-width: 0; gap: 14px; }
+  .members > .panel:first-child { width: 100%; min-width: 0; padding: 6px 12px; }
+  .members .member {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 10px;
+    padding: 13px 0;
+  }
+
+  .members .member > .avatar { grid-column: 1; grid-row: 1; width: 36px; height: 36px; }
+  .members .member > span:not(.avatar):not(.member-role) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+    padding-left: 46px;
+  }
+
+  .members .member b,
+  .members .member small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .members .member b { font-size: 14px; }
+  .members .member small { font-size: 11px; }
+  .members .member select,
+  .members .member .member-role,
+  .members .member .member-remove {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .members .member select { grid-column: 1; grid-row: 2; }
+  .members .member .member-remove { grid-column: 2; grid-row: 2; }
+  .members .member .member-role { grid-column: 1 / -1; grid-row: 2; }
+
+  .members .invite {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px 0;
+  }
+
+  .members .invite input,
+  .members .invite select,
+  .members .invite button { width: 100%; min-width: 0; }
+  .members .invite .invite-name { flex: none; }
+  .members .public-link { width: 100%; min-width: 0; padding: 16px 14px; }
+  .members .public-link h2 { font-size: 17px; }
+  .members .public-link > div { min-width: 0; flex-wrap: wrap; }
+  .members .public-link code,
+  .members .public-link > div > button { width: 100%; min-width: 0; }
+  .members .public-link > div > button { min-height: 40px; }
+}
+
+@media (max-width: 380px) {
+  .trip-header, .workspace, .page, .page.wide { padding-right: 10px; padding-left: 10px; }
+  .trip-heading h1 { font-size: 22px; }
+  .tabs { gap: 13px; }
+  .tabs button { font-size: 11px; }
+  .members > .panel:first-child { padding-right: 10px; padding-left: 10px; }
+}
+
+/* Responsive web layout for narrow phone viewports.  This block intentionally
+   targets only the web app; the native Android app lives in mobile/. */
+@media (max-width: 760px) {
+  html,
+  body,
+  #root,
+  .app,
+  .main {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  .main {
+    margin-left: 0;
+    overflow-x: clip;
+  }
+
+  .trip-header {
+    width: 100%;
+    padding: max(58px, calc(env(safe-area-inset-top) + 44px)) 12px 0;
+  }
+
+  .trip-header > .back-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .trip-header > .back-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .trip-heading {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    margin: 10px 0 0;
+  }
+
+  .trip-title-block {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .trip-heading h1 {
+    display: flex;
+    max-width: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: clamp(22px, 7.5vw, 31px);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .status-picker {
+    margin: 0;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .trip-heading p {
+    max-width: 100%;
+    overflow: hidden;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+  }
+
+  .share {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .share > button {
+    min-height: 40px;
+    padding: 9px 11px;
+  }
+
+  .tabs {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    gap: 16px;
+    margin: 16px 0 0;
+    padding: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs button {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 0 2px 12px;
+    font-size: 12px;
+  }
+
+  .workspace,
+  .page,
+  .page.wide {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .workspace {
+    padding-top: 16px;
+    padding-bottom: calc(52px + env(safe-area-inset-bottom));
+  }
+
+  .workspace > *,
+  .page > *,
+  .page.wide > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .page {
+    padding-top: max(62px, calc(env(safe-area-inset-top) + 48px));
+    padding-bottom: calc(52px + env(safe-area-inset-bottom));
+  }
+
+  .page-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .page h1,
+  .page-title h1 {
+    max-width: 100%;
+    font-size: clamp(24px, 8vw, 32px);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .route-layout,
+  .draft-route-with-map,
+  .walking-layout,
+  .feed-layout,
+  .tab-layout {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .route-layout > *,
+  .draft-route-with-map > *,
+  .walking-layout > *,
+  .feed-layout > *,
+  .tab-layout > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .map-card,
+  .restaurants-map-panel {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 14px;
+  }
+
+  /* Participants: keep each person readable and move controls below the
+     name instead of squeezing four columns into a phone-width row. */
+  .members {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    gap: 14px;
+  }
+
+  .members > .panel:first-child {
+    width: 100%;
+    min-width: 0;
+    padding: 6px 12px;
+  }
+
+  .members .member {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 10px;
+    padding: 13px 0;
+  }
+
+  .members .member > .avatar {
+    grid-column: 1;
+    grid-row: 1;
+    width: 36px;
+    height: 36px;
+    margin-right: 0;
+  }
+
+  .members .member > span:not(.avatar):not(.member-role) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+    padding-left: 46px;
+  }
+
+  .members .member b,
+  .members .member small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .members .member b {
+    font-size: 14px;
+  }
+
+  .members .member small {
+    font-size: 11px;
+  }
+
+  .members .member select,
+  .members .member .member-role,
+  .members .member .member-remove {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .members .member select {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .members .member .member-remove {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .members .member .member-role {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .members .invite {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px 0;
+  }
+
+  .members .invite input,
+  .members .invite select,
+  .members .invite button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .members .invite .invite-name {
+    flex: none;
+  }
+
+  .members .public-link {
+    width: 100%;
+    min-width: 0;
+    padding: 16px 14px;
+  }
+
+  .members .public-link h2 {
+    font-size: 17px;
+  }
+
+  .members .public-link > div {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .members .public-link code,
+  .members .public-link > div > button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .members .public-link > div > button {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 380px) {
+  .trip-header {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .workspace,
+  .page,
+  .page.wide {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .trip-heading h1 {
+    font-size: 22px;
+  }
+
+  .tabs {
+    gap: 13px;
+  }
+
+  .tabs button {
+    font-size: 11px;
+  }
+
+  .members > .panel:first-child {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
+
 /* Keep the most recently declared mobile rules authoritative for the screens
    that have several legacy breakpoint blocks above them. */
 @media (max-width: 760px) {
@@ -8098,6 +8643,63 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .settings-popover .settings-panel .accent { padding: 7px; font-size: 10px; }
 .settings-version { margin-top: 14px; font-size: 9px; }
 .settings-popover .settings-logout { margin-top: 12px; font-size: 11px; }
+
+/* Final narrow-web overrides. Native Android screens are outside this file. */
+@media (max-width: 760px) {
+  html, body, #root, .app, .main { width: 100%; min-width: 0; max-width: 100%; }
+  body { min-width: 0; }
+  .main { margin-left: 0; overflow-x: clip; }
+  .trip-header { width: 100%; padding: max(58px, calc(env(safe-area-inset-top) + 44px)) 12px 0; }
+  .trip-heading { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 10px; margin: 10px 0 0; }
+  .trip-title-block { width: 100%; min-width: 0; }
+  .trip-heading h1 { display: flex; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 6px; font-size: clamp(22px, 7.5vw, 31px); line-height: 1.15; overflow-wrap: anywhere; }
+  .status-picker { margin: 0; padding: 5px 9px; font-size: 11px; }
+  .trip-heading p { max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.45; }
+  .share { width: 100%; min-width: 0; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+  .share > button { min-height: 40px; padding: 9px 11px; }
+  .tabs { width: 100%; max-width: none; min-width: 0; gap: 16px; margin: 16px 0 0; padding: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; white-space: nowrap; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 0 0 auto; min-height: 42px; padding: 0 2px 12px; font-size: 12px; }
+  .workspace, .page, .page.wide { width: 100%; max-width: none; min-width: 0; margin: 0; padding-right: 12px; padding-left: 12px; }
+  .workspace { padding-top: 16px; padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .page { padding-top: max(62px, calc(env(safe-area-inset-top) + 48px)); padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .workspace > *, .page > *, .page.wide > * { min-width: 0; max-width: 100%; }
+  .page h1, .page-title h1 { max-width: 100%; font-size: clamp(24px, 8vw, 32px); line-height: 1.15; overflow-wrap: anywhere; }
+  .route-layout, .draft-route-with-map, .walking-layout, .feed-layout, .tab-layout { display: block; width: 100%; min-width: 0; }
+  .route-layout > *, .draft-route-with-map > *, .walking-layout > *, .feed-layout > *, .tab-layout > * { min-width: 0; max-width: 100%; }
+  .map-card, .restaurants-map-panel { position: static; width: 100%; max-width: 100%; margin-top: 14px; }
+  .map { height: 290px; max-width: 100%; }
+  .ticket-grid { grid-template-columns: 1fr; }
+
+  .members { width: 100%; max-width: none; min-width: 0; gap: 14px; }
+  .members > .panel:first-child { width: 100%; min-width: 0; padding: 6px 12px; }
+  .members .member { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px 10px; padding: 13px 0; }
+  .members .member > .avatar { grid-column: 1; grid-row: 1; width: 36px; height: 36px; }
+  .members .member > span:not(.avatar):not(.member-role) { grid-column: 1 / -1; grid-row: 1; min-width: 0; padding-left: 46px; }
+  .members .member b, .members .member small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .members .member b { font-size: 14px; }
+  .members .member small { font-size: 11px; }
+  .members .member select, .members .member .member-role, .members .member .member-remove { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px 10px; font-size: 12px; text-align: center; }
+  .members .member select { grid-column: 1; grid-row: 2; }
+  .members .member .member-remove { grid-column: 2; grid-row: 2; }
+  .members .member .member-role { grid-column: 1 / -1; grid-row: 2; }
+  .members .invite { display: grid; width: 100%; min-width: 0; grid-template-columns: 1fr; gap: 8px; padding: 14px 0; }
+  .members .invite input, .members .invite select, .members .invite button { width: 100%; min-width: 0; }
+  .members .invite .invite-name { flex: none; }
+  .members .public-link { width: 100%; min-width: 0; padding: 16px 14px; }
+  .members .public-link h2 { font-size: 17px; }
+  .members .public-link > div { min-width: 0; flex-wrap: wrap; }
+  .members .public-link code, .members .public-link > div > button { width: 100%; min-width: 0; }
+  .members .public-link > div > button { min-height: 40px; }
+}
+
+@media (max-width: 380px) {
+  .trip-header, .workspace, .page, .page.wide { padding-right: 10px; padding-left: 10px; }
+  .trip-heading h1 { font-size: 22px; }
+  .tabs { gap: 13px; }
+  .tabs button { font-size: 11px; }
+  .members > .panel:first-child { padding-right: 10px; padding-left: 10px; }
+}
 
 @media (max-width: 760px) {
   .settings-popover {
