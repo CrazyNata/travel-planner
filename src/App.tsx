@@ -6426,13 +6426,16 @@ function RestaurantMap({
     const sameCityIndex = places
       .slice(0, index)
       .filter((item) => item.city === place.city).length;
-    const radius = sameCityIndex ? 0.018 + (sameCityIndex % 3) * 0.008 : 0;
-    const angle = sameCityIndex * 2.4;
+    // Catalog rows from older sources may not have a point. Keep those
+    // markers in a compact land-side grid around the city center instead of
+    // spreading them in a circle, which can place them in a lake or lagoon.
+    const column = (sameCityIndex % 5) - 2;
+    const row = Math.floor(sameCityIndex / 5) - 1;
     return {
       place,
       coordinate: [
-        base[0] + Math.cos(angle) * radius,
-        base[1] + Math.sin(angle) * radius,
+        base[0] + column * 0.0012,
+        base[1] + row * 0.0012,
       ] as [number, number],
     };
   });
