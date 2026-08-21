@@ -6410,18 +6410,83 @@ function RestaurantMap({
   places,
   activeRestaurantId,
   onSelect,
+  onCoordinatesResolved,
 }: {
   places: ImportedRestaurant[];
   activeRestaurantId?: string;
   onSelect: (restaurantId: string) => void;
+  onCoordinatesResolved?: (updates: Record<string, [number, number]>) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
+  const [resolvedCoordinates, setResolvedCoordinates] = useState<Record<string, [number, number]>>({});
+  const isCoordinate = (value: ImportedRestaurant["lnglat"]): value is [number, number] =>
+    Array.isArray(value) && value.length >= 2 && Number.isFinite(value[0]) && Number.isFinite(value[1]) &&
+    Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90;
+  const coordinateInputKey = places
+    .map((place) => `${place.id}:${isCoordinate(place.lnglat) ? place.lnglat.join(",") : ""}`)
+    .join(";");
+  useEffect(() => {
+    const missing = places.filter((place) => !isCoordinate(place.lnglat) && !resolvedCoordinates[place.id]);
+    if (!missing.length) return;
+    const controller = new AbortController();
+    const resolve = async () => {
+      const updates: Record<string, [number, number]> = {};
+      let cursor = 0;
+      const worker = async () => {
+        while (!controller.signal.aborted) {
+          const index = cursor++;
+          if (index >= missing.length) return;
+          const place = missing[index];
+          try {
+            const base = mapLocation(place.city);
+            const params = new URLSearchParams({
+              q: `${place.name}, ${place.city}`,
+              limit: "5",
+            });
+            if (base) {
+              params.set("bbox", [base[0] - 0.12, base[1] - 0.1, base[0] + 0.12, base[1] + 0.1].join(","));
+            }
+            const response = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: controller.signal });
+            if (!response.ok) continue;
+            const data = await response.json().catch(() => null) as {
+              features?: { properties?: { name?: unknown; city?: unknown }; geometry?: { coordinates?: unknown } }[];
+            } | null;
+            const nameTokens = place.name.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length >= 4);
+            const cityToken = place.city.split(",")[0].trim().toLocaleLowerCase();
+            const candidates = (data?.features || []).flatMap((feature) => {
+              const coordinates = feature.geometry?.coordinates;
+              if (!Array.isArray(coordinates) || coordinates.length < 2) return [];
+              const longitude = Number(coordinates[0]);
+              const latitude = Number(coordinates[1]);
+              if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return [];
+              const featureName = String(feature.properties?.name || "").toLocaleLowerCase();
+              const featureCity = String(feature.properties?.city || "").toLocaleLowerCase();
+              const nameMatches = nameTokens.filter((token) => featureName.includes(token)).length;
+              const cityMatches = cityToken && featureCity.includes(cityToken) ? 1 : 0;
+              const distance = base ? Math.hypot(longitude - base[0], latitude - base[1]) : 0;
+              return [{ coordinate: [longitude, latitude] as [number, number], score: nameMatches * 100 + cityMatches * 20 - distance }];
+            }).sort((left, right) => right.score - left.score);
+            if (candidates[0]) updates[place.id] = candidates[0].coordinate;
+          } catch {
+            if (controller.signal.aborted) return;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, missing.length) }, () => worker()));
+      if (controller.signal.aborted || !Object.keys(updates).length) return;
+      setResolvedCoordinates((current) => ({ ...current, ...updates }));
+      onCoordinatesResolved?.(updates);
+    };
+    void resolve();
+    return () => controller.abort();
+  }, [coordinateInputKey]);
   const points = places.map((place, index) => {
-    const base = place.lnglat || mapLocation(place.city) || mapLocations["Рим"];
-    if (place.lnglat) {
-      return { place, coordinate: place.lnglat };
+    const preciseCoordinate = (isCoordinate(place.lnglat) ? place.lnglat : undefined) || resolvedCoordinates[place.id];
+    const base = preciseCoordinate || mapLocation(place.city) || mapLocations["Рим"];
+    if (preciseCoordinate) {
+      return { place, coordinate: preciseCoordinate };
     }
     const sameCityIndex = places
       .slice(0, index)
@@ -6442,7 +6507,7 @@ function RestaurantMap({
   const routePoints = Array.from(
     new globalThis.Map(
       places.flatMap((place) => {
-        const coordinate = place.lnglat || mapLocation(place.city);
+        const coordinate = (isCoordinate(place.lnglat) ? place.lnglat : undefined) || resolvedCoordinates[place.id] || mapLocation(place.city);
         return coordinate ? [[place.city, coordinate] as const] : [];
       }),
     ).values(),
@@ -6869,6 +6934,11 @@ function RestaurantPage({
             places={visible}
             activeRestaurantId={activeRestaurantId || undefined}
             onSelect={setActiveRestaurantId}
+            onCoordinatesResolved={(updates) => {
+              const changed = places.some((place) => updates[place.id] && !place.lnglat);
+              if (!changed) return;
+              onChange(places.map((place) => updates[place.id] ? { ...place, lnglat: updates[place.id] } : place));
+            }}
           />
         </aside>
       </div>
