@@ -982,6 +982,7 @@ const mapLocations: Record<string, [number, number]> = {
   "Фильине-Вальдарно": [11.469, 43.62],
   "Сан-Марино": [12.4578, 43.9424],
   Кьоджа: [12.278, 45.219],
+  Chioggia: [12.278, 45.219],
   Милан: [9.19, 45.4642],
   Вальдидентро: [10.3, 46.49],
   Флоренция: [11.2558, 43.7696],
@@ -1354,8 +1355,9 @@ function SightCardImage({ sight }: { sight: StoredSight }) {
 }
 
 function mapLocation(city: string) {
+  const normalizedCity = city.trim().toLocaleLowerCase();
   return Object.entries(mapLocations).find(([name]) =>
-    city.includes(name),
+    normalizedCity.includes(name.toLocaleLowerCase()),
   )?.[1];
 }
 
