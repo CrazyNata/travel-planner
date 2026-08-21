@@ -6624,6 +6624,7 @@ function RestaurantPage({
   const [filterPrice, setFilterPrice] = useState("Все цены");
   const [filterStatus, setFilterStatus] = useState("Все статусы");
   const [query, setQuery] = useState("");
+  const [citySuggestionsOpen, setCitySuggestionsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
@@ -6642,6 +6643,9 @@ function RestaurantPage({
     ).values(),
   );
   const cities = [...tripCities].sort((a, b) => a.localeCompare(b, "ru"));
+  const citySuggestions = tripCities.filter((city) =>
+    !query.trim() || city.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  );
   const cuisines = Array.from(
     new Set([
       ...restaurantCuisineOptions,
@@ -6729,13 +6733,40 @@ function RestaurantPage({
         </div>
       </header>
       <div className="restaurant-controls">
-        <label className="restaurant-search">
+        <label
+          className="restaurant-search restaurant-search-with-suggestions"
+          onFocus={() => setCitySuggestionsOpen(true)}
+          onBlur={() => window.setTimeout(() => setCitySuggestionsOpen(false), 140)}
+        >
           <span>⌕</span>
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setCitySuggestionsOpen(true);
+            }}
             placeholder="Поиск по ресторану или городу"
           />
+          {citySuggestionsOpen && citySuggestions.length > 0 && tripCities.length > 0 && (
+            <div className="restaurant-city-search-suggestions" role="listbox" aria-label="Города путешествия">
+              {citySuggestions.map((city) => (
+                <button
+                  type="button"
+                  role="option"
+                  key={city}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    setFilterCity(city);
+                    setQuery(city.split(",")[0].trim());
+                    setCitySuggestionsOpen(false);
+                  }}
+                >
+                  {cityFlag(city)}
+                  <span>{city.split(",")[0].trim()}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </label>
         <div className="restaurant-filter-wrap">
           <button
@@ -6821,36 +6852,6 @@ function RestaurantPage({
           )}
         </div>
       </div>
-      {tripCities.length > 0 && (
-        <div className="restaurant-city-strip" aria-label="Города путешествия">
-          <span>Города путешествия</span>
-          <div className="restaurant-city-list">
-            <button
-              type="button"
-              className={filterCity === "Все города" ? "active" : ""}
-              onClick={() => {
-                setFilterCity("Все города");
-                setQuery("");
-              }}
-            >
-              Все города
-            </button>
-            {tripCities.map((city) => (
-              <button
-                type="button"
-                className={filterCity.split(",")[0].trim().toLocaleLowerCase() === city.split(",")[0].trim().toLocaleLowerCase() ? "active" : ""}
-                onClick={() => {
-                  setFilterCity(city);
-                  setQuery("");
-                }}
-                key={city}
-              >
-                {cityFlag(city)} {city.split(",")[0].trim()}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <div className="restaurants-map-layout">
         <div className="restaurant-list-column">
           <div className="restaurant-list-head">
