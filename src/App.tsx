@@ -1412,6 +1412,7 @@ function StaticTripMap({
   focusIndex,
   mapClassName = "map",
   markerClassName = "map-marker",
+  connectWaypoints = true,
   onMarkerClick,
 }: {
   coordinates: [number, number][];
@@ -1420,6 +1421,7 @@ function StaticTripMap({
   focusIndex?: number;
   mapClassName?: string;
   markerClassName?: string;
+  connectWaypoints?: boolean;
   onMarkerClick?: (index: number) => void;
 }) {
   if (!coordinates.length) {
@@ -1484,7 +1486,7 @@ function StaticTripMap({
           ))}
         </div>
         <svg className="static-map-route" viewBox={`0 0 ${STATIC_MAP_WIDTH} ${STATIC_MAP_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
-          {positionedPoints.length > 1 && (
+          {connectWaypoints && positionedPoints.length > 1 && (
             <>
               <polyline className="halo" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
               <polyline className="overview" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
@@ -1492,7 +1494,7 @@ function StaticTripMap({
               <polyline className="waypoints" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
             </>
           )}
-          {focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
+          {connectWaypoints && focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
             <>
               <polyline className="active-halo" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
               <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
@@ -6514,6 +6516,25 @@ function RestaurantMap({
   }, [activeRestaurantId, mapKey]);
   if (!places.length) {
     return <div className="restaurant-map-empty">Добавленные рестораны появятся здесь автоматически.</div>;
+  }
+  const activeIndex = activeRestaurantId
+    ? points.findIndex(({ place }) => place.id === activeRestaurantId)
+    : -1;
+  if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+    return (
+      <StaticTripMap
+        coordinates={points.map(({ coordinate }) => coordinate)}
+        activeDay={activeIndex >= 0 ? activeIndex : undefined}
+        focusIndex={activeIndex >= 0 ? activeIndex : undefined}
+        mapClassName="restaurant-map"
+        markerClassName="sight-map-marker restaurant-map-marker"
+        connectWaypoints={false}
+        onMarkerClick={(index) => {
+          const point = points[index];
+          if (point) onSelect(point.place.id);
+        }}
+      />
+    );
   }
   return <div className="restaurant-map" ref={container} aria-label="Карта ресторанов" />;
 }
