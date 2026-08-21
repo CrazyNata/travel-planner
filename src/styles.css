@@ -4011,6 +4011,19 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   stroke-width: 9;
   stroke-opacity: .92;
 }
+.static-map-route polyline.waypoint-halo {
+  stroke: #fff;
+  stroke-width: 9;
+  stroke-opacity: .95;
+}
+.static-map-route polyline.waypoints {
+  stroke: #5751dc;
+  stroke-width: 4;
+  stroke-opacity: .95;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 7 4;
+}
 .static-map-route polyline.overview {
   stroke-opacity: .38;
 }

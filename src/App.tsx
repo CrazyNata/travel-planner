@@ -1488,6 +1488,8 @@ function StaticTripMap({
             <>
               <polyline className="halo" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
               <polyline className="overview" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="waypoint-halo" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="waypoints" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
             </>
           )}
           {focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
