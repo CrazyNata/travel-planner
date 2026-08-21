@@ -4041,6 +4041,12 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   stroke: #ef7b48;
   stroke-opacity: .9;
 }
+.walking-map .static-map-route polyline.halo,
+.walking-map .static-map-route polyline.overview,
+.walking-map .static-map-route polyline.active-halo,
+.walking-map .static-map-route polyline.active {
+  display: none;
+}
 .walking-map .sight-map-marker.active {
   z-index: 4;
   background: #ff7657;
