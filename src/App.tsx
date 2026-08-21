@@ -6632,12 +6632,16 @@ function RestaurantPage({
     index: number;
   } | null>(null);
   const [editing, setEditing] = useState<ImportedRestaurant | null>(null);
-  const cities = Array.from(
-    new Set([
-      ...availableCities,
-      ...places.map((place) => place.city),
-    ].filter(Boolean)),
-  ).sort();
+  const cityValues = [
+    ...availableCities,
+    ...places.map((place) => place.city),
+  ].filter(Boolean);
+  const tripCities = Array.from(
+    new globalThis.Map(
+      cityValues.map((city) => [city.split(",")[0].trim().toLocaleLowerCase(), city] as const),
+    ).values(),
+  );
+  const cities = [...tripCities].sort((a, b) => a.localeCompare(b, "ru"));
   const cuisines = Array.from(
     new Set([
       ...restaurantCuisineOptions,
@@ -6681,7 +6685,7 @@ function RestaurantPage({
     (place) => {
       const rating = place.googleRating || 0;
       return (
-        (filterCity === "Все города" || place.city === filterCity) &&
+        (filterCity === "Все города" || place.city.split(",")[0].trim().toLocaleLowerCase() === filterCity.split(",")[0].trim().toLocaleLowerCase()) &&
         (filterCuisine === "Все кухни" || cuisineFor(place) === filterCuisine) &&
         (selectedRating.min === 0 || rating >= selectedRating.min) &&
         (filterPrice === "Все цены" || place.price === filterPrice) &&
@@ -6817,6 +6821,36 @@ function RestaurantPage({
           )}
         </div>
       </div>
+      {tripCities.length > 0 && (
+        <div className="restaurant-city-strip" aria-label="Города путешествия">
+          <span>Города путешествия</span>
+          <div className="restaurant-city-list">
+            <button
+              type="button"
+              className={filterCity === "Все города" ? "active" : ""}
+              onClick={() => {
+                setFilterCity("Все города");
+                setQuery("");
+              }}
+            >
+              Все города
+            </button>
+            {tripCities.map((city) => (
+              <button
+                type="button"
+                className={filterCity.split(",")[0].trim().toLocaleLowerCase() === city.split(",")[0].trim().toLocaleLowerCase() ? "active" : ""}
+                onClick={() => {
+                  setFilterCity(city);
+                  setQuery("");
+                }}
+                key={city}
+              >
+                {cityFlag(city)} {city.split(",")[0].trim()}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="restaurants-map-layout">
         <div className="restaurant-list-column">
           <div className="restaurant-list-head">
@@ -7572,7 +7606,7 @@ function Restaurants({
   const restaurantCities = Array.from(
     new Set(
       [
-        ...(trip.cities || "").split(/[·,]/).map((city) => city.trim()),
+        ...(trip.cities || "").split("·").map((city) => city.trim()),
         ...(trip.days || []).flatMap((day) =>
           day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
         ),
