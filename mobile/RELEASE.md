@@ -28,9 +28,11 @@ The build fails deliberately when release signing is not configured. The bundle 
 
 Run `.github/workflows/android-release.yml` manually from `main` and provide the
 public version name (for example `0.2.0`) and a new monotonically increasing
-version code (for example `10012`). GitHub Pages protects production
-deployments from tag refs, so tags are release markers rather than workflow
-triggers. Configure these repository secrets first:
+version code (for example `10012`). The workflow builds Android only by default;
+set its `publish_web` input to `true` only when a coordinated website deployment
+is explicitly intended. GitHub Pages protects production deployments from tag
+refs, so tags are release markers rather than workflow triggers. Configure these
+repository secrets first:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`

@@ -11,6 +11,11 @@ on:
         description: Monotonically increasing Android version code, for example 10012
         required: true
         type: string
+      publish_web:
+        description: Also deploy the public web download page and website
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,9 +24,6 @@ permissions:
 
 jobs:
   bundle:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -122,12 +124,14 @@ jobs:
           if-no-files-found: error
 
       - name: Set up Node.js for the public download page
+        if: ${{ inputs.publish_web }}
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
 
       - name: Publish the same signed APK and app-link certificate
+        if: ${{ inputs.publish_web }}
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
@@ -158,10 +162,12 @@ jobs:
           EOF
 
       - name: Install web dependencies
+        if: ${{ inputs.publish_web }}
         working-directory: ${{ github.workspace }}
         run: npm ci
 
       - name: Verify public configuration
+        if: ${{ inputs.publish_web }}
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
@@ -170,6 +176,7 @@ jobs:
           test -n "${{ vars.VITE_MAPBOX_ACCESS_TOKEN }}"
 
       - name: Build public download page
+        if: ${{ inputs.publish_web }}
         working-directory: ${{ github.workspace }}
         run: npm run build
         env:
@@ -181,6 +188,7 @@ jobs:
           VITE_LEGAL_EFFECTIVE_DATE: ${{ vars.VITE_LEGAL_EFFECTIVE_DATE }}
 
       - name: Preserve Android App Links metadata
+        if: ${{ inputs.publish_web }}
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
@@ -189,8 +197,10 @@ jobs:
           test -s dist/.well-known/assetlinks.json
 
       - uses: actions/configure-pages@v5
+        if: ${{ inputs.publish_web }}
 
       - name: Package GitHub Pages artifact with App Links metadata
+        if: ${{ inputs.publish_web }}
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
@@ -203,6 +213,7 @@ jobs:
           tar -tf "$RUNNER_TEMP/artifact.tar" | grep -qx './.well-known/assetlinks.json'
 
       - uses: actions/upload-artifact@v6
+        if: ${{ inputs.publish_web }}
         with:
           name: github-pages
           path: ${{ runner.temp }}/artifact.tar
@@ -210,5 +221,6 @@ jobs:
           if-no-files-found: error
 
       - name: Deploy public APK and website
+        if: ${{ inputs.publish_web }}
         id: deployment
         uses: actions/deploy-pages@v4
