@@ -100,6 +100,43 @@ class TripRouteScheduleTest {
         )
     }
 
+    @Test
+    fun dateChangesReportRouteDaysOutsideTheNewRange() {
+        val days = buildJsonArray {
+            add(routeDay("first", "2026-08-20", "Prague", "Tallinn"))
+            add(routeDay("second", "2026-08-21", "Tallinn", "Berlin"))
+            add(routeDay("third", "2026-08-22", "Berlin", "Paris"))
+        }
+
+        assertEquals(
+            2,
+            routeDaysAtRiskCount(
+                days = days,
+                nextRouteDayCount = 3,
+                startDate = LocalDate.of(2026, 8, 22),
+                endDate = LocalDate.of(2026, 8, 27),
+            ),
+        )
+    }
+
+    @Test
+    fun routeDayCountReductionIsAlsoReportedBeforeSaving() {
+        val days = buildJsonArray {
+            add(routeDay("first", "2026-08-20", "Prague", "Tallinn"))
+            add(routeDay("second", "2026-08-21", "Tallinn", "Berlin"))
+        }
+
+        assertEquals(
+            1,
+            routeDaysAtRiskCount(
+                days = days,
+                nextRouteDayCount = 1,
+                startDate = LocalDate.of(2026, 8, 20),
+                endDate = LocalDate.of(2026, 8, 24),
+            ),
+        )
+    }
+
     private fun routeDay(id: String, date: String, from: String, to: String) = buildJsonObject {
         put("id", id)
         put("city", to)

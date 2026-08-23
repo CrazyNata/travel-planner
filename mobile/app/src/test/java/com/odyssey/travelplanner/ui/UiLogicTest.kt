@@ -35,6 +35,14 @@ class UiLogicTest {
     }
 
     @Test
+    fun accommodationCheckOutCannotPrecedeCheckIn() {
+        assertTrue(accommodationDatesAreChronological("2026-08-25", "2026-08-25"))
+        assertTrue(accommodationDatesAreChronological("2026-08-25", "2026-08-26"))
+        assertFalse(accommodationDatesAreChronological("2026-08-25", "2026-08-24"))
+        assertTrue(accommodationDatesAreChronological("", "2026-08-24"))
+    }
+
+    @Test
     fun russianCountWordsUseCorrectForms() {
         fun cityWord(count: Int) = localizedCountWord(
             count,
@@ -67,5 +75,11 @@ class UiLogicTest {
         assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("User already registered")))
         assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("request failed", IllegalArgumentException("user_already_exists"))))
         assertFalse(isAlreadyRegisteredAuthError(IllegalStateException("invalid login credentials")))
+    }
+
+    @Test
+    fun overviewBlockNormalizationPreservesOmittedBlocks() {
+        assertEquals(listOf("photo", "map"), normalizedOverviewBlocks(listOf("photo", "map")))
+        assertEquals(emptyList<String>(), normalizedOverviewBlocks(emptyList()))
     }
 }

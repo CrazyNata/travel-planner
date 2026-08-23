@@ -21,6 +21,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -201,6 +202,8 @@ import com.odyssey.travelplanner.data.RememberedAccount
 import com.odyssey.travelplanner.data.AuthRestoreResult
 import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
+import com.odyssey.travelplanner.data.AuthFailure
+import com.odyssey.travelplanner.data.classifyAuthFailure
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SightCatalogEntry
@@ -1687,6 +1690,7 @@ private fun AuthScreen(
     var repeatPassword by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var registrationNeedsRecoveryHint by remember { mutableStateOf(false) }
     var languagePickerOpen by remember { mutableStateOf(false) }
     // Legacy saved accounts are shown only long enough to migrate them to the
     // single persistent auth session used by the current app. New logins do
@@ -1718,6 +1722,27 @@ private fun AuthScreen(
         onRememberCredentialsChange(checked)
         if (!checked) {
             scope.launch { SupabaseProvider.clearRememberedCredentials() }
+        }
+    }
+
+    fun requestPasswordRecovery() {
+        if (email.isBlank()) {
+            message = messageText("Введите e-mail для восстановления", "Enter your email to reset the password", "Introduzca su e-mail para restablecer la contraseña", "Geben Sie Ihre E-Mail zum Zurücksetzen des Passworts ein")
+            registrationNeedsRecoveryHint = false
+            return
+        }
+        scope.launch {
+            isLoading = true
+            message = null
+            registrationNeedsRecoveryHint = false
+            runCatching {
+                SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://ramingo.online/mobile/reset")
+            }.onSuccess {
+                message = messageText("Письмо для восстановления отправлено", "Password reset email sent", "Correo de restablecimiento enviado", "E-Mail zum Zurücksetzen gesendet")
+            }.onFailure {
+                message = it.message ?: messageText("Не удалось отправить письмо", "Could not send reset email", "No se pudo enviar el correo", "E-Mail konnte nicht gesendet werden")
+            }
+            isLoading = false
         }
     }
 
@@ -1763,15 +1788,47 @@ private fun AuthScreen(
                 }
             }.onSuccess { authenticatedImmediately ->
                 if (isRegistration && !authenticatedImmediately) {
-                    message = messageText("Проверьте e-mail для подтверждения", "Check your email to confirm", "Revise su correo para confirmar", "Prüfen Sie Ihre E-Mail zur Bestätigung")
+                    message = messageText(
+                        "Проверьте e-mail для подтверждения. Если адрес уже зарегистрирован, письмо не придёт.",
+                        "Check your email to confirm. If this address is already registered, no message will arrive.",
+                        "Revise su correo para confirmar. Si esta dirección ya está registrada, no recibirá ningún mensaje.",
+                        "Prüfen Sie Ihre E-Mail zur Bestätigung. Wenn diese Adresse bereits registriert ist, kommt keine Nachricht.",
+                    )
+                    registrationNeedsRecoveryHint = true
                 } else {
+                    registrationNeedsRecoveryHint = false
                     onAuthenticated()
                 }
             }.onFailure { error ->
-                message = if (isRegistration && isAlreadyRegisteredAuthError(error)) {
-                    messageText("Этот e-mail уже зарегистрирован. Войдите в аккаунт.", "This e-mail is already registered. Sign in instead.", "Este e-mail ya está registrado. Inicie sesión.", "Diese E-Mail ist bereits registriert. Melden Sie sich stattdessen an.")
-                } else {
-                    messageText("Не удалось выполнить запрос", "Could not complete the request", "No se pudo completar la solicitud", "Anfrage konnte nicht ausgeführt werden")
+                if (error is CancellationException) throw error
+                registrationNeedsRecoveryHint = false
+                message = when {
+                    isRegistration && isAlreadyRegisteredAuthError(error) -> {
+                        messageText("Этот e-mail уже зарегистрирован. Войдите в аккаунт.", "This e-mail is already registered. Sign in instead.", "Este e-mail ya está registrado. Inicie sesión.", "Diese E-Mail ist bereits registriert. Melden Sie sich stattdessen an.")
+                    }
+                    !isRegistration -> {
+                        when (classifyAuthFailure(error)) {
+                            is AuthFailure.InvalidCredentials -> messageText(
+                                "Неверный e-mail или пароль",
+                                "Incorrect email or password",
+                                "E-mail o contraseña incorrectos",
+                                "Falsche E-Mail oder falsches Passwort",
+                            )
+                            is AuthFailure.Network -> messageText(
+                                "Не удалось подключиться. Проверьте интернет и повторите попытку.",
+                                "Could not connect. Check your internet connection and try again.",
+                                "No se pudo conectar. Compruebe su conexión a internet e inténtelo de nuevo.",
+                                "Verbindung fehlgeschlagen. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
+                            )
+                            is AuthFailure.Unknown -> messageText(
+                                "Не удалось войти. Повторите попытку.",
+                                "Could not sign in. Please try again.",
+                                "No se pudo iniciar sesión. Inténtelo de nuevo.",
+                                "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+                            )
+                        }
+                    }
+                    else -> messageText("Не удалось выполнить запрос", "Could not complete the request", "No se pudo completar la solicitud", "Anfrage konnte nicht ausgeführt werden")
                 }
             }
             isLoading = false
@@ -2002,21 +2059,7 @@ private fun AuthScreen(
                     .fillMaxWidth()
                     .padding(top = 10.dp)
                     .clickable {
-                        if (email.isBlank()) {
-                            message = messageText("Введите e-mail для восстановления", "Enter your email to reset the password", "Introduzca su e-mail para restablecer la contraseña", "Geben Sie Ihre E-Mail zum Zurücksetzen des Passworts ein")
-                        } else {
-                            scope.launch {
-                                isLoading = true
-                                runCatching {
-                                    SupabaseProvider.clientForCurrentAuthFlow().auth.resetPasswordForEmail(email.trim(), redirectUrl = "https://ramingo.online/mobile/reset")
-                                }.onSuccess {
-                                    message = messageText("Письмо для восстановления отправлено", "Password reset email sent", "Correo de restablecimiento enviado", "E-Mail zum Zurücksetzen gesendet")
-                                }.onFailure {
-                                    message = it.message ?: messageText("Не удалось отправить письмо", "Could not send reset email", "No se pudo enviar el correo", "E-Mail konnte nicht gesendet werden")
-                                }
-                                isLoading = false
-                            }
-                        }
+                        requestPasswordRecovery()
                     },
             )
         }
@@ -2067,12 +2110,41 @@ private fun AuthScreen(
         if (message != null) {
             Text(
                 text = message!!,
-                color = if (message == "Вход выполнен" || message?.startsWith("Проверьте") == true || message?.contains("отправлено", true) == true || message?.contains("sent", true) == true || message?.contains("enviado", true) == true || message?.contains("gesendet", true) == true) Color(0xFF22B07D) else Color(0xFFE0524B),
+                color = if (message == "Вход выполнен" || message?.startsWith("Проверьте") == true || message?.startsWith("Check your email") == true || message?.startsWith("Revise su correo") == true || message?.startsWith("Prüfen Sie Ihre E-Mail") == true || message?.contains("отправлено", true) == true || message?.contains("sent", true) == true || message?.contains("enviado", true) == true || message?.contains("gesendet", true) == true) Color(0xFF22B07D) else Color(0xFFE0524B),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 10.dp),
             )
+        }
+        if (isRegistration && registrationNeedsRecoveryHint) {
+            Text(
+                text = localized(
+                    "Если вы уже регистрировались, восстановите пароль:",
+                    "If you have already registered, reset your password:",
+                    "Si ya se registró, restablezca su contraseña:",
+                    "Wenn Sie sich bereits registriert haben, setzen Sie Ihr Passwort zurück:",
+                ),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            TextButton(
+                onClick = ::requestPasswordRecovery,
+                enabled = !isLoading,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = localized("Восстановить пароль", "Reset password", "Restablecer contraseña", "Passwort zurücksetzen"),
+                    color = primaryColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                )
+            }
         }
 
         Row(
@@ -2128,6 +2200,7 @@ private fun AuthScreen(
                     password = ""
                     repeatPassword = ""
                     message = null
+                    registrationNeedsRecoveryHint = false
                 },
             )
         }
@@ -3857,6 +3930,7 @@ private fun EditTripPanel(
     var deleteDialogOpen by remember { mutableStateOf(false) }
     var leaveDialogOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var dateShiftWarningDays by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
     var tripCalendarOpen by remember { mutableStateOf(false) }
     var tripCalendarStep by remember { mutableStateOf("start") }
@@ -3916,6 +3990,39 @@ private fun EditTripPanel(
                     )
                 }
             leaving = false
+        }
+    }
+
+    fun saveTrip(allowRouteDayArchive: Boolean = false) {
+        scope.launch {
+            saving = true
+            message = null
+            val savedTitle = title.trim().takeUnless { it == displayedTitle } ?: trip.title.trim()
+            val savedCities = cities.trim().takeUnless { it == displayedCities } ?: trip.cities.trim()
+            val savedDates = dates.trim().takeUnless { it == displayedDates } ?: trip.dates.trim()
+            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+            val routeShapeChanged = savedDates != trip.dates.trim() || savedCities != trip.cities.trim()
+            if (!allowRouteDayArchive && routeShapeChanged) {
+                val daysAtRisk = runCatching {
+                    repository.countRouteDaysAtRisk(trip.id, savedDates, savedCities)
+                }.getOrElse {
+                    message = it.message ?: localized(language, "Не удалось проверить дни маршрута", "Could not check the route days", "No se pudieron comprobar los días de la ruta", "Die Routentage konnten nicht geprüft werden")
+                    saving = false
+                    return@launch
+                }
+                if (daysAtRisk > 0) {
+                    dateShiftWarningDays = daysAtRisk
+                    saving = false
+                    return@launch
+                }
+            }
+            runCatching {
+                repository.updateTripDetails(trip.id, savedTitle, savedDates, savedCities)
+                repository.updateTripSection(trip.id, "status", JsonPrimitive(status))
+            }
+                .onSuccess { onSaved(trip.copy(title = savedTitle, cities = savedCities, dates = savedDates, status = status)) }
+                .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
+            saving = false
         }
     }
 
@@ -4064,22 +4171,7 @@ private fun EditTripPanel(
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
-            Button(onClick = {
-                scope.launch {
-                    saving = true
-                    val savedTitle = title.trim().takeUnless { it == displayedTitle } ?: trip.title.trim()
-                    val savedCities = cities.trim().takeUnless { it == displayedCities } ?: trip.cities.trim()
-                    val savedDates = dates.trim().takeUnless { it == displayedDates } ?: trip.dates.trim()
-                    runCatching {
-                        val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                        repository.updateTripDetails(trip.id, savedTitle, savedDates, savedCities)
-                        repository.updateTripSection(trip.id, "status", JsonPrimitive(status))
-                    }
-                        .onSuccess { onSaved(trip.copy(title = savedTitle, cities = savedCities, dates = savedDates, status = status)) }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
-                    saving = false
-                }
-            }, enabled = !saving && !deleting && !leaving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
+            Button(onClick = { saveTrip() }, enabled = !saving && !deleting && !leaving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(46.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp) }
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -4157,6 +4249,53 @@ private fun EditTripPanel(
                 if (selectedStart != null && selectedEnd != null && !selectedEnd.isBefore(selectedStart)) {
                     dates = "$selectedStart — $selectedEnd"
                     tripCalendarOpen = false
+                }
+            },
+        )
+    }
+    dateShiftWarningDays?.let { daysAtRisk ->
+        val dayLabel = localizedCountWord(
+            daysAtRisk,
+            language,
+            "день",
+            "дня",
+            "дней",
+            "day",
+            "days",
+            "día",
+            "días",
+            "Tag",
+            "Tage",
+        )
+        AlertDialog(
+            onDismissRequest = { dateShiftWarningDays = null },
+            title = {
+                Text(
+                    localized("Изменение дат скроет дни маршрута", "Changing dates will hide route days", "Cambiar las fechas ocultará días de la ruta", "Die Datumsänderung blendet Reisetage aus"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Text(
+                    localized(
+                        "$daysAtRisk $dayLabel выйдут за новые даты и будут скрыты из маршрута. Они останутся в архиве.",
+                        "$daysAtRisk $dayLabel will fall outside the new dates and be hidden from the route. They will remain archived.",
+                        "$daysAtRisk $dayLabel quedarán fuera de las nuevas fechas y se ocultarán de la ruta. Permanecerán archivados.",
+                        "$daysAtRisk $dayLabel liegen außerhalb der neuen Daten und werden aus der Route ausgeblendet. Sie bleiben archiviert.",
+                    ),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { dateShiftWarningDays = null }) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { dateShiftWarningDays = null; saveTrip(allowRouteDayArchive = true) }) {
+                    Text(localized("Продолжить", "Continue", "Continuar", "Fortfahren"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800)
                 }
             },
         )
@@ -4348,7 +4487,40 @@ private fun CreateTripScreen(
     }
 
     fun save() {
-        if (title.isBlank()) title = "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f"
+        when (validateCreateTripRequiredFields(title, startDate, endDate, cityList)) {
+            CreateTripValidationError.TITLE_REQUIRED -> {
+                message = localized(
+                    language,
+                    "Введите название путешествия",
+                    "Enter a trip name",
+                    "Escriba el nombre del viaje",
+                    "Geben Sie einen Reisenamen ein",
+                )
+                return
+            }
+            CreateTripValidationError.DATES_REQUIRED -> {
+                message = localized(
+                    language,
+                    "Выберите даты начала и окончания",
+                    "Choose start and end dates",
+                    "Elija las fechas de inicio y fin",
+                    "Wählen Sie Start- und Enddatum",
+                )
+                return
+            }
+            CreateTripValidationError.CITIES_REQUIRED -> {
+                message = localized(
+                    language,
+                    "Добавьте хотя бы один город",
+                    "Add at least one city",
+                    "Añada al menos una ciudad",
+                    "Fügen Sie mindestens eine Stadt hinzu",
+                )
+                return
+            }
+            null -> Unit
+        }
+        title = title.trim()
         val unsupportedCity = cityList.firstOrNull { entryForStoredCity(it) == null }
         if (unsupportedCity != null) {
             message = localized(
@@ -6261,6 +6433,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
                     onOpenPhoto = { fullScreenSight = sight },
+                    onAddPhoto = { if (uploadingSightId == null) { uploadingSightId = sight.id; photoPicker.launch("image/*") } },
                     canEdit = canEdit,
                     onEdit = { if (canEdit) editingSight = sight },
                 )
@@ -6672,6 +6845,8 @@ private fun EditDaySheet(
     var deletingDay by remember { mutableStateOf(false) }
     var deleteDayError by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var orderedSights by remember(day, sights) { mutableStateOf(sights) }
+    var reorderingSightId by remember { mutableStateOf<String?>(null) }
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
     val sheetContentTextColor = if (darkTheme) OdysseyDarkText else OdysseyText
@@ -6691,11 +6866,61 @@ private fun EditDaySheet(
         if (message != null) {
             Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         }
-        sights.forEach { sight ->
+        orderedSights.forEachIndexed { index, sight ->
             Row(modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(14.dp)).background(sheetSecondarySurfaceColor).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SightPhoto(sight, Modifier.size(52.dp).clip(RoundedCornerShape(11.dp)))
                 Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) { Text(localizedSightName(sight.name), color = sheetContentTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(localizedSightInfo(sight.name, sight.description, sight.category), color = sheetSecondaryTextColor, fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.8.sp, maxLines = 1) }
-                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(dangerSurfaceColor()).clickable(enabled = deletingSightId == null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    RouteOrderButton(
+                        Icons.Outlined.KeyboardArrowUp,
+                        enabled = index > 0 && reorderingSightId == null && deletingSightId == null,
+                        contentDescription = localized("Переместить вверх", "Move up", "Mover arriba", "Nach oben"),
+                    ) {
+                        val reordered = orderedSights.toMutableList().apply { add(index - 1, removeAt(index)) }
+                        orderedSights = reordered
+                        reorderingSightId = sight.id
+                        message = null
+                        scope.launch {
+                            runCatching {
+                                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).reorderSights(
+                                    tripId,
+                                    reordered.map(Sight::id),
+                                )
+                            }.onSuccess {
+                                onSaved()
+                            }.onFailure {
+                                orderedSights = sights
+                                message = it.message ?: localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden")
+                            }
+                            reorderingSightId = null
+                        }
+                    }
+                    RouteOrderButton(
+                        Icons.Outlined.KeyboardArrowDown,
+                        enabled = index < orderedSights.lastIndex && reorderingSightId == null && deletingSightId == null,
+                        contentDescription = localized("Переместить вниз", "Move down", "Mover abajo", "Nach unten"),
+                    ) {
+                        val reordered = orderedSights.toMutableList().apply { add(index + 1, removeAt(index)) }
+                        orderedSights = reordered
+                        reorderingSightId = sight.id
+                        message = null
+                        scope.launch {
+                            runCatching {
+                                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).reorderSights(
+                                    tripId,
+                                    reordered.map(Sight::id),
+                                )
+                            }.onSuccess {
+                                onSaved()
+                            }.onFailure {
+                                orderedSights = sights
+                                message = it.message ?: localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden")
+                            }
+                            reorderingSightId = null
+                        }
+                    }
+                }
+                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(dangerSurfaceColor()).clickable(enabled = deletingSightId == null && reorderingSightId == null) {
                     deletingSightId = sight.id
                     message = null
                     scope.launch {
@@ -7715,6 +7940,7 @@ private fun SightCard(
     selected: Boolean,
     onSelect: () -> Unit,
     onOpenPhoto: () -> Unit,
+    onAddPhoto: () -> Unit,
     canEdit: Boolean = true,
     onEdit: () -> Unit,
 ) {
@@ -7744,6 +7970,29 @@ private fun SightCard(
                 modifier = Modifier.fillMaxSize(),
                 onClick = onOpenPhoto.takeIf { !uploading },
             )
+            if (canEdit) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(primaryColor())
+                        .clickable(enabled = !uploading, onClick = onAddPhoto),
+                ) {
+                    if (uploading) {
+                        CircularProgressIndicator(color = primaryContentColor(), strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    } else {
+                        Icon(
+                            Icons.Outlined.Image,
+                            contentDescription = localized("Добавить фото", "Add photo", "Añadir foto", "Foto hinzufügen"),
+                            tint = primaryContentColor(),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
         }
         Column(modifier = Modifier.weight(1f).clickable { onSelect() }) {
             Text(
@@ -8422,6 +8671,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 tripId = tripId,
                 cityOptions = tripCityOptions,
                 onClose = { editingRestaurant = null },
+                onPhotosUpdated = onRestaurantAdded,
                 onSaved = {
                     editingRestaurant = null
                     onRestaurantAdded()
@@ -9764,9 +10014,9 @@ private fun RestaurantEditSheet(
     tripId: String,
     cityOptions: List<String>,
     onClose: () -> Unit,
+    onPhotosUpdated: () -> Unit,
     onSaved: () -> Unit,
 ) {
-    val context = LocalContext.current
     val language = LocalLanguage.current
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var city by remember(restaurant.id) { mutableStateOf(restaurant.city) }
@@ -9777,49 +10027,18 @@ private fun RestaurantEditSheet(
     var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
     var priority by remember(restaurant.id) { mutableStateOf(restaurant.priority) }
     var saving by remember { mutableStateOf(false) }
-    var uploadingPhoto by remember(restaurant.id) { mutableStateOf(false) }
     var deleting by remember(restaurant.id) { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var photoManagerOpen by remember(restaurant.id) { mutableStateOf(false) }
+    var restaurantPhotos by remember(restaurant.id) { mutableStateOf(restaurant.photos) }
     var cityPickerOpen by remember(restaurant.id) { mutableStateOf(false) }
     var datePickerOpen by remember(restaurant.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
-            uploadingPhoto = true
-            message = null
-            runCatching {
-                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                uris.forEachIndexed { index, uri ->
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: error("\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435")
-                    if (index == 0) {
-                        repository.replaceRestaurantCoverPhoto(tripId, restaurant.id, bytes)
-                    } else {
-                        repository.addRestaurantPhoto(tripId, restaurant.id, bytes)
-                    }
-                }
-            }.onSuccess {
-                uploadingPhoto = false
-                onSaved()
-            }.onFailure {
-                uploadingPhoto = false
-                message = it.message ?: localized(
-                    language,
-                    "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e",
-                    "Could not upload photo",
-                    "No se pudo subir la foto",
-                    "Foto konnte nicht hochgeladen werden",
-                )
-            }
-        }
-    }
-
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val scale = maxWidth.value / 368f
         fun d(value: Float) = (value * scale).dp
         fun s(value: Float) = (value * scale).sp
-        val busy = saving || uploadingPhoto || deleting
+        val busy = saving || deleting
 
         Box(
             modifier = Modifier
@@ -9998,14 +10217,14 @@ private fun RestaurantEditSheet(
             )
             RestaurantAddField(
                 label = localized("\u0424\u043e\u0442\u043e", "Photos", "Fotos", "Fotos"),
-                value = if (restaurant.photos.isEmpty()) {
+                value = if (restaurantPhotos.isEmpty()) {
                     ""
                 } else {
                     localized(
-                        "${restaurant.photos.size} \u0444\u043e\u0442\u043e",
-                        "${restaurant.photos.size} photos",
-                        "${restaurant.photos.size} fotos",
-                        "${restaurant.photos.size} Fotos",
+                        "${restaurantPhotos.size} \u0444\u043e\u0442\u043e",
+                        "${restaurantPhotos.size} photos",
+                        "${restaurantPhotos.size} fotos",
+                        "${restaurantPhotos.size} Fotos",
                     )
                 },
                 placeholder = localized("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u043e\u0442\u043e", "Add photo", "A\u00f1adir foto", "Foto hinzuf\u00fcgen"),
@@ -10015,7 +10234,7 @@ private fun RestaurantEditSheet(
                 modifier = Modifier
                     .offset(x = d(16f), y = d(610f))
                     .width(d(336f)),
-                onClick = { if (!busy) photoPicker.launch("image/*") },
+                onClick = { if (!busy) photoManagerOpen = true },
                 onValueChange = {},
             )
 
@@ -10153,6 +10372,29 @@ private fun RestaurantEditSheet(
         }
     }
     }
+    if (photoManagerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { photoManagerOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantPhotoManagerSheet(
+                restaurantId = restaurant.id,
+                restaurantName = restaurant.name,
+                tripId = tripId,
+                photos = restaurantPhotos,
+                onClose = { photoManagerOpen = false },
+                onPhotosChanged = {
+                    restaurantPhotos = it
+                    onPhotosUpdated()
+                },
+            )
+        }
+    }
     if (datePickerOpen) {
         AccommodationCalendarDialog(
             initialValue = dateTime,
@@ -10182,6 +10424,293 @@ private fun RestaurantEditSheet(
                 },
                 onClose = { cityPickerOpen = false },
             )
+        }
+    }
+}
+
+@Composable
+private fun PhotoOrderButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    contentDescription: String,
+    rotation: Float = 0f,
+    onClick: () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(31.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (enabled) cardSurfaceColor() else secondarySurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(9.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = if (enabled) primaryColor() else secondaryTextColor(), modifier = Modifier.size(17.dp).graphicsLayer(rotationZ = rotation))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RestaurantPhotoManagerSheet(
+    restaurantId: String,
+    restaurantName: String,
+    tripId: String,
+    photos: List<String>,
+    onClose: () -> Unit,
+    onPhotosChanged: (List<String>) -> Unit,
+) {
+    val context = LocalContext.current
+    val language = LocalLanguage.current
+    val scope = rememberCoroutineScope()
+    var localPhotos by remember(restaurantId, photos) { mutableStateOf(photos) }
+    var uploading by remember { mutableStateOf(false) }
+    var movingIndex by remember { mutableStateOf<Int?>(null) }
+    var deletingIndex by remember { mutableStateOf<Int?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val busy = uploading || movingIndex != null || deletingIndex != null
+
+    fun showError(error: Throwable, fallback: String) {
+        message = error.message ?: localized(language, fallback, "Could not update restaurant photos", "No se pudieron actualizar las fotos del restaurante", "Restaurantfotos konnten nicht aktualisiert werden")
+    }
+
+    val addPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploading = true
+            message = null
+            runCatching {
+                val client = SupabaseProvider.clientForCurrentAuthFlow()
+                val repository = SupabaseTripRepository(client)
+                uris.map { uri ->
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("Не удалось прочитать изображение")
+                    val reference = repository.addRestaurantPhoto(tripId, restaurantId, bytes)
+                    client.resolveTripPhotoReference(reference) ?: reference
+                }
+            }.onSuccess { addedPhotos ->
+                val updatedPhotos = localPhotos + addedPhotos
+                localPhotos = updatedPhotos
+                onPhotosChanged(updatedPhotos)
+            }.onFailure {
+                showError(it, "Не удалось добавить фото. Проверьте интернет и повторите попытку.")
+            }
+            uploading = false
+        }
+    }
+    val replaceCoverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploading = true
+            message = null
+            runCatching {
+                val client = SupabaseProvider.clientForCurrentAuthFlow()
+                val repository = SupabaseTripRepository(client)
+                val references = uris.mapIndexed { index, uri ->
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?.let { bytes ->
+                            if (index == 0) {
+                                repository.replaceRestaurantCoverPhoto(tripId, restaurantId, bytes)
+                            } else {
+                                repository.addRestaurantPhoto(tripId, restaurantId, bytes)
+                            }
+                        }
+                        ?: error("Не удалось прочитать изображение")
+                }
+                references.map { reference -> client.resolveTripPhotoReference(reference) ?: reference }
+            }.onSuccess { replacementPhotos ->
+                val updatedPhotos = replacementPhotos.firstOrNull()?.let {
+                    listOf(it) + localPhotos.drop(1) + replacementPhotos.drop(1)
+                } ?: localPhotos
+                localPhotos = updatedPhotos
+                onPhotosChanged(updatedPhotos)
+            }.onFailure {
+                showError(it, "Не удалось заменить обложку. Проверьте интернет и повторите попытку.")
+            }
+            uploading = false
+        }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val scale = maxWidth.value / 368f
+        fun d(value: Float) = (value * scale).dp
+        fun s(value: Float) = (value * scale).sp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = d(690f))
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = d(16f), vertical = d(12f)),
+            verticalArrangement = Arrangement.spacedBy(d(12f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(d(40f), d(4f))
+                    .clip(RoundedCornerShape(d(2f)))
+                    .background(contentBorderColor()),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().height(d(44f)),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = localized("Фотографии ресторана", "Restaurant photos", "Fotos del restaurante", "Restaurantfotos"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(22f),
+                        lineHeight = s(29f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = restaurantName,
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = s(11f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(d(34f))
+                        .clip(CircleShape)
+                        .background(surfaceVariantColor())
+                        .clickable(onClick = onClose),
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = secondaryTextColor(), modifier = Modifier.size(d(16f)))
+                }
+            }
+            Text(
+                text = localized("${localPhotos.size} фото", "${localPhotos.size} photos", "${localPhotos.size} fotos", "${localPhotos.size} Fotos"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = s(13f),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(d(9f)), modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(d(50f))
+                        .clip(RoundedCornerShape(d(14f)))
+                        .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
+                        .clickable(enabled = !busy) { addPhotoPicker.launch("image/*") },
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(d(7f))) {
+                        if (uploading) CircularProgressIndicator(color = primaryContentColor(), strokeWidth = d(2f), modifier = Modifier.size(d(19f))) else OdysseyPlusIcon(d(18f), primaryContentColor())
+                        Text(localized("Добавить фото", "Add photo", "Añadir foto", "Foto hinzufügen"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(13f))
+                    }
+                }
+                if (localPhotos.isNotEmpty()) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(d(50f))
+                            .clip(RoundedCornerShape(d(14f)))
+                            .background(cardSurfaceColor())
+                            .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f)))
+                            .clickable(enabled = !busy) { replaceCoverPicker.launch("image/*") },
+                    ) {
+                        Text(localized("Заменить обложку", "Replace cover", "Cambiar portada", "Cover ersetzen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = s(12f), maxLines = 1)
+                    }
+                }
+            }
+            if (localPhotos.isEmpty()) {
+                Text(localized("Фотографий пока нет", "No photos yet", "Aún no hay fotos", "Noch keine Fotos"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = s(14f))
+            } else {
+                localPhotos.forEachIndexed { index, photo ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(d(10f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(d(15f)))
+                            .background(tintedSurfaceColor())
+                            .padding(d(8f)),
+                    ) {
+                        AsyncImage(
+                            model = photo,
+                            contentDescription = restaurantName,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.size(d(78f)).clip(RoundedCornerShape(d(11f))),
+                        )
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(d(6f))) {
+                            Text(
+                                text = if (index == 0) localized("${index + 1}. Обложка", "${index + 1}. Cover", "${index + 1}. Portada", "${index + 1}. Cover") else "${index + 1}",
+                                color = if (index == 0) primaryColor() else contentTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = s(13f),
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(d(6f))) {
+                                PhotoOrderButton(Icons.Outlined.ArrowBack, enabled = !busy && index > 0, contentDescription = localized("Переместить в начало", "Move earlier", "Mover antes", "Nach vorne")) {
+                                    scope.launch {
+                                        movingIndex = index
+                                        message = null
+                                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).moveRestaurantPhoto(tripId, restaurantId, index, -1) }
+                                            .onSuccess {
+                                                val updated = localPhotos.toMutableList().apply { add(index - 1, removeAt(index)) }
+                                                localPhotos = updated
+                                                onPhotosChanged(updated)
+                                            }
+                                            .onFailure { showError(it, "Не удалось изменить порядок фото. Проверьте интернет и повторите попытку.") }
+                                        movingIndex = null
+                                    }
+                                }
+                                PhotoOrderButton(Icons.Outlined.ArrowBack, enabled = !busy && index < localPhotos.lastIndex, contentDescription = localized("Переместить дальше", "Move later", "Mover después", "Nach hinten"), rotation = 180f) {
+                                    scope.launch {
+                                        movingIndex = index
+                                        message = null
+                                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).moveRestaurantPhoto(tripId, restaurantId, index, 1) }
+                                            .onSuccess {
+                                                val updated = localPhotos.toMutableList().apply { add(index + 1, removeAt(index)) }
+                                                localPhotos = updated
+                                                onPhotosChanged(updated)
+                                            }
+                                            .onFailure { showError(it, "Не удалось изменить порядок фото. Проверьте интернет и повторите попытку.") }
+                                        movingIndex = null
+                                    }
+                                }
+                            }
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(d(36f))
+                                .clip(CircleShape)
+                                .background(dangerSurfaceColor())
+                                .clickable(enabled = !busy) {
+                                    scope.launch {
+                                        deletingIndex = index
+                                        message = null
+                                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteRestaurantPhoto(tripId, restaurantId, index) }
+                                            .onSuccess {
+                                                val updated = localPhotos.toMutableList().apply { removeAt(index) }
+                                                localPhotos = updated
+                                                onPhotosChanged(updated)
+                                            }
+                                            .onFailure { showError(it, "Не удалось удалить фото. Проверьте интернет и повторите попытку.") }
+                                        deletingIndex = null
+                                    }
+                                },
+                        ) {
+                            if (deletingIndex == index) CircularProgressIndicator(color = Color(0xFFE0524B), strokeWidth = d(2f), modifier = Modifier.size(d(17f)))
+                            else Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить фото", "Delete photo", "Eliminar foto", "Foto löschen"), tint = Color(0xFFE0524B), modifier = Modifier.size(d(17f)))
+                        }
+                    }
+                }
+            }
+            message?.let {
+                Text(it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = s(11f), lineHeight = s(15f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+            }
         }
     }
 }
@@ -11101,6 +11630,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
     var price by remember(restaurant.id) { mutableStateOf(restaurant.price) }
     var link by remember(restaurant.id) { mutableStateOf(restaurant.link) }
     var saving by remember { mutableStateOf(false) }
+    var deleteDialogOpen by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -11112,14 +11642,8 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
         AuthField(localized("Ссылка", "Link", "Enlace", "Link"), "https://…", link) { link = it }
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable {
-                scope.launch {
-                    saving = true
-                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id) }
-                        .onSuccess { onDeleted() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось удалить ресторан", "Could not delete restaurant", "No se pudo eliminar el restaurante", "Restaurant konnte nicht gelöscht werden") }
-                    saving = false
-                }
+            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable(enabled = !saving) {
+                deleteDialogOpen = true
             }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(19.dp))
             }
@@ -11149,6 +11673,52 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
             }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
         }
     }
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!saving) deleteDialogOpen = false },
+            title = {
+                Text(
+                    localized("Удалить ресторан?", "Delete restaurant?", "¿Eliminar restaurante?", "Restaurant löschen?"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Text(
+                    localized(
+                        "Ресторан будет удалён из поездки.",
+                        "The restaurant will be removed from the trip.",
+                        "El restaurante se eliminará del viaje.",
+                        "Das Restaurant wird aus der Reise entfernt.",
+                    ),
+                    fontFamily = Manrope,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }, enabled = !saving) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteDialogOpen = false
+                        scope.launch {
+                            saving = true
+                            runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id) }
+                                .onSuccess { onDeleted() }
+                                .onFailure { message = it.message ?: localized(language, "Не удалось удалить ресторан", "Could not delete restaurant", "No se pudo eliminar el restaurante", "Restaurant konnte nicht gelöscht werden") }
+                            saving = false
+                        }
+                    },
+                    enabled = !saving,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(localized("Удалить", "Delete", "Eliminar", "Löschen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -11158,15 +11728,18 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
     val scope = rememberCoroutineScope()
     var uploading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
             uploading = true
             message = null
             runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error("Не удалось прочитать изображение")
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addCoverPhoto(tripId, bytes)
+                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                uris.forEach { uri ->
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("Не удалось прочитать изображение")
+                    repository.addCoverPhoto(tripId, bytes)
+                }
             }.onSuccess { onPhotoAdded() }.onFailure {
                 message = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden")
             }
@@ -11611,7 +12184,6 @@ private fun BudgetContent(
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
     val expenses = overview.budgetExpenses
-    val total = expenses.sumOf { it.amount }
     val categoryStyles = listOf(
         BudgetCategoryStyle("Жильё", "Жильё", Color(0xFF6C5CE7), setOf("жильё", "жилье", "проживание")),
         BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), setOf("транспорт")),
@@ -11693,6 +12265,9 @@ private fun BudgetContent(
     val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
     val dayCount = budgetTripDayCount(overview.dates)
     val currencyRate = effectiveCurrencyRate(selectedCurrencyCode)
+    fun displayedExpenseAmount(expense: com.odyssey.travelplanner.data.BudgetExpense): Double =
+        expense.amountIn(selectedCurrencyCode, currencyRate)
+    val total = expenses.sumOf(::displayedExpenseAmount)
 
     suspend fun refreshOnlineRates() {
         loadingRates = true
@@ -11820,7 +12395,7 @@ private fun BudgetContent(
 
     fun openEditExpense(expense: com.odyssey.travelplanner.data.BudgetExpense) {
         name = expense.name
-        amountInput = formatBudgetInput(expense.amount, currencyRate)
+        amountInput = formatBudgetInput(displayedExpenseAmount(expense), 1.0)
         category = categoryStyles.firstOrNull { it.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT)) }?.key ?: "Прочее"
         scopeName = budgetScopeValue(expense.scope)
         paidBy = expense.paidBy.ifBlank { "Общее" }
@@ -11837,7 +12412,7 @@ private fun BudgetContent(
             .verticalScroll(budgetScrollState)
             .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 30.dp),
     ) {
-        BudgetSummaryCard(total = total, currencySymbol = currencySymbol, conversionRate = currencyRate)
+        BudgetSummaryCard(total = total, currencySymbol = currencySymbol, conversionRate = 1.0)
         Spacer(Modifier.height(14.dp))
         BudgetCurrencySelector(
             selectedCode = selectedCurrencyCode,
@@ -11896,12 +12471,12 @@ private fun BudgetContent(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(71.dp)) {
             BudgetMetricCard(
                 label = localized("НА ЧЕЛОВЕКА", "PER PERSON", "POR PERSONA", "PRO PERSON"),
-                value = formatBudgetAmount(if (peopleCount == 0) 0.0 else total / peopleCount, currencySymbol, currencyRate),
+                value = formatBudgetAmount(if (peopleCount == 0) 0.0 else total / peopleCount, currencySymbol, 1.0),
                 modifier = Modifier.weight(1f),
             )
             BudgetMetricCard(
                 label = localized("В ДЕНЬ", "PER DAY", "POR DÍA", "PRO TAG"),
-                value = formatBudgetAmount(if (dayCount == 0) 0.0 else total / dayCount, currencySymbol, currencyRate),
+                value = formatBudgetAmount(if (dayCount == 0) 0.0 else total / dayCount, currencySymbol, 1.0),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -11921,13 +12496,13 @@ private fun BudgetContent(
             categoryStyles.forEach { categoryStyle ->
                 val categoryTotal = expenses.filter { expense ->
                     categoryStyle.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT))
-                }.sumOf { it.amount }
+                }.sumOf(::displayedExpenseAmount)
                 BudgetCategoryRow(
                     style = categoryStyle,
                     amount = categoryTotal,
                     total = total,
                     currencySymbol = currencySymbol,
-                    conversionRate = currencyRate,
+                    conversionRate = 1.0,
                 )
             }
         }
@@ -11935,7 +12510,8 @@ private fun BudgetContent(
         BudgetExpensesCard(
             expenses = expenses,
             currencySymbol = currencySymbol,
-            conversionRate = currencyRate,
+            currencyCode = selectedCurrencyCode,
+            currentConversionRate = currencyRate,
             editMode = editMode,
             editable = canEdit,
             deletingExpenseId = deletingExpenseId,
@@ -12001,6 +12577,8 @@ private fun BudgetContent(
                                 scope = scopeName,
                                 paidBy = paidBy,
                                 date = date,
+                                inputCurrency = selectedCurrencyCode,
+                                inputCurrencyRate = currencyRate,
                             )
                             runCatching {
                                 val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
@@ -12371,9 +12949,9 @@ private fun BudgetExchangeRateCard(
         else -> localized("Нет онлайн-курса — задайте вручную", "No online rate — set it manually", "Sin tipo online: establécelo manualmente", "Kein Online-Kurs — manuell festlegen")
     }
     val statusText = when {
+        isManual -> localized("вручную", "manual", "manual", "manuell")
         loading -> localized("обновляем", "refreshing", "actualizando", "aktualisiert")
         hasOnlineRate -> localized("онлайн", "online", "online", "online")
-        isManual -> localized("вручную", "manual", "manual", "manuell")
         else -> localized("нет курса", "no rate", "sin tipo", "kein Kurs")
     }
     val editRateDescription = localized("Изменить курс", "Edit rate", "Editar tipo", "Kurs ändern")
@@ -12604,7 +13182,8 @@ private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total:
 private fun BudgetExpensesCard(
     expenses: List<com.odyssey.travelplanner.data.BudgetExpense>,
     currencySymbol: String,
-    conversionRate: Double,
+    currencyCode: String,
+    currentConversionRate: Double,
     editMode: Boolean,
     editable: Boolean = true,
     deletingExpenseId: String?,
@@ -12658,7 +13237,7 @@ private fun BudgetExpensesCard(
             BudgetExpenseRow(
                 expense = expense,
                 currencySymbol = currencySymbol,
-                conversionRate = conversionRate,
+                displayedAmount = expense.amountIn(currencyCode, currentConversionRate),
                 editMode = editable && editMode,
                 deleting = deletingExpenseId == expense.id,
                 showDivider = index < expenses.lastIndex,
@@ -12675,7 +13254,7 @@ private fun BudgetExpensesCard(
 private fun BudgetExpenseRow(
     expense: com.odyssey.travelplanner.data.BudgetExpense,
     currencySymbol: String,
-    conversionRate: Double,
+    displayedAmount: Double,
     editMode: Boolean,
     deleting: Boolean,
     showDivider: Boolean,
@@ -12745,7 +13324,7 @@ private fun BudgetExpenseRow(
                 }
             } else {
                 Text(
-                    text = formatBudgetAmount(expense.amount, currencySymbol, conversionRate),
+                    text = formatBudgetAmount(displayedAmount, currencySymbol, 1.0),
                     color = contentTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -13058,251 +13637,10 @@ private fun BudgetExpenseSheet(
 }
 
 @Composable
-private fun BudgetContentLegacy(tripId: String, overview: TripOverview, onExpenseAdded: () -> Unit) {
-    val surface = cardSurfaceColor()
-    val language = LocalLanguage.current
-    var adding by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("") }
-    var amountInput by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Прочее") }
-    var scopeName by remember { mutableStateOf("общий") }
-    var paidBy by remember { mutableStateOf("Не указано") }
-    var saving by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    var savingCurrency by remember { mutableStateOf(false) }
-    var editingExpense by remember { mutableStateOf<com.odyssey.travelplanner.data.BudgetExpense?>(null) }
-    var addingGroup by remember { mutableStateOf(false) }
-    var groupName by remember { mutableStateOf("") }
-    var groupPeople by remember { mutableStateOf("1") }
-    var savingGroup by remember { mutableStateOf(false) }
-    var groupMessage by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val expenses = overview.budgetExpenses
-    val total = expenses.sumOf { it.amount }
-    val currency = overview.budgetCurrency
-    fun amount(value: Double) = (if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(value)) + " $currency"
-    val categories = listOf("Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее")
-    val peopleTotal = overview.budgetGroups.sumOf { it.people }.coerceAtLeast(1)
-    LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
-        item {
-            Text(localized("Бюджет поездки", "Trip budget", "Presupuesto del viaje", "Reisebudget"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 12.dp))
-            Text(localized("${expenses.size} трат · $currency", "${expenses.size} expenses · $currency", "${expenses.size} gastos · $currency", "${expenses.size} Ausgaben · $currency"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("EUR", "RUB", "USD").forEach { option ->
-                    val selected = option == currency
-                    Text(
-                        text = if (savingCurrency && selected) "…" else option,
-                        color = if (selected) primaryContentColor() else secondaryTextColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .background(if (selected) primaryColor() else surface, RoundedCornerShape(14.dp))
-                            .clickable(enabled = !savingCurrency && !selected) {
-                                scope.launch {
-                                    savingCurrency = true
-                                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(tripId, "budgetCurrency", JsonPrimitive(option)) }
-                                        .onSuccess { onExpenseAdded() }
-                                    savingCurrency = false
-                                }
-                            }
-                            .padding(horizontal = 13.dp, vertical = 8.dp),
-                    )
-                }
-            }
-        }
-        item {
-            if (adding) {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(localized("Новая трата", "New expense", "Nuevo gasto", "Neue Ausgabe"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Например, билеты", "For example, tickets", "Por ejemplo, billetes", "Zum Beispiel Tickets"), name) { name = it }
-                    AuthField(localized("Сумма в $currency", "Amount in $currency", "Importe en $currency", "Betrag in $currency"), "0", amountInput) { amountInput = it }
-                    AuthField(localized("Кто оплатил", "Paid by", "Pagado por", "Bezahlt von"), localized("Имя", "Name", "Nombre", "Name"), paidBy) { paidBy = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        categories.forEach { option ->
-                            val selected = category == option
-                            Text(localizedBudgetCategory(option), color = if (selected) primaryContentColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) primaryColor() else secondarySurfaceColor(), RoundedCornerShape(12.dp)).clickable { category = option }.padding(horizontal = 10.dp, vertical = 7.dp))
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        listOf("общий", "семья", "личный").forEach { option ->
-                            val selected = scopeName == option
-                            Text(localizedBudgetScope(option), color = if (selected) primaryContentColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(if (selected) primaryColor() else secondarySurfaceColor(), RoundedCornerShape(12.dp)).clickable { scopeName = option }.padding(horizontal = 10.dp, vertical = 7.dp))
-                        }
-                    }
-                    if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { adding = false; message = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                        Button(onClick = {
-                            scope.launch {
-                                saving = true
-                                val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addBudgetExpenseDetails(
-                                        tripId,
-                                        com.odyssey.travelplanner.data.ExpenseInput(name = name, amount = value, category = category, scope = scopeName, paidBy = paidBy),
-                                    )
-                                }
-                                    .onSuccess { adding = false; name = ""; amountInput = ""; paidBy = "Не указано"; onExpenseAdded() }
-                                    .onFailure { message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden") }
-                                saving = false
-                            }
-                        }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                    }
-                }
-            } else {
-                Text(localized("＋ Добавить трату", "＋ Add expense", "＋ Añadir gasto", "＋ Ausgabe hinzufügen"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(primaryColor()).clickable { adding = true }.padding(horizontal = 15.dp, vertical = 11.dp))
-            }
-        }
-        item {
-            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(primaryColor()).padding(18.dp)) {
-                Text(localized("Общий бюджет", "Total budget", "Presupuesto total", "Gesamtbudget"), color = Color(0xDFFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp)
-                Text(amount(total), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 28.sp, modifier = Modifier.padding(top = 5.dp))
-            }
-        }
-        if (overview.budgetGroups.isNotEmpty()) item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                overview.budgetGroups.forEach { group ->
-                    Column(modifier = Modifier.width(158.dp).clip(RoundedCornerShape(16.dp)).background(surface).padding(14.dp)) {
-                        Text(group.name, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                        Text(amount(total * group.people / peopleTotal), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, modifier = Modifier.padding(top = 5.dp))
-                        Text(localized("Доля из общих трат", "Share of total expenses", "Parte de los gastos totales", "Anteil an den Gesamtausgaben"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-                    }
-                }
-            }
-        }
-        item {
-            if (addingGroup) {
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(localized("Новая группа", "New group", "Nuevo grupo", "Neue Gruppe"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                    AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Например, Друзья", "For example, Friends", "Por ejemplo, Amigos", "Zum Beispiel Freunde"), groupName) { groupName = it }
-                    AuthField(localized("Участников", "Members", "Participantes", "Mitglieder"), "1", groupPeople) { groupPeople = it }
-                    if (groupMessage != null) Text(groupMessage!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { addingGroup = false; groupMessage = null }, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                        Button(onClick = {
-                            scope.launch {
-                                savingGroup = true
-                                runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addBudgetGroup(tripId, groupName, groupPeople.toIntOrNull() ?: 0) }
-                                    .onSuccess { addingGroup = false; groupName = ""; groupPeople = "1"; onExpenseAdded() }
-                                    .onFailure { groupMessage = it.message ?: localized(language, "Не удалось сохранить группу", "Could not save group", "No se pudo guardar el grupo", "Gruppe konnte nicht gespeichert werden") }
-                                savingGroup = false
-                            }
-                        }, enabled = !savingGroup, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (savingGroup) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-                    }
-                }
-            } else {
-                Text(localized("＋ Разделить бюджет", "＋ Split budget", "＋ Dividir presupuesto", "＋ Budget teilen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(surface).clickable { addingGroup = true }.padding(horizontal = 15.dp, vertical = 11.dp))
-            }
-        }
-        item { Text(localized("По категориям", "By category", "Por categoría", "Nach Kategorie"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
-        items(categories) { category ->
-            val categoryTotal = expenses.filter { it.category == category }.sumOf { it.amount }
-            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(surface).padding(14.dp)) {
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(localizedBudgetCategory(category), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp)
-                    Text(amount(categoryTotal), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-                }
-                Spacer(Modifier.height(8.dp))
-                Box(Modifier.fillMaxWidth().height(7.dp).background(Color(0xFFEEEEF2), RoundedCornerShape(4.dp))) {
-                    Spacer(Modifier.fillMaxHeight().fillMaxWidth(if (total == 0.0) 0f else (categoryTotal / total).toFloat()).background(primaryColor(), RoundedCornerShape(4.dp)))
-                }
-            }
-        }
-        item { Text(localized("Траты", "Expenses", "Gastos", "Ausgaben"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp)) }
-        if (editingExpense != null) item {
-            EditExpensePanel(editingExpense!!, tripId, onClose = { editingExpense = null }, onDeleted = {
-                editingExpense = null
-                onExpenseAdded()
-            }, onSaved = {
-                editingExpense = null
-                onExpenseAdded()
-            })
-        }
-        items(expenses, key = { it.id }) { expense ->
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(surface).clickable { editingExpense = expense }.padding(14.dp)) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(expense.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-                    Text(listOf(localizedBudgetScope(expense.scope), expense.paidBy).filter(String::isNotBlank).joinToString(" · "), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
-                }
-                Text(amount(expense.amount), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun EditExpensePanel(expense: com.odyssey.travelplanner.data.BudgetExpense, tripId: String, onClose: () -> Unit, onDeleted: () -> Unit, onSaved: () -> Unit) {
-    val language = LocalLanguage.current
-    var name by remember(expense.id) { mutableStateOf(expense.name) }
-    var amount by remember(expense.id) { mutableStateOf(expense.amount.toString()) }
-    var category by remember(expense.id) { mutableStateOf(expense.category) }
-    var scopeName by remember(expense.id) { mutableStateOf(expense.scope) }
-    var paidBy by remember(expense.id) { mutableStateOf(expense.paidBy) }
-    var saving by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(localized("Редактировать трату", "Edit expense", "Editar gasto", "Ausgabe bearbeiten"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-        AuthField(localized("Название", "Name", "Nombre", "Name"), localized("Название", "Name", "Nombre", "Name"), name) { name = it }
-        AuthField(localized("Сумма", "Amount", "Importe", "Betrag"), "0", amount) { amount = it }
-        AuthField(localized("Категория", "Category", "Categoría", "Kategorie"), localized("Категория", "Category", "Categoría", "Kategorie"), category) { category = it }
-        AuthField(localized("Кто оплатил", "Paid by", "Pagado por", "Bezahlt von"), localized("Имя", "Name", "Nombre", "Name"), paidBy) { paidBy = it }
-        AuthField(localized("Тип бюджета", "Budget type", "Tipo de presupuesto", "Budgettyp"), localized("общий / семья / личный", "shared / family / personal", "compartido / familiar / personal", "gemeinsam / Familie / privat"), scopeName) { scopeName = it }
-        if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(46.dp).clip(RoundedCornerShape(11.dp)).background(dangerSurfaceColor()).clickable {
-                scope.launch {
-                    saving = true
-                    runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "budgetExpenses", expense.id) }
-                        .onSuccess { onDeleted() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось удалить трату", "Could not delete expense", "No se pudo eliminar el gasto", "Ausgabe konnte nicht gelöscht werden") }
-                    saving = false
-                }
-            }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(19.dp))
-            }
-            Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = secondarySurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(11.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-            Button(onClick = {
-                scope.launch {
-                    saving = true
-                    val value = amount.replace(',', '.').toDoubleOrNull() ?: 0.0
-                    runCatching {
-                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateBudgetExpenseDetails(
-                            tripId,
-                            expense.id,
-                            com.odyssey.travelplanner.data.ExpenseInput(
-                                name = name,
-                                amount = value,
-                                category = category,
-                                scope = scopeName,
-                                paidBy = paidBy,
-                            ),
-                        )
-                    }
-                        .onSuccess { onSaved() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden") }
-                    saving = false
-                }
-            }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onStatusUpdated: () -> Unit) {
     val context = LocalContext.current
     val language = LocalLanguage.current
-    var savingAccommodationId by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
@@ -13325,7 +13663,6 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
     var accommodationCatalogCity by remember { mutableStateOf("") }
     var selectedAccommodationPlace by remember { mutableStateOf<AccommodationCatalogEntry?>(null) }
     var accommodationAddedName by remember { mutableStateOf<String?>(null) }
-    var uploadingAccommodationId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     val tripCityOptions = remember(overview.cities, overview.routeLegs, overview.sights, overview.accommodations, overview.restaurants) {
@@ -13360,26 +13697,6 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
         resetAccommodationForm()
     }
 
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val accommodationId = uploadingAccommodationId ?: return@rememberLauncherForActivityResult
-        if (uri == null) {
-            uploadingAccommodationId = null
-            return@rememberLauncherForActivityResult
-        }
-        scope.launch {
-            runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: error("Не удалось прочитать изображение")
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addAccommodationPhoto(tripId, accommodationId, bytes)
-            }.onSuccess {
-                actionMessage = null
-                onStatusUpdated()
-            }.onFailure {
-                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Foto konnte nicht hochgeladen werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
-            }
-            uploadingAccommodationId = null
-        }
-    }
     val newAccommodationPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         newAccommodationPhotoUri = uri
     }
@@ -13404,39 +13721,9 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
             items(overview.accommodations, key = { it.id }) { accommodation ->
                 AccommodationCard(
                     accommodation,
-                    savingAccommodationId == accommodation.id,
-                    uploadingAccommodationId == accommodation.id,
                     canEdit = canEdit,
                     onEdit = { if (canEdit) editingAccommodation = accommodation },
-                    onAddPhoto = { uploadingAccommodationId = accommodation.id; photoPicker.launch("image/*") },
-                    onMovePhoto = { index, direction ->
-                        scope.launch {
-                            savingAccommodationId = accommodation.id
-                            runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).moveAccommodationPhoto(tripId, accommodation.id, index, direction) }
-                                .onSuccess {
-                                    actionMessage = null
-                                    onStatusUpdated()
-                                }
-                                .onFailure {
-                                    actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u043e\u0440\u044f\u0434\u043e\u043a \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the photo order. Check your connection and try again.", "No se pudo cambiar el orden de las fotos. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Fotoreihenfolge konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
-                                }
-                            savingAccommodationId = null
-                        }
-                    },
-                ) { status ->
-                    if (canEdit) scope.launch {
-                        savingAccommodationId = accommodation.id
-                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationStatus(tripId, accommodation.id, status) }
-                            .onSuccess {
-                                actionMessage = null
-                                onStatusUpdated()
-                            }
-                            .onFailure {
-                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Status konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
-                            }
-                        savingAccommodationId = null
-                    }
-                }
+                )
             }
         }
         if (canEdit) item {
@@ -13520,47 +13807,51 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
                 onPickPhoto = { newAccommodationPhotoPicker.launch("image/*") },
                 onClose = ::closeAccommodationForm,
                 onSave = {
-                    scope.launch {
-                        saving = true
-                        var createdAccommodationId: String? = null
-                        runCatching {
-                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                            val accommodationId = repository.addAccommodationDetails(
-                                com.odyssey.travelplanner.data.AccommodationInput(
-                                    name = name,
-                                    city = city,
-                                    dates = accommodationDateRange(checkIn, checkOut, dates),
-                                    price = price,
-                                    status = status,
-                                    details = details,
-                                    bookingUrl = bookingUrl,
-                                    deadline = deadline,
-                                    source = "manual",
-                                    externalUrl = bookingUrl,
-                                    address = details,
-                                    tripCityId = city.trim(),
-                                ),
-                                tripId,
-                            )
-                            createdAccommodationId = accommodationId
-                            newAccommodationPhotoUri?.let { uri ->
-                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: error("Не удалось прочитать изображение")
-                                repository.addAccommodationPhoto(tripId, accommodationId, bytes)
-                            }
-                        }.onSuccess {
-                                closeAccommodationForm()
-                                onStatusUpdated()
-                        }.onFailure {
-                            createdAccommodationId?.let { accommodationId ->
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                        .deleteAccommodation(tripId, accommodationId)
+                    if (!accommodationDatesAreChronological(checkIn, checkOut)) {
+                        message = localized(language, "Дата выезда не может быть раньше даты заезда", "Check-out cannot be earlier than check-in", "La salida no puede ser anterior a la entrada", "Die Abreise darf nicht vor der Anreise liegen")
+                    } else {
+                        scope.launch {
+                            saving = true
+                            var createdAccommodationId: String? = null
+                            runCatching {
+                                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                val accommodationId = repository.addAccommodationDetails(
+                                    com.odyssey.travelplanner.data.AccommodationInput(
+                                        name = name,
+                                        city = city,
+                                        dates = accommodationDateRange(checkIn, checkOut, dates),
+                                        price = price,
+                                        status = status,
+                                        details = details,
+                                        bookingUrl = bookingUrl,
+                                        deadline = deadline,
+                                        source = "manual",
+                                        externalUrl = bookingUrl,
+                                        address = details,
+                                        tripCityId = city.trim(),
+                                    ),
+                                    tripId,
+                                )
+                                createdAccommodationId = accommodationId
+                                newAccommodationPhotoUri?.let { uri ->
+                                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                        ?: error("Не удалось прочитать изображение")
+                                    repository.addAccommodationPhoto(tripId, accommodationId, bytes)
                                 }
+                            }.onSuccess {
+                                    closeAccommodationForm()
+                                    onStatusUpdated()
+                            }.onFailure {
+                                createdAccommodationId?.let { accommodationId ->
+                                    runCatching {
+                                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                            .deleteAccommodation(tripId, accommodationId)
+                                    }
+                                }
+                                message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
                             }
-                            message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                            saving = false
                         }
-                        saving = false
                     }
                 },
             )
@@ -13658,6 +13949,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
                 "checkOut" -> checkOut
                 else -> deadline
             },
+            minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
             onDismiss = { datePickerTarget = null },
             onConfirm = { selected ->
                 when (target) {
@@ -13670,9 +13962,8 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
         )
     }
 }
-
 @Composable
-private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, saving: Boolean, uploading: Boolean, canEdit: Boolean = true, onEdit: () -> Unit, onAddPhoto: () -> Unit, onMovePhoto: (Int, Int) -> Unit, onStatusChange: (String) -> Unit) {
+private fun AccommodationCard(accommodation: com.odyssey.travelplanner.data.Accommodation, canEdit: Boolean = true, onEdit: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val language = LocalLanguage.current
     val surface = cardSurfaceColor()
@@ -13956,7 +14247,27 @@ private fun FullScreenPhotoViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black),
+                .background(Color.Black)
+                .pointerInput(photos) {
+                    if (photos.size < 2) return@pointerInput
+                    var totalDrag = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { totalDrag = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            totalDrag += dragAmount
+                        },
+                        onDragEnd = {
+                            if (kotlin.math.abs(totalDrag) >= 48f) {
+                                photoIndex = if (totalDrag < 0f) {
+                                    (photoIndex + 1) % photos.size
+                                } else {
+                                    (photoIndex - 1 + photos.size) % photos.size
+                                }
+                            }
+                        },
+                    )
+                },
         ) {
             AsyncImage(
                 model = photos[photoIndex],
@@ -14375,41 +14686,45 @@ private fun AccommodationPlaceDetailsSheet(
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(
             onClick = {
-                scope.launch {
-                    saving = true
-                    message = null
-                    runCatching {
-                        repository.addAccommodationDetails(
-                            com.odyssey.travelplanner.data.AccommodationInput(
-                                name = place.name,
-                                city = place.city,
-                                dates = accommodationDateRange(checkIn, checkOut, tripDates),
-                                price = accommodationPriceLevelLabel(place.priceLevel),
-                                status = "хочу",
-                                details = place.address,
-                                bookingUrl = bookingUrl.trim(),
-                                source = place.source,
-                                googlePlaceId = place.placeId,
-                                externalUrl = bookingUrl.trim(),
-                                address = place.address,
-                                latitude = place.latitude,
-                                longitude = place.longitude,
-                                rating = place.rating,
-                                reviewCount = place.reviewCount,
-                                photoReference = place.photoName,
-                                website = place.website,
-                                phone = place.phone,
-                                type = place.type,
-                                tripCityId = tripCityId.trim(),
-                            ),
-                            tripId,
-                        )
-                    }.onSuccess {
-                        onSaved()
-                    }.onFailure { error ->
-                        message = error.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                if (!accommodationDatesAreChronological(checkIn, checkOut)) {
+                    message = localized(language, "Дата выезда не может быть раньше даты заезда", "Check-out cannot be earlier than check-in", "La salida no puede ser anterior a la entrada", "Die Abreise darf nicht vor der Anreise liegen")
+                } else {
+                    scope.launch {
+                        saving = true
+                        message = null
+                        runCatching {
+                            repository.addAccommodationDetails(
+                                com.odyssey.travelplanner.data.AccommodationInput(
+                                    name = place.name,
+                                    city = place.city,
+                                    dates = accommodationDateRange(checkIn, checkOut, tripDates),
+                                    price = accommodationPriceLevelLabel(place.priceLevel),
+                                    status = "хочу",
+                                    details = place.address,
+                                    bookingUrl = bookingUrl.trim(),
+                                    source = place.source,
+                                    googlePlaceId = place.placeId,
+                                    externalUrl = bookingUrl.trim(),
+                                    address = place.address,
+                                    latitude = place.latitude,
+                                    longitude = place.longitude,
+                                    rating = place.rating,
+                                    reviewCount = place.reviewCount,
+                                    photoReference = place.photoName,
+                                    website = place.website,
+                                    phone = place.phone,
+                                    type = place.type,
+                                    tripCityId = tripCityId.trim(),
+                                ),
+                                tripId,
+                            )
+                        }.onSuccess {
+                            onSaved()
+                        }.onFailure { error ->
+                            message = error.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                        }
+                        saving = false
                     }
-                    saving = false
                 }
             },
             enabled = !saving,
@@ -14427,6 +14742,7 @@ private fun AccommodationPlaceDetailsSheet(
     datePickerTarget?.let { target ->
         AccommodationCalendarDialog(
             initialValue = if (target == "checkIn") checkIn else checkOut,
+            minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
             onDismiss = { datePickerTarget = null },
             onConfirm = { selected ->
                 if (target == "checkIn") checkIn = selected else checkOut = selected
@@ -14668,9 +14984,9 @@ private fun AccommodationEditSheet(
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: error("Не удалось прочитать изображение")
                 val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                val reference = repository.replaceAccommodationCoverPhoto(tripId, accommodation.id, bytes)
+                val reference = repository.addAccommodationPhoto(tripId, accommodation.id, bytes)
                 val imageUrl = SupabaseProvider.clientForCurrentAuthFlow().resolveTripPhotoReference(reference) ?: reference
-                listOf(imageUrl) + photos.drop(1)
+                photos + imageUrl
             }.onSuccess { updatedPhotos ->
                 photos = updatedPhotos
                 onPhotosChanged(updatedPhotos)
@@ -14689,38 +15005,42 @@ private fun AccommodationEditSheet(
     val photoBusy = uploadingPhoto || deletingPhotoIndex != null
     val formBusy = saving || photoBusy || deletingAccommodation
     fun saveAccommodation() {
-        scope.launch {
-            saving = true
-            message = null
-            runCatching {
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationDetailsRich(
-                    tripId = tripId,
-                    accommodationId = accommodation.id,
-                    input = com.odyssey.travelplanner.data.AccommodationInput(
-                        name = name,
-                        city = city,
-                        dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
-                        price = price,
-                        status = status,
-                        details = details,
-                        bookingUrl = bookingUrl,
-                        deadline = deadline,
-                        externalUrl = bookingUrl,
-                        address = details,
-                    ),
-                )
-            }.onSuccess {
-                onSaved()
-            }.onFailure {
-                message = it.message ?: localized(
-                    language,
-                    "Не удалось сохранить жильё",
-                    "Could not save lodging",
-                    "No se pudo guardar el alojamiento",
-                    "Unterkunft konnte nicht gespeichert werden",
-                )
+        if (!accommodationDatesAreChronological(checkIn, checkOut)) {
+            message = localized(language, "Дата выезда не может быть раньше даты заезда", "Check-out cannot be earlier than check-in", "La salida no puede ser anterior a la entrada", "Die Abreise darf nicht vor der Anreise liegen")
+        } else {
+            scope.launch {
+                saving = true
+                message = null
+                runCatching {
+                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationDetailsRich(
+                        tripId = tripId,
+                        accommodationId = accommodation.id,
+                        input = com.odyssey.travelplanner.data.AccommodationInput(
+                            name = name,
+                            city = city,
+                            dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
+                            price = price,
+                            status = status,
+                            details = details,
+                            bookingUrl = bookingUrl,
+                            deadline = deadline,
+                            externalUrl = bookingUrl,
+                            address = details,
+                        ),
+                    )
+                }.onSuccess {
+                    onSaved()
+                }.onFailure {
+                    message = it.message ?: localized(
+                        language,
+                        "Не удалось сохранить жильё",
+                        "Could not save lodging",
+                        "No se pudo guardar el alojamiento",
+                        "Unterkunft konnte nicht gespeichert werden",
+                    )
+                }
+                saving = false
             }
-            saving = false
         }
     }
     fun deleteAccommodation() {
@@ -15045,35 +15365,7 @@ private fun AccommodationEditSheet(
                         )
                         .clip(RoundedCornerShape(d(15f)))
                         .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
-                        .clickable(enabled = !saving && !photoBusy) {
-                            scope.launch {
-                                saving = true
-                                message = null
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateAccommodationDetailsRich(
-                                        tripId = tripId,
-                                        accommodationId = accommodation.id,
-                                        input = com.odyssey.travelplanner.data.AccommodationInput(
-                                            name = name,
-                                            city = city,
-                                            dates = accommodationDateRange(checkIn, checkOut, accommodation.dates),
-                                            price = price,
-                                            status = status,
-                                            details = details,
-                                            bookingUrl = bookingUrl,
-                                            deadline = deadline,
-                                            externalUrl = bookingUrl,
-                                            address = details,
-                                        ),
-                                    )
-                                }.onSuccess {
-                                    onSaved()
-                                }.onFailure {
-                                    message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
-                                }
-                                saving = false
-                            }
-                        },
+                        .clickable(enabled = !saving && !photoBusy, onClick = ::saveAccommodation),
                 ) {
                     Text(
                         text = if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"),
@@ -15202,6 +15494,7 @@ private fun AccommodationEditSheet(
                 "checkOut" -> checkOut
                 else -> deadline
             },
+            minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
             onDismiss = { datePickerTarget = null },
             onConfirm = { selected ->
                 when (target) {
@@ -15863,16 +16156,33 @@ private fun AccommodationEditDateField(
 @Composable
 private fun AccommodationCalendarDialog(
     initialValue: String,
+    minimumDate: Calendar? = null,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
     val language = LocalLanguage.current
-    val initialCalendar = remember(initialValue) { accommodationDateCalendar(initialValue) }
-    var displayedYear by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
-    var displayedMonth by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
-    var selectedYear by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
-    var selectedMonth by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
-    var selectedDay by remember(initialValue) { mutableStateOf(initialCalendar.get(Calendar.DAY_OF_MONTH)) }
+    val minimumCalendar = remember(minimumDate?.timeInMillis) {
+        minimumDate?.let {
+            Calendar.getInstance().apply {
+                clear()
+                set(it.get(Calendar.YEAR), it.get(Calendar.MONTH), it.get(Calendar.DAY_OF_MONTH))
+            }
+        }
+    }
+    val initialCalendar = remember(initialValue, minimumCalendar?.timeInMillis) {
+        accommodationDateCalendar(initialValue).let { candidate ->
+            if (minimumCalendar != null && candidate.before(minimumCalendar)) {
+                minimumCalendar.clone() as Calendar
+            } else {
+                candidate
+            }
+        }
+    }
+    var displayedYear by remember(initialValue, minimumCalendar?.timeInMillis) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
+    var displayedMonth by remember(initialValue, minimumCalendar?.timeInMillis) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
+    var selectedYear by remember(initialValue, minimumCalendar?.timeInMillis) { mutableStateOf(initialCalendar.get(Calendar.YEAR)) }
+    var selectedMonth by remember(initialValue, minimumCalendar?.timeInMillis) { mutableStateOf(initialCalendar.get(Calendar.MONTH)) }
+    var selectedDay by remember(initialValue, minimumCalendar?.timeInMillis) { mutableStateOf(initialCalendar.get(Calendar.DAY_OF_MONTH)) }
     val monthNames = when (language) {
         "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
         "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
@@ -15894,6 +16204,9 @@ private fun AccommodationCalendarDialog(
         set(displayedYear, displayedMonth, 1)
     }.get(Calendar.DAY_OF_WEEK)
     val leadingEmpty = (firstDay - Calendar.MONDAY + 7) % 7
+    val displayedMonthIndex = displayedYear * 12 + displayedMonth
+    val minimumMonthIndex = minimumCalendar?.let { it.get(Calendar.YEAR) * 12 + it.get(Calendar.MONTH) }
+    val canGoPrevious = minimumMonthIndex == null || displayedMonthIndex > minimumMonthIndex
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -15945,7 +16258,7 @@ private fun AccommodationCalendarDialog(
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(32.dp).clip(CircleShape).clickable {
+                        modifier = Modifier.size(32.dp).clip(CircleShape).clickable(enabled = canGoPrevious) {
                             if (displayedMonth == 0) {
                                 displayedMonth = 11
                                 displayedYear -= 1
@@ -15954,7 +16267,7 @@ private fun AccommodationCalendarDialog(
                             }
                         },
                     ) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущий месяц", "Previous month", "Mes anterior", "Vorheriger Monat"), tint = primaryColor(), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = localized("Предыдущий месяц", "Previous month", "Mes anterior", "Vorheriger Monat"), tint = if (canGoPrevious) primaryColor() else secondaryTextColor(), modifier = Modifier.size(20.dp))
                     }
                     Text(
                         text = "${monthNames[displayedMonth]} $displayedYear",
@@ -16005,13 +16318,18 @@ private fun AccommodationCalendarDialog(
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f).fillMaxHeight()) {
                                     if (validDay) {
                                         val selected = dayIndex == selectedDay && displayedYear == selectedYear && displayedMonth == selectedMonth
+                                        val dayCalendar = Calendar.getInstance().apply {
+                                            clear()
+                                            set(displayedYear, displayedMonth, dayIndex)
+                                        }
+                                        val selectable = minimumCalendar == null || !dayCalendar.before(minimumCalendar)
                                         Box(
                                             contentAlignment = Alignment.Center,
                                             modifier = Modifier
                                                 .size(34.dp)
                                                 .clip(CircleShape)
                                                 .background(if (selected) primaryColor() else Color.Transparent)
-                                                .clickable {
+                                                .clickable(enabled = selectable) {
                                                     selectedYear = displayedYear
                                                     selectedMonth = displayedMonth
                                                     selectedDay = dayIndex
@@ -16019,7 +16337,11 @@ private fun AccommodationCalendarDialog(
                                         ) {
                                             Text(
                                                 text = dayIndex.toString(),
-                                                color = if (selected) primaryContentColor() else contentTextColor(),
+                                                color = when {
+                                                    selected -> primaryContentColor()
+                                                    selectable -> contentTextColor()
+                                                    else -> secondaryTextColor().copy(alpha = 0.45f)
+                                                },
                                                 fontFamily = Manrope,
                                                 fontWeight = if (selected) FontWeight.W800 else FontWeight.W600,
                                                 fontSize = 14.sp,
@@ -16055,7 +16377,15 @@ private fun AccommodationCalendarDialog(
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(15.dp))
                             .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
-                            .clickable { onConfirm(accommodationDateIso(selectedYear, selectedMonth, selectedDay)) },
+                            .clickable {
+                                val selectedCalendar = Calendar.getInstance().apply {
+                                    clear()
+                                    set(selectedYear, selectedMonth, selectedDay)
+                                }
+                                if (minimumCalendar == null || !selectedCalendar.before(minimumCalendar)) {
+                                    onConfirm(accommodationDateIso(selectedYear, selectedMonth, selectedDay))
+                                }
+                            },
                     ) {
                         Text(localized("Готово", "Done", "Listo", "Fertig"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
                     }
@@ -16249,19 +16579,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                         adding = true
                     }
                     },
-                ) { itemId, completed ->
-                    if (canEdit) scope.launch {
-                        runCatching {
-                            SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                .updateRouteChecklist(tripId, leg.dayId, itemId, completed)
-                        }.onSuccess {
-                            actionMessage = null
-                            onRouteAdded()
-                        }.onFailure {
-                            actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 checklist. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the checklist change. Check your connection and try again.", "No se pudo guardar el cambio del checklist. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Checklisten\u00e4nderung konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
-                        }
-                    }
-                }
+                )
             }
         }
         if (canEdit) item {
@@ -16406,6 +16724,7 @@ private fun RouteLegEditorSheet(
     onSave: () -> Unit,
 ) {
     val language = LocalLanguage.current
+    var deleteDialogOpen by remember { mutableStateOf(false) }
     val displayedFrom = localizedCityName(from)
     val displayedTo = localizedCityName(to)
     var visibleFrom by remember(from, language) { mutableStateOf(displayedFrom) }
@@ -16450,13 +16769,53 @@ private fun RouteLegEditorSheet(
         if (message != null) Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             if (canDelete) {
-                Box(modifier = Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(dangerSurfaceColor()).clickable { onDelete() }, contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(dangerSurfaceColor()).clickable(enabled = !saving) { deleteDialogOpen = true }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.Delete, contentDescription = localized("Удалить день", "Delete day", "Eliminar día", "Tag löschen"), tint = Color(0xFFFF6B65), modifier = Modifier.size(22.dp))
                 }
             }
             Button(onClick = onCancel, modifier = Modifier.height(54.dp).weight(1f), colors = ButtonDefaults.buttonColors(containerColor = cardSurfaceColor(), contentColor = contentTextColor()), shape = RoundedCornerShape(14.dp)) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.height(54.dp).weight(1.25f), colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(14.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
         }
+    }
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!saving) deleteDialogOpen = false },
+            title = {
+                Text(
+                    localized("Удалить день маршрута?", "Delete route day?", "¿Eliminar día de ruta?", "Reisetag löschen?"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Text(
+                    localized(
+                        "День маршрута будет удалён из поездки.",
+                        "The route day will be removed from the trip.",
+                        "El día de ruta se eliminará del viaje.",
+                        "Der Reisetag wird aus der Reise entfernt.",
+                    ),
+                    fontFamily = Manrope,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }, enabled = !saving) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteDialogOpen = false
+                        onDelete()
+                    },
+                    enabled = !saving,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(localized("Удалить", "Delete", "Eliminar", "Löschen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+        )
     }
 }
 
@@ -16536,7 +16895,6 @@ private fun RouteLegCard(
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
     onEdit: () -> Unit,
-    onChecklistChange: (String, Boolean) -> Unit,
 ) {
     val language = LocalLanguage.current
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -16891,6 +17249,11 @@ private fun accommodationDateParts(value: String): Pair<String, String> {
     return (matches.firstOrNull() ?: parts.getOrNull(0).orEmpty()) to parts.getOrNull(1).orEmpty()
 }
 
+internal fun accommodationDatesAreChronological(checkIn: String, checkOut: String): Boolean {
+    if (checkIn.isBlank() || checkOut.isBlank()) return true
+    return !accommodationDateCalendar(checkOut).before(accommodationDateCalendar(checkIn))
+}
+
 private fun accommodationDateRange(start: String, end: String, original: String): String {
     val checkIn = start.trim()
     val checkOut = end.trim()
@@ -16899,14 +17262,6 @@ private fun accommodationDateRange(start: String, end: String, original: String)
         checkIn.isNotBlank() -> checkIn
         checkOut.isNotBlank() -> checkOut
         else -> original.trim()
-    }
-}
-
-@Composable
-private fun RouteDetail(text: String, completed: Boolean, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClick() }) {
-        Text(if (completed) "●" else "○", color = if (completed) Color(0xFF269B6A) else primaryColor(), fontSize = 16.sp)
-        Text(text, color = if (completed) secondaryTextColor() else Color(0xFF4B4B54), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -17047,8 +17402,8 @@ private val DefaultOverviewBlocks = listOf("photo", "map", "weather")
 
 private enum class OverviewEditSheet { MAP, WEATHER }
 
-private fun normalizedOverviewBlocks(value: List<String>): List<String> =
-    (value.filter { it in DefaultOverviewBlocks } + DefaultOverviewBlocks.filterNot(value::contains)).distinct()
+internal fun normalizedOverviewBlocks(value: List<String>): List<String> =
+    value.filter { it in DefaultOverviewBlocks }.distinct()
 
 private fun List<String>.toggleOverviewCity(city: String): List<String> =
     if (any { cityFilterKey(it) == cityFilterKey(city) }) {

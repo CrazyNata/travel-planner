@@ -128,6 +128,36 @@ private fun routeDayEntries(days: JsonArray, startDate: LocalDate?): List<RouteD
         RouteDayEntry(index = index, id = id, day = day, date = date)
     }
 
+internal fun routeDaysAtRiskCount(
+    days: JsonArray,
+    nextRouteDayCount: Int,
+    startDate: LocalDate?,
+    endDate: LocalDate?,
+): Int {
+    val atRiskIds = linkedSetOf<String>()
+    days.forEachIndexed { index, element ->
+        val day = element as? JsonObject ?: return@forEachIndexed
+        val id = text(day["id"]).ifBlank { "legacy-route-$index" }
+        if (index >= nextRouteDayCount) {
+            atRiskIds += id
+        }
+        if (startDate != null && endDate != null) {
+            val roadLeg = day["roadLeg"] as? JsonObject
+            val date = parseRouteDate(text(day["date"]), startDate.year)
+                ?: roadLeg?.let { parseRouteDate(text(it["date"]), startDate.year) }
+                ?: run {
+                    val legacyDay = text(roadLeg?.get("dateDay")).ifBlank { text(day["dateDay"]) }
+                    val legacyMonth = text(roadLeg?.get("dateMonth")).ifBlank { text(day["dateMonth"]) }
+                    parseRouteDate(listOf(legacyDay, legacyMonth).filter(String::isNotBlank).joinToString(" "), startDate.year)
+                }
+            if (date != null && (date.isBefore(startDate) || date.isAfter(endDate))) {
+                atRiskIds += id
+            }
+        }
+    }
+    return atRiskIds.size
+}
+
 private fun RouteDayEntry.sortDate(startDate: LocalDate?): LocalDate? =
     date ?: startDate?.plusDays(index.toLong())
 

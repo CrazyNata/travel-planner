@@ -37,4 +37,11 @@ class CityCatalogRepositoryTest {
         assertEquals(100, cityCatalogSearchScore(searchText, "scow"))
         assertNull(cityCatalogSearchScore(searchText, "berlin"))
     }
+
+    @Test
+    fun searchScoreAllowsACommonTranspositionTypo() {
+        val searchText = cityCatalogSearchText(listOf("Salzburg"))
+
+        assertEquals(50, cityCatalogSearchScore(searchText, "Salzbrug"))
+    }
 }

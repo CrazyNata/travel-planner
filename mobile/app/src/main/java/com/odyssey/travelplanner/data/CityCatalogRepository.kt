@@ -7,6 +7,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.zip.GZIPInputStream
+import kotlin.math.abs
 
 // Keep the gzip payload under a neutral extension: Android's asset packaging
 // strips .gz and transparently expands it, which would break GZIPInputStream.
@@ -21,6 +22,7 @@ class CityCatalogRepository(private val assets: AssetManager) {
         val population: Long,
         val normalizedName: String,
         val entry: CityCatalogEntry,
+        val curated: Boolean,
     )
 
     private val localEntries = cityCatalog.map { entry ->
@@ -50,6 +52,7 @@ class CityCatalogRepository(private val assets: AssetManager) {
                         population = entry.population,
                         normalizedName = normalizeCityAlias(entry.localized(language)),
                         entry = entry,
+                        curated = true,
                     )
                 }
             }
@@ -66,6 +69,10 @@ class CityCatalogRepository(private val assets: AssetManager) {
             .toSet()
         val remoteMatches = ArrayList<ScoredEntry>(limit * 2)
         val compareEntries = compareByDescending<ScoredEntry> { it.score }
+            // Curated cities are the canonical choices for the app. Their
+            // bundled population is intentionally optional, so an empty
+            // population must not push them below a world-catalog duplicate.
+            .thenByDescending { it.curated }
             .thenByDescending { it.population }
             .thenBy { it.normalizedName }
         val catalog = catalogText
@@ -90,6 +97,7 @@ class CityCatalogRepository(private val assets: AssetManager) {
                             population = entry.population,
                             normalizedName = normalizedName,
                             entry = entry,
+                            curated = false,
                         )
                         // Keep broad two-letter searches bounded while the text is scanned.
                         if (remoteMatches.size > limit * 4) {
@@ -256,6 +264,19 @@ private fun cityCatalogFieldScore(text: String, start: Int, end: Int, query: Str
             if (text.regionMatches(candidate, query, 0, query.length, ignoreCase = true)) return 100
         }
     }
+
+    // Keep typo tolerance limited to complete names. This catches common
+    // transpositions such as “Salzbrug” → “Salzburg” without turning every
+    // short substring search into a fuzzy match.
+    if (query.length >= 4) {
+        val field = text.substring(start, end).lowercase(Locale.ROOT)
+        val maxDistance = fuzzyDistanceLimit(query.length)
+        if (abs(field.length - query.length) <= maxDistance &&
+            damerauDistanceWithin(field, query, maxDistance)
+        ) {
+            return 50
+        }
+    }
     return null
 }
 
@@ -271,15 +292,63 @@ internal fun cityCatalogSearchText(values: Iterable<String>): String = values
     )
 
 internal fun cityCatalogSearchScore(searchText: String, query: String): Int? {
-    if (query.isBlank()) return 0
+    val normalizedQuery = normalizeCityAlias(query)
+    if (normalizedQuery.isBlank()) return 0
     val separator = SEARCH_SEPARATOR.toString()
-    val exact = searchText.contains("$separator$query$separator")
-    val starts = searchText.contains("$separator$query")
-    val contains = searchText.contains(query)
+    val exact = searchText.contains("$separator$normalizedQuery$separator")
+    val starts = searchText.contains("$separator$normalizedQuery")
+    val contains = searchText.contains(normalizedQuery)
+    val fuzzy = normalizedQuery.length >= 4 && searchText
+        .split(SEARCH_SEPARATOR)
+        .any { candidate ->
+            candidate.isNotBlank() &&
+                abs(candidate.length - normalizedQuery.length) <= fuzzyDistanceLimit(normalizedQuery.length) &&
+                damerauDistanceWithin(candidate, normalizedQuery, fuzzyDistanceLimit(normalizedQuery.length))
+        }
     return when {
         exact -> 300
         starts -> 200
         contains -> 100
+        fuzzy -> 50
         else -> null
     }
+}
+
+private fun fuzzyDistanceLimit(queryLength: Int): Int = when {
+    queryLength < 4 -> 0
+    queryLength <= 6 -> 1
+    else -> 2
+}
+
+/** Returns whether the optimal-string-alignment distance is within [limit]. */
+private fun damerauDistanceWithin(left: String, right: String, limit: Int): Boolean {
+    if (left == right) return true
+    if (abs(left.length - right.length) > limit) return false
+
+    var previousPrevious = IntArray(right.length + 1) { it }
+    var previous = IntArray(right.length + 1) { it }
+    for (leftIndex in left.indices) {
+        val current = IntArray(right.length + 1)
+        current[0] = leftIndex + 1
+        var rowMinimum = current[0]
+        for (rightIndex in right.indices) {
+            val insertion = current[rightIndex] + 1
+            val deletion = previous[rightIndex + 1] + 1
+            val substitution = previous[rightIndex] + if (left[leftIndex] == right[rightIndex]) 0 else 1
+            var value = minOf(insertion, deletion, substitution)
+            if (
+                leftIndex > 0 && rightIndex > 0 &&
+                left[leftIndex] == right[rightIndex - 1] &&
+                left[leftIndex - 1] == right[rightIndex]
+            ) {
+                value = minOf(value, previousPrevious[rightIndex - 1] + 1)
+            }
+            current[rightIndex + 1] = value
+            rowMinimum = minOf(rowMinimum, value)
+        }
+        if (rowMinimum > limit) return false
+        previousPrevious = previous
+        previous = current
+    }
+    return previous[right.length] <= limit
 }
