@@ -233,6 +233,7 @@ import com.odyssey.travelplanner.data.cityFlag
 import com.odyssey.travelplanner.data.countryFlag
 import com.odyssey.travelplanner.data.normalizeCityAlias
 import com.odyssey.travelplanner.data.resolveTripPhotoReference
+import com.odyssey.travelplanner.data.tripPhotoPath
 import com.odyssey.travelplanner.data.parseSightLinkCoordinates
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import com.odyssey.travelplanner.data.catalogCityName
@@ -12166,7 +12167,12 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
     // screen belong here. Catalog and section photos remain in their sections.
     val photos = overview.coverPhotos
         .map { it.imageUrl to it.city }
-        .filter { it.first.isNotBlank() }
+        // Cover photos used by the overview/weather are restored from the
+        // trip's legacy catalog. The Photos tab is intentionally reserved for
+        // images uploaded through this tab, which are stored under /covers/.
+        .filter { (imageUrl, _) ->
+            imageUrl.isNotBlank() && tripPhotoPath(imageUrl)?.contains("/covers/") == true
+        }
         .distinctBy { it.first }
     val groupedPhotos = photos.groupBy { (_, city) -> city.ifBlank { localized(language, "Поездка", "Trip", "Viaje", "Reise") } }.toList()
 
