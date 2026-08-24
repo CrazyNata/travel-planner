@@ -139,6 +139,8 @@ data class Sight(
     val name: String,
     val city: String,
     val photo: String,
+    /** Stable Google Places photo resource, used to re-resolve the image when the URL expires. */
+    val photoName: String = "",
     val category: String,
     val done: Boolean,
     val walkDay: Int,
@@ -697,6 +699,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 name = name,
                 city = sightText("city"),
                 photo = sightPhotoUrl(sight),
+                photoName = sightText("photoName").ifBlank { sightText("googlePhotoName") },
                 category = sightText("subcategory").ifBlank { sightText("group") },
                 done = sight["done"]?.jsonPrimitive?.booleanOrNull ?: false,
                 walkDay = sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0,
@@ -778,7 +781,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         val resolvedPhoto = client.resolveTripPhotoReference(sight.photo)
                         sight.copy(
                             photo = resolvedPhoto.orEmpty(),
-                            photoUnavailable = resolvedPhoto == null && sight.photo.isNotBlank() && tripPhotoPath(sight.photo) != null,
+                            photoUnavailable = resolvedPhoto == null && sight.photo.isNotBlank() &&
+                                tripPhotoPath(sight.photo) != null && sight.photoName.isBlank(),
                         )
                     }
                 }.awaitAll()
@@ -1954,6 +1958,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("walkOrder", nextWalkOrder)
                 put("done", false)
                 if (!entry.photoUrl.isNullOrBlank()) put("photo", entry.photoUrl.trim())
+                if (entry.photoName.isNotBlank()) put("photoName", entry.photoName.trim())
                 if (entry.rating != null) put("rating", entry.rating)
                 if (mapUrl.isNotBlank()) put("link", mapUrl)
                 if (entry.longitude != null && entry.latitude != null) {

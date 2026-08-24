@@ -1,9 +1,15 @@
 package com.odyssey.travelplanner.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.Uri
+import android.os.Bundle
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -185,6 +191,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -226,6 +233,7 @@ import com.odyssey.travelplanner.data.CoverPhoto
 import com.odyssey.travelplanner.data.CityCatalogEntry
 import com.odyssey.travelplanner.data.CityCatalogRepository
 import com.odyssey.travelplanner.data.CityLocation
+import com.odyssey.travelplanner.data.DeviceLocation
 import com.odyssey.travelplanner.data.cityCatalog
 import com.odyssey.travelplanner.data.localizedCityCatalogName
 import com.odyssey.travelplanner.data.cityCatalogEntry
@@ -239,6 +247,7 @@ import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
 import com.odyssey.travelplanner.data.isPlaceholderSightDescription
+import com.odyssey.travelplanner.data.distanceMeters
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -324,6 +333,97 @@ private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 private val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
+private val LocalDeviceLocation = staticCompositionLocalOf<DeviceLocation?> { null }
+
+private class DeviceLocationReader(context: Context) {
+    private val appContext = context.applicationContext
+    private val locationManager = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+
+    fun hasPermission(): Boolean = ContextCompat.checkSelfPermission(
+        appContext,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+        appContext,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    fun lastKnownLocation(): DeviceLocation? {
+        if (!hasPermission()) return null
+        val manager = locationManager ?: return null
+        return runCatching {
+            manager.getProviders(true)
+                .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
+                .maxByOrNull { it.time }
+                ?.let { location -> DeviceLocation(location.latitude, location.longitude) }
+        }.getOrNull()
+    }
+
+    fun start(onLocation: (DeviceLocation) -> Unit): () -> Unit {
+        val manager = locationManager
+        if (!hasPermission() || manager == null) return {}
+
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: android.location.Location) {
+                onLocation(DeviceLocation(location.latitude, location.longitude))
+            }
+
+            override fun onProviderEnabled(provider: String) = Unit
+            override fun onProviderDisabled(provider: String) = Unit
+            @Suppress("DEPRECATION")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
+        }
+        runCatching {
+            manager.getProviders(true).forEach { provider ->
+                manager.requestLocationUpdates(provider, 10_000L, 250f, listener, Looper.getMainLooper())
+            }
+        }
+        return { runCatching { manager.removeUpdates(listener) } }
+    }
+}
+
+@Composable
+private fun rememberDeviceLocation(enabled: Boolean): DeviceLocation? {
+    val context = LocalContext.current
+    val reader = remember(context) { DeviceLocationReader(context) }
+    var deviceLocation by remember { mutableStateOf<DeviceLocation?>(null) }
+    var permissionRevision by remember { mutableStateOf(0) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            permissionRevision += 1
+        }
+    }
+
+    LaunchedEffect(enabled, permissionRevision) {
+        if (!enabled) {
+            deviceLocation = null
+            return@LaunchedEffect
+        }
+        if (reader.hasPermission()) {
+            reader.lastKnownLocation()?.let { deviceLocation = it }
+        } else if (permissionRevision == 0) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                ),
+            )
+        }
+    }
+
+    DisposableEffect(enabled, permissionRevision, reader) {
+        if (!enabled || !reader.hasPermission()) {
+            onDispose { }
+        } else {
+            val stop = reader.start { location -> deviceLocation = location }
+            onDispose { stop() }
+        }
+    }
+    return deviceLocation
+}
 
 private fun mapLocale(language: String): Locale = when (normalizeLanguage(language)) {
     "EN" -> Locale.ENGLISH
@@ -1417,6 +1517,7 @@ fun OdysseyApp(
     var rememberedAccounts by remember { mutableStateOf<List<RememberedAccount>>(emptyList()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val authScope = rememberCoroutineScope()
+    val deviceLocation = rememberDeviceLocation(enabled = authReady && hasSession)
 
     LaunchedEffect(darkTheme, authReady) {
         if (authReady) {
@@ -1561,7 +1662,11 @@ fun OdysseyApp(
         }
     }
 
-    CompositionLocalProvider(LocalDarkTheme provides darkTheme, LocalLanguage provides language) {
+    CompositionLocalProvider(
+        LocalDarkTheme provides darkTheme,
+        LocalLanguage provides language,
+        LocalDeviceLocation provides deviceLocation,
+    ) {
     MaterialTheme(colorScheme = if (darkTheme) OdysseyDarkColors else OdysseyLightColors) {
         Surface(color = if (darkTheme) OdysseyDarkBackground else OdysseyBackground) {
             if (!authReady) {
@@ -6658,20 +6763,39 @@ private fun rememberSightBitmap(sight: com.odyssey.travelplanner.data.Sight): Bi
     val displayedName = localizedSightName(sight.name)
     val displayedCity = localizedCityName(sight.city)
     val englishCity = localizedCityName(sight.city, "EN")
-    var bitmap by remember(sight.id, sight.photo) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(sight.id, sight.name, sight.city, sight.photo, displayedName, displayedCity) {
+    val catalogRepository = remember { SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow()) }
+    var bitmap by remember(sight.id, sight.photo, sight.photoName) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(sight.id, sight.name, sight.city, sight.photo, sight.photoName, displayedName, displayedCity) {
         bitmap = null
-        val resolvedPhotoUrl = if (sight.photoUnavailable) {
-            ""
-        } else sight.photo.ifBlank { knownSightPhotoUrl(sight).orEmpty() }.ifBlank {
-            cachedSightPhotoUrl(
-                sight.id,
-                "$displayedName $englishCity",
-                "${sight.name} ${sight.city}",
-                "$displayedName $displayedCity",
-            ).orEmpty()
+        if (sight.photoUnavailable) return@LaunchedEffect
+
+        val googlePhotoUrl = sight.photoName
+            .takeIf(String::isNotBlank)
+            ?.let { photoName ->
+                runCatching { catalogRepository.resolveSightPhoto(photoName)?.photoUrl }
+                    .getOrNull()
+                    .orEmpty()
+            }
+            .orEmpty()
+        val candidates = buildList {
+            googlePhotoUrl.takeIf(String::isNotBlank)?.let(::add)
+            sight.photo.takeIf(String::isNotBlank)?.let(::add)
+            knownSightPhotoUrl(sight)?.let(::add)
         }
-        bitmap = if (resolvedPhotoUrl.isBlank()) null else cachedSightBitmap(resolvedPhotoUrl)
+        for (photoUrl in candidates.distinct()) {
+            cachedSightBitmap(photoUrl)?.let {
+                bitmap = it
+                return@LaunchedEffect
+            }
+        }
+        cachedSightPhotoUrl(
+            sight.id,
+            "$displayedName $englishCity",
+            "${sight.name} ${sight.city}",
+            "$displayedName $displayedCity",
+        )?.let { fallbackUrl ->
+            cachedSightBitmap(fallbackUrl)?.let { bitmap = it }
+        }
     }
     return bitmap
 }
@@ -7147,6 +7271,18 @@ private fun SightCatalogSheet(
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var liveRatingsAvailable by remember { mutableStateOf(false) }
+    val deviceLocation = LocalDeviceLocation.current
+    val entriesForDisplay = remember(entries, deviceLocation) {
+        if (deviceLocation == null) {
+            entries
+        } else {
+            entries.sortedWith(
+                compareBy<SightCatalogEntry> { entry ->
+                    distanceMeters(deviceLocation, entry.latitude, entry.longitude) ?: Double.MAX_VALUE
+                }.thenBy { it.sortOrder },
+            )
+        }
+    }
     val selectedEntries = entries.filter { it.id in selectedIds && !catalogSightAlreadyAdded(it, city, existingSights) }
     val liveRatingsUnavailableMessage = localized(
         "Фото и рейтинг достопримечательностей временно недоступны — показан базовый каталог",
@@ -7251,6 +7387,15 @@ private fun SightCatalogSheet(
                 fontSize = 10.sp,
             )
         }
+        if (deviceLocation != null) {
+            Text(
+                localized("Сначала ближайшие к вам", "Closest places first", "Primero los lugares más cercanos", "Nächstgelegene Orte zuerst"),
+                color = primaryColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 10.sp,
+            )
+        }
         if (!loading && entries.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -7297,19 +7442,30 @@ private fun SightCatalogSheet(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(entries, key = { it.id }) { entry ->
-                    if (entry.photoUrl.isNullOrBlank() && entry.photoName.isNotBlank()) {
-                        LaunchedEffect(entry.id, entry.photoName) {
-                            val photo = try {
-                                sightPhotoLoadGate.withPermit {
-                                    catalogRepository.resolveSightPhoto(entry.photoName)
-                                }
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (_: Throwable) {
+                items(entriesForDisplay, key = { it.id }) { entry ->
+                    if (entry.photoUrl.isNullOrBlank()) {
+                        LaunchedEffect(entry.id, entry.photoName, entry.name(language), entry.cityNameEn, language) {
+                            val googlePhoto = if (entry.photoName.isBlank()) {
                                 null
+                            } else {
+                                try {
+                                    sightPhotoLoadGate.withPermit {
+                                        catalogRepository.resolveSightPhoto(entry.photoName)
+                                    }
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (_: Throwable) {
+                                    null
+                                }
                             }
-                            val photoUrl = photo?.photoUrl
+                            val photoUrl = googlePhoto?.photoUrl ?: sightPhotoLoadGate.withPermit {
+                                cachedSightPhotoUrl(
+                                    "catalog:${entry.id}",
+                                    entry.name(language),
+                                    "${entry.nameEn} ${entry.cityNameEn}",
+                                    "${entry.nameRu} ${entry.cityNameRu}",
+                                )
+                            }
                             if (!photoUrl.isNullOrBlank()) {
                                 entries = entries.map { current ->
                                     if (current.id == entry.id &&
@@ -7318,7 +7474,7 @@ private fun SightCatalogSheet(
                                     ) {
                                         current.copy(
                                             photoUrl = photoUrl,
-                                            photoAttribution = photo?.photoAttribution ?: current.photoAttribution,
+                                            photoAttribution = googlePhoto?.photoAttribution ?: current.photoAttribution,
                                         )
                                     } else {
                                         current

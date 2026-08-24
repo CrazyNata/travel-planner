@@ -362,7 +362,12 @@ class SightCatalogRepository(private val client: SupabaseClient) {
             .associate { item ->
                 item.photoName to SightPhotoResult(item.photoUrl, item.photoAttribution)
             }
-        resolved.forEach { (name, photo) -> photoCache[name] = photo }
+        // Do not permanently cache a failed media lookup. Google photo URLs
+        // can fail transiently (or expire), so a later screen render should
+        // be able to retry the same stable photo resource.
+        resolved.forEach { (name, photo) ->
+            if (!photo.photoUrl.isNullOrBlank()) photoCache[name] = photo
+        }
         return cached + resolved
     }
 }
