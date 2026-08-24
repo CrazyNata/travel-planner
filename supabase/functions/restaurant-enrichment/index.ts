@@ -140,6 +140,7 @@ async function fetchPlacesPage(
     "places.websiteUri",
     "places.nationalPhoneNumber",
     "places.internationalPhoneNumber",
+    "places.currentOpeningHours.openNow",
     "places.photos",
     "places.types",
     "places.primaryType",
@@ -186,14 +187,18 @@ Deno.serve(async (request: Request) => {
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const requestedCategory = String(body?.category ?? "restaurant").trim().toLowerCase();
-  const category = requestedCategory === "sight" || requestedCategory === "accommodation"
+  const category = requestedCategory === "sight" || requestedCategory === "accommodation" || requestedCategory === "pet"
     ? requestedCategory
     : "restaurant";
   const responseKey = category === "sight"
     ? "sights"
     : category === "accommodation"
       ? "accommodations"
+      : category === "pet"
+        ? "petPlaces"
       : "restaurants";
+  const requestedPetType = String(body?.petType ?? "shop").trim().toLowerCase();
+  const petType = requestedPetType === "vet" || requestedPetType === "veterinary" ? "vet" : "shop";
 
   const requestedPhotoNames = Array.isArray(body?.photoNames)
     ? body.photoNames
@@ -244,11 +249,15 @@ Deno.serve(async (request: Request) => {
       ? `${query} tourist attraction in ${city}`
       : category === "accommodation"
         ? `${query} hotel lodging in ${city}`
+        : category === "pet"
+          ? `${query} ${petType === "vet" ? "veterinary clinic" : "pet store"} in ${city}`
         : `${query} restaurant in ${city}`
     : category === "sight"
       ? `top tourist attractions in ${city}`
       : category === "accommodation"
         ? `hotels, apartments, hostels, resorts, bed and breakfasts, guest houses and motels in ${city}`
+        : category === "pet"
+          ? `${petType === "vet" ? "veterinary clinics" : "pet stores"} in ${city}`
         : `restaurants in ${city}`;
   // Text Search accepts one included type. `lodging` is the broad Google
   // lodging type and the text query keeps hotels, apartments and hostels in
@@ -257,6 +266,8 @@ Deno.serve(async (request: Request) => {
     ? "tourist_attraction"
     : category === "accommodation"
       ? "lodging"
+      : category === "pet"
+        ? (petType === "vet" ? "veterinary_care" : "pet_store")
       : "restaurant";
   const places: unknown[] = [];
   const pageSize = Math.min(PlacesPageSize, limit);
@@ -332,7 +343,9 @@ Deno.serve(async (request: Request) => {
     const primaryTypeDisplayName = textValue(place.primaryTypeDisplayName);
     const typeLabel = category === "accommodation"
       ? primaryTypeDisplayName || types || "Жильё"
-      : types;
+      : category === "pet"
+        ? primaryTypeDisplayName || types || (petType === "vet" ? "Veterinary clinic" : "Pet store")
+        : types;
     const firstPhoto = Array.isArray(place.photos) && place.photos[0] && typeof place.photos[0] === "object"
       ? place.photos[0] as Record<string, unknown>
       : undefined;
@@ -366,6 +379,9 @@ Deno.serve(async (request: Request) => {
       type: typeLabel,
       latitude: numberValue(location.latitude),
       longitude: numberValue(location.longitude),
+      open_now: place.currentOpeningHours && typeof place.currentOpeningHours === "object"
+        ? Boolean((place.currentOpeningHours as Record<string, unknown>).openNow)
+        : null,
     };
   });
 

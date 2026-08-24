@@ -16,6 +16,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
@@ -195,6 +196,29 @@ data class Restaurant(
     val date: String = "",
     val priority: Boolean = false,
 )
+data class PetPlace(
+    val id: String,
+    val name: String,
+    val city: String,
+    val type: String,
+    val address: String = "",
+    val phone: String = "",
+    val mapsUrl: String = "",
+    val website: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val rating: Double? = null,
+    val reviewCount: Int? = null,
+    /** Live Google photo URL; photoName is the stable reference re-resolved on demand. */
+    val photoUrl: String? = null,
+    val photoName: String = "",
+    val photoAttribution: String? = null,
+    val source: String = "manual",
+    val googlePlaceId: String = "",
+    val note: String = "",
+    val features: List<String> = emptyList(),
+    val openNow: Boolean? = null,
+)
 data class TripOverview(
     val id: String,
     val title: String,
@@ -213,6 +237,7 @@ data class TripOverview(
     val members: List<TripMember>,
     val sights: List<Sight>,
     val restaurants: List<Restaurant>,
+    val petPlaces: List<PetPlace> = emptyList(),
     val cities: List<String> = emptyList(),
     val cityCoordinates: Map<String, CityLocation> = emptyMap(),
     val routeDayCount: Int = 0,
@@ -236,6 +261,7 @@ enum class TripSection {
     BUDGET,
     MEMBERS,
     PHOTOS,
+    PETS,
 }
 
 data class CreateTripInput(
@@ -254,6 +280,23 @@ data class RestaurantInput(
     val link: String = "",
     val date: String = "",
     val priority: Boolean = false,
+)
+
+data class PetPlaceInput(
+    val name: String,
+    val city: String,
+    val type: String,
+    val address: String = "",
+    val phone: String = "",
+    val mapsUrl: String = "",
+    val website: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val source: String = "manual",
+    val googlePlaceId: String = "",
+    val photoName: String = "",
+    val note: String = "",
+    val features: List<String> = emptyList(),
 )
 
 private fun normalizeRestaurantStatus(status: String): String = when (status.trim().lowercase(Locale.ROOT)) {
@@ -316,6 +359,28 @@ private fun collectTripPhotoPaths(payload: JsonObject): Set<String> {
     return paths
 }
 
+internal fun reorderAccommodationItems(items: JsonArray, orderedIds: List<String>): JsonArray {
+    require(orderedIds.isNotEmpty()) { "Список жилья пуст" }
+    require(orderedIds.distinct().size == orderedIds.size) { "Порядок жилья содержит дубликаты" }
+
+    fun itemId(item: JsonElement): String {
+        val accommodation = item.jsonObject
+        return accommodation["id"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            .ifBlank { accommodation["name"]?.jsonPrimitive?.contentOrNull.orEmpty() }
+    }
+
+    val itemsById = items.associateBy(::itemId)
+    require(itemsById.size == items.size && itemsById.keys.none(String::isBlank)) {
+        "Не удалось однозначно определить все объекты жилья"
+    }
+    require(orderedIds.size == items.size && orderedIds.toSet() == itemsById.keys) {
+        "Список жилья изменился. Обновите экран и повторите попытку"
+    }
+    return buildJsonArray {
+        orderedIds.forEach { id -> add(itemsById.getValue(id)) }
+    }
+}
+
 interface TripRepository {
     suspend fun loadTrips(): List<TripCard>
     suspend fun loadTripOverview(id: String): TripOverview?
@@ -345,6 +410,7 @@ interface TripRepository {
         date: String = "",
     )
     suspend fun reorderRouteLegs(id: String, orderedDayIds: List<String>)
+    suspend fun reorderAccommodations(id: String, orderedAccommodationIds: List<String>)
     suspend fun addBudgetExpense(id: String, name: String, amount: Double, category: String)
     suspend fun updateMemberRole(id: String, memberId: String, role: String)
     suspend fun updateAccommodationStatus(id: String, accommodationId: String, status: String)
@@ -423,6 +489,8 @@ interface TripRepository {
     suspend fun reorderSights(id: String, orderedSightIds: List<String>)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
+    suspend fun addPetPlace(input: PetPlaceInput, tripId: String): String
+    suspend fun updatePetPlace(tripId: String, petPlaceId: String, input: PetPlaceInput)
     suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String
     suspend fun updateAccommodationDetailsRich(tripId: String, accommodationId: String, input: AccommodationInput)
     suspend fun addBudgetExpenseDetails(tripId: String, input: ExpenseInput)
@@ -659,6 +727,35 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
+        val petPlaces = row.payload["petPlaces"]?.jsonArray.orEmpty().mapNotNull { item ->
+            val pet = item.jsonObject
+            val name = pet["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            fun petText(key: String) = pet[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val features = pet["features"]?.jsonArray.orEmpty()
+                .mapNotNull { it.jsonPrimitive.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+            PetPlace(
+                id = petText("id").ifBlank { name },
+                name = name,
+                city = petText("city"),
+                type = petText("type").ifBlank { "shop" },
+                address = petText("address"),
+                phone = petText("phone"),
+                mapsUrl = petText("mapsUrl").ifBlank { petText("googleMapsUrl") },
+                website = petText("website"),
+                latitude = pet["latitude"]?.jsonPrimitive?.doubleOrNull,
+                longitude = pet["longitude"]?.jsonPrimitive?.doubleOrNull,
+                rating = pet["rating"]?.jsonPrimitive?.doubleOrNull,
+                reviewCount = pet["reviewCount"]?.jsonPrimitive?.intOrNull,
+                photoUrl = petText("photoUrl").takeIf(String::isNotBlank),
+                photoName = petText("photoName").ifBlank { petText("googlePhotoName") },
+                photoAttribution = petText("photoAttribution").takeIf(String::isNotBlank),
+                source = petText("source").ifBlank { if (petText("googlePlaceId").isNotBlank()) "google" else "manual" },
+                googlePlaceId = petText("googlePlaceId").ifBlank { petText("placeId") },
+                note = petText("note"),
+                features = features,
+                openNow = pet["openNow"]?.jsonPrimitive?.booleanOrNull,
+            )
+        }
         val rawCovers = (covers.ifEmpty {
             text("coverImage").takeIf(String::isNotBlank)?.let { listOf(CoverPhoto("legacy", it, "")) }.orEmpty()
         })
@@ -729,6 +826,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             members = members,
             sights = resolvedSights,
             restaurants = resolvedRestaurants,
+            petPlaces = petPlaces,
             cities = text("cities").split(",").map(String::trim).filter(String::isNotBlank),
             cityCoordinates = cityCoordinates,
             routeDayCount = routeDayCount,
@@ -787,6 +885,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("coverPhotos", buildJsonArray { })
             put("sights", buildJsonArray { })
             put("restaurants", buildJsonArray { })
+            put("petPlaces", buildJsonArray { })
             put("accommodations", buildJsonArray { })
             put("budgetExpenses", buildJsonArray { })
             put("members", buildJsonArray {
@@ -1019,6 +1118,16 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             }
         }
         updateTripSection(id, "accommodations", accommodations, current.revision)
+    }
+
+    override suspend fun reorderAccommodations(id: String, orderedAccommodationIds: List<String>) {
+        val current = loadTripRow(id)
+        val accommodations = current.payload["accommodations"]?.jsonArray
+            ?: kotlinx.serialization.json.JsonArray(emptyList())
+        val reordered = reorderAccommodationItems(accommodations, orderedAccommodationIds)
+        if (reordered != accommodations) {
+            updateTripSection(id, "accommodations", reordered, current.revision)
+        }
     }
 
     override suspend fun addRestaurant(id: String, name: String, city: String, status: String) {
@@ -1711,7 +1820,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     }
 
     override suspend fun deleteTripItem(id: String, section: String, itemId: String) {
-        require(section in setOf("days", "sights", "restaurants", "accommodations", "budgetExpenses", "members", "coverPhotos")) {
+        require(section in setOf("days", "sights", "restaurants", "accommodations", "budgetExpenses", "members", "coverPhotos", "petPlaces")) {
             "Недопустимый раздел"
         }
         if (section == "members") {
@@ -1982,6 +2091,63 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             })
         }
         patchTripSectionFromPayload(tripId, "restaurants", payload, current.revision)
+    }
+
+    override suspend fun addPetPlace(input: PetPlaceInput, tripId: String): String {
+        require(input.name.isNotBlank()) { "Укажите название места" }
+        require(input.city.isNotBlank()) { "Укажите город" }
+        val normalizedType = input.type.trim().lowercase(Locale.ROOT).let { if (it == "vet" || it == "veterinary") "vet" else "shop" }
+        val current = loadTripRow(tripId)
+        val petPlaceId = UUID.randomUUID().toString()
+        val item = buildJsonObject {
+            put("id", petPlaceId)
+            put("name", input.name.trim())
+            put("city", input.city.trim())
+            put("type", normalizedType)
+            put("address", input.address.trim())
+            put("phone", input.phone.trim())
+            put("mapsUrl", input.mapsUrl.trim())
+            put("website", input.website.trim())
+            input.latitude?.let { put("latitude", it) }
+            input.longitude?.let { put("longitude", it) }
+            put("source", input.source.trim().ifBlank { "manual" })
+            if (input.googlePlaceId.isNotBlank()) put("googlePlaceId", input.googlePlaceId.trim())
+            if (input.photoName.isNotBlank()) put("photoName", input.photoName.trim())
+            put("note", input.note.trim())
+            put("features", buildJsonArray {
+                input.features.map(String::trim).filter(String::isNotBlank).distinct().forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+            })
+        }
+        patchTripSectionFromPayload(tripId, "petPlaces", TripPayloadCodec.append(current.payload, "petPlaces", item), current.revision)
+        return petPlaceId
+    }
+
+    override suspend fun updatePetPlace(tripId: String, petPlaceId: String, input: PetPlaceInput) {
+        require(input.name.isNotBlank()) { "Укажите название места" }
+        require(input.city.isNotBlank()) { "Укажите город" }
+        val normalizedType = input.type.trim().lowercase(Locale.ROOT).let { if (it == "vet" || it == "veterinary") "vet" else "shop" }
+        val current = loadTripRow(tripId)
+        val payload = TripPayloadCodec.updateArrayItem(current.payload, "petPlaces", petPlaceId) { pet ->
+            JsonObject(pet.toMutableMap().apply {
+                put("name", kotlinx.serialization.json.JsonPrimitive(input.name.trim()))
+                put("city", kotlinx.serialization.json.JsonPrimitive(input.city.trim()))
+                put("type", kotlinx.serialization.json.JsonPrimitive(normalizedType))
+                put("address", kotlinx.serialization.json.JsonPrimitive(input.address.trim()))
+                put("phone", kotlinx.serialization.json.JsonPrimitive(input.phone.trim()))
+                put("mapsUrl", kotlinx.serialization.json.JsonPrimitive(input.mapsUrl.trim()))
+                put("website", kotlinx.serialization.json.JsonPrimitive(input.website.trim()))
+                input.latitude?.let { put("latitude", kotlinx.serialization.json.JsonPrimitive(it)) } ?: remove("latitude")
+                input.longitude?.let { put("longitude", kotlinx.serialization.json.JsonPrimitive(it)) } ?: remove("longitude")
+                put("source", kotlinx.serialization.json.JsonPrimitive(input.source.trim().ifBlank { "manual" }))
+                if (input.googlePlaceId.isNotBlank()) put("googlePlaceId", kotlinx.serialization.json.JsonPrimitive(input.googlePlaceId.trim())) else remove("googlePlaceId")
+                if (input.photoName.isNotBlank()) put("photoName", kotlinx.serialization.json.JsonPrimitive(input.photoName.trim())) else remove("photoName")
+                put("note", kotlinx.serialization.json.JsonPrimitive(input.note.trim()))
+                put("features", buildJsonArray {
+                    input.features.map(String::trim).filter(String::isNotBlank).distinct().forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+                })
+            })
+        }
+        patchTripSectionFromPayload(tripId, "petPlaces", payload, current.revision)
     }
 
     override suspend fun addAccommodationDetails(input: AccommodationInput, tripId: String): String {
