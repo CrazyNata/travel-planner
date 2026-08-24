@@ -1,6 +1,7 @@
 package com.odyssey.travelplanner.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -347,6 +348,7 @@ private class DeviceLocationReader(context: Context) {
         Manifest.permission.ACCESS_COARSE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
 
+    @SuppressLint("MissingPermission")
     fun lastKnownLocation(): DeviceLocation? {
         if (!hasPermission()) return null
         val manager = locationManager ?: return null
@@ -358,6 +360,7 @@ private class DeviceLocationReader(context: Context) {
         }.getOrNull()
     }
 
+    @SuppressLint("MissingPermission")
     fun start(onLocation: (DeviceLocation) -> Unit): () -> Unit {
         val manager = locationManager
         if (!hasPermission() || manager == null) return {}
