@@ -78,8 +78,8 @@ class UiLogicTest {
     }
 
     @Test
-    fun overviewBlockNormalizationPreservesOmittedBlocks() {
+    fun overviewBlockNormalizationUsesDefaultsForLegacyTrips() {
         assertEquals(listOf("photo", "map"), normalizedOverviewBlocks(listOf("photo", "map")))
-        assertEquals(emptyList<String>(), normalizedOverviewBlocks(emptyList()))
+        assertEquals(listOf("photo", "map", "weather"), normalizedOverviewBlocks(emptyList()))
     }
 }

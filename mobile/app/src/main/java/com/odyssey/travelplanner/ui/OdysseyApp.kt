@@ -4731,7 +4731,7 @@ private fun CreateTripScreen(
             }
             Button(
                 onClick = ::save,
-                enabled = !saving,
+                enabled = !saving && validateCreateTripRequiredFields(title, startDate, endDate, cityList) == null,
                 colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
                 shape = RoundedCornerShape(15.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(),
@@ -6415,6 +6415,43 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                         }
                     },
                 )
+            }
+        }
+        if (canEdit && visibleSights.size > 1) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(tintedSurfaceColor())
+                        .semantics {
+                            contentDescription = localized(language, "Изменить порядок мест", "Change place order", "Cambiar orden de lugares", "Reihenfolge der Orte ändern")
+                            role = Role.Button
+                        }
+                        .clickable { editingDay = true }
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                ) {
+                    Text("↕", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp, lineHeight = 22.sp)
+                    Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) {
+                        Text(
+                            localized("Изменить порядок мест", "Change place order", "Cambiar orden de lugares", "Reihenfolge der Orte ändern"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 13.sp,
+                        )
+                        Text(
+                            localized("Переместите достопримечательности внутри дня", "Move sights within this day", "Mueva los lugares dentro del día", "Orte innerhalb des Tages verschieben"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    Text("›", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 25.sp)
+                }
             }
         }
         if (message != null) {
@@ -17403,7 +17440,7 @@ private val DefaultOverviewBlocks = listOf("photo", "map", "weather")
 private enum class OverviewEditSheet { MAP, WEATHER }
 
 internal fun normalizedOverviewBlocks(value: List<String>): List<String> =
-    value.filter { it in DefaultOverviewBlocks }.distinct()
+    value.filter { it in DefaultOverviewBlocks }.distinct().ifEmpty { DefaultOverviewBlocks }
 
 private fun List<String>.toggleOverviewCity(city: String): List<String> =
     if (any { cityFilterKey(it) == cityFilterKey(city) }) {
