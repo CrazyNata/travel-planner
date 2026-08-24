@@ -201,6 +201,7 @@ import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.RememberedAccount
 import com.odyssey.travelplanner.data.AuthRestoreResult
 import com.odyssey.travelplanner.data.AccountRepository
+import com.odyssey.travelplanner.data.AccountProfile
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.AuthFailure
 import com.odyssey.travelplanner.data.classifyAuthFailure
@@ -1406,6 +1407,7 @@ fun OdysseyApp(
     var authRestoreError by remember { mutableStateOf(false) }
     var authRestoreAttempt by remember { mutableStateOf(0) }
     var sessionRestoreVersion by remember { mutableStateOf(0) }
+    var accountProfile by remember { mutableStateOf<AccountProfile?>(null) }
     var rememberCredentials by remember { mutableStateOf(false) }
     var rememberedAccounts by remember { mutableStateOf<List<RememberedAccount>>(emptyList()) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -1423,6 +1425,7 @@ fun OdysseyApp(
     LaunchedEffect(authRestoreAttempt) {
         authReady = false
         authRestoreError = false
+        accountProfile = null
         var result = AuthRestoreResult.FAILED
         for (attempt in 0 until 3) {
             result = SupabaseProvider.restorePersistentSession()
@@ -1433,12 +1436,6 @@ fun OdysseyApp(
             AuthRestoreResult.RESTORED -> {
                 hasSession = true
                 rememberedAccounts = emptyList()
-                runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }
-                    .getOrNull()
-                    ?.let { profile ->
-                        darkTheme = profile.darkTheme
-                        language = normalizeLanguage(profile.language)
-                    }
             }
             AuthRestoreResult.NO_SESSION -> {
                 hasSession = false
@@ -1455,9 +1452,30 @@ fun OdysseyApp(
     LaunchedEffect(authReady, hasSession, authRestoreError) {
         if (!authReady || authRestoreError) return@LaunchedEffect
         if (!hasSession) {
+            accountProfile = null
             rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
         } else {
             rememberedAccounts = emptyList()
+            val profile = runCatching {
+                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile()
+            }.getOrNull()
+            accountProfile = profile
+            profile?.let {
+                darkTheme = it.darkTheme
+                val languageChosenBeforeAuth = languageSelectedBeforeAuth
+                if (languageChosenBeforeAuth != null) {
+                    language = languageChosenBeforeAuth
+                    if (normalizeLanguage(it.language) != languageChosenBeforeAuth) {
+                        runCatching {
+                            AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                .updateAppearance(languageChosenBeforeAuth, it.darkTheme)
+                        }
+                    }
+                    languageSelectedBeforeAuth = null
+                } else {
+                    language = normalizeLanguage(it.language)
+                }
+            }
         }
     }
 
@@ -1481,27 +1499,6 @@ fun OdysseyApp(
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
-    }
-
-    LaunchedEffect(authReady, hasSession) {
-        if (!authReady) return@LaunchedEffect
-        if (!hasSession) return@LaunchedEffect
-        val repository = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
-        runCatching { repository.loadProfile() }.getOrNull()?.let { profile ->
-            darkTheme = profile.darkTheme
-            val languageChosenBeforeAuth = languageSelectedBeforeAuth
-            if (languageChosenBeforeAuth != null) {
-                language = languageChosenBeforeAuth
-                if (normalizeLanguage(profile.language) != languageChosenBeforeAuth) {
-                    runCatching {
-                        repository.updateAppearance(languageChosenBeforeAuth, profile.darkTheme)
-                    }
-                }
-                languageSelectedBeforeAuth = null
-            } else {
-                language = normalizeLanguage(profile.language)
-            }
         }
     }
 
@@ -1592,6 +1589,7 @@ fun OdysseyApp(
                         onLanguageChange = ::handleLanguageChange,
                         onAuthenticated = {
                             rememberedAccounts = emptyList()
+                            accountProfile = null
                             hasSession = true
                             navController.navigate("trips")
                         },
@@ -1609,10 +1607,10 @@ fun OdysseyApp(
                         },
                         darkTheme = darkTheme,
                         onThemeToggle = { darkTheme = !darkTheme },
-                        onThemeSet = { darkTheme = it },
                         language = language,
                         onLanguageChange = ::handleLanguageChange,
                         sessionRestoreVersion = sessionRestoreVersion,
+                        accountProfile = accountProfile,
                     )
                 }
                 composable("settings") {
@@ -2678,7 +2676,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, onThemeSet: (Boolean) -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
@@ -2687,8 +2685,8 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var editingTrip by remember { mutableStateOf<TripCard?>(null) }
     var accountMenuOpen by remember { mutableStateOf(false) }
     var profileEmail by remember { mutableStateOf("") }
-    var profileAvatarUrl by remember { mutableStateOf<String?>(null) }
-    var notificationsEnabled by remember { mutableStateOf(false) }
+    var profileAvatarUrl by remember { mutableStateOf(accountProfile?.avatarUrl) }
+    var notificationsEnabled by remember { mutableStateOf(accountProfile?.notificationsEnabled ?: false) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var repeatedNewPassword by remember { mutableStateOf("") }
@@ -2705,12 +2703,6 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         scope.launch {
             loading = true
             loadFailed = false
-            val restoreResult = SupabaseProvider.restorePersistentSession()
-            if (restoreResult != AuthRestoreResult.RESTORED) {
-                loadFailed = trips.isEmpty()
-                loading = false
-                return@launch
-            }
             val client = SupabaseProvider.clientForCurrentAuthFlow()
             runCatching { SupabaseTripRepository(client).loadTrips() }
                 .onSuccess {
@@ -2743,10 +2735,12 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         profileEmail = runCatching {
             SupabaseProvider.clientForCurrentAuthFlow().auth.currentSessionOrNull()?.user?.email.orEmpty()
         }.getOrDefault("")
-        runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
+    }
+
+    LaunchedEffect(accountProfile) {
+        accountProfile?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
-            onThemeSet(profile.darkTheme)
         }
     }
 
@@ -6889,7 +6883,21 @@ private fun EditDaySheet(
     val sheetContentTextColor = if (darkTheme) OdysseyDarkText else OdysseyText
     val sheetSecondaryTextColor = if (darkTheme) OdysseyDarkSubtext else OdysseySubtext
     val sheetSecondarySurfaceColor = if (darkTheme) OdysseyDarkSurface2 else OdysseySurface2
-    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.94f)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .imePadding(),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(localized("Редактировать день", "Edit day", "Editar día", "Tag bearbeiten"), color = sheetContentTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.5.sp)
             Spacer(Modifier.weight(1f))
@@ -7026,7 +7034,18 @@ private fun EditDaySheet(
                 }
             }
         }
-        Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(14.dp)) { Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+        }
+        Button(
+            onClick = onClose,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .padding(start = 16.dp, end = 16.dp, bottom = 5.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+        }
     }
     if (catalogOpen) {
         ModalBottomSheet(
