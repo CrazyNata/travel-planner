@@ -462,6 +462,15 @@ private fun localized(language: String, ru: String, en: String, es: String, de: 
     else -> ru
 }
 
+private fun localizedFailure(language: String, error: Throwable?, fallback: String): String {
+    val raw = error?.message?.trim().orEmpty()
+    if (raw.isBlank()) return fallback
+    val containsCyrillic = raw.any { character ->
+        character in '\u0400'..'\u04FF'
+    }
+    return if (normalizeLanguage(language) == "RU" || !containsCyrillic) raw else fallback
+}
+
 internal fun localizedCountWord(
     count: Int,
     language: String,
@@ -1215,7 +1224,7 @@ private fun coverPhotoForCity(photos: List<CoverPhoto>, city: String): CoverPhot
             samePhotoCity(photo.city, city) ||
                 (targetKey != null && cityCatalogEntry(photo.city)?.key == targetKey)
             )
-    }
+    } ?: photos.firstOrNull { it.city.isBlank() }
 }
 
 private fun parsePhotoDateRange(value: String): PhotoDateRange? {
@@ -1851,7 +1860,7 @@ private fun AuthScreen(
             }.onSuccess {
                 message = messageText("Письмо для восстановления отправлено", "Password reset email sent", "Correo de restablecimiento enviado", "E-Mail zum Zurücksetzen gesendet")
             }.onFailure {
-                message = it.message ?: messageText("Не удалось отправить письмо", "Could not send reset email", "No se pudo enviar el correo", "E-Mail konnte nicht gesendet werden")
+                message = localizedFailure(language, it, messageText("Не удалось отправить письмо", "Could not send reset email", "No se pudo enviar el correo", "E-Mail konnte nicht gesendet werden"))
             }
             isLoading = false
         }
@@ -2749,7 +2758,7 @@ private fun ResetPasswordScreen(onFinished: () -> Unit, onCancel: () -> Unit) {
                         message = null
                         runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).changePassword(password) }
                             .onSuccess { onFinished() }
-                            .onFailure { message = it.message ?: localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden") }
+                            .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden")) }
                         saving = false
                     }
                 }
@@ -2840,7 +2849,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 repository.updateProfile(url, notificationsEnabled)
                 url
             }.onSuccess { profileAvatarUrl = it; accountMessage = localized(language, "Фото профиля обновлено", "Profile photo updated", "Foto de perfil actualizada", "Profilbild aktualisiert") }
-                .onFailure { accountMessage = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo cargar la foto", "Foto konnte nicht hochgeladen werden") }
+                .onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo cargar la foto", "Foto konnte nicht hochgeladen werden")) }
         }
     }
 
@@ -3048,7 +3057,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 language = code,
                                 darkTheme = darkTheme,
                             )
-                        }.onFailure { accountMessage = it.message ?: localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden") }
+                        }.onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden")) }
                     }
                 },
                 onThemeToggle = {
@@ -3062,7 +3071,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 language = language,
                                 darkTheme = nextTheme,
                             )
-                        }.onFailure { accountMessage = it.message ?: localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden") }
+                        }.onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden")) }
                     }
                 },
                 onPasswordEditorToggle = {
@@ -3078,7 +3087,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         else -> scope.launch {
                             runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).changePassword(newPassword) }
                                 .onSuccess { newPassword = ""; repeatedNewPassword = ""; passwordEditorOpen = false; accountMessage = localized(language, "Пароль обновлён", "Password updated", "Contraseña actualizada", "Passwort aktualisiert") }
-                                .onFailure { accountMessage = it.message ?: localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden") }
+                                .onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden")) }
                         }
                     }
                 },
@@ -3143,7 +3152,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                     accountMenuOpen = false
                                     onLogout()
                                 }.onFailure {
-                                    accountMessage = it.message ?: localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden")
+                                    accountMessage = localizedFailure(language, it, localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden"))
                                 }
                                 accountDeleting = false
                             }
@@ -3205,7 +3214,7 @@ private fun AccountSettingsScreen(
                 profileAvatarUrl = it
                 accountMessage = localized(language, "Фото профиля обновлено", "Profile photo updated", "Foto de perfil actualizada", "Profilbild aktualisiert")
             }.onFailure {
-                accountMessage = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo cargar la foto", "Foto konnte nicht hochgeladen werden")
+                accountMessage = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo cargar la foto", "Foto konnte nicht hochgeladen werden"))
             }
         }
     }
@@ -3246,7 +3255,7 @@ private fun AccountSettingsScreen(
                             darkTheme = darkTheme,
                         )
                     }.onFailure {
-                        accountMessage = it.message ?: localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden")
+                        accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden"))
                     }
                 }
             },
@@ -3262,7 +3271,7 @@ private fun AccountSettingsScreen(
                             darkTheme = nextTheme,
                         )
                     }.onFailure {
-                        accountMessage = it.message ?: localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden")
+                        accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden"))
                     }
                 }
             },
@@ -3284,7 +3293,7 @@ private fun AccountSettingsScreen(
                                 passwordEditorOpen = false
                                 accountMessage = localized(language, "Пароль обновлён", "Password updated", "Contraseña actualizada", "Passwort aktualisiert")
                             }
-                            .onFailure { accountMessage = it.message ?: localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden") }
+                            .onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сменить пароль", "Could not change password", "No se pudo cambiar la contraseña", "Passwort konnte nicht geändert werden")) }
                     }
                 }
             },
@@ -3331,7 +3340,7 @@ private fun AccountSettingsScreen(
                                 accountDeleteDialogOpen = false
                                 onLogout()
                             }.onFailure {
-                                accountMessage = it.message ?: localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden")
+                                accountMessage = localizedFailure(language, it, localized(language, "Не удалось удалить аккаунт", "Could not delete account", "No se pudo eliminar la cuenta", "Konto konnte nicht gelöscht werden"))
                             }
                             accountDeleting = false
                         }
@@ -4066,13 +4075,13 @@ private fun EditTripPanel(
             }
                 .onSuccess { onDeleted(trip.id) }
                 .onFailure {
-                    message = it.message ?: localized(
+                    message = localizedFailure(language, it, localized(
                         language,
                         "Не удалось удалить путешествие",
                         "Could not delete trip",
                         "No se pudo eliminar el viaje",
                         "Reise konnte nicht gelöscht werden",
-                    )
+                    ))
                 }
             deleting = false
         }
@@ -4088,13 +4097,13 @@ private fun EditTripPanel(
             }
                 .onSuccess { onDeleted(trip.id) }
                 .onFailure {
-                    message = it.message ?: localized(
+                    message = localizedFailure(language, it, localized(
                         language,
                         "Не удалось выйти из путешествия",
                         "Could not leave trip",
                         "No se pudo salir del viaje",
                         "Die Reise konnte nicht verlassen werden",
-                    )
+                    ))
                 }
             leaving = false
         }
@@ -4113,7 +4122,7 @@ private fun EditTripPanel(
                 val daysAtRisk = runCatching {
                     repository.countRouteDaysAtRisk(trip.id, savedDates, savedCities)
                 }.getOrElse {
-                    message = it.message ?: localized(language, "Не удалось проверить дни маршрута", "Could not check the route days", "No se pudieron comprobar los días de la ruta", "Die Routentage konnten nicht geprüft werden")
+                    message = localizedFailure(language, it, localized(language, "Не удалось проверить дни маршрута", "Could not check the route days", "No se pudieron comprobar los días de la ruta", "Die Routentage konnten nicht geprüft werden"))
                     saving = false
                     return@launch
                 }
@@ -4128,7 +4137,7 @@ private fun EditTripPanel(
                 repository.updateTripSection(trip.id, "status", JsonPrimitive(status))
             }
                 .onSuccess { onSaved(trip.copy(title = savedTitle, cities = savedCities, dates = savedDates, status = status)) }
-                .onFailure { message = it.message ?: localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden") }
+                .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось сохранить изменения", "Could not save changes", "No se pudieron guardar los cambios", "Änderungen konnten nicht gespeichert werden")) }
             saving = false
         }
     }
@@ -4286,8 +4295,12 @@ private fun EditTripPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .border(1.dp, Color(0xFFF1D0CF), RoundedCornerShape(14.dp))
-                .background(Color(0xFFFFF8F7))
+                .border(
+                    1.dp,
+                    if (LocalDarkTheme.current) Color(0xFF7A3B42) else Color(0xFFF1D0CF),
+                    RoundedCornerShape(14.dp),
+                )
+                .background(dangerSurfaceColor())
                 .clickable(enabled = !saving && !deleting && !leaving) {
                     if (trip.isOwner) deleteDialogOpen = true else leaveDialogOpen = true
                 }
@@ -4298,7 +4311,7 @@ private fun EditTripPanel(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(Color(0xFFFFE9E7)),
+                    .background(dangerSurfaceColor()),
             ) {
                 Icon(if (trip.isOwner) Icons.Outlined.Delete else Icons.Outlined.Logout, contentDescription = null, tint = Color(0xFFD9534F), modifier = Modifier.size(17.dp))
             }
@@ -4681,7 +4694,7 @@ private fun CreateTripScreen(
                 if (error is AuthSessionRequiredException) {
                     onAuthRequired()
                 } else {
-                    message = error.message ?: localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden")
+                    message = localizedFailure(language, error, localized(language, "Не удалось создать путешествие", "Could not create trip", "No se pudo crear el viaje", "Reise konnte nicht erstellt werden"))
                 }
             }
             saving = false
@@ -6927,7 +6940,7 @@ private fun CreateDaySheet(tripId: String, city: String, day: Int, onClose: () -
                         repository.addSightDetails(tripId, sightName, city, "достопримечательности", "", targetDay, link = "")
                     }
                 }.onSuccess { onSaved(); onClose() }.onFailure {
-                    message = it.message ?: localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden")
+                    message = localizedFailure(language, it, localized(language, "Не удалось сохранить день", "Could not save day", "No se pudo guardar el día", "Tag konnte nicht gespeichert werden"))
                 }
                 saving = false
             }
@@ -7043,7 +7056,7 @@ private fun EditDaySheet(
                                 onSaved()
                             }.onFailure {
                                 orderedSights = sights
-                                message = it.message ?: localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden"))
                             }
                             reorderingSightId = null
                         }
@@ -7067,7 +7080,7 @@ private fun EditDaySheet(
                                 onSaved()
                             }.onFailure {
                                 orderedSights = sights
-                                message = it.message ?: localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось изменить порядок мест", "Could not change the order of sights", "No se pudo cambiar el orden de los lugares", "Die Reihenfolge der Orte konnte nicht geändert werden"))
                             }
                             reorderingSightId = null
                         }
@@ -7080,7 +7093,7 @@ private fun EditDaySheet(
                         runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "sights", sight.id) }
                             .onSuccess { onSaved() }
                             .onFailure {
-                                message = it.message ?: localized(language, "Не удалось удалить достопримечательность", "Could not delete sight", "No se pudo eliminar el lugar", "Ort konnte nicht gelöscht werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось удалить достопримечательность", "Could not delete sight", "No se pudo eliminar el lugar", "Ort konnte nicht gelöscht werden"))
                             }
                         deletingSightId = null
                     }
@@ -7220,7 +7233,7 @@ private fun EditDaySheet(
                                 deleteDayDialogOpen = false
                                 onDeleted()
                             }.onFailure {
-                                deleteDayError = it.message ?: localized(language, "Не удалось удалить день", "Could not delete day", "No se pudo eliminar el día", "Tag konnte nicht gelöscht werden")
+                                deleteDayError = localizedFailure(language, it, localized(language, "Не удалось удалить день", "Could not delete day", "No se pudo eliminar el día", "Tag konnte nicht gelöscht werden"))
                             }
                             deletingDay = false
                         }
@@ -7333,7 +7346,7 @@ private fun SightCatalogSheet(
                 if (error is CancellationException) throw error
                 entries = emptyList()
                 liveRatingsAvailable = false
-                message = error.message ?: localized(language, "Не удалось загрузить каталог", "Could not load the catalog", "No se pudo cargar el catálogo", "Katalog konnte nicht geladen werden")
+                message = localizedFailure(language, error, localized(language, "Не удалось загрузить каталог", "Could not load the catalog", "No se pudo cargar el catálogo", "Katalog konnte nicht geladen werden"))
             }
         loading = false
     }
@@ -7633,7 +7646,7 @@ private fun SightCatalogSheet(
                         onSaved()
                         onClose()
                     }.onFailure { error ->
-                        message = error.message ?: localized(language, "Не удалось добавить места", "Could not add sights", "No se pudieron añadir los lugares", "Orte konnten nicht hinzugefügt werden")
+                        message = localizedFailure(language, error, localized(language, "Не удалось добавить места", "Could not add sights", "No se pudieron añadir los lugares", "Orte konnten nicht hinzugefügt werden"))
                     }
                     saving = false
                 }
@@ -7795,7 +7808,7 @@ private fun AddSightSheet(tripId: String, city: String, day: Int, onClose: () ->
                                     .deleteTripItem(tripId, "sights", sightId)
                             }
                         }
-                        message = it.message ?: localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden")
+                        message = localizedFailure(language, it, localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden"))
                     }
                     saving = false
                 }
@@ -8456,7 +8469,7 @@ private fun EditSightPanel(
                         }
                     }
                         .onSuccess { onSaved() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden") }
+                        .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось сохранить место", "Could not save sight", "No se pudo guardar el lugar", "Ort konnte nicht gespeichert werden")) }
                     saving = false
                 }
             }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
@@ -8606,6 +8619,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     var savingCatalogId by remember { mutableStateOf<String?>(null) }
     var savingManual by remember { mutableStateOf(false) }
     var fullScreenPetPhoto by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val deviceLocation = LocalDeviceLocation.current
     fun distanceFromCity(city: String, latitude: Double?, longitude: Double?): Double? {
         val origin = overview.cityCoordinates.entries.firstOrNull { cityFilterKey(it.key) == cityFilterKey(city) }?.value ?: return null
         if (latitude == null || longitude == null) return null
@@ -8616,7 +8630,11 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
         return earthRadius * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
     }
     fun withinRadius(city: String, latitude: Double?, longitude: Double?): Boolean {
-        val limit = appliedFilters.radius.removeSuffix(" км").toDoubleOrNull() ?: return true
+        val limit = appliedFilters.radius
+            .removeSuffix(" км")
+            .removeSuffix(" km")
+            .toDoubleOrNull()
+            ?: return true
         val distance = distanceFromCity(city, latitude, longitude) ?: return true
         return distance <= limit
     }
@@ -8644,8 +8662,11 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
             entry.copy(photoUrl = entry.photoUrl ?: photo?.photoUrl, photoAttribution = entry.photoAttribution ?: photo?.photoAttribution)
         }
         if (result.isFailure) {
-            catalogMessage = result.exceptionOrNull()?.message?.takeIf(String::isNotBlank)
-                ?: localized(language, "Каталог временно недоступен.", "The catalog is temporarily unavailable.", "El catálogo no está disponible temporalmente.", "Der Katalog ist vorübergehend nicht verfügbar.")
+            catalogMessage = localizedFailure(
+                language,
+                result.exceptionOrNull(),
+                localized(language, "Каталог временно недоступен.", "The catalog is temporarily unavailable.", "El catálogo no está disponible temporalmente.", "Der Katalog ist vorübergehend nicht verfügbar."),
+            )
         }
         loadingCatalog = false
     }
@@ -8657,15 +8678,26 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
             (appliedFilters.rating.isBlank() || (place.rating ?: 0.0) >= (appliedFilters.rating.toDoubleOrNull() ?: 0.0)) &&
             (!appliedFilters.openNow || place.openNow == true) &&
             appliedFilters.features.all { feature -> place.features.any { it.equals(feature, ignoreCase = true) } }
-    }
+    }.sortedWith(
+        compareBy<PetPlace> { place ->
+            deviceLocation?.let { location -> distanceMeters(location, place.latitude, place.longitude) }
+                ?: Double.MAX_VALUE
+        },
+    )
     val visibleCatalog = catalogEntries.filter { entry ->
         (appliedFilters.rating.isBlank() || (entry.rating ?: 0.0) >= (appliedFilters.rating.toDoubleOrNull() ?: 0.0)) &&
             withinRadius(entry.city, entry.latitude, entry.longitude) &&
             (!appliedFilters.openNow || entry.openNow == true) &&
             appliedFilters.features.all { feature -> feature != "Есть телефон" || entry.phone.isNotBlank() }
-    }
+    }.sortedWith(
+        compareBy<PetCatalogEntry> { entry ->
+            deviceLocation?.let { location -> distanceMeters(location, entry.latitude, entry.longitude) }
+                ?: Double.MAX_VALUE
+        },
+    )
     val liveByGoogleId = catalogEntries.filter { it.googlePlaceId.isNotBlank() }.associateBy { it.googlePlaceId }
-    val filterCount = listOf(appliedFilters.rating.isNotBlank(), appliedFilters.radius != "10 км", appliedFilters.openNow).count { it } + appliedFilters.features.size
+    val radiusValue = appliedFilters.radius.removeSuffix(" км").removeSuffix(" km").toDoubleOrNull()
+    val filterCount = listOf(appliedFilters.rating.isNotBlank(), radiusValue != 10.0, appliedFilters.openNow).count { it } + appliedFilters.features.size
 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -8679,14 +8711,28 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     ) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().height(44.dp)) {
-                Row(
-                    modifier = Modifier.weight(1.25f).fillMaxHeight().shadow(5.dp, RoundedCornerShape(13.dp), ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7)).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0)))).clickable { cityMenuOpen = true }.padding(horizontal = 13.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OdysseyLocationIcon(15.dp, primaryContentColor())
-                    Text(localizedCityFilter(selectedCity), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    OdysseyChevronDown(16.dp, primaryContentColor())
+                Box(modifier = Modifier.weight(1.25f).fillMaxHeight()) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().shadow(5.dp, RoundedCornerShape(13.dp), ambientColor = Color(0x476C5CE7), spotColor = Color(0x476C5CE7)).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0)))).clickable { cityMenuOpen = true }.padding(horizontal = 13.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OdysseyLocationIcon(15.dp, primaryContentColor())
+                        Text(localizedCityFilter(selectedCity), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        OdysseyChevronDown(16.dp, primaryContentColor())
+                    }
+                    DropdownMenu(
+                        expanded = cityMenuOpen,
+                        onDismissRequest = { cityMenuOpen = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        containerColor = cardSurfaceColor(),
+                        shadowElevation = 12.dp,
+                    ) {
+                        cityOptions.forEach { city ->
+                            DropdownMenuItem(text = { Text(localizedCityFilter(city), fontFamily = Manrope) }, onClick = { selectedCity = city; cityMenuOpen = false })
+                        }
+                    }
                 }
                 Row(
                     modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(13.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp)).clickable { filterMenuOpen = true }.padding(horizontal = 13.dp, vertical = 11.dp),
@@ -8694,13 +8740,32 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
                     OdysseyFilterIcon(15.dp)
-                    Text(localized("Фильтры", "Filters", "Filtros", "Filter"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-                    Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(primaryColor()), contentAlignment = Alignment.Center) { Text(filterCount.toString(), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp) }
-                }
-            }
-            DropdownMenu(expanded = cityMenuOpen, onDismissRequest = { cityMenuOpen = false }) {
-                cityOptions.forEach { city ->
-                    DropdownMenuItem(text = { Text(localizedCityFilter(city), fontFamily = Manrope) }, onClick = { selectedCity = city; cityMenuOpen = false })
+                    Text(
+                        localized("Фильтры", "Filters", "Filtros", "Filter"),
+                        color = labelColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(
+                        modifier = Modifier.size(20.dp).clip(CircleShape).background(primaryColor()),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            filterCount.toString(),
+                            color = primaryContentColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                    }
                 }
             }
         }
@@ -8755,7 +8820,13 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
                             PetPlaceInput(name = entry.name, city = entry.city, type = entry.type, address = entry.address, phone = entry.phone, mapsUrl = entry.mapsUrl, website = entry.website, latitude = entry.latitude, longitude = entry.longitude, source = "google", googlePlaceId = entry.googlePlaceId, photoName = entry.photoName),
                             tripId,
                         )
-                    }.onSuccess { onPetChanged() }.onFailure { catalogMessage = it.message }
+                    }.onSuccess { onPetChanged() }.onFailure {
+                        catalogMessage = localizedFailure(
+                            language,
+                            it,
+                            localized(language, "Не удалось сохранить место", "Could not save the place", "No se pudo guardar el lugar", "Der Ort konnte nicht gespeichert werden"),
+                        )
+                    }
                     savingCatalogId = null
                 }
             }
@@ -8771,13 +8842,25 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
                 runCatching {
                     val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                     if (editing == null) repository.addPetPlace(input, tripId) else repository.updatePetPlace(tripId, editing.id, input)
-                }.onSuccess { manualSheetOpen = false; editingPlace = null; onPetChanged() }.onFailure { catalogMessage = it.message }
+                }.onSuccess { manualSheetOpen = false; editingPlace = null; onPetChanged() }.onFailure {
+                    catalogMessage = localizedFailure(
+                        language,
+                        it,
+                        localized(language, "Не удалось сохранить место", "Could not save the place", "No se pudo guardar el lugar", "Der Ort konnte nicht gespeichert werden"),
+                    )
+                }
                 savingManual = false
             }
         })
     }
     deleteTarget?.let { target ->
-        AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text(localized("Удалить место?", "Delete this place?", "¿Eliminar este lugar?", "Ort löschen?"), fontFamily = Manrope, fontWeight = FontWeight.W800) }, text = { Text(localized("«${target.name}» останется в каталоге, но исчезнет из этой поездки.", "“${target.name}” will remain in the catalog but be removed from this trip.", "“${target.name}” seguirá en el catálogo, pero se eliminará de este viaje.", "„${target.name}“ bleibt im Katalog, wird aber aus dieser Reise entfernt."), fontFamily = Manrope) }, confirmButton = { TextButton(onClick = { val id = target.id; deleteTarget = null; scope.launch { runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "petPlaces", id) }.onSuccess { onPetChanged() }.onFailure { catalogMessage = it.message } } }) { Text(localized("Удалить", "Delete", "Eliminar", "Löschen"), color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W800) } }, dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope) } })
+        AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text(localized("Удалить место?", "Delete this place?", "¿Eliminar este lugar?", "Ort löschen?"), fontFamily = Manrope, fontWeight = FontWeight.W800) }, text = { Text(localized("«${target.name}» останется в каталоге, но исчезнет из этой поездки.", "“${target.name}” will remain in the catalog but be removed from this trip.", "“${target.name}” seguirá en el catálogo, pero se eliminará de este viaje.", "„${target.name}“ bleibt im Katalog, wird aber aus dieser Reise entfernt."), fontFamily = Manrope) }, confirmButton = { TextButton(onClick = { val id = target.id; deleteTarget = null; scope.launch { runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "petPlaces", id) }.onSuccess { onPetChanged() }.onFailure {
+            catalogMessage = localizedFailure(
+                language,
+                it,
+                localized(language, "Не удалось удалить место", "Could not remove the place", "No se pudo eliminar el lugar", "Der Ort konnte nicht entfernt werden"),
+            )
+        } } }) { Text(localized("Удалить", "Delete", "Eliminar", "Löschen"), color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W800) } }, dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope) } })
     }
     fullScreenPetPhoto?.let { (photoUrl, placeName) ->
         FullScreenPhotoViewer(
@@ -8789,7 +8872,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     }
 }
 
-private data class PetFilterState(val radius: String = "10 км", val rating: String = "", val openNow: Boolean = false, val features: Set<String> = emptySet())
+private data class PetFilterState(val radius: String = "10", val rating: String = "", val openNow: Boolean = false, val features: Set<String> = emptySet())
 
 @Composable
 private fun PetCatalogCard(entry: PetCatalogEntry, canEdit: Boolean, added: Boolean, saving: Boolean, onPhotoClick: () -> Unit, onAdd: () -> Unit) {
@@ -8866,9 +8949,9 @@ private fun PetFiltersSheet(applied: PetFilterState, type: String, onDismiss: ()
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = cardSurfaceColor()) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(start = 18.dp, end = 18.dp, bottom = 22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) { Text(localized("Фильтры", "Filters", "Filtros", "Filter"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.weight(1f)); TextButton(onClick = { radius = "10 км"; rating = ""; openNow = false; features = emptySet() }) { Text(localized("Сбросить", "Reset", "Restablecer", "Zurücksetzen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800) } }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) { Text(localized("Фильтры", "Filters", "Filtros", "Filter"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.weight(1f)); TextButton(onClick = { radius = "10"; rating = ""; openNow = false; features = emptySet() }) { Text(localized("Сбросить", "Reset", "Restablecer", "Zurücksetzen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800) } }
             Text(localized("Радиус поиска", "Search radius", "Radio de búsqueda", "Suchradius"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("1 км", "5 км", "10 км", "25 км").forEach { value -> PetChoiceChip(value, radius == value) { radius = value } } }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("1", "5", "10", "25").forEach { value -> PetChoiceChip("$value ${localized("км", "km", "km", "km")}", radius.removeSuffix(" км").removeSuffix(" km") == value) { radius = value } } }
             Text(localized("Рейтинг от", "Rating from", "Valoración desde", "Bewertung ab"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("", "4.0", "4.5", "4.8").forEach { value -> PetChoiceChip(if (value.isBlank()) localized("Любой", "Any", "Cualquiera", "Beliebig") else "★ $value", rating == value) { rating = value } } }
             Text(localized("Дополнительно", "More", "Más", "Mehr"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
@@ -9034,7 +9117,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 actionMessage = null
                 onRestaurantAdded()
             }.onFailure {
-                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0444\u043e\u0442\u043e. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Foto konnte nicht hochgeladen werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                actionMessage = localizedFailure(language, it, localized(language, "Не удалось загрузить фото. Проверьте интернет и повторите попытку.", "Could not upload the photo. Check your connection and try again.", "No se pudo subir la foto. Comprueba la conexión e inténtalo de nuevo.", "Foto konnte nicht hochgeladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
             }
             uploadingRestaurantId = null
         }
@@ -9205,7 +9288,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                                 onRestaurantAdded()
                             }
                             .onFailure {
-                                actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Status konnte nicht gespeichert werden. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.")
+                                actionMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить статус. Проверьте интернет и повторите попытку.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexión e inténtalo de nuevo.", "Status konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
                             }
                         savingRestaurantId = null
                     }
@@ -9375,7 +9458,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                                         .deleteTripItem(tripId, "restaurants", restaurantId)
                                 }
                             }
-                            message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
+                            message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
                         }
                         saving = false
                     }
@@ -9580,17 +9663,20 @@ private fun RestaurantCatalogSheet(
     var fullScreenRestaurantPhoto by remember { mutableStateOf<Pair<String, String>?>(null) }
     var sortMenuOpen by remember(city) { mutableStateOf(false) }
     var sortMode by remember(city) { mutableStateOf("rating") }
+    val deviceLocation = LocalDeviceLocation.current
     val sortRatingLabel = localized("По рейтингу", "By rating", "Por valoración", "Nach Bewertung")
     val sortPriceLabel = localized("По цене", "By price", "Por precio", "Nach Preis")
     val sortButtonLabel = localized("Сортировать", "Sort", "Ordenar", "Sortieren")
     val sortedEntries = when (sortMode) {
         "price" -> entries.sortedWith(
-            compareBy<RestaurantCatalogEntry> { it.priceLevel ?: Int.MAX_VALUE }
+            compareBy<RestaurantCatalogEntry> { entry -> deviceLocation?.let { location -> distanceMeters(location, entry.latitude, entry.longitude) } ?: Double.MAX_VALUE }
+                .thenBy { it.priceLevel ?: Int.MAX_VALUE }
                 .thenByDescending { it.rating ?: -1.0 }
                 .thenBy { it.sortOrder },
         )
         else -> entries.sortedWith(
-            compareByDescending<RestaurantCatalogEntry> { it.rating ?: -1.0 }
+            compareBy<RestaurantCatalogEntry> { entry -> deviceLocation?.let { location -> distanceMeters(location, entry.latitude, entry.longitude) } ?: Double.MAX_VALUE }
+                .thenByDescending { it.rating ?: -1.0 }
                 .thenByDescending { it.ratingCount ?: 0 }
                 .thenBy { it.sortOrder },
         )
@@ -9649,7 +9735,7 @@ private fun RestaurantCatalogSheet(
             .onFailure { error ->
                 if (error is CancellationException) throw error
                 entries = emptyList()
-                message = error.message ?: localized(language, "Не удалось загрузить каталог", "Could not load the restaurant catalog", "No se pudo cargar el catálogo", "Restaurantkatalog konnte nicht geladen werden")
+                message = localizedFailure(language, error, localized(language, "Не удалось загрузить каталог", "Could not load the restaurant catalog", "No se pudo cargar el catálogo", "Restaurantkatalog konnte nicht geladen werden"))
             }
         loading = false
     }
@@ -10839,13 +10925,13 @@ private fun RestaurantEditSheet(
                                     onSaved()
                                 }.onFailure {
                                     deleting = false
-                                    message = it.message ?: localized(
+                                    message = localizedFailure(language, it, localized(
                                         language,
                                         "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0443\u0434\u0430\u043b\u0438\u0442\u044c \u0440\u0435\u0441\u0442\u043e\u0440\u0430\u043d",
                                         "Could not delete restaurant",
                                         "No se pudo eliminar el restaurante",
                                         "Restaurant konnte nicht gel\u00f6scht werden",
-                                    )
+                                    ))
                                 }
                             }
                         },
@@ -10913,7 +10999,7 @@ private fun RestaurantEditSheet(
                                 }.onSuccess {
                                     onSaved()
                                 }.onFailure {
-                                    message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")
+                                    message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
                                 }
                                 saving = false
                             }
@@ -11046,7 +11132,7 @@ private fun RestaurantPhotoManagerSheet(
     val busy = uploading || movingIndex != null || deletingIndex != null
 
     fun showError(error: Throwable, fallback: String) {
-        message = error.message ?: localized(language, fallback, "Could not update restaurant photos", "No se pudieron actualizar las fotos del restaurante", "Restaurantfotos konnten nicht aktualisiert werden")
+        message = localizedFailure(language, error, localized(language, fallback, "Could not update restaurant photos", "No se pudieron actualizar las fotos del restaurante", "Restaurantfotos konnten nicht aktualisiert werden"))
     }
 
     val addPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -12243,7 +12329,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
                         )
                     }
                         .onSuccess { onSaved() }
-                        .onFailure { message = it.message ?: localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden") }
+                        .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden")) }
                     saving = false
                 }
             }, enabled = !saving, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(11.dp)) { Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800) }
@@ -12283,7 +12369,7 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
                             saving = true
                             runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id) }
                                 .onSuccess { onDeleted() }
-                                .onFailure { message = it.message ?: localized(language, "Не удалось удалить ресторан", "Could not delete restaurant", "No se pudo eliminar el restaurante", "Restaurant konnte nicht gelöscht werden") }
+                                .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось удалить ресторан", "Could not delete restaurant", "No se pudo eliminar el restaurante", "Restaurant konnte nicht gelöscht werden")) }
                             saving = false
                         }
                     },
@@ -12302,8 +12388,20 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
     val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val uploadCities = remember(overview.id, overview.cities, overview.overviewMapPoints, overview.overviewWeatherCities, overview.routeLegs) {
+        (
+            overview.cities + overview.overviewMapPoints + overview.overviewWeatherCities + overview.routeLegs.flatMap { listOf(it.from, it.to) }
+        ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
+    }
+    var selectedUploadCity by remember(overview.id) { mutableStateOf("") }
+    var uploadCityMenuOpen by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(uploadCities) {
+        if (selectedUploadCity.isBlank() || uploadCities.none { cityFilterKey(it) == cityFilterKey(selectedUploadCity) }) {
+            selectedUploadCity = uploadCities.firstOrNull().orEmpty()
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -12313,11 +12411,11 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                 val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
                 uris.forEach { uri ->
                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: error("Не удалось прочитать изображение")
-                    repository.addCoverPhoto(tripId, bytes)
+                        ?: error(localized(language, "Не удалось прочитать изображение", "Could not read the image", "No se pudo leer la imagen", "Das Bild konnte nicht gelesen werden"))
+                    repository.addCoverPhoto(tripId, bytes, selectedUploadCity)
                 }
             }.onSuccess { onPhotoAdded() }.onFailure {
-                message = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden")
+                message = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden"))
             }
             uploading = false
         }
@@ -12372,6 +12470,37 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                             fontWeight = FontWeight.W800,
                             fontSize = 12.5.sp,
                         )
+                    }
+                }
+            }
+        }
+        if (canEdit && uploadCities.isNotEmpty()) {
+            item {
+                Box {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(secondarySurfaceColor())
+                            .border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp))
+                            .clickable { uploadCityMenuOpen = true }
+                            .padding(horizontal = 13.dp, vertical = 11.dp),
+                    ) {
+                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(18.dp))
+                        Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
+                            Text(localized("Город фото", "Photo city", "Ciudad de la foto", "Fotostadt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp)
+                            Text(localizedCityName(selectedUploadCity), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = localized("Выбрать город", "Choose city", "Elegir ciudad", "Stadt auswählen"), tint = secondaryTextColor(), modifier = Modifier.size(19.dp))
+                    }
+                    DropdownMenu(expanded = uploadCityMenuOpen, onDismissRequest = { uploadCityMenuOpen = false }, containerColor = cardSurfaceColor()) {
+                        uploadCities.forEach { city ->
+                            DropdownMenuItem(
+                                text = { Text(localizedCityName(city), fontFamily = Manrope) },
+                                onClick = { selectedUploadCity = city; uploadCityMenuOpen = false },
+                            )
+                        }
                     }
                 }
             }
@@ -12492,7 +12621,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, canEdit: Bool
                                     onRoleUpdated()
                                 }
                                 .onFailure {
-                                    actionMessage = it.message ?: localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u0440\u043e\u043b\u044c. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u0435 \u043f\u043e\u043f\u044b\u0442\u043a\u0443.", "Could not change the role. Check your connection and try again.", "No se pudo cambiar el rol. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo.", "Die Rolle konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
+                                    actionMessage = localizedFailure(language, it, localized(language, "Не удалось изменить роль. Проверьте интернет и повторите попытку.", "Could not change the role. Check your connection and try again.", "No se pudo cambiar el rol. Comprueba la conexión e inténtalo de nuevo.", "Die Rolle konnte nicht geändert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
                                 }
                             savingMemberId = null
                         }
@@ -12529,7 +12658,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, canEdit: Bool
                                 saving = true
                                 runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addMember(tripId, name, email, role) }
                                     .onSuccess { adding = false; name = ""; email = ""; onRoleUpdated() }
-                                    .onFailure { message = it.message ?: localized(language, "Не удалось добавить участника", "Could not add member", "No se pudo añadir al participante", "Mitglied konnte nicht hinzugefügt werden") }
+                                    .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось добавить участника", "Could not add member", "No se pudo añadir al participante", "Mitglied konnte nicht hinzugefügt werden")) }
                                 saving = false
                             }
                         }) {
@@ -12621,7 +12750,7 @@ private fun MembersContent(tripId: String, overview: TripOverview, canEdit: Bool
                                     onRoleUpdated()
                                 }
                                 .onFailure {
-                                    deleteMemberError = it.message ?: localized(language, "Не удалось удалить участника. Проверьте интернет и повторите попытку.", "Could not remove the member. Check your connection and try again.", "No se pudo eliminar al participante. Comprueba la conexión e inténtalo de nuevo.", "Mitglied konnte nicht entfernt werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.")
+                                    deleteMemberError = localizedFailure(language, it, localized(language, "Не удалось удалить участника. Проверьте интернет и повторите попытку.", "Could not remove the member. Check your connection and try again.", "No se pudo eliminar al participante. Comprueba la conexión e inténtalo de nuevo.", "Mitglied konnte nicht entfernt werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
                                 }
                             savingMemberId = null
                         }
@@ -12901,7 +13030,7 @@ private fun BudgetContent(
             }.onFailure {
                 manualRates = previousRates
                 amountInput = previousAmountInput
-                rateError = it.message ?: localized(language, "Не удалось сохранить курс", "Could not save the rate", "No se pudo guardar el tipo", "Kurs konnte nicht gespeichert werden")
+                rateError = localizedFailure(language, it, localized(language, "Не удалось сохранить курс", "Could not save the rate", "No se pudo guardar el tipo", "Kurs konnte nicht gespeichert werden"))
             }
             savingRate = false
         }
@@ -12947,7 +13076,7 @@ private fun BudgetContent(
             }.onFailure {
                 manualRates = previousRates
                 amountInput = previousAmountInput
-                rateError = it.message ?: localized(language, "Не удалось сбросить курс", "Could not reset the rate", "No se pudo restablecer el tipo", "Kurs konnte nicht zurückgesetzt werden")
+                rateError = localizedFailure(language, it, localized(language, "Не удалось сбросить курс", "Could not reset the rate", "No se pudo restablecer el tipo", "Kurs konnte nicht zurückgesetzt werden"))
             }
             savingRate = false
         }
@@ -13019,7 +13148,7 @@ private fun BudgetContent(
                             .onFailure {
                                 selectedCurrencyCode = previousCurrencyCode
                                 amountInput = previousAmountInput
-                                message = it.message ?: localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось изменить валюту", "Could not change currency", "No se pudo cambiar la moneda", "Währung konnte nicht geändert werden"))
                             }
                         savingCurrency = false
                     }
@@ -13168,7 +13297,7 @@ private fun BudgetContent(
                                 closeExpenseSheet()
                                 onExpenseAdded()
                             }.onFailure {
-                                message = it.message ?: localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось сохранить трату", "Could not save expense", "No se pudo guardar el gasto", "Ausgabe konnte nicht gespeichert werden"))
                             }
                             saving = false
                         }
@@ -13244,7 +13373,7 @@ private fun BudgetContent(
                                 deleteExpenseError = null
                                 onExpenseAdded()
                             }.onFailure {
-                                deleteExpenseError = it.message ?: localized(language, "Не удалось удалить расход", "Could not delete expense", "No se pudo eliminar el gasto", "Ausgabe konnte nicht gelöscht werden")
+                                deleteExpenseError = localizedFailure(language, it, localized(language, "Не удалось удалить расход", "Could not delete expense", "No se pudo eliminar el gasto", "Ausgabe konnte nicht gelöscht werden"))
                             }
                             deletingExpenseId = null
                         }
@@ -14312,13 +14441,13 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
                 onStatusUpdated()
             }.onFailure {
                 orderedAccommodationIds = overview.accommodations.map { it.id }
-                actionMessage = it.message ?: localized(
+                actionMessage = localizedFailure(language, it, localized(
                     language,
                     "Не удалось сохранить порядок жилья. Проверьте интернет и повторите попытку.",
                     "Could not save the lodging order. Check your connection and try again.",
                     "No se pudo guardar el orden del alojamiento. Comprueba la conexión e inténtalo de nuevo.",
                     "Die Reihenfolge der Unterkünfte konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
-                )
+                ))
             }
             savingAccommodationOrder = false
         }
@@ -14521,7 +14650,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
                                             .deleteAccommodation(tripId, accommodationId)
                                     }
                                 }
-                                message = it.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                                message = localizedFailure(language, it, localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden"))
                             }
                             saving = false
                         }
@@ -15141,8 +15270,10 @@ private fun AccommodationCatalogSheet(
     var message by remember { mutableStateOf<String?>(null) }
     var fullScreenPhoto by remember { mutableStateOf<Pair<String, String>?>(null) }
     val visibleCities = (cityOptions + city).filter(String::isNotBlank).distinctBy(::cityFilterKey)
+    val deviceLocation = LocalDeviceLocation.current
     val sortedEntries = entries.sortedWith(
-        compareByDescending<AccommodationCatalogEntry> { it.rating ?: -1.0 }
+        compareBy<AccommodationCatalogEntry> { entry -> deviceLocation?.let { location -> distanceMeters(location, entry.latitude, entry.longitude) } ?: Double.MAX_VALUE }
+            .thenByDescending { it.rating ?: -1.0 }
             .thenByDescending { it.reviewCount ?: 0 }
             .thenBy { it.name.lowercase(Locale.ROOT) },
     )
@@ -15156,7 +15287,7 @@ private fun AccommodationCatalogSheet(
             .onFailure { error ->
                 if (error is CancellationException) throw error
                 entries = emptyList()
-                message = error.message ?: localized(language, "Не удалось загрузить жильё", "Could not load lodging", "No se pudo cargar el alojamiento", "Unterkünfte konnten nicht geladen werden")
+                message = localizedFailure(language, error, localized(language, "Не удалось загрузить жильё", "Could not load lodging", "No se pudo cargar el alojamiento", "Unterkünfte konnten nicht geladen werden"))
             }
         loading = false
     }
@@ -15425,7 +15556,7 @@ private fun AccommodationPlaceDetailsSheet(
                         }.onSuccess {
                             onSaved()
                         }.onFailure { error ->
-                            message = error.message ?: localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden")
+                            message = localizedFailure(language, error, localized(language, "Не удалось сохранить жильё", "Could not save lodging", "No se pudo guardar el alojamiento", "Unterkunft konnte nicht gespeichert werden"))
                         }
                         saving = false
                     }
@@ -15735,13 +15866,13 @@ private fun AccommodationEditSheet(
                 }.onSuccess {
                     onSaved()
                 }.onFailure {
-                    message = it.message ?: localized(
+                    message = localizedFailure(language, it, localized(
                         language,
                         "Не удалось сохранить жильё",
                         "Could not save lodging",
                         "No se pudo guardar el alojamiento",
                         "Unterkunft konnte nicht gespeichert werden",
-                    )
+                    ))
                 }
                 saving = false
             }
@@ -16447,7 +16578,7 @@ private fun AccommodationPhotoManagerSheet(
                                     .padding(d(8f))
                                     .size(d(32f))
                                     .clip(CircleShape)
-                                    .background(Color(0xFFFDE8E7))
+                                    .background(dangerSurfaceColor())
                                     .clickable(enabled = !busy) {
                                         scope.launch {
                                             deletingIndex = index
@@ -16686,7 +16817,7 @@ private fun AccommodationEditPhotoTile(
                 .padding(d(8f))
                 .size(d(32f))
                 .clip(CircleShape)
-                .background(Color(0xFFFDE8E7))
+                .background(dangerSurfaceColor())
                 .clickable(enabled = !busy, onClick = { onDeletePhoto(photoIndex) }),
         ) {
             if (deletingIndex == photoIndex) {
@@ -17196,13 +17327,13 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                 onRouteAdded()
             }.onFailure {
                 orderedRouteIds = overview.routeLegs.map { it.dayId }
-                actionMessage = it.message ?: localized(
+                actionMessage = localizedFailure(language, it, localized(
                     language,
                     "Не удалось сохранить порядок маршрута. Проверьте интернет и повторите попытку.",
                     "Could not save the route order. Check your connection and try again.",
                     "No se pudo guardar el orden de la ruta. Comprueba la conexión e inténtalo de nuevo.",
                     "Die Reihenfolge der Route konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
-                )
+                ))
             }
             savingRouteOrder = false
         }
@@ -17345,7 +17476,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                             saving = true
                             runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "days", leg.dayId) }
                                 .onSuccess { adding = false; editingLeg = null; onRouteAdded() }
-                                .onFailure { message = it.message ?: localized(language, "Не удалось удалить день", "Could not delete day", "No se pudo eliminar el día", "Tag konnte nicht gelöscht werden") }
+                                .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось удалить день", "Could not delete day", "No se pudo eliminar el día", "Tag konnte nicht gelöscht werden")) }
                             saving = false
                         }
                     }
@@ -17387,7 +17518,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                                 weekday = dateValues.weekday,
                             )
                         }.onSuccess { adding = false; editingLeg = null; datePickerOpen = false; from = ""; to = ""; checkIn = ""; checkOut = ""; notes = ""; mapsUrl = ""; selectedDateIso = ""; onRouteAdded() }
-                            .onFailure { message = it.message ?: localized(language, "Не удалось сохранить переезд", "Could not save route leg", "No se pudo guardar el trayecto", "Etappe konnte nicht gespeichert werden") }
+                            .onFailure { message = localizedFailure(language, it, localized(language, "Не удалось сохранить переезд", "Could not save route leg", "No se pudo guardar el trayecto", "Etappe konnte nicht gespeichert werden")) }
                         saving = false
                     }
                 },
@@ -18250,7 +18381,7 @@ private fun OverviewContent(
                 photoIndex = overview.coverPhotos.size
                 onChanged()
             }.onFailure {
-                actionMessage = it.message ?: localized(language, "Не удалось загрузить фото", "Could not upload the photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden")
+                actionMessage = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload the photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden"))
             }
             uploadingPhoto = false
         }
@@ -18340,7 +18471,7 @@ private fun OverviewContent(
                     runCatching {
                         SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(tripId, "overviewMapPoints", buildJsonArray { selectedMapCities.forEach { add(JsonPrimitive(it)) } })
                     }.onSuccess { editSheet = null; actionMessage = null; onChanged() }
-                        .onFailure { actionMessage = it.message ?: localized(language, "Не удалось сохранить карту", "Could not save the map", "No se pudo guardar el mapa", "Die Karte konnte nicht gespeichert werden") }
+                        .onFailure { actionMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить карту", "Could not save the map", "No se pudo guardar el mapa", "Die Karte konnte nicht gespeichert werden")) }
                     savingSettings = false
                 }
             },
@@ -18361,7 +18492,7 @@ private fun OverviewContent(
                     runCatching {
                         SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(tripId, "overviewWeatherCities", buildJsonArray { selectedWeatherCities.forEach { add(JsonPrimitive(it)) } })
                     }.onSuccess { editSheet = null; actionMessage = null; onChanged() }
-                        .onFailure { actionMessage = it.message ?: localized(language, "Не удалось сохранить города погоды", "Could not save weather cities", "No se pudieron guardar las ciudades del tiempo", "Wetterstädte konnten nicht gespeichert werden") }
+                        .onFailure { actionMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить города погоды", "Could not save weather cities", "No se pudieron guardar las ciudades del tiempo", "Wetterstädte konnten nicht gespeichert werden")) }
                     savingSettings = false
                 }
             },
@@ -18892,7 +19023,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                     .fillMaxWidth()
                     .padding(top = 13.dp)
                     .height(6.dp)
-                    .background(Color(0xFFEEEEF2), RoundedCornerShape(4.dp)),
+                    .background(trackColor(), RoundedCornerShape(4.dp)),
             ) {
                 Box(
                     modifier = Modifier
@@ -19086,7 +19217,7 @@ private fun RamingoSplash(
                 modifier = Modifier.padding(top = 24.dp),
             )
             Text(
-                text = "Планируй. Путешествуй. Запоминай.",
+                text = localized("Планируй. Путешествуй. Запоминай.", "Plan. Travel. Remember.", "Planifica. Viaja. Recuerda.", "Plane. Reise. Erinnerungen."),
                 color = Color.White.copy(alpha = 0.78f),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
