@@ -35,10 +35,7 @@ data class PetCatalogEntry(
     val photoAttribution: String? = null,
     val isLiveResult: Boolean = true,
     val openNow: Boolean? = null,
-) {
-    val typeLabel: String
-        get() = if (type == "vet") "Ветеринарная клиника" else "Зоомагазин"
-}
+)
 
 @Serializable
 private data class PetCatalogResponse(val petPlaces: List<PetCatalogResponsePlace> = emptyList())
