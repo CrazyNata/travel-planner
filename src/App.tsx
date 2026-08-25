@@ -1433,6 +1433,78 @@ function mapLocation(city: string) {
   )?.[1];
 }
 
+type BrowserLocationState = {
+  status: "idle" | "loading" | "ready" | "error";
+  coordinates?: [number, number];
+  accuracy?: number;
+  message?: string;
+};
+
+function useBrowserLocation() {
+  const [state, setState] = useState<BrowserLocationState>({ status: "idle" });
+
+  const request = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setState({
+        status: "error",
+        message: "Этот браузер не поддерживает геолокацию.",
+      });
+      return;
+    }
+    setState({ status: "loading" });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setState({
+          status: "ready",
+          coordinates: [position.coords.longitude, position.coords.latitude],
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Разрешите доступ к геолокации в настройках браузера."
+            : error.code === error.TIMEOUT
+              ? "Не удалось определить местоположение вовремя."
+              : "Не удалось определить местоположение.";
+        setState({ status: "error", message });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+
+  return { state, request };
+}
+
+function BrowserLocationButton({
+  state,
+  onRequest,
+}: {
+  state: BrowserLocationState;
+  onRequest: () => void;
+}) {
+  const label =
+    state.status === "ready"
+      ? "Моё местоположение найдено"
+      : state.message || "Найти меня на карте";
+  return (
+    <button
+      type="button"
+      className={`map-location-button${state.status === "error" ? " error" : ""}${state.status === "ready" ? " ready" : ""}`}
+      aria-label={label}
+      title={label}
+      aria-busy={state.status === "loading"}
+      disabled={state.status === "loading"}
+      onClick={onRequest}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="7" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    </button>
+  );
+}
+
 function routeSegmentsFor(days: DraftDay[]) {
   return days.flatMap((day, dayIndex) => {
     const leg = day.roadLeg;
@@ -1518,6 +1590,7 @@ function StaticTripMap({
   markerClassName = "map-marker",
   connectWaypoints = true,
   onMarkerClick,
+  userLocation,
 }: {
   coordinates: [number, number][];
   routeCoordinates?: [number, number][];
@@ -1527,21 +1600,25 @@ function StaticTripMap({
   markerClassName?: string;
   connectWaypoints?: boolean;
   onMarkerClick?: (index: number) => void;
+  userLocation?: [number, number];
 }) {
-  if (!coordinates.length) {
+  if (!coordinates.length && !userLocation) {
     return <div className={`${mapClassName} map-unavailable`}>Добавьте города или места, чтобы увидеть их на карте.</div>;
   }
   const focusCoordinates =
     focusIndex !== undefined && coordinates.length > 1
       ? coordinates.slice(focusIndex, focusIndex + 2)
       : coordinates;
+  const mapFocusCoordinates = userLocation
+    ? [...focusCoordinates, userLocation]
+    : focusCoordinates;
   const lineCoordinates = routeCoordinates && routeCoordinates.length > 1
     ? routeCoordinates
     : coordinates;
-  const zoom = staticMapZoom(focusCoordinates);
+  const zoom = staticMapZoom(mapFocusCoordinates);
   const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
   const linePoints = lineCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
-  const focusPoints = focusCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
+  const focusPoints = mapFocusCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
   const minX = Math.min(...focusPoints.map(([x]) => x));
   const maxX = Math.max(...focusPoints.map(([x]) => x));
   const minY = Math.min(...focusPoints.map(([, y]) => y));
@@ -1556,6 +1633,15 @@ function StaticTripMap({
     STATIC_MAP_WIDTH / 2 + x - centerX,
     STATIC_MAP_HEIGHT / 2 + y - centerY,
   ]);
+  const positionedUserPoint = userLocation
+    ? (() => {
+        const [x, y] = staticMapWorldPoint(userLocation, zoom);
+        return [
+          STATIC_MAP_WIDTH / 2 + x - centerX,
+          STATIC_MAP_HEIGHT / 2 + y - centerY,
+        ];
+      })()
+    : undefined;
   const tileCenterX = Math.floor(centerX / 256);
   const tileCenterY = Math.floor(centerY / 256);
   const tileCount = 5;
@@ -1617,6 +1703,17 @@ function StaticTripMap({
             {index + 1}
           </button>
         ))}
+        {positionedUserPoint && (
+          <span
+            className="map-user-location-static"
+            style={{
+              left: `${(positionedUserPoint[0] / STATIC_MAP_WIDTH) * 100}%`,
+              top: `${(positionedUserPoint[1] / STATIC_MAP_HEIGHT) * 100}%`,
+            }}
+            title="Ваше местоположение"
+            aria-label="Ваше местоположение"
+          />
+        )}
         <small className="static-map-attribution">© OpenStreetMap contributors</small>
       </div>
     </div>
@@ -4648,6 +4745,7 @@ function TripMap({
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef<HTMLSpanElement[]>([]);
+  const browserLocation = useBrowserLocation();
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
   const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
@@ -4683,6 +4781,7 @@ function TripMap({
     .join("|");
   const locationKey = location?.join(",") || "";
   const placesKey = places.join("|");
+  const browserLocationKey = browserLocation.state.coordinates?.join(",") || "";
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -4690,6 +4789,7 @@ function TripMap({
     let disposed = false;
     let map: Map | undefined;
     let resizeObserver: ResizeObserver | undefined;
+    const userCoordinates = browserLocation.state.coordinates;
 
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
@@ -4697,11 +4797,17 @@ function TripMap({
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
-        center: routeCoordinates[0] ?? location ?? mapLocations["Москва"],
-        zoom: routeCoordinates.length ? 5 : location ? 12 : 3,
+        center: userCoordinates ?? routeCoordinates[0] ?? location ?? mapLocations["Москва"],
+        zoom: userCoordinates ? 13 : routeCoordinates.length ? 5 : location ? 12 : 3,
         attributionControl: true,
       });
       mapRef.current = map;
+      if (userCoordinates) {
+        const element = document.createElement("span");
+        element.className = "map-user-location-marker";
+        element.title = "Ваше местоположение";
+        new mapboxgl.Marker({ element }).setLngLat(userCoordinates).addTo(map);
+      }
       resizeObserver = new ResizeObserver(() => map?.resize());
       resizeObserver.observe(container.current);
       map.addControl(
@@ -4779,6 +4885,9 @@ function TripMap({
             .slice(1)
             .forEach((coordinate) => bounds.extend(coordinate));
           map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
+          if (userCoordinates) {
+            map!.flyTo({ center: userCoordinates, zoom: 14, duration: 700, essential: true });
+          }
         });
       } else if (location && places.length) {
         const coordinates = fallbackCoordinates;
@@ -4807,6 +4916,9 @@ function TripMap({
               "line-opacity": 0.72,
             },
           });
+          if (userCoordinates) {
+            map!.flyTo({ center: userCoordinates, zoom: 14, duration: 700, essential: true });
+          }
         });
       }
     });
@@ -4818,7 +4930,7 @@ function TripMap({
       mapRef.current = null;
       markerElements.current = [];
     };
-  }, [city, locationKey, placesKey, routeKey]);
+  }, [city, locationKey, placesKey, routeKey, browserLocationKey]);
 
   useEffect(() => {
     const routePoint = routePointIndexFor(displayedRouteDays, activeDay);
@@ -4877,18 +4989,25 @@ function TripMap({
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
-      <StaticTripMap
-        coordinates={fallbackCoordinates}
-        activeDay={activeRoutePoint}
-        focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
-      />
+      <div className="map-location-wrap">
+        <StaticTripMap
+          coordinates={fallbackCoordinates}
+          activeDay={activeRoutePoint}
+          focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
+          userLocation={browserLocation.state.coordinates}
+        />
+        <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+      </div>
     );
   return (
-    <div
-      ref={container}
-      className="map"
-      aria-label={city ? `Карта ${city}` : "Карта путешествия"}
-    />
+    <div className="map-location-wrap">
+      <div
+        ref={container}
+        className="map"
+        aria-label={city ? `Карта ${city}` : "Карта путешествия"}
+      />
+      <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+    </div>
   );
 }
 
@@ -6658,6 +6777,7 @@ function RestaurantMap({
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
+  const browserLocation = useBrowserLocation();
   const [resolvedCoordinates, setResolvedCoordinates] = useState<Record<string, [number, number]>>({});
   const isCoordinate = (value: ImportedRestaurant["lnglat"]): value is [number, number] =>
     Array.isArray(value) && value.length >= 2 && Number.isFinite(value[0]) && Number.isFinite(value[1]) &&
@@ -6751,10 +6871,12 @@ function RestaurantMap({
     ).values(),
   );
   const mapKey = points.map(({ place, coordinate }) => `${place.id}:${coordinate.join(",")}`).join(";");
+  const browserLocationKey = browserLocation.state.coordinates?.join(",") || "";
   useEffect(() => {
     if (!container.current || !points.length) return;
     let disposed = false;
     let map: Map | undefined;
+    const userCoordinates = browserLocation.state.coordinates;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -6762,11 +6884,17 @@ function RestaurantMap({
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
-        center: points[0].coordinate,
-        zoom: routePoints.length > 1 ? 5 : 12,
+        center: userCoordinates ?? points[0].coordinate,
+        zoom: userCoordinates ? 13 : routePoints.length > 1 ? 5 : 12,
         attributionControl: true,
       });
       mapRef.current = map;
+      if (userCoordinates) {
+        const element = document.createElement("span");
+        element.className = "map-user-location-marker";
+        element.title = "Ваше местоположение";
+        new mapboxgl.Marker({ element }).setLngLat(userCoordinates).addTo(map);
+      }
       markerElements.current.clear();
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
       points.forEach(({ place, coordinate }, index) => {
@@ -6803,6 +6931,9 @@ function RestaurantMap({
         const bounds = new mapboxgl.LngLatBounds(points[0].coordinate, points[0].coordinate);
         points.slice(1).forEach(({ coordinate }) => bounds.extend(coordinate));
         map!.fitBounds(bounds, { padding: 54, maxZoom: routePoints.length > 1 ? 8 : 14 });
+        if (userCoordinates) {
+          map!.flyTo({ center: userCoordinates, zoom: 14, duration: 700, essential: true });
+        }
       });
     });
     return () => {
@@ -6811,7 +6942,7 @@ function RestaurantMap({
       mapRef.current = null;
       markerElements.current.clear();
     };
-  }, [mapKey]);
+  }, [mapKey, browserLocationKey]);
   useEffect(() => {
     if (!activeRestaurantId) return;
     const marker = markerElements.current.get(activeRestaurantId);
@@ -6830,21 +6961,30 @@ function RestaurantMap({
     : -1;
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return (
-      <StaticTripMap
-        coordinates={points.map(({ coordinate }) => coordinate)}
-        activeDay={activeIndex >= 0 ? activeIndex : undefined}
-        focusIndex={activeIndex >= 0 ? activeIndex : undefined}
-        mapClassName="restaurant-map"
-        markerClassName="sight-map-marker restaurant-map-marker"
-        connectWaypoints={false}
-        onMarkerClick={(index) => {
-          const point = points[index];
-          if (point) onSelect(point.place.id);
-        }}
-      />
+      <div className="map-location-wrap">
+        <StaticTripMap
+          coordinates={points.map(({ coordinate }) => coordinate)}
+          activeDay={activeIndex >= 0 ? activeIndex : undefined}
+          focusIndex={activeIndex >= 0 ? activeIndex : undefined}
+          mapClassName="restaurant-map"
+          markerClassName="sight-map-marker restaurant-map-marker"
+          connectWaypoints={false}
+          userLocation={browserLocation.state.coordinates}
+          onMarkerClick={(index) => {
+            const point = points[index];
+            if (point) onSelect(point.place.id);
+          }}
+        />
+        <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+      </div>
     );
   }
-  return <div className="restaurant-map" ref={container} aria-label="Карта ресторанов" />;
+  return (
+    <div className="map-location-wrap">
+      <div className="restaurant-map" ref={container} aria-label="Карта ресторанов" />
+      <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+    </div>
+  );
 }
 
 function RestaurantPage({
@@ -11864,6 +12004,7 @@ function WalkingMap({
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerElements = useRef(new globalThis.Map<string, HTMLSpanElement>());
+  const browserLocation = useBrowserLocation();
   const [stats, setStats] = useState<{
     distance: number;
     duration: number;
@@ -11900,6 +12041,7 @@ function WalkingMap({
   const routeKey = sightPoints
     .map(({ sight, coordinate }) => `${sight.id}:${coordinate.join(",")}`)
     .join(";");
+  const browserLocationKey = browserLocation.state.coordinates?.join(",") || "";
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -11941,17 +12083,24 @@ function WalkingMap({
       return;
     let map: Map | undefined;
     let disposed = false;
+    const userCoordinates = browserLocation.state.coordinates;
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       if (token) mapboxgl.accessToken = token;
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
-        center: coordinates[0] || fallbackLocation!,
-        zoom: coordinates.length ? 13 : 11,
+        center: userCoordinates || coordinates[0] || fallbackLocation!,
+        zoom: userCoordinates ? 13 : coordinates.length ? 13 : 11,
         attributionControl: true,
       });
       mapRef.current = map;
+      if (userCoordinates) {
+        const element = document.createElement("span");
+        element.className = "map-user-location-marker";
+        element.title = "Ваше местоположение";
+        new mapboxgl.Marker({ element }).setLngLat(userCoordinates).addTo(map);
+      }
       markerElements.current.clear();
       map.addControl(
         new mapboxgl.NavigationControl({ showCompass: false }),
@@ -11997,6 +12146,9 @@ function WalkingMap({
         );
         coordinates.slice(1).forEach((coordinate) => bounds.extend(coordinate));
         map!.fitBounds(bounds, { padding: 38, maxZoom: 14 });
+        if (userCoordinates) {
+          map!.flyTo({ center: userCoordinates, zoom: 15, duration: 700, essential: true });
+        }
       });
     });
     return () => {
@@ -12005,7 +12157,7 @@ function WalkingMap({
       mapRef.current = null;
       markerElements.current.clear();
     };
-  }, [routeKey, city, routeCoordinates, onFocusSight]);
+  }, [routeKey, city, routeCoordinates, onFocusSight, browserLocationKey]);
   useEffect(() => {
     if (!activeSightId) return;
     const marker = markerElements.current.get(activeSightId);
@@ -12048,18 +12200,22 @@ function WalkingMap({
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
     return (
       <div className="walking-map-wrap">
-        <StaticTripMap
-          coordinates={coordinates}
-          routeCoordinates={routeCoordinates || undefined}
-          activeDay={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
-          focusIndex={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
-          mapClassName="walking-map"
-          markerClassName="sight-map-marker"
-          onMarkerClick={(index) => {
-            const sight = sightPoints[index]?.sight;
-            if (sight) onFocusSight?.(sight);
-          }}
-        />
+        <div className="map-location-wrap">
+          <StaticTripMap
+            coordinates={coordinates}
+            routeCoordinates={routeCoordinates || undefined}
+            activeDay={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
+            focusIndex={staticActiveIndex >= 0 ? staticActiveIndex : undefined}
+            mapClassName="walking-map"
+            markerClassName="sight-map-marker"
+            userLocation={browserLocation.state.coordinates}
+            onMarkerClick={(index) => {
+              const sight = sightPoints[index]?.sight;
+              if (sight) onFocusSight?.(sight);
+            }}
+          />
+          <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+        </div>
         <footer>
           <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
           <b>{`${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}</b>
@@ -12069,7 +12225,10 @@ function WalkingMap({
   }
   return (
     <div className="walking-map-wrap">
-      <div className="walking-map" ref={container} />
+      <div className="map-location-wrap">
+        <div className="walking-map" ref={container} />
+        <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+      </div>
       <footer>
         <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
         <b>

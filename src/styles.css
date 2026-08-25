@@ -3974,6 +3974,41 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   overflow: hidden;
   background: #e4eae4;
 }
+.map-location-wrap {
+  position: relative;
+}
+.map-location-button {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  right: 58px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d9d6e7;
+  border-radius: 11px;
+  background: #fff;
+  padding: 0;
+  color: #5e55df;
+  box-shadow: 0 5px 14px #29253b1c;
+  cursor: pointer;
+  transition: border-color .18s, background .18s, color .18s, transform .18s;
+}
+.map-location-button:hover { border-color: #aaa4f2; background: #f5f3ff; transform: translateY(-1px); }
+.map-location-button:focus-visible { outline: 3px solid #5e55df33; outline-offset: 2px; }
+.map-location-button:disabled { cursor: wait; opacity: .72; }
+.map-location-button.error { border-color: #f0b1b1; color: #d45b5b; }
+.map-location-button.ready { border-color: #aaa4f2; background: #eeeaff; }
+.map-location-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }
+.map-user-location-marker {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #3478f6;
+  box-shadow: 0 0 0 7px #3478f633, 0 2px 8px #1f2a4a66;
+}
 .static-map {
   position: relative;
   height: 100%;
@@ -4066,6 +4101,17 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 }
 .static-map-marker.active {
   transform: translate(-50%, -50%) scale(1.24);
+}
+.map-user-location-static {
+  position: absolute;
+  z-index: 4;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #3478f6;
+  box-shadow: 0 0 0 7px #3478f633, 0 2px 8px #1f2a4a66;
 }
 .static-map-attribution {
   position: absolute;
