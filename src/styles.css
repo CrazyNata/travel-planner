@@ -7375,12 +7375,25 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .google-rating { border-color: #4a4d60; background: #2b3143; color: #d8ddeb; }
 .app.app-dark .restaurant-catalog-card-photo,
 .app.app-dark .accommodation-catalog-card-photo { background: linear-gradient(135deg, #292847, #252c42); }
+.app.app-dark .pets-page {
+  max-width: 1120px;
+  margin: 0 auto 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 30px 32px 44px;
+  box-shadow: none;
+}
 
 /* Pets used to carry an unconditional dark block.  It now follows the same
    switch as every other tab, so turning the theme off restores the light UI. */
 .app:not(.app-dark) .pets-page {
+  max-width: 1120px;
+  margin: 0 auto;
   border-color: transparent;
+  border-radius: 0;
   background: transparent;
+  padding: 10px 0 72px;
   color: #1b1c1f;
   box-shadow: none;
   color-scheme: light;
