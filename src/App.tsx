@@ -11225,7 +11225,37 @@ function TripOverview({
       cancelled = true;
     };
   }, [trip.id, trip.coverPhotos]);
-  const reorderCoverPhotos = (_from: number, _to: number) => undefined;
+  const reorderCoverPhotos = (from: number, to: number) => {
+    if (
+      from === to ||
+      from < 0 ||
+      to < 0 ||
+      from >= coverPhotos.length ||
+      to >= coverPhotos.length
+    ) {
+      return;
+    }
+
+    const activePhotoId = activeCover?.id;
+    const nextPhotos = [...coverPhotos];
+    const [movedPhoto] = nextPhotos.splice(from, 1);
+    if (!movedPhoto) return;
+    nextPhotos.splice(to, 0, movedPhoto);
+
+    const nextActiveIndex = activePhotoId
+      ? nextPhotos.findIndex((photo) => photo.id === activePhotoId)
+      : activePhoto;
+    setActivePhoto(
+      nextActiveIndex >= 0
+        ? nextActiveIndex
+        : Math.min(activePhoto, Math.max(0, nextPhotos.length - 1)),
+    );
+    onUpdateTrip({
+      ...trip,
+      coverImage: nextPhotos[0]?.image,
+      coverPhotos: nextPhotos,
+    });
+  };
   if (trip.isDraft && !activeCover)
     return (
       <div className="trip-overview">
