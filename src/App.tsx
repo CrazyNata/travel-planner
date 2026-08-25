@@ -32,6 +32,7 @@ type Tab =
   | "accommodation"
   | "bookings"
   | "budget"
+  | "pets"
   | "photos"
   | "members";
 type RoadLeg = {
@@ -156,6 +157,19 @@ type TripMember = {
   role: "Владелец" | "Редактор" | "Читатель";
   tone: "sand" | "green" | "blue";
 };
+type PetPlace = {
+  id: string;
+  name: string;
+  city: string;
+  type: "shop" | "vet";
+  address: string;
+  rating?: number;
+  reviewCount?: number;
+  photoUrl?: string;
+  mapsUrl?: string;
+  note?: string;
+  phone?: string;
+};
 type RememberedAccount = {
   email: string;
   name: string;
@@ -189,6 +203,7 @@ type TripSummary = {
   budgetExpenses?: BudgetExpense[];
   budgetSplit?: BudgetSplit;
   budgetCurrency?: BudgetCurrency;
+  petPlaces?: PetPlace[];
   members?: TripMember[];
   publicLinkEnabled?: boolean;
   published?: boolean;
@@ -505,6 +520,7 @@ type StoredTripPayload = {
       sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
       sightDaysVersion?: number;
       sightNotes?: Record<string, string>;
+      petPlaces?: PetPlace[];
       members?: TripMember[];
       publicLinkEnabled?: boolean;
       published?: boolean;
@@ -816,6 +832,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     sightDays: payload.data?.trip?.sightDays,
     sightDaysVersion: payload.data?.trip?.sightDaysVersion,
     sightNotes: payload.data?.trip?.sightNotes,
+    petPlaces: payload.data?.trip?.petPlaces,
     members: payload.data?.trip?.members,
     publicLinkEnabled: payload.data?.trip?.publicLinkEnabled,
     published: payload.data?.trip?.published,
@@ -12738,6 +12755,161 @@ function SightNotes({
   );
 }
 
+const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
+  {
+    name: "Fressnapf",
+    type: "shop",
+    rating: 4.5,
+    reviewCount: 475,
+    photoUrl: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=640&q=80",
+    note: "Корм, аксессуары и всё для путешествий с питомцем.",
+  },
+  {
+    name: "Tierarztzentrum am Stadtpark",
+    type: "vet",
+    rating: 4.8,
+    reviewCount: 308,
+    photoUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=640&q=80",
+    note: "Ветеринарная клиника с экстренной помощью.",
+  },
+  {
+    name: "Zoo & Co.",
+    type: "shop",
+    rating: 4.4,
+    reviewCount: 382,
+    photoUrl: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=640&q=80",
+    note: "Зоомагазин рядом с центром города.",
+  },
+  {
+    name: "AniCura Veterinary Clinic",
+    type: "vet",
+    rating: 4.6,
+    reviewCount: 242,
+    photoUrl: "https://images.unsplash.com/photo-1556760544-74068565f05c?auto=format&fit=crop&w=640&q=80",
+    note: "Приём по записи и консультации для собак и кошек.",
+  },
+];
+
+function tripPetCities(trip: TripSummary) {
+  const routeCities = (trip.days || []).flatMap((day) =>
+    day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+  );
+  return Array.from(
+    new Set(
+      [...routeCities, ...(trip.cities || "").split(/[·,]/)]
+        .map((city) => city.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function petCatalogForCities(cities: string[]): PetPlace[] {
+  return cities.slice(0, 8).flatMap((city, cityIndex) =>
+    petCatalogSeeds.map((seed, index) => ({
+      ...seed,
+      id: `pet-catalog-${cityIndex}-${index}`,
+      city,
+      address: `${index % 2 === 0 ? "Hauptstraße 18" : "Stadtpark 4"}, ${city}`,
+      mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${seed.name}, ${city}`)}`,
+    })),
+  );
+}
+
+function PetPlaceForm({
+  initial,
+  defaultCity,
+  onClose,
+  onSave,
+}: {
+  initial?: PetPlace;
+  defaultCity: string;
+  onClose: () => void;
+  onSave: (place: PetPlace) => void;
+}) {
+  const [name, setName] = useState(initial?.name || "");
+  const [city, setCity] = useState(initial?.city || defaultCity);
+  const [type, setType] = useState<PetPlace["type"]>(initial?.type || "shop");
+  const [address, setAddress] = useState(initial?.address || "");
+  const [note, setNote] = useState(initial?.note || "");
+  return (
+    <div className="pets-form-backdrop" onClick={onClose}>
+      <form className="pets-form-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => {
+        event.preventDefault();
+        if (!name.trim() || !city.trim()) return;
+        onSave({
+          id: initial?.id || crypto.randomUUID(),
+          name: name.trim(),
+          city: city.trim(),
+          type,
+          address: address.trim(),
+          note: note.trim(),
+          photoUrl: initial?.photoUrl,
+          rating: initial?.rating,
+          reviewCount: initial?.reviewCount,
+          mapsUrl: initial?.mapsUrl,
+        });
+      }}>
+        <header><div><small>ПИТОМЦЫ</small><h2>{initial ? "Редактировать место" : "Добавить место"}</h2></div><button type="button" onClick={onClose}>×</button></header>
+        <label>Название<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Например, Fressnapf" autoFocus /></label>
+        <div className="pets-form-grid"><label>Город<input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Город" /></label><label>Адрес<input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Адрес" /></label></div>
+        <section><b>Тип места</b><div className="pets-choice-row"><button type="button" className={type === "shop" ? "active" : ""} onClick={() => setType("shop")}>Зоомагазин</button><button type="button" className={type === "vet" ? "active" : ""} onClick={() => setType("vet")}>Ветеринар</button></div></section>
+        <label>Описание<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Что важно знать" rows={3} /></label>
+        <footer><button type="button" onClick={onClose}>Отмена</button><button className="accent" type="submit">Сохранить</button></footer>
+      </form>
+    </div>
+  );
+}
+
+function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: TripSummary) => void }) {
+  const cities = tripPetCities(trip);
+  const cityOptions = ["Все города", ...cities];
+  const [selectedCity, setSelectedCity] = useState("Все города");
+  const [selectedType, setSelectedType] = useState<PetPlace["type"]>("shop");
+  const [query, setQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [minRating, setMinRating] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [editing, setEditing] = useState<PetPlace | undefined>();
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
+  const saved = trip.petPlaces || [];
+  const catalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
+  const filterCount = Number(Boolean(selectedCity !== "Все города")) + Number(Boolean(minRating));
+  const matches = (place: PetPlace) => {
+    const haystack = `${place.name} ${place.city} ${place.address} ${place.note || ""}`.toLocaleLowerCase("ru-RU");
+    return place.type === selectedType &&
+      (selectedCity === "Все города" || place.city === selectedCity) &&
+      (!query.trim() || haystack.includes(query.trim().toLocaleLowerCase("ru-RU"))) &&
+      (!minRating || (place.rating || 0) >= Number(minRating));
+  };
+  const visibleSaved = saved.filter(matches);
+  const visibleCatalog = catalog.filter((place) => !saved.some((item) => item.id === place.id || (item.name === place.name && item.city === place.city))).filter(matches);
+  const savePlace = (place: PetPlace) => {
+    const next = saved.some((item) => item.id === place.id) ? saved.map((item) => item.id === place.id ? place : item) : [...saved, place];
+    onUpdateTrip({ ...trip, petPlaces: next });
+    setManualOpen(false);
+    setEditing(undefined);
+  };
+  const addCatalogPlace = (place: PetPlace) => savePlace({ ...place, id: crypto.randomUUID() });
+  return (
+    <section className="pets-page">
+      <div className="pets-heading"><div><p className="eyebrow">ПО МАРШРУТУ</p><h1>Питомцы</h1><span>Места для заботы о питомцах в городах поездки</span></div><button className="accent" type="button" onClick={() => { setEditing(undefined); setManualOpen(true); }}>＋ Добавить место</button></div>
+      <div className="pets-toolbar"><label className="pets-city-field"><span>Город</span><select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}>{cityOptions.map((city) => <option key={city}>{city}</option>)}</select></label><label className="pets-search"><span>Поиск по каталогу</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название, адрес или город" /></label><button className="pets-filter-button" type="button" aria-expanded={filterOpen} onClick={() => setFilterOpen((open) => !open)}>☷ Фильтры <b>{filterCount}</b></button></div>
+      {filterOpen && <div className="pets-filter-panel"><div><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><button type="button" className="pets-filter-reset" onClick={() => { setSelectedCity("Все города"); setMinRating(""); }}>Сбросить</button></div>}
+      <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
+      <button className="pets-manual-card" type="button" onClick={() => { setEditing(undefined); setManualOpen(true); }}><span>＋</span><div><b>Добавить место вручную</b><small>Если его нет в каталоге</small></div><i>›</i></button>
+      {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
+      <div className="pets-section-title-row"><h2 className="pets-section-title">Из каталога</h2><span>{visibleCatalog.length} мест</span></div><div className="pets-grid">{visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      {!visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
+      {manualOpen && <PetPlaceForm initial={editing} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
+      {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
+    </section>
+  );
+}
+
+function PetCard({ place, saved = false, onPhoto, onAdd, onEdit, onDelete }: { place: PetPlace; saved?: boolean; onPhoto: (url: string) => void; onAdd?: () => void; onEdit?: () => void; onDelete?: () => void }) {
+  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions">{place.mapsUrl && <a href={place.mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>}{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
+}
+
 function Workspace({
   go,
   trip,
@@ -13002,6 +13174,7 @@ function Workspace({
         ["restaurants", "Рестораны"],
         ["accommodation", "Жильё"],
         ["budget", "Бюджет"],
+        ["pets", "Питомцы"],
         ["members", "Участники"],
         ["photos", "Фото"],
       ]
@@ -13011,6 +13184,7 @@ function Workspace({
         ["accommodation", "Жильё"],
         ["bookings", "Транспорт и билеты"],
         ["budget", "Бюджет"],
+        ["pets", "Питомцы"],
         ["members", "Участники"],
         ["photos", "Фото"],
       ];
@@ -13271,6 +13445,7 @@ function Workspace({
         {tab === "budget" && (
           <Budget trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
+        {tab === "pets" && <Pets trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "photos" && (
           <Photos trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
@@ -14023,9 +14198,10 @@ export function App() {
     "sights",
     "restaurants",
     "accommodation",
-    "bookings",
-    "budget",
-    "photos",
+        "bookings",
+        "budget",
+        "pets",
+        "photos",
     "members",
   ] as Tab[]).includes(tripMatch?.params.tab as Tab)
     ? (tripMatch?.params.tab as Tab)
@@ -14271,6 +14447,7 @@ export function App() {
           sightDays: trip.sightDays,
           sightDaysVersion: trip.sightDaysVersion,
           sightNotes: trip.sightNotes,
+          petPlaces: trip.petPlaces,
           members: trip.members,
           publicLinkEnabled: trip.publicLinkEnabled,
           published: trip.published,
