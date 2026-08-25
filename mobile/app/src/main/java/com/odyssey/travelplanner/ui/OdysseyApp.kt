@@ -257,8 +257,7 @@ import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.supervisorScope
@@ -5883,6 +5882,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
     val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
     var overview by remember { mutableStateOf<TripOverview?>(null) }
     var weather by remember { mutableStateOf<Map<String, WeatherSnapshot>>(emptyMap()) }
+    var weatherLoading by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(true) }
     var tab by remember { mutableStateOf("overview") }
     var overviewEditMode by remember { mutableStateOf(false) }
@@ -5904,12 +5904,15 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
         }.onFailure { loadError = it.message }.getOrNull()
         if (loadedOverview == null) {
             if (!hadOverview) overview = null
+            weather = emptyMap()
+            weatherLoading = false
             loading = false
             return@LaunchedEffect
         }
 
         overview = loadedOverview
         loading = false
+        weatherLoading = true
 
         loadedOverview.let { trip ->
             val routeCities = trip.overviewMapPoints.ifEmpty {
@@ -5927,6 +5930,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
             weather = runCatching {
                 weatherRepository.loadCurrent(cities, trip.dates, catalogCoordinates + trip.cityCoordinates)
             }.getOrDefault(emptyMap())
+            weatherLoading = false
         }
     }
 
@@ -6080,6 +6084,7 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                     tripId = tripId,
                     overview = overview!!,
                     weather = weather,
+                    weatherLoading = weatherLoading,
                     editMode = overviewEditMode,
                     onChanged = { refresh++ },
                 )
@@ -8614,6 +8619,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     var catalogEntries by remember { mutableStateOf<List<PetCatalogEntry>>(emptyList()) }
     var loadingCatalog by remember { mutableStateOf(false) }
     var catalogMessage by remember { mutableStateOf<String?>(null) }
+    var catalogRequestVersion by remember { mutableStateOf(0) }
     var cityMenuOpen by remember { mutableStateOf(false) }
     var filterMenuOpen by remember { mutableStateOf(false) }
     var appliedFilters by remember { mutableStateOf(PetFilterState()) }
@@ -8644,38 +8650,52 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     }
 
     LaunchedEffect(selectedCity, selectedType, query, language, tripCityOptions.joinToString("|")) {
+        val requestVersion = catalogRequestVersion + 1
+        catalogRequestVersion = requestVersion
+        catalogEntries = emptyList()
+        catalogMessage = null
+        loadingCatalog = true
         delay(if (query.isBlank()) 150L else 350L)
         val citiesToSearch = if (selectedCity == "Все города") tripCityOptions.take(6) else listOf(selectedCity)
         if (citiesToSearch.isEmpty()) {
+            if (requestVersion != catalogRequestVersion) return@LaunchedEffect
             catalogEntries = emptyList()
             catalogMessage = localized(language, "Добавьте город в маршрут, чтобы найти места для питомцев.", "Add a city to the route to find pet places.", "Añade una ciudad a la ruta para encontrar lugares para mascotas.", "Füge eine Stadt zur Route hinzu, um Tier-Orte zu finden.")
+            loadingCatalog = false
             return@LaunchedEffect
         }
-        loadingCatalog = true
-        catalogMessage = null
-        val cityResults = supervisorScope {
-            citiesToSearch.map { city ->
-                async {
-                    runCatching { catalogRepository.search(city, selectedType, query, language, limit = 24) }
+        val cityResults = mutableListOf<Result<List<PetCatalogEntry>>>()
+        supervisorScope {
+            val resultChannel = Channel<Result<List<PetCatalogEntry>>>(citiesToSearch.size)
+            citiesToSearch.forEach { city ->
+                launch {
+                    resultChannel.send(runCatching { catalogRepository.search(city, selectedType, query, language, limit = 24) })
                 }
-            }.awaitAll()
+            }
+            repeat(citiesToSearch.size) {
+                val result = resultChannel.receive()
+                cityResults += result
+                if (requestVersion != catalogRequestVersion) return@supervisorScope
+                val partialEntries = cityResults
+                    .flatMap { it.getOrElse { emptyList() } }
+                    .distinctBy { it.googlePlaceId.ifBlank { it.id } }
+                if (partialEntries.isNotEmpty()) {
+                    catalogEntries = partialEntries
+                    loadingCatalog = false
+                }
+            }
+            resultChannel.close()
         }
+        if (requestVersion != catalogRequestVersion) return@LaunchedEffect
         val entries = cityResults
             .flatMap { it.getOrElse { emptyList() } }
             .distinctBy { it.googlePlaceId.ifBlank { it.id } }
         val firstFailure = cityResults.firstOrNull { it.isFailure }?.exceptionOrNull()
-        val photoNames = entries
-            .flatMap { entry -> entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) } }
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .distinct()
-            .take(24)
-        val photoResults = runCatching { catalogRepository.resolvePhotos(photoNames) }.getOrDefault(emptyMap())
-        catalogEntries = entries.map { entry ->
-            val names = entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) }
-            val photo = names.firstNotNullOfOrNull { name -> photoResults[name]?.takeIf { !it.photoUrl.isNullOrBlank() } }
-            entry.copy(photoUrl = entry.photoUrl ?: photo?.photoUrl, photoAttribution = entry.photoAttribution ?: photo?.photoAttribution)
-        }
+        // Show search results as soon as the catalog responds. Photo URL
+        // resolution is optional enrichment and must not block the list or
+        // leave the previous category visible while the next one loads.
+        catalogEntries = entries
+        loadingCatalog = false
         if (entries.isEmpty() && firstFailure != null) {
             catalogMessage = localizedFailure(
                 language,
@@ -8685,7 +8705,19 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
         } else if (firstFailure != null && entries.isNotEmpty()) {
             catalogMessage = localized(language, "Часть городов пока недоступна.", "Some cities are temporarily unavailable.", "Algunas ciudades no están disponibles temporalmente.", "Einige Städte sind vorübergehend nicht verfügbar.")
         }
-        loadingCatalog = false
+        val photoNames = entries
+            .flatMap { entry -> entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) } }
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .take(24)
+        val photoResults = runCatching { catalogRepository.resolvePhotos(photoNames) }.getOrDefault(emptyMap())
+        if (requestVersion != catalogRequestVersion) return@LaunchedEffect
+        catalogEntries = entries.map { entry ->
+            val names = entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) }
+            val photo = names.firstNotNullOfOrNull { name -> photoResults[name]?.takeIf { !it.photoUrl.isNullOrBlank() } }
+            entry.copy(photoUrl = entry.photoUrl ?: photo?.photoUrl, photoAttribution = entry.photoAttribution ?: photo?.photoAttribution)
+        }
     }
 
     val visibleSavedPlaces = overview.petPlaces.filter { place ->
@@ -18446,7 +18478,7 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], tripDatesWeather) }
+                weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], false, tripDatesWeather) }
             }
         }
     }
@@ -18471,6 +18503,7 @@ private fun OverviewContent(
     tripId: String,
     overview: TripOverview,
     weather: Map<String, WeatherSnapshot>,
+    weatherLoading: Boolean,
     editMode: Boolean,
     onChanged: () -> Unit,
 ) {
@@ -18668,7 +18701,7 @@ private fun OverviewContent(
                     when (block) {
                         "photo" -> OverviewPhotoBlock(photos, photoIndex, { photoIndex = (photoIndex - 1 + photos.size) % photos.size }, { photoIndex = (photoIndex + 1) % photos.size })
                         "map" -> OverviewMapCard(overview.routeLegs, defaultMapCities, cityCoordinates = overview.cityCoordinates)
-                        "weather" -> OverviewWeatherBlock(weatherCities, photos, weather, tripDatesWeather) { tripDatesWeather = it }
+                        "weather" -> OverviewWeatherBlock(weatherCities, photos, weather, weatherLoading, tripDatesWeather) { tripDatesWeather = it }
                     }
                 }
             }
@@ -18780,14 +18813,14 @@ private fun OverviewPhotoBlock(photos: List<CoverPhoto>, photoIndex: Int, onPrev
 }
 
 @Composable
-private fun OverviewWeatherBlock(weatherCities: List<String>, photos: List<CoverPhoto>, weather: Map<String, WeatherSnapshot>, tripDatesWeather: Boolean, onTripDatesWeatherChange: (Boolean) -> Unit) {
+private fun OverviewWeatherBlock(weatherCities: List<String>, photos: List<CoverPhoto>, weather: Map<String, WeatherSnapshot>, weatherLoading: Boolean, tripDatesWeather: Boolean, onTripDatesWeatherChange: (Boolean) -> Unit) {
     Text(localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 2.dp))
     Row(modifier = Modifier.background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFEEEEF2), RoundedCornerShape(12.dp)).padding(4.dp)) {
         Text(localized("Сейчас", "Now", "Ahora", "Jetzt"), color = if (!tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (!tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(false) }.padding(horizontal = 14.dp, vertical = 8.dp))
         Text(localized("На даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"), color = if (tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(true) }.padding(horizontal = 14.dp, vertical = 8.dp))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
-        weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], tripDatesWeather) }
+        weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], weatherLoading, tripDatesWeather) }
     }
 }
 
@@ -19046,7 +19079,25 @@ private fun OverviewMapCard(
                 onAction = null,
             )
         } else {
-            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxWidth().height(mapHeight))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(mapHeight)
+                    .background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFE7E5EC)),
+                contentAlignment = Alignment.Center,
+            ) {
+                AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+                if (!mapStyleReady) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background((if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFE7E5EC)).copy(alpha = 0.78f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = primaryColor(), strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
         }
         if (footer != null) footer() else Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -19132,6 +19183,7 @@ private fun WeatherPlaceholder(
     city: String,
     photo: com.odyssey.travelplanner.data.CoverPhoto?,
     weather: WeatherSnapshot?,
+    weatherLoading: Boolean,
     tripDatesWeather: Boolean,
 ) {
     val temperature = weather?.temperature?.removeSuffix("°C")?.toIntOrNull()
@@ -19168,8 +19220,24 @@ private fun WeatherPlaceholder(
             } else {
                 displayedTemperature ?: "…"
             }
-            Text(temperatureText, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp)
-            Text(displayedCondition.orEmpty(), color = Color(0xDDFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
+            if (weatherLoading && weather == null) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                )
+                Text(
+                    localized("Загрузка…", "Loading…", "Cargando…", "Wird geladen…"),
+                    color = Color(0xDDFFFFFF),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else {
+                Text(temperatureText, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp)
+                Text(displayedCondition.orEmpty(), color = Color(0xDDFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
+            }
         }
     }
 }
