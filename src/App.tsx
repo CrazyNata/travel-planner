@@ -12989,9 +12989,13 @@ function PetPlaceForm({
           address: address.trim(),
           note: note.trim(),
           photoUrl: photoUrl || undefined,
+          photoName: initial?.photoName,
+          googlePlaceId: initial?.googlePlaceId,
           rating: initial?.rating,
           reviewCount: initial?.reviewCount,
           mapsUrl: initial?.mapsUrl,
+          latitude: initial?.latitude,
+          longitude: initial?.longitude,
           distanceKm: initial?.distanceKm,
           openNow: initial?.openNow,
           is24h: initial?.is24h,
@@ -13037,27 +13041,32 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
     const citiesToSearch = selectedCity === "Все города"
       ? (cities.length ? cities : ["Рим"]).slice(0, 6)
       : [selectedCity];
-    setCatalogLoading(true);
     setLiveCatalog(null);
-    void Promise.all(
-      citiesToSearch.map((city) =>
-        fetchGooglePetCatalog(city, selectedType, query, controller.signal).catch(() => []),
-      ),
-    )
-      .then(async (groups) => {
-        const places = groups.flat();
-        return enrichPetCatalogPhotos(places, controller.signal);
-      })
-      .then((places) => {
-        if (!controller.signal.aborted) setLiveCatalog(places);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setLiveCatalog([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setCatalogLoading(false);
-      });
-    return () => controller.abort();
+    const timeout = window.setTimeout(() => {
+      setCatalogLoading(true);
+      void Promise.all(
+        citiesToSearch.map((city) =>
+          fetchGooglePetCatalog(city, selectedType, query, controller.signal).catch(() => []),
+        ),
+      )
+        .then(async (groups) => {
+          const places = groups.flat();
+          return enrichPetCatalogPhotos(places, controller.signal);
+        })
+        .then((places) => {
+          if (!controller.signal.aborted) setLiveCatalog(places);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setLiveCatalog([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setCatalogLoading(false);
+        });
+    }, 360);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [selectedCity, selectedType, query, cities.join("|")]);
   const matches = (place: PetPlace) => {
     const haystack = `${place.name} ${place.city} ${place.address} ${place.note || ""}`.toLocaleLowerCase("ru-RU");
