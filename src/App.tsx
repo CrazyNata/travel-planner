@@ -4339,6 +4339,39 @@ async function enrichPetCatalogPhotos(places: PetPlace[], signal: AbortSignal) {
   });
 }
 
+async function preloadPetCatalogPhotos(places: PetPlace[], signal: AbortSignal) {
+  if (typeof Image === "undefined") return places;
+  const photos = places
+    .filter((place) => Boolean(place.photoUrl))
+    .slice(0, 16);
+  await Promise.all(
+    photos.map(
+      (place) =>
+        new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          const image = new Image();
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeout);
+            signal.removeEventListener("abort", finish);
+            resolve();
+          };
+          const timeout = window.setTimeout(finish, 5000);
+          image.onload = finish;
+          image.onerror = finish;
+          signal.addEventListener("abort", finish, { once: true });
+          image.src = place.photoUrl!;
+        }),
+    ),
+  );
+  return places;
+}
+
 async function fetchGoogleRestaurantCatalog(
   city: string,
   query: string,
@@ -13193,7 +13226,8 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
   const [catalogLoading, setCatalogLoading] = useState(false);
   const saved = trip.petPlaces || [];
   const fallbackCatalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
-  const catalog = liveCatalog?.length ? liveCatalog : fallbackCatalog;
+  const catalogPending = liveCatalog === null;
+  const catalog = catalogPending ? [] : liveCatalog.length ? liveCatalog : fallbackCatalog;
   const filterCount = Number(radius !== "10") + Number(Boolean(minRating)) + Number(openNow) + Number(aroundTheClock);
   useEffect(() => {
     const controller = new AbortController();
@@ -13210,7 +13244,8 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       )
         .then(async (groups) => {
           const places = groups.flat();
-          return enrichPetCatalogPhotos(places, controller.signal);
+          const enriched = await enrichPetCatalogPhotos(places, controller.signal);
+          return preloadPetCatalogPhotos(enriched, controller.signal);
         })
         .then((places) => {
           if (!controller.signal.aborted) setLiveCatalog(places);
@@ -13253,12 +13288,16 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
-      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{visibleCatalog.length} мест</span></div><div className="pets-grid">{visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
-      {!visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
+      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{catalogPending ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      {!catalogPending && !visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
       {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
     </section>
   );
+}
+
+function PetCatalogSkeleton({ count = 4 }: { count?: number }) {
+  return <>{Array.from({ length: count }, (_, index) => <article className="pets-card pets-card-skeleton" aria-hidden="true" key={index}><div className="pets-skeleton-photo" /><div className="pets-skeleton-body"><span /><b /><i /><em /><small /></div></article>)}</>;
 }
 
 function PetCard({ place, saved = false, onPhoto, onAdd, onEdit, onDelete }: { place: PetPlace; saved?: boolean; onPhoto: (url: string) => void; onAdd?: () => void; onEdit?: () => void; onDelete?: () => void }) {

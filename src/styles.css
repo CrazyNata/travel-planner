@@ -7010,6 +7010,39 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .pets-photo-remove { border-color: #6b3c48; background: #402b37; color: #f08787; }
 .pets-photo-remove:hover { background: #4a303e; }
 .pets-photo-backdrop button { background: #2d3346; color: #edf0f7; }
+.pets-card-skeleton { pointer-events: none; }
+.pets-skeleton-photo,
+.pets-skeleton-body span,
+.pets-skeleton-body b,
+.pets-skeleton-body i,
+.pets-skeleton-body em,
+.pets-skeleton-body small {
+  display: block;
+  background: linear-gradient(100deg, #e9e9f0 25%, #f7f7fb 38%, #e9e9f0 55%);
+  background-size: 300% 100%;
+  animation: pets-skeleton-shimmer 1.35s ease-in-out infinite;
+}
+.pets-skeleton-photo { min-height: 196px; }
+.pets-skeleton-body { display: grid; align-content: center; gap: 10px; padding: 22px 18px; }
+.pets-skeleton-body span { width: 34%; height: 8px; border-radius: 4px; }
+.pets-skeleton-body b { width: 72%; height: 15px; border-radius: 5px; }
+.pets-skeleton-body i { width: 30%; height: 9px; border-radius: 4px; }
+.pets-skeleton-body em { width: 92%; height: 9px; border-radius: 4px; }
+.pets-skeleton-body small { width: 55%; height: 9px; border-radius: 4px; }
+@keyframes pets-skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.pets-page .pets-card-skeleton { border-color: #394158; background: #202536; }
+.pets-page .pets-skeleton-photo,
+.pets-page .pets-skeleton-body span,
+.pets-page .pets-skeleton-body b,
+.pets-page .pets-skeleton-body i,
+.pets-page .pets-skeleton-body em,
+.pets-page .pets-skeleton-body small {
+  background: linear-gradient(100deg, #2b3244 25%, #374158 38%, #2b3244 55%);
+  background-size: 300% 100%;
+}
 
 @media (max-width: 760px) {
   .pets-page { margin: 0; border-radius: 18px; padding: 24px 16px 38px; }
