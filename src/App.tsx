@@ -9554,6 +9554,7 @@ function ExpenseForm({
 }) {
   const [category, setCategory] = useState(initial?.category || "Еда и рестораны");
   const [scope, setScope] = useState<BudgetScope>(initial?.scope || "общий");
+  const [error, setError] = useState("");
   return (
     <div className="expense-modal-backdrop" onClick={onClose}>
       <form
@@ -9563,7 +9564,19 @@ function ExpenseForm({
           const form = new FormData(event.currentTarget);
           const amount = Number(String(form.get("amount") || "").replace(",", "."));
           const name = String(form.get("name") || "").trim();
-          if (!name || !Number.isFinite(amount) || amount <= 0) return;
+          if (!name) {
+            setError("Укажите название траты.");
+            return;
+          }
+          if (
+            !Number.isFinite(amount) ||
+            amount < 0 ||
+            (!initial && amount === 0)
+          ) {
+            setError("Укажите корректную сумму.");
+            return;
+          }
+          setError("");
           onSave({
             id: initial?.id || crypto.randomUUID(),
             name,
@@ -9638,11 +9651,12 @@ function ExpenseForm({
             ))}
           </div>
         </section>
+        {error && <p className="form-error" role="alert">{error}</p>}
         <footer>
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="accent">{initial ? "Сохранить" : "Добавить"}</button>
+          <button className="accent" type="submit">{initial ? "Сохранить" : "Добавить"}</button>
         </footer>
       </form>
     </div>
