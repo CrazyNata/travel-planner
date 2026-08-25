@@ -12830,11 +12830,13 @@ function petCatalogForCities(cities: string[]): PetPlace[] {
 function PetPlaceForm({
   initial,
   defaultCity,
+  tripId,
   onClose,
   onSave,
 }: {
   initial?: PetPlace;
   defaultCity: string;
+  tripId: string;
   onClose: () => void;
   onSave: (place: PetPlace) => void;
 }) {
@@ -12843,6 +12845,36 @@ function PetPlaceForm({
   const [type, setType] = useState<PetPlace["type"]>(initial?.type || "shop");
   const [address, setAddress] = useState(initial?.address || "");
   const [note, setNote] = useState(initial?.note || "");
+  const [photoUrl, setPhotoUrl] = useState(initial?.photoUrl || "");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
+      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/${tripId}/pets/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      setPhotoUrl(await signedTripPhotoUrl(path));
+    } catch {
+      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
   return (
     <div className="pets-form-backdrop" onClick={onClose}>
       <form className="pets-form-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => {
@@ -12855,7 +12887,7 @@ function PetPlaceForm({
           type,
           address: address.trim(),
           note: note.trim(),
-          photoUrl: initial?.photoUrl,
+          photoUrl: photoUrl || undefined,
           rating: initial?.rating,
           reviewCount: initial?.reviewCount,
           mapsUrl: initial?.mapsUrl,
@@ -12869,7 +12901,11 @@ function PetPlaceForm({
         <div className="pets-form-grid"><label>Город<input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Город" /></label><label>Адрес<input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Адрес" /></label></div>
         <section><b>Тип места</b><div className="pets-choice-row"><button type="button" className={type === "shop" ? "active" : ""} onClick={() => setType("shop")}>Зоомагазин</button><button type="button" className={type === "vet" ? "active" : ""} onClick={() => setType("vet")}>Ветеринар</button></div></section>
         <label>Описание<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Что важно знать" rows={3} /></label>
-        <footer><button type="button" onClick={onClose}>Отмена</button><button className="accent" type="submit">Сохранить</button></footer>
+        <section className="pets-form-photo-section"><b>Фото места</b><div className="pets-photo-picker-row"><label className={`pets-photo-picker ${photoUrl ? "has-photo" : ""}`}>
+          <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingPhoto} onChange={(event) => { void uploadPhoto(event.target.files?.[0]); event.target.value = ""; }} />
+          {photoUrl ? <img src={photoUrl} alt="Фото места" /> : <span className="pets-photo-placeholder"><span>▧</span><b>Добавить фото</b><small>JPG, PNG или WebP до 10 МБ</small></span>}
+        </label>{photoUrl && <button type="button" className="pets-photo-remove" onClick={() => setPhotoUrl("")} disabled={uploadingPhoto}>Удалить фото</button>}</div>{uploadingPhoto && <small className="pets-photo-uploading">Загружаем фото…</small>}</section>
+        <footer><button type="button" onClick={onClose} disabled={uploadingPhoto}>Отмена</button><button className="accent" type="submit" disabled={uploadingPhoto}>{uploadingPhoto ? "Загружаем…" : "Сохранить"}</button></footer>
       </form>
     </div>
   );
@@ -12921,7 +12957,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
       <div className="pets-section-title-row"><h2 className="pets-section-title">Из каталога</h2><span>{visibleCatalog.length} мест</span></div><div className="pets-grid">{visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
       {!visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
-      {manualOpen && <PetPlaceForm initial={editing} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
+      {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
     </section>
   );
