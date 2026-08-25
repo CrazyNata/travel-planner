@@ -7221,9 +7221,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   box-shadow: 0 8px 22px #080a1426;
 }
 .app.app-dark .new-card { border-style: dashed; }
-.app.app-dark .cover,
 .app.app-dark .overview-draft > section,
-.app.app-dark .overview-draft .has-draft-cover,
 .app.app-dark .sights-empty,
 .app.app-dark .walking-planner,
 .app.app-dark .restaurant-catalog-state,
