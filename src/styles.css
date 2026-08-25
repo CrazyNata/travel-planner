@@ -7198,7 +7198,6 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .catalog-card,
 .app.app-dark .overview-route,
 .app.app-dark .city-overview-card,
-.app.app-dark .weather-card,
 .app.app-dark .map-card,
 .app.app-dark .place-row,
 .app.app-dark .draft-route-empty,
@@ -7221,6 +7220,18 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   box-shadow: 0 8px 22px #080a1426;
 }
 .app.app-dark .new-card { border-style: dashed; }
+.app.app-dark .weather-card:not(.has-photo) {
+  border-color: #394158;
+  background: #202536;
+  color: #edf0f7;
+  box-shadow: 0 8px 22px #080a1426;
+}
+.app.app-dark .weather-card.has-photo {
+  border-color: #394158;
+  background-position: center;
+  background-size: cover;
+  color: #fff;
+}
 .app.app-dark .overview-draft > section,
 .app.app-dark .sights-empty,
 .app.app-dark .walking-planner,
