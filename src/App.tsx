@@ -14602,6 +14602,12 @@ export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([]);
   const [darkTheme, setDarkTheme] = useState(false);
+  const persistDarkTheme = (value: boolean) => {
+    setDarkTheme(value);
+    void supabase.auth.updateUser({ data: { dark_theme: value } }).then(({ error }) => {
+      if (error) console.error("Could not save the theme preference.", error);
+    });
+  };
   const rememberAccount = (account: RememberedAccount) => {
     if (!account.email.trim()) return;
     setRememberedAccounts((current) => [
@@ -14633,6 +14639,7 @@ export function App() {
           full_name?: string;
           invite_pending?: boolean;
           invite_trip_id?: string;
+          dark_theme?: boolean;
         };
       },
       shouldNavigate = false,
@@ -14723,8 +14730,9 @@ export function App() {
       );
     };
     void supabase.auth.getSession().then(async ({ data }) => {
-      setAuthReady(true);
       if (!data.session?.user) {
+        setDarkTheme(false);
+        setAuthReady(true);
         setIsAuthenticated(false);
         if (location.pathname !== "/auth" && view !== "housing-preview") {
           const next = `${location.pathname}${location.search}`;
@@ -14732,6 +14740,8 @@ export function App() {
         }
         return;
       }
+      setDarkTheme(data.session.user.user_metadata.dark_theme === true);
+      setAuthReady(true);
       setIsAuthenticated(true);
       setAuthenticatedUser(data.session.user, true);
       rememberAccount({
@@ -14744,6 +14754,7 @@ export function App() {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (session?.user) {
+          setDarkTheme(session.user.user_metadata.dark_theme === true);
           setAuthReady(true);
           setIsAuthenticated(true);
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
@@ -14752,6 +14763,7 @@ export function App() {
             void loadSavedTrip();
           }
         } else if (event === "SIGNED_OUT") {
+          setDarkTheme(false);
           setIsAuthenticated(false);
           navigate("/auth", { replace: true });
         }
@@ -14913,7 +14925,7 @@ export function App() {
         profileName={profileName}
         tripCount={drafts.length}
         darkTheme={darkTheme}
-        onDarkThemeChange={setDarkTheme}
+        onDarkThemeChange={persistDarkTheme}
         cityCount={
           new Set(
             drafts.flatMap((trip) =>
