@@ -50,6 +50,7 @@ type CoverPhoto = {
   id: string;
   image: string;
   city?: string;
+  date?: string;
   description?: string;
   textColor?: string;
 };
@@ -57,6 +58,14 @@ let weatherCoverPhotos: CoverPhoto[] = [];
 const tripPhotoUrlLifetimeSeconds = 24 * 60 * 60;
 
 function tripPhotoPath(url: string) {
+  const storageUrl = url.match(/^storage:\/\/([^/]+)\/(.+)$/);
+  if (storageUrl?.[1] === "trip-photos") {
+    try {
+      return decodeURIComponent(storageUrl[2]);
+    } catch {
+      return storageUrl[2];
+    }
+  }
   try {
     const pathname = new URL(url).pathname;
     const match = pathname.match(
@@ -164,6 +173,7 @@ type TripSummary = {
   isDraft?: boolean;
   coverImage?: string;
   coverPhotos?: CoverPhoto[];
+  photos?: CoverPhoto[];
   coverCity?: string;
   coverDescription?: string;
   coverTextColor?: string;
@@ -453,6 +463,7 @@ type StoredTripPayload = {
       status?: string;
       coverImage?: string;
       coverPhotos?: CoverPhoto[];
+      photos?: CoverPhoto[];
       coverTextColor?: string;
       overviewMapPoints?: string[];
       sightDays?: { id: string; title: string; photo?: string; photoPosition?: number }[];
@@ -762,6 +773,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
     isDraft: true,
     coverImage: payload.data?.trip?.coverImage,
     coverPhotos: payload.data?.trip?.coverPhotos,
+    photos: payload.data?.trip?.photos,
     coverTextColor: payload.data?.trip?.coverTextColor,
     overviewMapPoints: payload.data?.trip?.overviewMapPoints,
     sights: payload.data?.sights,
@@ -9708,43 +9720,69 @@ function Budget({
   );
 }
 
-function Photos() {
+function Photos({
+  trip,
+  onUpdateTrip,
+}: {
+  trip: TripSummary;
+  onUpdateTrip: (trip: TripSummary) => void;
+}) {
   const [query, setQuery] = useState("");
-  const [uploaded, setUploaded] = useState<
-    { id: string; image: string; date?: string; city?: string }[]
-  >([]);
+  const [uploading, setUploading] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const samples = [
-    ["Колизей", "Рим", "13 сен"],
-    ["Пантеон", "Рим", "13 сен"],
-    ["Фонтан Треви", "Рим", "14 сен"],
-    ["Санта-Мария-дель-Фьоре", "Флоренция", "15 сен"],
-    ["Понте Веккьо", "Флоренция", "16 сен"],
-    ["Сады Боболи", "Флоренция", "16 сен"],
-    ["Площадь Сан-Марко", "Венеция", "17 сен"],
-    ["Гранд-канал", "Венеция", "17 сен"],
-    ["Остров Бурано", "Венеция", "18 сен"],
-  ] as const;
   const uploadPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
-    const photos = await Promise.all(
-      Array.from(files)
-        .filter((file) => file.type.startsWith("image/"))
-        .map(async (file) => ({
-          id: crypto.randomUUID(),
-          image: URL.createObjectURL(file),
-          ...(await readPhotoMetadata(file)),
-        })),
+    const validFiles = Array.from(files).filter(
+      (file) =>
+        /^image\/(jpeg|png|webp)$/.test(file.type) &&
+        file.size <= 10 * 1024 * 1024,
     );
-    setUploaded((current) => [...photos, ...current]);
+    if (!validFiles.length) {
+      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error("No active session");
+      const uploadedPhotos = await Promise.all(
+        validFiles.map(async (file) => {
+          const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+          const path = `${session.user.id}/${trip.id}/album/${crypto.randomUUID()}.${extension}`;
+          const { error } = await supabase.storage
+            .from("trip-photos")
+            .upload(path, file, {
+              cacheControl: "31536000",
+              contentType: file.type,
+              upsert: false,
+            });
+          if (error) throw error;
+          return {
+            id: crypto.randomUUID(),
+            image: await signedTripPhotoUrl(path),
+            ...(await readPhotoMetadata(file)),
+          };
+        }),
+      );
+      const currentPhotos = trip.photos?.length
+        ? trip.photos
+        : trip.coverPhotos || [];
+      onUpdateTrip({
+        ...trip,
+        photos: [...currentPhotos, ...uploadedPhotos],
+      });
+    } catch (error) {
+      console.error("Could not upload trip photos.", error);
+      window.alert("Не удалось загрузить фотографии. Попробуйте ещё раз.");
+    } finally {
+      setUploading(false);
+    }
   };
-  const visibleUploads = uploaded.filter((photo) =>
-    `${photo.city || ""} ${photo.date || ""}`
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
-  );
-  const visibleSamples = samples.filter(([name, place, date]) =>
-    `${name} ${place} ${date}`
+  const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
+  const visiblePhotos = photos.filter((photo) =>
+    `${photo.city || ""} ${photo.date || ""} ${photo.description || ""}`
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
   );
@@ -9764,10 +9802,16 @@ function Photos() {
       <header className="photos-heading">
         <div>
           <h2>Фотоальбом</h2>
-          <p>48 фото · снимки всех участников поездки</p>
+          <p>
+            {photos.length} {photos.length === 1 ? "фото" : "фото"} · фотографии поездки
+          </p>
         </div>
-        <button className="accent" onClick={() => input.current?.click()}>
-          ↑ Загрузить
+        <button
+          className="accent"
+          onClick={() => input.current?.click()}
+          disabled={uploading}
+        >
+          {uploading ? "Загружаем…" : "↑ Загрузить"}
         </button>
       </header>
       <label className="photo-search">
@@ -9779,28 +9823,30 @@ function Photos() {
         />
       </label>
       <div className="photo-grid">
-        {visibleUploads.map((photo) => (
+        {visiblePhotos.map((photo, index) => (
           <div
-            className="photo uploaded-photo"
-            style={{ backgroundImage: `url(${photo.image})` }}
+            className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
             key={photo.id}
           >
-            <span>
-              {photo.city || "Место не определено"}
-              {photo.date ? ` · ${photo.date}` : " · дата не определена"}
-            </span>
-          </div>
-        ))}
-        {visibleSamples.map(([name, place, date], index) => (
-          <div
-            className={`photo p${index % 6} ${index === 0 ? "hero-photo" : ""}`}
-            key={name}
-          >
+            <img
+              className="photo-image"
+              src={photo.image}
+              alt={photo.city || "Фотография поездки"}
+              loading="lazy"
+            />
             <span className="photo-label">
-              {place} · {date}
+              {photo.city || "Место не определено"}
+              {photo.date ? ` · ${photo.date}` : ""}
             </span>
           </div>
         ))}
+        {!visiblePhotos.length && (
+          <div className="photos-empty">
+            {photos.length
+              ? "По вашему запросу фотографии не найдены."
+              : "В поездке пока нет фотографий."}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -13052,7 +13098,9 @@ function Workspace({
         {tab === "budget" && (
           <Budget trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
-        {tab === "photos" && <Photos />}
+        {tab === "photos" && (
+          <Photos trip={trip} onUpdateTrip={onUpdateTrip} />
+        )}
         {tab === "members" && (
           <Members trip={trip} onUpdateTrip={onUpdateTrip} />
         )}
@@ -14044,6 +14092,7 @@ export function App() {
           status: trip.status,
           coverImage: trip.coverImage,
           coverPhotos: trip.coverPhotos,
+          photos: trip.photos,
           coverTextColor: trip.coverTextColor,
           overviewMapPoints: trip.overviewMapPoints,
           sightDays: trip.sightDays,
