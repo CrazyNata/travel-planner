@@ -13545,7 +13545,7 @@ function Workspace({
         ["photos", "Фото"],
       ];
   return (
-    <div>
+    <div className={tab === "pets" ? "trip-shell pets-theme" : "trip-shell"}>
       <header className="trip-header">
         <button
           className="back back-icon"

@@ -7015,6 +7015,46 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .pets-page { margin: 0; border-radius: 18px; padding: 24px 16px 38px; }
 }
 
+/* Keep the dark workspace continuous with the trip header instead of making
+   the pets page look like an isolated dark card on a light canvas. */
+.trip-shell.pets-theme {
+  min-height: 100vh;
+  background: #181c29;
+}
+.trip-shell.pets-theme .trip-header {
+  border-bottom-color: #2d3448;
+  background: #181c29;
+}
+.trip-shell.pets-theme .back-icon {
+  border-color: #3b435c;
+  background: #23293a;
+  color: #b8b3ff;
+}
+.trip-shell.pets-theme .back-icon:hover { border-color: #8378ed; background: #2b2e4a; }
+.trip-shell.pets-theme .trip-heading h1 { color: #f7f8fc; }
+.trip-shell.pets-theme .trip-heading p { color: #98a2b7; }
+.trip-shell.pets-theme .status-picker { border-color: #504b96; background: #292a4a; color: #b8b3ff; }
+.trip-shell.pets-theme .status-picker:hover { border-color: #8378ed; background: #33335a; }
+.trip-shell.pets-theme .tabs button { color: #9ca5ba; }
+.trip-shell.pets-theme .tabs button.active { color: #f7f8fc; }
+.trip-shell.pets-theme .workspace {
+  max-width: none;
+  background: #181c29;
+}
+.trip-shell.pets-theme .pets-page {
+  max-width: 1120px;
+  margin: 0 auto 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 30px 32px 44px;
+  box-shadow: none;
+}
+
+@media (max-width: 760px) {
+  .trip-shell.pets-theme .pets-page { margin: 0; padding: 24px 16px 38px; }
+}
+
 @media (max-width: 360px) {
   .restaurant-controls { grid-template-columns: 1fr; }
   .restaurant-filter-button { width: 100%; }
