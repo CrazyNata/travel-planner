@@ -6219,6 +6219,10 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .pets-filter-button[aria-expanded="true"] { border-color: var(--accent); background: #e9e7ff; }
 .pets-filter-button b { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; }
 .pets-filter-panel { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-top: 12px; border: 1px solid #dedcf1; border-radius: 14px; background: #faf9ff; padding: 14px; color: #414a5b; font-size: 12px; }
+.pets-filter-panel { display: grid; gap: 14px; }
+.pets-filter-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.pets-filter-panel-head h3 { margin: 0; color: #292d38; font: 600 20px/1.1 Unbounded, sans-serif; letter-spacing: -.045em; }
+.pets-filter-group { display: grid; gap: 7px; }
 .pets-filter-panel b { display: block; margin-bottom: 8px; }
 .pets-choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .pets-choice-row button { border: 1px solid #e1deeb; border-radius: 9px; background: #fff; padding: 8px 12px; color: #787287; font: 800 11px Manrope, sans-serif; cursor: pointer; }

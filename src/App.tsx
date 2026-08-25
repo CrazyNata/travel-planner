@@ -169,6 +169,9 @@ type PetPlace = {
   mapsUrl?: string;
   note?: string;
   phone?: string;
+  distanceKm?: number;
+  openNow?: boolean;
+  is24h?: boolean;
 };
 type RememberedAccount = {
   email: string;
@@ -12763,6 +12766,8 @@ const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
     reviewCount: 475,
     photoUrl: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=640&q=80",
     note: "Корм, аксессуары и всё для путешествий с питомцем.",
+    distanceKm: 2,
+    openNow: true,
   },
   {
     name: "Tierarztzentrum am Stadtpark",
@@ -12771,6 +12776,9 @@ const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
     reviewCount: 308,
     photoUrl: "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def?auto=format&fit=crop&w=640&q=80",
     note: "Ветеринарная клиника с экстренной помощью.",
+    distanceKm: 5,
+    openNow: true,
+    is24h: true,
   },
   {
     name: "Zoo & Co.",
@@ -12779,6 +12787,8 @@ const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
     reviewCount: 382,
     photoUrl: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=640&q=80",
     note: "Зоомагазин рядом с центром города.",
+    distanceKm: 10,
+    openNow: false,
   },
   {
     name: "AniCura Veterinary Clinic",
@@ -12787,6 +12797,8 @@ const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
     reviewCount: 242,
     photoUrl: "https://images.unsplash.com/photo-1556760544-74068565f05c?auto=format&fit=crop&w=640&q=80",
     note: "Приём по записи и консультации для собак и кошек.",
+    distanceKm: 25,
+    openNow: true,
   },
 ];
 
@@ -12847,6 +12859,9 @@ function PetPlaceForm({
           rating: initial?.rating,
           reviewCount: initial?.reviewCount,
           mapsUrl: initial?.mapsUrl,
+          distanceKm: initial?.distanceKm,
+          openNow: initial?.openNow,
+          is24h: initial?.is24h,
         });
       }}>
         <header><div><small>ПИТОМЦЫ</small><h2>{initial ? "Редактировать место" : "Добавить место"}</h2></div><button type="button" onClick={onClose}>×</button></header>
@@ -12867,19 +12882,25 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
   const [selectedType, setSelectedType] = useState<PetPlace["type"]>("shop");
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [radius, setRadius] = useState("10");
   const [minRating, setMinRating] = useState("");
+  const [openNow, setOpenNow] = useState(false);
+  const [aroundTheClock, setAroundTheClock] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [editing, setEditing] = useState<PetPlace | undefined>();
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
   const saved = trip.petPlaces || [];
   const catalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
-  const filterCount = Number(Boolean(selectedCity !== "Все города")) + Number(Boolean(minRating));
+  const filterCount = Number(radius !== "10") + Number(Boolean(minRating)) + Number(openNow) + Number(aroundTheClock);
   const matches = (place: PetPlace) => {
     const haystack = `${place.name} ${place.city} ${place.address} ${place.note || ""}`.toLocaleLowerCase("ru-RU");
     return place.type === selectedType &&
       (selectedCity === "Все города" || place.city === selectedCity) &&
       (!query.trim() || haystack.includes(query.trim().toLocaleLowerCase("ru-RU"))) &&
-      (!minRating || (place.rating || 0) >= Number(minRating));
+      (!minRating || (place.rating || 0) >= Number(minRating)) &&
+      (!radius || place.distanceKm === undefined || place.distanceKm <= Number(radius)) &&
+      (!openNow || place.openNow === true) &&
+      (!aroundTheClock || place.is24h === true);
   };
   const visibleSaved = saved.filter(matches);
   const visibleCatalog = catalog.filter((place) => !saved.some((item) => item.id === place.id || (item.name === place.name && item.city === place.city))).filter(matches);
@@ -12894,7 +12915,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
     <section className="pets-page">
       <div className="pets-heading"><div><p className="eyebrow">ПО МАРШРУТУ</p><h1>Питомцы</h1><span>Места для заботы о питомцах в городах поездки</span></div><button className="accent" type="button" onClick={() => { setEditing(undefined); setManualOpen(true); }}>＋ Добавить место</button></div>
       <div className="pets-toolbar"><label className="pets-city-field"><span>Город</span><select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)}>{cityOptions.map((city) => <option key={city}>{city}</option>)}</select></label><label className="pets-search"><span>Поиск по каталогу</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название, адрес или город" /></label><button className="pets-filter-button" type="button" aria-expanded={filterOpen} onClick={() => setFilterOpen((open) => !open)}>☷ Фильтры <b>{filterCount}</b></button></div>
-      {filterOpen && <div className="pets-filter-panel"><div><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><button type="button" className="pets-filter-reset" onClick={() => { setSelectedCity("Все города"); setMinRating(""); }}>Сбросить</button></div>}
+      {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       <button className="pets-manual-card" type="button" onClick={() => { setEditing(undefined); setManualOpen(true); }}><span>＋</span><div><b>Добавить место вручную</b><small>Если его нет в каталоге</small></div><i>›</i></button>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
