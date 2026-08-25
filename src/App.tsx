@@ -1374,35 +1374,44 @@ function mapLocation(city: string) {
 }
 
 function routeSegmentsFor(days: DraftDay[]) {
-  let hasRoutePoint = false;
   return days.flatMap((day, dayIndex) => {
     const leg = day.roadLeg;
     if (!leg) return [];
-    const cityNames = hasRoutePoint ? [leg.to] : [leg.from, leg.to];
-    hasRoutePoint = true;
-    return [
-      {
-        dayIndex,
-        coordinates: cityNames
-          .map(mapLocation)
-          .filter((coordinate): coordinate is [number, number] =>
-            Boolean(coordinate),
-          ),
-      },
-    ];
+    const coordinates = [leg.from, leg.to]
+      .map(mapLocation)
+      .filter((coordinate): coordinate is [number, number] =>
+        Boolean(coordinate),
+      );
+    return coordinates.length ? [{ dayIndex, coordinates }] : [];
   });
 }
 
 function routeCoordinatesFor(days: DraftDay[]) {
-  return routeSegmentsFor(days).flatMap((segment) => segment.coordinates);
+  const coordinates: [number, number][] = [];
+  const sameCoordinate = (first: [number, number], second: [number, number]) =>
+    first[0] === second[0] && first[1] === second[1];
+  routeSegmentsFor(days).forEach((segment) => {
+    segment.coordinates.forEach((coordinate) => {
+      if (!coordinates.at(-1) || !sameCoordinate(coordinates.at(-1)!, coordinate))
+        coordinates.push(coordinate);
+    });
+  });
+  return coordinates;
 }
 
 function routePointIndexFor(days: DraftDay[], dayIndex?: number) {
   if (dayIndex === undefined) return undefined;
-  let pointIndex = 0;
+  let pointIndex = -1;
+  let previous: [number, number] | undefined;
+  const sameCoordinate = (first: [number, number], second: [number, number]) =>
+    first[0] === second[0] && first[1] === second[1];
   for (const segment of routeSegmentsFor(days)) {
-    if (segment.dayIndex === dayIndex) return pointIndex;
-    pointIndex += segment.coordinates.length;
+    for (const coordinate of segment.coordinates) {
+      if (!previous || !sameCoordinate(previous, coordinate)) pointIndex += 1;
+      if (segment.dayIndex === dayIndex && coordinate === segment.coordinates[0])
+        return pointIndex;
+      previous = coordinate;
+    }
   }
   return undefined;
 }
