@@ -1373,17 +1373,38 @@ function mapLocation(city: string) {
   )?.[1];
 }
 
+function routeSegmentsFor(days: DraftDay[]) {
+  let hasRoutePoint = false;
+  return days.flatMap((day, dayIndex) => {
+    const leg = day.roadLeg;
+    if (!leg) return [];
+    const cityNames = hasRoutePoint ? [leg.to] : [leg.from, leg.to];
+    hasRoutePoint = true;
+    return [
+      {
+        dayIndex,
+        coordinates: cityNames
+          .map(mapLocation)
+          .filter((coordinate): coordinate is [number, number] =>
+            Boolean(coordinate),
+          ),
+      },
+    ];
+  });
+}
+
 function routeCoordinatesFor(days: DraftDay[]) {
-  return days
-    .flatMap((day, index) => {
-      const leg = day.roadLeg;
-      if (!leg) return [];
-      return index === 0 ? [leg.from, leg.to] : [leg.to];
-    })
-    .map(mapLocation)
-    .filter((coordinate): coordinate is [number, number] =>
-      Boolean(coordinate),
-    );
+  return routeSegmentsFor(days).flatMap((segment) => segment.coordinates);
+}
+
+function routePointIndexFor(days: DraftDay[], dayIndex?: number) {
+  if (dayIndex === undefined) return undefined;
+  let pointIndex = 0;
+  for (const segment of routeSegmentsFor(days)) {
+    if (segment.dayIndex === dayIndex) return pointIndex;
+    pointIndex += segment.coordinates.length;
+  }
+  return undefined;
 }
 
 function routeSegment(coordinates: [number, number][], day: number) {
@@ -4464,6 +4485,7 @@ function TripMap({
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
   const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
+  const activeRoutePoint = routePointIndexFor(displayedRouteDays, activeDay);
   const fallbackCoordinates = routeCoordinates.length > 1
     ? routeCoordinates
     : location && places.length
@@ -4523,13 +4545,22 @@ function TripMap({
 
       if (routeCoordinates.length > 1) {
         markerElements.current = [];
+        const markerOccurrences = new globalThis.Map<string, number>();
         routeCoordinates.forEach((coordinate, index) => {
           const element = document.createElement("span");
           element.className =
-            index === activeDay ? "map-marker active" : "map-marker";
+            index === activeRoutePoint ? "map-marker active" : "map-marker";
           element.textContent = String(index + 1);
           markerElements.current.push(element);
-          new mapboxgl.Marker({ element }).setLngLat(coordinate).addTo(map!);
+          const coordinateKey = coordinate.join(",");
+          const occurrence = markerOccurrences.get(coordinateKey) || 0;
+          markerOccurrences.set(coordinateKey, occurrence + 1);
+          const offset: [number, number] | undefined = occurrence
+            ? [18 * (occurrence % 2 ? 1 : -1), -18 * occurrence]
+            : undefined;
+          new mapboxgl.Marker({ element, offset })
+            .setLngLat(coordinate)
+            .addTo(map!);
         });
         map.on("load", () => {
           map!.addSource("route", {
@@ -4550,7 +4581,10 @@ function TripMap({
               "line-opacity": 0.72,
             },
           });
-          const activeSegment = routeSegment(routeCoordinates, activeDay || 0);
+          const activeSegment =
+            activeRoutePoint === undefined
+              ? []
+              : routeSegment(routeCoordinates, activeRoutePoint);
           if (activeSegment.length > 1) {
             map!.addSource("active-route", {
               type: "geojson",
@@ -4621,40 +4655,66 @@ function TripMap({
   }, [city, locationKey, placesKey, routeKey]);
 
   useEffect(() => {
+    const routePoint = routePointIndexFor(displayedRouteDays, activeDay);
     const coordinate =
-      activeDay === undefined
+      routePoint === undefined
         ? undefined
-        : routeCoordinatesFor(displayedRouteDays)[activeDay];
-    if (!coordinate || !mapRef.current) return;
+        : routeCoordinatesFor(displayedRouteDays)[routePoint];
+    if (!mapRef.current) return;
     markerElements.current.forEach((element, index) =>
-      element.classList.toggle("active", index === activeDay),
+      element.classList.toggle("active", index === routePoint),
     );
-    mapRef.current.flyTo({
-      center: coordinate,
-      zoom: 8,
-      duration: 900,
-      essential: true,
-    });
-    const source = mapRef.current.getSource("active-route") as
+    const map = mapRef.current;
+    const activeSegment =
+      routePoint === undefined
+        ? []
+        : routeSegment(routeCoordinatesFor(displayedRouteDays), routePoint);
+    const source = map.getSource("active-route") as
       { setData: (data: object) => void } | undefined;
-    const activeSegment = routeSegment(
-      routeCoordinatesFor(displayedRouteDays),
-      activeDay ?? 0,
-    );
-    if (source && activeSegment.length > 1)
+    if (source && activeSegment.length > 1) {
       source.setData({
         type: "Feature",
         properties: {},
         geometry: { type: "LineString", coordinates: activeSegment },
       });
+    } else if (source) {
+      if (map.getLayer("active-route")) map.removeLayer("active-route");
+      map.removeSource("active-route");
+    } else if (activeSegment.length > 1 && map.isStyleLoaded()) {
+      map.addSource("active-route", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: activeSegment },
+        },
+      });
+      map.addLayer({
+        id: "active-route",
+        type: "line",
+        source: "active-route",
+        paint: {
+          "line-color": "#ff7a45",
+          "line-width": 6,
+          "line-opacity": 0.95,
+        },
+      });
+    }
+    if (!coordinate) return;
+    map.flyTo({
+      center: coordinate,
+      zoom: 8,
+      duration: 900,
+      essential: true,
+    });
   }, [activeDay, routeKey]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
       <StaticTripMap
         coordinates={fallbackCoordinates}
-        activeDay={activeDay}
-        focusIndex={shouldFocusStaticMap ? activeDay : undefined}
+        activeDay={activeRoutePoint}
+        focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
       />
     );
   return (
