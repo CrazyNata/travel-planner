@@ -6925,6 +6925,96 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .accommodation-modal-header-actions { width: 100%; }
 }
 
+/* The web pets workspace uses the same dark palette as the account drawer. */
+.pets-page {
+  max-width: 1120px;
+  margin: 12px auto 36px;
+  border: 1px solid #343a51;
+  border-radius: 24px;
+  background: #181c29;
+  padding: 30px 32px 44px;
+  color: #f5f6fb;
+  box-shadow: 0 18px 42px #1115222e;
+  color-scheme: dark;
+}
+.pets-page .pets-heading { margin-bottom: 26px; }
+.pets-page .pets-heading h1 { color: #f8f8fc; }
+.pets-page .pets-heading > div > span { color: #9ea7bb; }
+.pets-page .pets-toolbar label { color: #cbd1e0; }
+.pets-page .pets-toolbar input,
+.pets-page .pets-toolbar select {
+  border-color: #3b435c;
+  background: #23293a;
+  color: #f1f3fa;
+}
+.pets-page .pets-toolbar input::placeholder { color: #8f98ae; }
+.pets-page .pets-toolbar input:focus,
+.pets-page .pets-toolbar select:focus { border-color: #8479ed; box-shadow: 0 0 0 3px #8479ed2b; }
+.pets-page .pets-filter-button { border-color: #514b9d; background: #292a4a; color: #b8b3ff; }
+.pets-page .pets-filter-button[aria-expanded="true"] { border-color: #8378ed; background: #33335a; }
+.pets-page .pets-filter-panel { border-color: #3b435c; background: #202536; color: #d8ddeb; }
+.pets-page .pets-filter-panel-head h3 { color: #f6f7fc; }
+.pets-page .pets-choice-row button { border-color: #414963; background: #282e40; color: #a9b1c4; }
+.pets-page .pets-choice-row button:hover,
+.pets-page .pets-choice-row button.active { border-color: #8277ed; background: #383463; color: #e5e2ff; }
+.pets-page .pets-filter-reset { color: #b8b3ff; }
+.pets-page .pets-type-tabs { background: #232838; }
+.pets-page .pets-type-tabs button { color: #9ca5ba; }
+.pets-page .pets-type-tabs button.active { background: #655be1; color: #fff; box-shadow: 0 3px 10px #080a142e; }
+.pets-page .pets-manual-card { border-color: #3b435c; background: #202536; color: #eef0f8; }
+.pets-page .pets-manual-card > span { background: #39345f; color: #bdb7ff; }
+.pets-page .pets-manual-card small,
+.pets-page .pets-manual-card i { color: #9ea7bb; }
+.pets-page .pets-section-title { color: #f7f8fc; }
+.pets-page .pets-section-title-row > span,
+.pets-page .pets-catalog-source { color: #99a2b7; }
+.pets-page .pets-card { border-color: #394158; background: #202536; box-shadow: 0 7px 20px #0b0e192b; }
+.pets-page .pets-card-photo { background: linear-gradient(135deg, #292847, #252c42); }
+.pets-page .pets-card-body h3 { color: #f4f5fb; }
+.pets-page .pets-card-city,
+.pets-page .pets-card-body > p,
+.pets-page .pets-card-note { color: #a3acc0; }
+.pets-page .pets-rating span { color: #a5aec0; }
+.pets-page .pets-card-actions a { color: #b8b3ff; }
+.pets-page .pets-edit-button { background: #39345f; color: #c0baff; }
+.pets-page .pets-delete-button { background: #402b37; color: #f08787; }
+.pets-page .pets-empty { border-color: #414963; background: #202536; color: #a6afc3; }
+.pets-page + .pets-form-backdrop .pets-form-modal,
+.pets-form-modal {
+  border: 1px solid #3b435c;
+  background: #202536;
+  color: #f3f5fb;
+  box-shadow: 0 24px 60px #080a14a6;
+}
+.pets-form-modal header { border-bottom-color: #3b435c; }
+.pets-form-modal h2 { color: #f7f8fc; }
+.pets-form-modal header button { background: #30374b; color: #b7bfd1; }
+.pets-form-modal > label,
+.pets-form-modal > section,
+.pets-form-grid { color: #cbd2e1; }
+.pets-form-modal input,
+.pets-form-modal textarea { border-color: #3f4862; background: #181c29; color: #f1f3fa; }
+.pets-form-modal input::placeholder,
+.pets-form-modal textarea::placeholder { color: #8f98ae; }
+.pets-form-modal input:focus,
+.pets-form-modal textarea:focus { border-color: #8479ed; box-shadow: 0 0 0 3px #8479ed2b; }
+.pets-form-modal footer button { border-color: #3f4862; background: #2b3143; color: #c2c9d8; }
+.pets-form-modal footer .accent { border-color: #6d62e5; background: linear-gradient(135deg, #5c54db, #786fe9); color: #fff; }
+.pets-form-photo-section { color: #cbd2e1; }
+.pets-photo-picker { border-color: #4d5671; background: #181c29; color: #a5aec3; }
+.pets-photo-picker:hover { border-color: #8378ed; background: #232840; }
+.pets-photo-placeholder > span,
+.pets-photo-placeholder b { color: #b8b3ff; }
+.pets-photo-placeholder small,
+.pets-photo-uploading { color: #969fb4; }
+.pets-photo-remove { border-color: #6b3c48; background: #402b37; color: #f08787; }
+.pets-photo-remove:hover { background: #4a303e; }
+.pets-photo-backdrop button { background: #2d3346; color: #edf0f7; }
+
+@media (max-width: 760px) {
+  .pets-page { margin: 0; border-radius: 18px; padding: 24px 16px 38px; }
+}
+
 @media (max-width: 360px) {
   .restaurant-controls { grid-template-columns: 1fr; }
   .restaurant-filter-button { width: 100%; }
