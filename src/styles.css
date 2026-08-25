@@ -4307,6 +4307,17 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   color: #4e7443;
 }
 .split > b.negative { color: #c85240; }
+.budget-expense-edit {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 1px solid #e0e4eb;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 15px;
+}
+.budget-expense-edit:hover { background: #f1f0ff; }
 
 .send-reminders {
   width: 100%;

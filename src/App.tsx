@@ -9775,15 +9775,6 @@ function Budget({
         <article className="panel">
           <header className="budget-panel-heading">
             <h2>По категориям</h2>
-            <button
-              type="button"
-              className="budget-panel-edit"
-              aria-label="Редактировать трату"
-              disabled={!expenses.length}
-              onClick={() => setEditing(expenses[0])}
-            >
-              ✎
-            </button>
           </header>
           {categories.map((category) => {
             const total = expenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0);
@@ -9793,7 +9784,21 @@ function Budget({
         </article>
         <article className="panel">
           <h2>Траты</h2>
-          {expenses.length ? expenses.map((expense) => <div className="split" key={expense.id}><span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span><b>{formatAmount(expense.amount)}</b></div>) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
+          {expenses.length ? expenses.map((expense) => (
+            <div className="split" key={expense.id}>
+              <span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span>
+              <b>{formatAmount(expense.amount)}</b>
+              <button
+                type="button"
+                className="budget-expense-edit"
+                aria-label={`Редактировать трату ${expense.name}`}
+                title="Редактировать"
+                onClick={() => setEditing(expense)}
+              >
+                ✎
+              </button>
+            </div>
+          )) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
         </article>
       </div>
       {adding && <ExpenseForm currency={currency} onClose={() => setAdding(false)} onSave={saveExpense} />}
