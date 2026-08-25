@@ -127,6 +127,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
@@ -256,8 +257,11 @@ import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -8640,6 +8644,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
     }
 
     LaunchedEffect(selectedCity, selectedType, query, language, tripCityOptions.joinToString("|")) {
+        delay(if (query.isBlank()) 150L else 350L)
         val citiesToSearch = if (selectedCity == "Все города") tripCityOptions.take(6) else listOf(selectedCity)
         if (citiesToSearch.isEmpty()) {
             catalogEntries = emptyList()
@@ -8648,25 +8653,37 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
         }
         loadingCatalog = true
         catalogMessage = null
-        val result = runCatching {
-            val combined = mutableListOf<PetCatalogEntry>()
-            for (city in citiesToSearch) {
-                combined += catalogRepository.search(city, selectedType, query, language, limit = 24)
-            }
-            combined.distinctBy { it.googlePlaceId.ifBlank { it.id } }
+        val cityResults = supervisorScope {
+            citiesToSearch.map { city ->
+                async {
+                    runCatching { catalogRepository.search(city, selectedType, query, language, limit = 24) }
+                }
+            }.awaitAll()
         }
-        val entries = result.getOrDefault(emptyList())
-        val photoResults = runCatching { catalogRepository.resolvePhotos(entries.map { it.photoName }) }.getOrDefault(emptyMap())
+        val entries = cityResults
+            .flatMap { it.getOrElse { emptyList() } }
+            .distinctBy { it.googlePlaceId.ifBlank { it.id } }
+        val firstFailure = cityResults.firstOrNull { it.isFailure }?.exceptionOrNull()
+        val photoNames = entries
+            .flatMap { entry -> entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) } }
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .take(24)
+        val photoResults = runCatching { catalogRepository.resolvePhotos(photoNames) }.getOrDefault(emptyMap())
         catalogEntries = entries.map { entry ->
-            val photo = photoResults[entry.photoName]
+            val names = entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) }
+            val photo = names.firstNotNullOfOrNull { name -> photoResults[name]?.takeIf { !it.photoUrl.isNullOrBlank() } }
             entry.copy(photoUrl = entry.photoUrl ?: photo?.photoUrl, photoAttribution = entry.photoAttribution ?: photo?.photoAttribution)
         }
-        if (result.isFailure) {
+        if (entries.isEmpty() && firstFailure != null) {
             catalogMessage = localizedFailure(
                 language,
-                result.exceptionOrNull(),
+                firstFailure,
                 localized(language, "Каталог временно недоступен.", "The catalog is temporarily unavailable.", "El catálogo no está disponible temporalmente.", "Der Katalog ist vorübergehend nicht verfügbar."),
             )
+        } else if (firstFailure != null && entries.isNotEmpty()) {
+            catalogMessage = localized(language, "Часть городов пока недоступна.", "Some cities are temporarily unavailable.", "Algunas ciudades no están disponibles temporalmente.", "Einige Städte sind vorübergehend nicht verfügbar.")
         }
         loadingCatalog = false
     }
@@ -8795,7 +8812,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
             items(visibleSavedPlaces, key = { "saved-${it.id}" }) { place ->
                 val live = place.googlePlaceId.takeIf(String::isNotBlank)?.let(liveByGoogleId::get)
                 val displayPlace = place.copy(rating = live?.rating ?: place.rating, reviewCount = live?.reviewCount ?: place.reviewCount, photoUrl = live?.photoUrl ?: place.photoUrl, photoName = live?.photoName ?: place.photoName, photoAttribution = live?.photoAttribution ?: place.photoAttribution, mapsUrl = place.mapsUrl.ifBlank { live?.mapsUrl.orEmpty() }, phone = place.phone.ifBlank { live?.phone.orEmpty() }, openNow = live?.openNow ?: place.openNow)
-                PetPlaceCard(place = displayPlace, canEdit = canEdit, saved = true, onAdd = {}, onEdit = { editingPlace = place }, onDelete = { deleteTarget = place }, onPhotoClick = { displayPlace.photoUrl?.takeIf(String::isNotBlank)?.let { fullScreenPetPhoto = it to displayPlace.name } })
+                PetPlaceCard(place = displayPlace, canEdit = canEdit, saved = true, photoNames = live?.photoNames.orEmpty(), catalogRepository = catalogRepository, distanceFromDeviceMeters = deviceLocation?.let { location -> distanceMeters(location, displayPlace.latitude, displayPlace.longitude) }, onPhotoResolved = { photoUrl -> if (displayPlace.photoUrl.isNullOrBlank()) catalogEntries = catalogEntries.map { current -> if (current.googlePlaceId == displayPlace.googlePlaceId && current.photoUrl.isNullOrBlank()) current.copy(photoUrl = photoUrl) else current } }, onAdd = {}, onEdit = { editingPlace = place }, onDelete = { deleteTarget = place }, onPhotoClick = { photoUrl -> fullScreenPetPhoto = photoUrl to displayPlace.name })
             }
         }
         item {
@@ -8811,7 +8828,7 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
                 (entry.googlePlaceId.isNotBlank() && saved.googlePlaceId == entry.googlePlaceId) ||
                     (saved.name.equals(entry.name, ignoreCase = true) && cityFilterKey(saved.city) == cityFilterKey(entry.city))
             }
-            PetCatalogCard(entry = entry, canEdit = canEdit, added = alreadyAdded, saving = savingCatalogId == entry.id, onPhotoClick = { entry.photoUrl?.takeIf(String::isNotBlank)?.let { fullScreenPetPhoto = it to entry.name } }) {
+            PetCatalogCard(entry = entry, canEdit = canEdit, added = alreadyAdded, saving = savingCatalogId == entry.id, catalogRepository = catalogRepository, distanceFromDeviceMeters = deviceLocation?.let { location -> distanceMeters(location, entry.latitude, entry.longitude) }, onPhotoResolved = { photoUrl -> catalogEntries = catalogEntries.map { current -> if (current.id == entry.id && current.photoUrl.isNullOrBlank()) current.copy(photoUrl = photoUrl) else current } }, onPhotoClick = { photoUrl -> fullScreenPetPhoto = photoUrl to entry.name }) {
                 if (!canEdit || alreadyAdded || savingCatalogId != null) return@PetCatalogCard
                 savingCatalogId = entry.id
                 scope.launch {
@@ -8875,49 +8892,175 @@ private fun PetsContent(tripId: String, overview: TripOverview, canEdit: Boolean
 private data class PetFilterState(val radius: String = "10", val rating: String = "", val openNow: Boolean = false, val features: Set<String> = emptySet())
 
 @Composable
-private fun PetCatalogCard(entry: PetCatalogEntry, canEdit: Boolean, added: Boolean, saving: Boolean, onPhotoClick: () -> Unit, onAdd: () -> Unit) {
+private fun PetActionIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean = true,
+    tint: Color = primaryColor(),
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (enabled) tintedSurfaceColor() else secondarySurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = if (enabled) tint else secondaryTextColor(), modifier = Modifier.size(19.dp))
+    }
+}
+
+@Composable
+private fun PetMetaPill(label: String, accent: Color = secondaryTextColor()) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (accent == primaryColor()) tintedSurfaceColor() else cardSurfaceColor())
+            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+    ) {
+        Text(label, color = accent, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, maxLines = 1)
+    }
+}
+
+private fun petDistanceLabel(distanceFromDeviceMeters: Double?, language: String): String? {
+    val distance = distanceFromDeviceMeters?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
+    return if (distance < 1000.0) {
+        "${distance.toInt()} ${localized(language, "м", "m", "m", "m")}"
+    } else {
+        "${String.format(mapLocale(language), "%.1f", distance / 1000.0)} ${localized(language, "км", "km", "km", "km")}"
+    }
+}
+
+@Composable
+private fun PetRatingRow(rating: Double?, reviewCount: Int?) {
+    rating?.let {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("★", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
+            Text(String.format(Locale.US, "%.1f", it), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+            reviewCount?.let { count -> Text("($count)", color = secondaryTextColor(), fontFamily = Manrope, fontSize = 11.sp) }
+        }
+    }
+}
+
+@Composable
+private fun PetOpenStatus(openNow: Boolean?) {
+    openNow?.let { isOpen ->
+        PetMetaPill(
+            label = if (isOpen) localized("Открыто", "Open", "Abierto", "Geöffnet") else localized("Закрыто", "Closed", "Cerrado", "Geschlossen"),
+            accent = if (isOpen) Color(0xFF3FA866) else Color(0xFFE0524B),
+        )
+    }
+}
+
+@Composable
+private fun PetCatalogCard(
+    entry: PetCatalogEntry,
+    canEdit: Boolean,
+    added: Boolean,
+    saving: Boolean,
+    catalogRepository: PetCatalogRepository,
+    distanceFromDeviceMeters: Double?,
+    onPhotoResolved: (String) -> Unit,
+    onPhotoClick: (String) -> Unit,
+    onAdd: () -> Unit,
+) {
     val uriHandler = LocalUriHandler.current
-    val photo = entry.photoUrl
-    Column(modifier = Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(17.dp), ambientColor = Color(0x16000000), spotColor = Color(0x16000000)).clip(RoundedCornerShape(17.dp)).background(cardSurfaceColor()).padding(12.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
-            val photoModifier = Modifier.size(108.dp).clip(RoundedCornerShape(16.dp)).then(if (photo.isNullOrBlank()) Modifier else Modifier.clickable(onClick = onPhotoClick))
-            if (photo.isNullOrBlank()) Box(modifier = photoModifier.background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(32.dp)) } else AsyncImage(model = photo, contentDescription = localized("Увеличить фото", "Enlarge photo", "Ampliar foto", "Foto vergrößern"), modifier = photoModifier, contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-            Column(modifier = Modifier.padding(start = 11.dp).weight(1f)) {
-                Text(entry.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (entry.type == "vet") localized("Ветеринарная клиника", "Veterinary clinic", "Clínica veterinaria", "Tierarztpraxis") else localized("Зоомагазин", "Pet shop", "Tienda de mascotas", "Zoohandlung"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                if (entry.address.isNotBlank()) Text(entry.address, color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                entry.rating?.let { rating -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) { Text("★ ${String.format(Locale.US, "%.1f", rating)}", color = Color(0xFFB97900), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp); entry.reviewCount?.let { Text("  (${it})", color = secondaryTextColor(), fontFamily = Manrope, fontSize = 11.sp) } } }
+    val language = LocalLanguage.current
+    var resolvedPhotoUrl by remember(entry.id, entry.photoUrl) { mutableStateOf(entry.photoUrl) }
+    LaunchedEffect(entry.id, entry.photoUrl, entry.photoName, entry.photoNames) {
+        if (resolvedPhotoUrl.isNullOrBlank()) {
+            val photoNames = entry.photoNames.ifEmpty { listOfNotNull(entry.photoName.takeIf(String::isNotBlank)) }
+            val photoUrl = runCatching { catalogRepository.resolvePhotos(photoNames) }
+                .getOrDefault(emptyMap())
+                .let { photoResults -> photoNames.firstNotNullOfOrNull { photoResults[it]?.photoUrl } }
+            if (!photoUrl.isNullOrBlank()) {
+                resolvedPhotoUrl = photoUrl
+                onPhotoResolved(photoUrl)
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            if (entry.mapsUrl.isNotBlank()) TextButton(onClick = { uriHandler.openUri(entry.mapsUrl) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)); Text(localized("Google Карты", "Google Maps", "Google Maps", "Google Maps"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp)) }
-            Spacer(Modifier.weight(1f))
-            if (canEdit) Button(onClick = onAdd, enabled = !added && !saving, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = if (added) tintedSurfaceColor() else primaryColor(), contentColor = if (added) primaryColor() else primaryContentColor()), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp)) { Text(if (saving) "…" else if (added) localized("Добавлено", "Added", "Añadido", "Hinzugefügt") else localized("Добавить", "Add", "Añadir", "Hinzufügen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp) }
+    }
+    val photo = resolvedPhotoUrl
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(18.dp), ambientColor = Color(0x18000000), spotColor = Color(0x18000000))
+            .clip(RoundedCornerShape(18.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(18.dp))
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            val photoModifier = Modifier.size(92.dp).clip(RoundedCornerShape(15.dp)).then(if (photo.isNullOrBlank()) Modifier else Modifier.clickable { photo?.let(onPhotoClick) })
+            if (photo.isNullOrBlank()) Box(modifier = photoModifier.background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(30.dp)) } else FastCatalogImage(photo, localized("Увеличить фото", "Enlarge photo", "Ampliar foto", "Foto vergrößern"), androidx.compose.ui.layout.ContentScale.Crop, photoModifier)
+            Column(modifier = Modifier.padding(start = 11.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(if (entry.type == "vet") localized("ВЕТЕРИНАР", "VETERINARIAN", "VETERINARIO", "TIERARZT") else localized("ЗООМАГАЗИН", "PET SHOP", "TIENDA", "ZOOHANDLUNG"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 0.4.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (entry.mapsUrl.isNotBlank()) PetActionIconButton(Icons.Outlined.LocationOn, localized("Открыть карту", "Open map", "Abrir mapa", "Karte öffnen")) { uriHandler.openUri(entry.mapsUrl) }
+                        if (canEdit) PetActionIconButton(Icons.Outlined.Add, localized("Добавить", "Add", "Añadir", "Hinzufügen"), enabled = !added && !saving, tint = if (added) secondaryTextColor() else primaryColor(), onClick = onAdd)
+                    }
+                }
+                if (entry.address.isNotBlank()) Text(entry.address, color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    PetRatingRow(entry.rating, entry.reviewCount)
+                    petDistanceLabel(distanceFromDeviceMeters, language)?.let { PetMetaPill(it, primaryColor()) }
+                    PetOpenStatus(entry.openNow)
+                }
+            }
         }
+        if (saving || added) Text(if (saving) localized("Добавляем…", "Adding…", "Añadiendo…", "Wird hinzugefügt…") else localized("Уже добавлено", "Already added", "Ya añadido", "Bereits hinzugefügt"), color = if (added) primaryColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp, modifier = Modifier.padding(start = 103.dp, top = 5.dp))
         entry.photoAttribution?.takeIf(String::isNotBlank)?.let { attribution -> Text(attribution, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.5.sp, modifier = Modifier.padding(top = 2.dp)) }
     }
 }
 
 @Composable
-private fun PetPlaceCard(place: PetPlace, canEdit: Boolean, saved: Boolean, onAdd: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onPhotoClick: () -> Unit) {
+private fun PetPlaceCard(place: PetPlace, canEdit: Boolean, saved: Boolean, photoNames: List<String>, catalogRepository: PetCatalogRepository, distanceFromDeviceMeters: Double?, onPhotoResolved: (String) -> Unit, onAdd: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onPhotoClick: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
-    Column(modifier = Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(17.dp), ambientColor = Color(0x16000000), spotColor = Color(0x16000000)).clip(RoundedCornerShape(17.dp)).background(cardSurfaceColor()).padding(12.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
-            val photoModifier = Modifier.size(108.dp).clip(RoundedCornerShape(16.dp)).then(if (place.photoUrl.isNullOrBlank()) Modifier else Modifier.clickable(onClick = onPhotoClick))
-            if (place.photoUrl.isNullOrBlank()) Box(modifier = photoModifier.background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(32.dp)) } else AsyncImage(model = place.photoUrl, contentDescription = localized("Увеличить фото", "Enlarge photo", "Ampliar foto", "Foto vergrößern"), modifier = photoModifier, contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-            Column(modifier = Modifier.padding(start = 11.dp).weight(1f)) {
-                Text(place.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (place.type == "vet") localized("Ветеринар", "Veterinarian", "Veterinario", "Tierarzt") else localized("Зоомагазин", "Pet shop", "Tienda de mascotas", "Zoohandlung"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                if (place.address.isNotBlank()) Text(place.address, color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                place.rating?.let { rating -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) { Text("★ ${String.format(Locale.US, "%.1f", rating)}", color = Color(0xFFB97900), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp); place.reviewCount?.let { Text("  (${it})", color = secondaryTextColor(), fontFamily = Manrope, fontSize = 11.sp) } } }
+    val language = LocalLanguage.current
+    var resolvedPhotoUrl by remember(place.id, place.photoUrl) { mutableStateOf(place.photoUrl) }
+    LaunchedEffect(place.id, place.photoUrl, place.photoName, photoNames) {
+        if (resolvedPhotoUrl.isNullOrBlank()) {
+            val names = photoNames.ifEmpty { listOfNotNull(place.photoName.takeIf(String::isNotBlank)) }
+            val photoUrl = runCatching { catalogRepository.resolvePhotos(names) }
+                .getOrDefault(emptyMap())
+                .let { photoResults -> names.firstNotNullOfOrNull { photoResults[it]?.photoUrl } }
+            if (!photoUrl.isNullOrBlank()) {
+                resolvedPhotoUrl = photoUrl
+                onPhotoResolved(photoUrl)
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-            if (place.mapsUrl.isNotBlank()) TextButton(onClick = { uriHandler.openUri(place.mapsUrl) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Icon(Icons.Outlined.OpenInNew, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)); Text(localized("Google Карты", "Google Maps", "Google Maps", "Google Maps"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp)) }
-            Spacer(Modifier.weight(1f))
-            if (canEdit) {
-                TextButton(onClick = onEdit, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 5.dp, vertical = 2.dp)) { Icon(Icons.Outlined.Edit, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)); Text(localized("Изменить", "Edit", "Editar", "Bearbeiten"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp)) }
-                TextButton(onClick = onDelete, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 2.dp)) { Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color(0xFFE0524B), modifier = Modifier.size(16.dp)); Text(localized("Удалить", "Delete", "Eliminar", "Löschen"), color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp)) }
+    }
+    val photo = resolvedPhotoUrl
+    Column(modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(18.dp), ambientColor = Color(0x18000000), spotColor = Color(0x18000000)).clip(RoundedCornerShape(18.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(18.dp)).padding(12.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            val photoModifier = Modifier.size(92.dp).clip(RoundedCornerShape(15.dp)).then(if (photo.isNullOrBlank()) Modifier else Modifier.clickable { photo?.let(onPhotoClick) })
+            if (photo.isNullOrBlank()) Box(modifier = photoModifier.background(tintedSurfaceColor()), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(30.dp)) } else FastCatalogImage(photo, localized("Увеличить фото", "Enlarge photo", "Ampliar foto", "Foto vergrößern"), androidx.compose.ui.layout.ContentScale.Crop, photoModifier)
+            Column(modifier = Modifier.padding(start = 11.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(if (place.type == "vet") localized("ВЕТЕРИНАР", "VETERINARIAN", "VETERINARIO", "TIERARZT") else localized("ЗООМАГАЗИН", "PET SHOP", "TIENDA", "ZOOHANDLUNG"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 0.4.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(place.name, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (place.mapsUrl.isNotBlank()) PetActionIconButton(Icons.Outlined.LocationOn, localized("Открыть карту", "Open map", "Abrir mapa", "Karte öffnen")) { uriHandler.openUri(place.mapsUrl) }
+                        if (canEdit) {
+                            PetActionIconButton(Icons.Outlined.Edit, localized("Изменить", "Edit", "Editar", "Bearbeiten"), onClick = onEdit)
+                            PetActionIconButton(Icons.Outlined.Delete, localized("Удалить", "Delete", "Eliminar", "Löschen"), tint = Color(0xFFE0524B), onClick = onDelete)
+                        }
+                    }
+                }
+                if (place.address.isNotBlank()) Text(place.address, color = secondaryTextColor(), fontFamily = Manrope, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    PetRatingRow(place.rating, place.reviewCount)
+                    petDistanceLabel(distanceFromDeviceMeters, language)?.let { PetMetaPill(it, primaryColor()) }
+                    PetOpenStatus(place.openNow)
+                }
             }
         }
         place.photoAttribution?.takeIf(String::isNotBlank)?.let { attribution -> Text(attribution, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.5.sp, modifier = Modifier.padding(top = 2.dp)) }
@@ -8933,31 +9076,107 @@ private fun PetFiltersSheet(applied: PetFilterState, type: String, onDismiss: ()
     var features by remember(applied) { mutableStateOf(applied.features) }
     val featureOptions = if (type == "vet") {
         listOf(
-            "Круглосуточно" to localized("Круглосуточно", "Open 24/7", "Abierto 24 h", "Rund um die Uhr"),
-            "Экстренная помощь" to localized("Экстренная помощь", "Emergency care", "Atención de urgencias", "Notfallhilfe"),
-            "Приём без записи" to localized("Приём без записи", "Walk-ins accepted", "Sin cita previa", "Ohne Termin"),
-            "Есть телефон" to localized("Есть телефон", "Has phone", "Tiene teléfono", "Telefon vorhanden"),
+            Triple("Круглосуточно", localized("Круглосуточно", "Open 24/7", "Abierto 24 h", "Rund um die Uhr"), Icons.Outlined.DateRange),
+            Triple("Экстренная помощь", localized("Экстренная помощь", "Emergency care", "Atención de urgencias", "Notfallhilfe"), Icons.Outlined.FavoriteBorder),
+            Triple("Приём без записи", localized("Приём без записи", "Walk-ins accepted", "Sin cita previa", "Ohne Termin"), Icons.Outlined.DateRange),
+            Triple("Есть телефон", localized("Есть телефон", "Has phone", "Tiene teléfono", "Telefon vorhanden"), Icons.Outlined.Phone),
         )
     } else {
         listOf(
-            "Корм для собак" to localized("Корм для собак", "Dog food", "Comida para perros", "Hundefutter"),
-            "Корм для кошек" to localized("Корм для кошек", "Cat food", "Comida para gatos", "Katzenfutter"),
-            "Лекарства" to localized("Лекарства", "Medicines", "Medicamentos", "Medikamente"),
-            "Груминг" to localized("Груминг", "Grooming", "Peluquería", "Fellpflege"),
-            "Есть телефон" to localized("Есть телефон", "Has phone", "Tiene teléfono", "Telefon vorhanden"),
+            Triple("Корм для собак", localized("Корм для собак", "Dog food", "Comida para perros", "Hundefutter"), Icons.Outlined.FavoriteBorder),
+            Triple("Корм для кошек", localized("Корм для кошек", "Cat food", "Comida para gatos", "Katzenfutter"), Icons.Outlined.FavoriteBorder),
+            Triple("Лекарства", localized("Лекарства", "Medicines", "Medicamentos", "Medikamente"), Icons.Outlined.FavoriteBorder),
+            Triple("Груминг", localized("Груминг", "Grooming", "Peluquería", "Fellpflege"), Icons.Outlined.FavoriteBorder),
+            Triple("Есть телефон", localized("Есть телефон", "Has phone", "Tiene teléfono", "Telefon vorhanden"), Icons.Outlined.Phone),
         )
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = cardSurfaceColor()) {
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(start = 18.dp, end = 18.dp, bottom = 22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) { Text(localized("Фильтры", "Filters", "Filtros", "Filter"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.weight(1f)); TextButton(onClick = { radius = "10"; rating = ""; openNow = false; features = emptySet() }) { Text(localized("Сбросить", "Reset", "Restablecer", "Zurücksetzen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800) } }
-            Text(localized("Радиус поиска", "Search radius", "Radio de búsqueda", "Suchradius"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("1", "5", "10", "25").forEach { value -> PetChoiceChip("$value ${localized("км", "km", "km", "km")}", radius.removeSuffix(" км").removeSuffix(" km") == value) { radius = value } } }
-            Text(localized("Рейтинг от", "Rating from", "Valoración desde", "Bewertung ab"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) { listOf("", "4.0", "4.5", "4.8").forEach { value -> PetChoiceChip(if (value.isBlank()) localized("Любой", "Any", "Cualquiera", "Beliebig") else "★ $value", rating == value) { rating = value } } }
-            Text(localized("Дополнительно", "More", "Más", "Mehr"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
-            PetChoiceChip(localized("Открыто сейчас", "Open now", "Abierto ahora", "Jetzt geöffnet"), openNow) { openNow = !openNow }
-            featureOptions.forEach { (key, label) -> PetChoiceChip(label, key in features) { features = if (key in features) features - key else features + key } }
-            Button(onClick = { onApply(PetFilterState(radius, rating, openNow, features)) }, modifier = Modifier.fillMaxWidth().padding(top = 18.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = primaryColor())) { Text(localized("Показать места", "Show places", "Mostrar lugares", "Orte anzeigen"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = cardSurfaceColor(),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .size(width = 58.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(contentBorderColor()),
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .padding(start = 18.dp, end = 18.dp, bottom = 22.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(localized("Фильтры", "Filters", "Filtros", "Filter"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 22.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { radius = "10"; rating = ""; openNow = false; features = emptySet() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text(localized("Сбросить", "Reset", "Restablecer", "Zurücksetzen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                }
+            }
+            Text(localized("Радиус поиска", "Search radius", "Radio de búsqueda", "Suchradius"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("1", "5", "10", "25").forEach { value ->
+                    PetFilterChoiceChip("$value ${localized("км", "km", "km", "km")}", radius.removeSuffix(" км").removeSuffix(" km") == value, Modifier.weight(1f)) { radius = value }
+                }
+            }
+            Text(localized("Рейтинг от", "Rating from", "Valoración desde", "Bewertung ab"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("", "4.0", "4.5", "4.8").forEach { value ->
+                    PetFilterChoiceChip(if (value.isBlank()) localized("Любой", "Any", "Cualquiera", "Beliebig") else "★ $value", rating == value, Modifier.weight(1f)) { rating = value }
+                }
+            }
+            Text(localized("Дополнительно", "More", "Más", "Mehr"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
+            PetFilterToggleRow(localized("Открыто сейчас", "Open now", "Abierto ahora", "Jetzt geöffnet"), Icons.Outlined.DateRange, openNow) { openNow = !openNow }
+            featureOptions.forEach { (key, label, icon) ->
+                PetFilterToggleRow(label, icon, key in features) {
+                    features = if (key in features) features - key else features + key
+                }
+            }
+            Button(onClick = { onApply(PetFilterState(radius, rating, openNow, features)) }, modifier = Modifier.fillMaxWidth().padding(top = 18.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = primaryColor()), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 14.dp)) {
+                Text(localized("Показать места", "Show places", "Mostrar lugares", "Orte anzeigen"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PetFilterChoiceChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) primaryColor() else cardSurfaceColor())
+            .border(1.dp, if (selected) primaryColor() else contentBorderColor(), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (selected) primaryContentColor() else labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun PetFilterToggleRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(if (selected) Color(0x1F6C5CE7) else tintedSurfaceColor()), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (selected) primaryColor() else secondaryTextColor(), modifier = Modifier.size(20.dp))
+        }
+        Text(label, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
+        Box(modifier = Modifier.size(24.dp).clip(CircleShape).border(1.5.dp, if (selected) primaryColor() else contentBorderColor(), CircleShape), contentAlignment = Alignment.Center) {
+            if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(15.dp))
         }
     }
 }

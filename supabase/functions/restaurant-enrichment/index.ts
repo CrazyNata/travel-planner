@@ -239,9 +239,11 @@ Deno.serve(async (request: Request) => {
   const city = String(body?.city ?? "").trim().slice(0, 100);
   const query = String(body?.query ?? "").trim().slice(0, 80);
   const languageCode = safeLanguageCode(body?.languageCode);
-  // The original Android client sent limit=20. Keep the blank city catalog
-  // full-size so older clients also receive the complete city dataset.
-  const limit = query ? clampLimit(body?.limit) : 60;
+  // Keep the full catalog for older clients that omit `limit`, while honoring
+  // the bounded page requested by current mobile clients even for a blank query.
+  const limit = body?.limit === undefined || body?.limit === null
+    ? 60
+    : clampLimit(body.limit);
   if (!city) return jsonResponse({ error: "city is required" }, 400);
 
   const textQuery = query

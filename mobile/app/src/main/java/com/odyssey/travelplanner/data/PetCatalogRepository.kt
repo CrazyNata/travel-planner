@@ -12,6 +12,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -32,6 +34,7 @@ data class PetCatalogEntry(
     val reviewCount: Int? = null,
     val photoUrl: String? = null,
     val photoName: String = "",
+    val photoNames: List<String> = emptyList(),
     val photoAttribution: String? = null,
     val isLiveResult: Boolean = true,
     val openNow: Boolean? = null,
@@ -53,6 +56,7 @@ private data class PetCatalogResponsePlace(
     @SerialName("rating_count") val ratingCount: Int? = null,
     @SerialName("photo_url") val photoUrl: String? = null,
     @SerialName("photo_name") val photoName: String = "",
+    @SerialName("photo_names") val photoNames: List<String> = emptyList(),
     @SerialName("photo_attribution") val photoAttribution: String? = null,
     @SerialName("google_maps_url") val googleMapsUrl: String = "",
     val latitude: Double? = null,
@@ -73,7 +77,18 @@ private data class PetPhotosResponse(val photos: List<PetPhotoResponseItem> = em
 data class PetPhotoResult(val photoUrl: String?, val photoAttribution: String?)
 
 class PetCatalogRepository(private val client: SupabaseClient) {
+    private data class SearchCacheEntry(
+        val createdAtMillis: Long,
+        val entries: List<PetCatalogEntry>,
+    )
+
+    private companion object {
+        const val SEARCH_CACHE_TTL_MILLIS = 5 * 60 * 1000L
+    }
+
     private val photoCache = ConcurrentHashMap<String, PetPhotoResult>()
+    private val searchCache = ConcurrentHashMap<String, SearchCacheEntry>()
+    private val authMutex = Mutex()
 
     suspend fun search(
         city: String,
@@ -84,30 +99,37 @@ class PetCatalogRepository(private val client: SupabaseClient) {
     ): List<PetCatalogEntry> {
         val cityName = city.trim()
         if (cityName.isBlank()) return emptyList()
-        if (client.auth.currentSessionOrNull() == null) {
-            runCatching { client.auth.refreshCurrentSession() }
-        }
-        val accessToken = client.auth.currentAccessTokenOrNull()
         val normalizedType = if (type.trim().lowercase(Locale.ROOT) == "vet") "vet" else "shop"
+        val normalizedQuery = query.trim().take(80)
+        val languageCode = placesLanguageCodeForPets(language)
+        val normalizedLimit = limit.coerceIn(1, 60)
+        val cacheKey = listOf(
+            cityName.lowercase(Locale.ROOT),
+            normalizedType,
+            normalizedQuery.lowercase(Locale.ROOT),
+            languageCode,
+            normalizedLimit,
+        ).joinToString("|")
+        val now = System.currentTimeMillis()
+        searchCache[cacheKey]?.takeIf { now - it.createdAtMillis < SEARCH_CACHE_TTL_MILLIS }?.let { cached ->
+            return cached.entries
+        }
         val response = client.functions.invoke(
             function = "restaurant-enrichment",
             body = buildJsonObject {
                 put("category", "pet")
                 put("petType", normalizedType)
                 put("city", cityName.take(100))
-                put("query", query.trim().take(80))
-                put("languageCode", placesLanguageCodeForPets(language))
-                put("limit", limit.coerceIn(1, 60))
+                put("query", normalizedQuery)
+                put("languageCode", languageCode)
+                put("limit", normalizedLimit)
             },
-            headers = Headers.build {
-                append(HttpHeaders.ContentType, "application/json")
-                if (!accessToken.isNullOrBlank()) append(HttpHeaders.Authorization, "Bearer $accessToken")
-            },
+            headers = authHeaders(),
         )
         val places = Json { ignoreUnknownKeys = true }
             .decodeFromString<PetCatalogResponse>(response.bodyAsText())
             .petPlaces
-        return places.mapIndexed { index, place ->
+        val entries = places.mapIndexed { index, place ->
             val googleId = place.placeId.trim()
             PetCatalogEntry(
                 id = "google:${googleId.ifBlank { "$cityName:$normalizedType:$index" }}",
@@ -126,10 +148,13 @@ class PetCatalogRepository(private val client: SupabaseClient) {
                 reviewCount = place.ratingCount,
                 photoUrl = place.photoUrl,
                 photoName = place.photoName,
+                photoNames = place.photoNames.ifEmpty { listOfNotNull(place.photoName.takeIf(String::isNotBlank)) },
                 photoAttribution = place.photoAttribution,
                 openNow = place.openNow,
             )
         }
+        searchCache[cacheKey] = SearchCacheEntry(System.currentTimeMillis(), entries)
+        return entries
     }
 
     suspend fun resolvePhotos(photoNames: List<String>): Map<String, PetPhotoResult> {
@@ -138,24 +163,35 @@ class PetCatalogRepository(private val client: SupabaseClient) {
         val cached = clean.mapNotNull { photoCache[it]?.let { result -> it to result } }.toMap()
         val missing = clean.filterNot(cached::containsKey)
         if (missing.isEmpty()) return cached
-        if (client.auth.currentSessionOrNull() == null) runCatching { client.auth.refreshCurrentSession() }
-        val accessToken = client.auth.currentAccessTokenOrNull()
         val response = client.functions.invoke(
             function = "restaurant-enrichment",
             body = buildJsonObject {
                 put("photoNames", buildJsonArray { missing.take(24).forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
             },
-            headers = Headers.build {
-                append(HttpHeaders.ContentType, "application/json")
-                if (!accessToken.isNullOrBlank()) append(HttpHeaders.Authorization, "Bearer $accessToken")
-            },
+            headers = authHeaders(),
         )
         val resolved = Json { ignoreUnknownKeys = true }
             .decodeFromString<PetPhotosResponse>(response.bodyAsText())
             .photos.filter { it.photoName.isNotBlank() }
             .associate { it.photoName to PetPhotoResult(it.photoUrl, it.photoAttribution) }
-        resolved.forEach { (key, value) -> photoCache[key] = value }
+        // Keep successful resolutions in the cache. A null URL can be a
+        // transient Places media failure (especially when several cities are
+        // loaded at once), so it must remain retryable for the visible card.
+        resolved.forEach { (key, value) ->
+            if (!value.photoUrl.isNullOrBlank()) photoCache[key] = value
+        }
         return cached + resolved
+    }
+
+    private suspend fun authHeaders(): Headers = authMutex.withLock {
+        if (client.auth.currentSessionOrNull() == null) {
+            runCatching { client.auth.refreshCurrentSession() }
+        }
+        val accessToken = client.auth.currentAccessTokenOrNull()
+        Headers.build {
+            append(HttpHeaders.ContentType, "application/json")
+            if (!accessToken.isNullOrBlank()) append(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
     }
 }
 
