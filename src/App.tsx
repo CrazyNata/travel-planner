@@ -308,6 +308,42 @@ function formatBudgetAmount(amount: number, currency: BudgetCurrency) {
     maximumFractionDigits: 2,
   })} ${label}`;
 }
+
+const budgetCategories = [
+  "Жильё",
+  "Транспорт",
+  "Еда и рестораны",
+  "Активности и билеты",
+  "Прочее",
+];
+
+function inferBudgetCategory(name: string) {
+  const value = name.trim().toLocaleLowerCase("ru-RU");
+  if (!value) return undefined;
+  if (/(жиль|отел|гостини|апартамент|хостел|airbnb|booking)/.test(value)) {
+    return "Жильё";
+  }
+  if (/(аренд.*(машин|авто)|бензин|такси|транспорт|поезд|перелет|самолет|дорог.*билет)/.test(value)) {
+    return "Транспорт";
+  }
+  if (/(еда|ресторан|обед|ужин|завтрак|кафе|пицц|продукт|бар)/.test(value)) {
+    return "Еда и рестораны";
+  }
+  if (/(дневн.*трат|непредвид|прочее)/.test(value)) {
+    return "Прочее";
+  }
+  if (/(экскурс|музей|достопримеч|актив|развлеч|парк)/.test(value)) {
+    return "Активности и билеты";
+  }
+  return undefined;
+}
+
+function normalizeBudgetExpense(expense: BudgetExpense) {
+  const inferred = inferBudgetCategory(expense.name);
+  return inferred && expense.category === "Еда и рестораны" && inferred !== expense.category
+    ? { ...expense, category: inferred }
+    : expense;
+}
 type StoredDay = {
   id?: string;
   city?: string;
@@ -9552,9 +9588,18 @@ function ExpenseForm({
   initial?: BudgetExpense;
   currency: BudgetCurrency;
 }) {
-  const [category, setCategory] = useState(initial?.category || "Еда и рестораны");
+  const [name, setName] = useState(initial?.name || "");
+  const [category, setCategory] = useState(
+    () => inferBudgetCategory(initial?.name || "") || initial?.category || "Еда и рестораны",
+  );
+  const [categoryManuallySelected, setCategoryManuallySelected] = useState(false);
   const [scope, setScope] = useState<BudgetScope>(initial?.scope || "общий");
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (categoryManuallySelected) return;
+    const inferred = inferBudgetCategory(name);
+    if (inferred && inferred !== category) setCategory(inferred);
+  }, [category, categoryManuallySelected, name]);
   return (
     <div className="expense-modal-backdrop" onClick={onClose}>
       <form
@@ -9563,8 +9608,8 @@ function ExpenseForm({
           event.preventDefault();
           const form = new FormData(event.currentTarget);
           const amount = Number(String(form.get("amount") || "").replace(",", "."));
-          const name = String(form.get("name") || "").trim();
-          if (!name) {
+          const expenseName = String(form.get("name") || "").trim();
+          if (!expenseName) {
             setError("Укажите название траты.");
             return;
           }
@@ -9579,9 +9624,9 @@ function ExpenseForm({
           setError("");
           onSave({
             id: initial?.id || crypto.randomUUID(),
-            name,
+            name: expenseName,
             amount: amount / budgetCurrencies[currency].rate,
-            category,
+            category: categoryManuallySelected ? category : inferBudgetCategory(expenseName) || category,
             scope,
             paidBy: String(form.get("paidBy") || initial?.paidBy || "Общее").trim() || "Общее",
             date: String(form.get("date") || "") || undefined,
@@ -9597,7 +9642,7 @@ function ExpenseForm({
           </button>
         </header>
         <label>
-          Название<input name="name" autoFocus defaultValue={initial?.name} placeholder="Напр. жильё в Равенсбурге" />
+          Название<input name="name" autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Напр. жильё в Равенсбурге" />
         </label>
         <div className="expense-form-grid">
           <label>
@@ -9622,12 +9667,15 @@ function ExpenseForm({
         <section>
           <b>Категория</b>
           <div>
-            {["Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее"].map(
+            {budgetCategories.map(
               (item) => (
                 <button
                   type="button"
                   className={category === item ? "active" : ""}
-                  onClick={() => setCategory(item)}
+                  onClick={() => {
+                    setCategoryManuallySelected(true);
+                    setCategory(item);
+                  }}
                   key={item}
                 >
                   {item}
@@ -9719,7 +9767,14 @@ function Budget({
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<BudgetExpense | null>(null);
   const [splitting, setSplitting] = useState(false);
-  const expenses = trip.budgetExpenses || [];
+  const storedExpenses = trip.budgetExpenses || [];
+  const expenses = storedExpenses.map(normalizeBudgetExpense);
+  const hasAutoCategories = expenses.some(
+    (expense, index) => expense.category !== storedExpenses[index]?.category,
+  );
+  useEffect(() => {
+    if (hasAutoCategories) onUpdateTrip({ ...trip, budgetExpenses: expenses });
+  }, [hasAutoCategories]);
   const currency = trip.budgetCurrency || "EUR";
   const split = trip.budgetSplit || {
     groups: [
@@ -9727,7 +9782,7 @@ function Budget({
       { id: "friend", name: "Друг", people: 1 },
     ],
   };
-  const categories = ["Жильё", "Транспорт", "Еда и рестораны", "Активности и билеты", "Прочее"];
+  const categories = budgetCategories;
   const saveExpense = (expense: BudgetExpense) => {
     const next = expenses.some((item) => item.id === expense.id)
       ? expenses.map((item) => item.id === expense.id ? expense : item)
