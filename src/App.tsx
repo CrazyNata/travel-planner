@@ -4339,39 +4339,6 @@ async function enrichPetCatalogPhotos(places: PetPlace[], signal: AbortSignal) {
   });
 }
 
-async function preloadPetCatalogPhotos(places: PetPlace[], signal: AbortSignal) {
-  if (typeof Image === "undefined") return places;
-  const photos = places
-    .filter((place) => Boolean(place.photoUrl))
-    .slice(0, 16);
-  await Promise.all(
-    photos.map(
-      (place) =>
-        new Promise<void>((resolve) => {
-          if (signal.aborted) {
-            resolve();
-            return;
-          }
-          const image = new Image();
-          let settled = false;
-          const finish = () => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(timeout);
-            signal.removeEventListener("abort", finish);
-            resolve();
-          };
-          const timeout = window.setTimeout(finish, 5000);
-          image.onload = finish;
-          image.onerror = finish;
-          signal.addEventListener("abort", finish, { once: true });
-          image.src = place.photoUrl!;
-        }),
-    ),
-  );
-  return places;
-}
-
 async function fetchGoogleRestaurantCatalog(
   city: string,
   query: string,
@@ -13244,8 +13211,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       )
         .then(async (groups) => {
           const places = groups.flat();
-          const enriched = await enrichPetCatalogPhotos(places, controller.signal);
-          return preloadPetCatalogPhotos(enriched, controller.signal);
+          return enrichPetCatalogPhotos(places, controller.signal);
         })
         .then((places) => {
           if (!controller.signal.aborted) setLiveCatalog(places);
@@ -13302,7 +13268,7 @@ function PetCatalogSkeleton({ count = 4 }: { count?: number }) {
 
 function PetCard({ place, saved = false, onPhoto, onAdd, onEdit, onDelete }: { place: PetPlace; saved?: boolean; onPhoto: (url: string) => void; onAdd?: () => void; onEdit?: () => void; onDelete?: () => void }) {
   const mapsUrl = place.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name}, ${place.address || place.city}`)}`;
-  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions"><a href={mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
+  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" loading="lazy" decoding="async" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions"><a href={mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
 }
 
 function Workspace({
