@@ -5457,6 +5457,8 @@ function Sidebar({
   profileName,
   tripCount,
   cityCount,
+  darkTheme = false,
+  onDarkThemeChange,
 }: {
   view: View;
   go: (view: View) => void;
@@ -5465,10 +5467,11 @@ function Sidebar({
   profileName: string;
   tripCount: number;
   cityCount: number;
+  darkTheme?: boolean;
+  onDarkThemeChange?: (value: boolean) => void;
 }) {
   const [settings, setSettings] = useState(false);
   const [panel, setPanel] = useState<"language" | "photo" | "password" | null>(null);
-  const [darkSettings, setDarkSettings] = useState(false);
   const [interfaceLanguage, setInterfaceLanguage] = useState<"ru" | "en" | "es" | "de">("ru");
   const interfaceLanguages = [
     ["ru", "Русский", "RU"],
@@ -5553,7 +5556,7 @@ function Sidebar({
                 aria-label="Закрыть личный кабинет"
               />
               <section
-                className={`settings-popover ${darkSettings ? "dark" : ""}`}
+                className={`settings-popover ${darkTheme ? "dark" : ""}`}
                 aria-label="Личный кабинет"
               >
                 <div className="settings-handle" />
@@ -5626,12 +5629,12 @@ function Sidebar({
                   <button
                     className="settings-row"
                     type="button"
-                    onClick={() => setDarkSettings((value) => !value)}
-                    aria-pressed={darkSettings}
+                    onClick={() => onDarkThemeChange?.(!darkTheme)}
+                    aria-pressed={darkTheme}
                   >
                     <span className="settings-icon"><AccountSettingIcon name="theme" /></span>
                     <b>Тёмная тема</b>
-                    <span className={`settings-toggle ${darkSettings ? "on" : ""}`}>
+                    <span className={`settings-toggle ${darkTheme ? "on" : ""}`}>
                       <i />
                     </span>
                   </button>
@@ -13277,12 +13280,14 @@ function Workspace({
   onUpdateTrip,
   tab,
   onTabChange,
+  darkTheme = false,
 }: {
   go: (view: View) => void;
   trip: TripSummary;
   onUpdateTrip: (trip: TripSummary) => void;
   tab: Tab;
   onTabChange: (tab: Tab) => void;
+  darkTheme?: boolean;
 }) {
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
@@ -13550,7 +13555,7 @@ function Workspace({
         ["photos", "Фото"],
       ];
   return (
-    <div className={tab === "pets" ? "trip-shell pets-theme" : "trip-shell"}>
+    <div className={`trip-shell${darkTheme ? " theme-dark" : ""}`}>
       <header className="trip-header">
         <button
           className="back back-icon"
@@ -14596,6 +14601,7 @@ export function App() {
   const [authReady, setAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([]);
+  const [darkTheme, setDarkTheme] = useState(false);
   const rememberAccount = (account: RememberedAccount) => {
     if (!account.email.trim()) return;
     setRememberedAccounts((current) => [
@@ -14898,7 +14904,7 @@ export function App() {
         />
     );
   return (
-    <div className="app">
+    <div className={`app${darkTheme ? " app-dark" : ""}`}>
       <Sidebar
         view={view}
         go={go}
@@ -14906,6 +14912,8 @@ export function App() {
         close={() => setMenu(false)}
         profileName={profileName}
         tripCount={drafts.length}
+        darkTheme={darkTheme}
+        onDarkThemeChange={setDarkTheme}
         cityCount={
           new Set(
             drafts.flatMap((trip) =>
@@ -14957,6 +14965,7 @@ export function App() {
               trip={routeTrip}
               onUpdateTrip={updateTrip}
               tab={routeTab}
+              darkTheme={darkTheme}
               onTabChange={(tab) => navigate(`/trips/${routeTrip.id}/${tab}`)}
             />
           );

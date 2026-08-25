@@ -7093,6 +7093,343 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .restaurant-filter-button { width: 100%; }
 }
 
+/* Web-wide account theme.  The native Android app is isolated in mobile/ and
+   is intentionally not affected by these selectors. */
+.app.app-dark {
+  --line: #343b50;
+  --muted: #98a2b7;
+  background: #11141d;
+  color: #edf0f7;
+  color-scheme: dark;
+}
+.app.app-dark .main,
+.app.app-dark .trip-shell,
+.app.app-dark .workspace {
+  background: #11141d;
+  color: #edf0f7;
+}
+.app.app-dark .trip-header {
+  border-bottom-color: #2d3448;
+  background: #181c29;
+}
+.app.app-dark .trip-heading h1,
+.app.app-dark .page h1,
+.app.app-dark .page-title h1,
+.app.app-dark .budget-actions h2,
+.app.app-dark .accommodation-heading h2,
+.app.app-dark .restaurants-page h2,
+.app.app-dark .photos-heading h2,
+.app.app-dark .sights-heading h2,
+.app.app-dark .day-plan h2,
+.app.app-dark .section-head h2,
+.app.app-dark .panel h2,
+.app.app-dark .trip-info h2,
+.app.app-dark .catalog-card h2 {
+  color: #f7f8fc;
+}
+.app.app-dark .trip-heading p,
+.app.app-dark .page-title p,
+.app.app-dark .lead,
+.app.app-dark .trip-info p,
+.app.app-dark .catalog-card p,
+.app.app-dark .overview-route p,
+.app.app-dark .overview-section-head p,
+.app.app-dark .photos-heading p,
+.app.app-dark .restaurants-page .restaurant-list-head,
+.app.app-dark .accommodation-empty,
+.app.app-dark .weather-card span,
+.app.app-dark .weather-card p {
+  color: #98a2b7;
+}
+.app.app-dark .back-icon {
+  border-color: #3b435c;
+  background: #23293a;
+  color: #b8b3ff;
+}
+.app.app-dark .back-icon:hover {
+  border-color: #8378ed;
+  background: #2b2e4a;
+}
+.app.app-dark .tabs button { color: #9ca5ba; }
+.app.app-dark .tabs button.active { color: #f7f8fc; }
+.app.app-dark .status-picker {
+  border-color: #504b96;
+  background: #292a4a;
+  color: #b8b3ff;
+}
+.app.app-dark .status-picker:hover { background: #33335a; }
+.app.app-dark .status-menu,
+.app.app-dark .trip-card-menu,
+.app.app-dark .calendar-popover,
+.app.app-dark .restaurant-dropdown-menu,
+.app.app-dark .restaurant-filter-popover,
+.app.app-dark .restaurant-city-search-suggestions,
+.app.app-dark .accommodation-city-suggestions,
+.app.app-dark .sights-day-dialog,
+.app.app-dark .day-place-catalog-panel {
+  border-color: #3b435c;
+  background: #202536;
+  color: #edf0f7;
+  box-shadow: 0 18px 38px #080a1466;
+}
+.app.app-dark .status-menu b,
+.app.app-dark .trip-card-menu button,
+.app.app-dark .restaurant-filter-head b,
+.app.app-dark .sights-day-dialog h2,
+.app.app-dark .day-place-catalog-list > button,
+.app.app-dark .accommodation-city-suggestions button,
+.app.app-dark .restaurant-dropdown-menu button,
+.app.app-dark .restaurant-city-search-suggestions button {
+  color: #edf0f7;
+}
+.app.app-dark .status-menu button:hover,
+.app.app-dark .status-menu button.selected,
+.app.app-dark .trip-card-menu button:hover,
+.app.app-dark .restaurant-dropdown-menu button:hover,
+.app.app-dark .restaurant-dropdown-menu button.active,
+.app.app-dark .restaurant-city-search-suggestions button:hover,
+.app.app-dark .accommodation-city-suggestions button:hover,
+.app.app-dark .accommodation-city-suggestions button.selected {
+  background: #383463;
+  color: #e5e2ff;
+}
+.app.app-dark .panel,
+.app.app-dark .trip-card,
+.app.app-dark .catalog-card,
+.app.app-dark .overview-route,
+.app.app-dark .city-overview-card,
+.app.app-dark .weather-card,
+.app.app-dark .map-card,
+.app.app-dark .place-row,
+.app.app-dark .draft-route-empty,
+.app.app-dark .day-rail button.active,
+.app.app-dark .sight-day-tabs button,
+.app.app-dark .sights-day-card,
+.app.app-dark .sights-timeline-card,
+.app.app-dark .restaurant-card,
+.app.app-dark .restaurants-map-panel,
+.app.app-dark .accommodation-card,
+.app.app-dark .cancellation-summary article,
+.app.app-dark .cancellation-list article,
+.app.app-dark .photo-add,
+.app.app-dark .photos-empty,
+.app.app-dark .members > .panel,
+.app.app-dark .new-card {
+  border-color: #394158;
+  background: #202536;
+  color: #edf0f7;
+  box-shadow: 0 8px 22px #080a1426;
+}
+.app.app-dark .new-card { border-style: dashed; }
+.app.app-dark .cover,
+.app.app-dark .overview-draft > section,
+.app.app-dark .overview-draft .has-draft-cover,
+.app.app-dark .sights-empty,
+.app.app-dark .walking-planner,
+.app.app-dark .restaurant-catalog-state,
+.app.app-dark .accommodation-catalog-state {
+  border-color: #394158;
+  background: #1b2030;
+  color: #c1c9da;
+}
+.app.app-dark .trip-card-menu-trigger,
+.app.app-dark .secondary,
+.app.app-dark .section-head button,
+.app.app-dark .search,
+.app.app-dark .chips button,
+.app.app-dark .photo-filters button,
+.app.app-dark .accommodation-filters button,
+.app.app-dark .accommodation-order-controls button,
+.app.app-dark .restaurant-dropdown-trigger,
+.app.app-dark .restaurant-search,
+.app.app-dark .walking-actions button,
+.app.app-dark .walking-controls select,
+.app.app-dark .weather-switch,
+.app.app-dark .budget-actions .secondary,
+.app.app-dark .budget-currency,
+.app.app-dark .budget-panel-edit,
+.app.app-dark .budget-expense-edit,
+.app.app-dark .member button,
+.app.app-dark .member select,
+.app.app-dark .member-role,
+.app.app-dark .invite select,
+.app.app-dark .public-link code,
+.app.app-dark .editor-add,
+.app.app-dark .editor-add-photos {
+  border-color: #3f4862;
+  background: #282e40;
+  color: #cbd2e1;
+}
+.app.app-dark .chips button.selected,
+.app.app-dark .photo-filters button.active,
+.app.app-dark .accommodation-filters button.active,
+.app.app-dark .sight-day-tabs button.active,
+.app.app-dark .accommodation-order-controls button.active,
+.app.app-dark .restaurant-dropdown-trigger:hover,
+.app.app-dark .restaurant-dropdown-trigger[aria-expanded="true"],
+.app.app-dark .weather-switch button.active,
+.app.app-dark .budget-currency button.active {
+  background: #655be1;
+  color: #fff;
+}
+.app.app-dark input,
+.app.app-dark textarea,
+.app.app-dark select,
+.app.app-dark .date-trigger,
+.app.app-dark .editor-field,
+.app.app-dark .editor-caption,
+.app.app-dark .trip-card-editor label > input,
+.app.app-dark .trip-editor-input-with-icon,
+.app.app-dark .trip-editor-date-range,
+.app.app-dark .expense-modal input,
+.app.app-dark .expense-modal select,
+.app.app-dark .day-editor input,
+.app.app-dark .day-place-details select,
+.app.app-dark .featured-place-details textarea {
+  border-color: #3f4862;
+  background: #23293a;
+  color: #f1f3fa;
+  color-scheme: dark;
+}
+.app.app-dark input::placeholder,
+.app.app-dark textarea::placeholder { color: #8f98ae; }
+.app.app-dark .progress,
+.app.app-dark .budget-row > div,
+.app.app-dark .weather-switch,
+.app.app-dark .budget-split-preview span,
+.app.app-dark .accommodation-body > small,
+.app.app-dark .public-link code { background: #2b3143; }
+.app.app-dark .restaurant-catalog-card,
+.app.app-dark .accommodation-catalog-card,
+.app.app-dark .day-place-catalog-list > button {
+  border-color: #394158;
+  background: #202536;
+  color: #edf0f7;
+}
+.app.app-dark .restaurant-catalog-card-body h3,
+.app.app-dark .accommodation-catalog-card-body h3,
+.app.app-dark .restaurant-catalog-card-city,
+.app.app-dark .accommodation-catalog-card-city,
+.app.app-dark .restaurant-catalog-card-body small,
+.app.app-dark .accommodation-catalog-card-body p { color: #c2c9d8; }
+.app.app-dark .restaurant-modal,
+.app.app-dark .accommodation-modal,
+.app.app-dark .trip-card-editor,
+.app.app-dark .overview-editor,
+.app.app-dark .day-editor,
+.app.app-dark .expense-modal,
+.app.app-dark .sights-day-dialog {
+  border-color: #3b435c;
+  background: #202536;
+  color: #edf0f7;
+}
+.app.app-dark .restaurant-modal header,
+.app.app-dark .restaurant-modal footer,
+.app.app-dark .accommodation-modal header,
+.app.app-dark .trip-card-editor > header,
+.app.app-dark .trip-card-editor > footer,
+.app.app-dark .overview-editor > header,
+.app.app-dark .overview-editor > footer,
+.app.app-dark .day-editor header,
+.app.app-dark .day-editor footer,
+.app.app-dark .expense-modal header,
+.app.app-dark .expense-modal footer {
+  border-color: #3b435c;
+}
+.app.app-dark .restaurant-modal label,
+.app.app-dark .restaurant-status,
+.app.app-dark .restaurant-editor-options > b,
+.app.app-dark .restaurant-editor-photos > b,
+.app.app-dark .accommodation-modal > section > b,
+.app.app-dark .accommodation-modal label,
+.app.app-dark .trip-card-editor label,
+.app.app-dark .trip-profile-fields > label,
+.app.app-dark .expense-modal > label,
+.app.app-dark .expense-modal > section,
+.app.app-dark .day-editor > label,
+.app.app-dark .day-editor > section { color: #cbd2e1; }
+.app.app-dark .restaurant-modal footer button:not(.accent),
+.app.app-dark .accommodation-modal footer button:not(.accent),
+.app.app-dark .trip-card-editor > footer button:not(.accent),
+.app.app-dark .overview-editor > footer button:not(.accent),
+.app.app-dark .day-editor footer button:not(.accent),
+.app.app-dark .expense-modal footer button:not(.accent) {
+  border-color: #3f4862;
+  background: #2b3143;
+  color: #cbd2e1;
+}
+.app.app-dark .restaurant-upload > label,
+.app.app-dark .accommodation-upload > div,
+.app.app-dark .accommodation-upload > label,
+.app.app-dark .editor-photo-drop,
+.app.app-dark .featured-photo-upload,
+.app.app-dark .day-place-photo-upload { border-color: #4d5671; background: #181c29; color: #a5aec3; }
+.app.app-dark .member { border-bottom-color: #343b50; }
+.app.app-dark .member small,
+.app.app-dark .member-invite-message,
+.app.app-dark .public-link p,
+.app.app-dark .public-catalog small { color: #98a2b7; }
+.app.app-dark .public-link .public-catalog { border-top-color: #343b50; }
+.app.app-dark .restaurant-card footer { border-top-color: #394158; }
+.app.app-dark .restaurant-price,
+.app.app-dark .google-rating { border-color: #4a4d60; background: #2b3143; color: #d8ddeb; }
+.app.app-dark .restaurant-catalog-card-photo,
+.app.app-dark .accommodation-catalog-card-photo { background: linear-gradient(135deg, #292847, #252c42); }
+
+/* Pets used to carry an unconditional dark block.  It now follows the same
+   switch as every other tab, so turning the theme off restores the light UI. */
+.app:not(.app-dark) .pets-page {
+  border-color: transparent;
+  background: transparent;
+  color: #1b1c1f;
+  box-shadow: none;
+  color-scheme: light;
+}
+.app:not(.app-dark) .pets-page .pets-heading h1,
+.app:not(.app-dark) .pets-page .pets-section-title,
+.app:not(.app-dark) .pets-page .pets-filter-panel-head h3,
+.app:not(.app-dark) .pets-page .pets-card-body h3 { color: #252837; }
+.app:not(.app-dark) .pets-page .pets-heading > div > span,
+.app:not(.app-dark) .pets-page .pets-section-title-row > span,
+.app:not(.app-dark) .pets-page .pets-catalog-source,
+.app:not(.app-dark) .pets-page .pets-card-city,
+.app:not(.app-dark) .pets-page .pets-card-body > p,
+.app:not(.app-dark) .pets-page .pets-card-note { color: #8c91a3; }
+.app:not(.app-dark) .pets-page .pets-toolbar label,
+.app:not(.app-dark) .pets-page .pets-filter-panel,
+.app:not(.app-dark) .pets-page .pets-manual-card,
+.app:not(.app-dark) .pets-page .pets-form-photo-section { color: #414a5b; }
+.app:not(.app-dark) .pets-page .pets-toolbar input,
+.app:not(.app-dark) .pets-page .pets-toolbar select { border-color: #dce1e9; background: #fff; color: #3e4658; }
+.app:not(.app-dark) .pets-page .pets-filter-button { border-color: #d8d4ff; background: #f0efff; color: var(--accent); }
+.app:not(.app-dark) .pets-page .pets-filter-panel,
+.app:not(.app-dark) .pets-page .pets-manual-card,
+.app:not(.app-dark) .pets-page .pets-card,
+.app:not(.app-dark) .pets-page .pets-empty { border-color: #dedcf1; background: #fff; box-shadow: 0 4px 14px #29305c0c; }
+.app:not(.app-dark) .pets-page .pets-choice-row button,
+.app:not(.app-dark) .pets-page .pets-type-tabs { background: #f0f1f5; }
+.app:not(.app-dark) .pets-page .pets-choice-row button { border-color: #e1deeb; color: #787287; }
+.app:not(.app-dark) .pets-page .pets-type-tabs button { color: #8a8f9c; }
+.app:not(.app-dark) .pets-page .pets-type-tabs button.active,
+.app:not(.app-dark) .pets-page .pets-choice-row button.active { background: #fff; color: var(--accent); }
+.app:not(.app-dark) .pets-page .pets-card-photo { background: linear-gradient(135deg, #eeeaff, #f8f6ff); }
+.app:not(.app-dark) .pets-page .pets-card-actions a { color: var(--accent); }
+.app:not(.app-dark) .pets-form-modal {
+  border-color: #e7e9ee;
+  background: #fff;
+  color: #252837;
+  box-shadow: 0 20px 56px #14162238;
+  color-scheme: light;
+}
+.app:not(.app-dark) .pets-form-modal header { border-bottom-color: #e7e9ee; }
+.app:not(.app-dark) .pets-form-modal h2,
+.app:not(.app-dark) .pets-form-modal > label,
+.app:not(.app-dark) .pets-form-modal > section,
+.app:not(.app-dark) .pets-form-grid { color: #414a5b; }
+.app:not(.app-dark) .pets-form-modal input,
+.app:not(.app-dark) .pets-form-modal textarea { border-color: #dce1e9; background: #fafbfc; color: #364052; }
+.app:not(.app-dark) .pets-form-modal footer button { border-color: #dde1e9; background: #fff; color: #657083; }
+
 /* Final desktop trip settings sizing and spacing. */
 .trip-card-editor {
   width: min(450px, calc(100vw - 40px));
