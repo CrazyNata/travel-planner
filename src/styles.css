@@ -6241,6 +6241,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .pets-section-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .pets-section-title-row .pets-section-title { margin-bottom: 0; }
 .pets-section-title-row > span { color: var(--muted); font-size: 12px; }
+.pets-catalog-source { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .pets-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .pets-card { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 196px; overflow: hidden; border: 1px solid #e2e3eb; border-radius: 17px; background: #fff; box-shadow: 0 4px 14px #29305c0c; }
 .pets-card-photo { min-height: 196px; border: 0; background: linear-gradient(135deg, #eeeaff, #f8f6ff); color: var(--accent); cursor: zoom-in; }

@@ -166,7 +166,11 @@ type PetPlace = {
   rating?: number;
   reviewCount?: number;
   photoUrl?: string;
+  photoName?: string;
+  googlePlaceId?: string;
   mapsUrl?: string;
+  latitude?: number;
+  longitude?: number;
   note?: string;
   phone?: string;
   distanceKm?: number;
@@ -4081,6 +4085,26 @@ type GoogleRestaurantCatalogPlace = {
   longitude?: unknown;
 };
 
+type GooglePetCatalogPlace = {
+  place_id?: unknown;
+  name?: unknown;
+  address?: unknown;
+  category?: unknown;
+  type?: unknown;
+  rating?: unknown;
+  rating_count?: unknown;
+  description?: unknown;
+  photo_url?: unknown;
+  photo_name?: unknown;
+  photo_names?: unknown;
+  google_maps_url?: unknown;
+  phone?: unknown;
+  website?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+  open_now?: unknown;
+};
+
 function restaurantPriceFromGoogle(value: unknown) {
   const level = typeof value === "number" && Number.isFinite(value)
     ? Math.trunc(value)
@@ -4139,6 +4163,83 @@ async function fetchGoogleRestaurantPhotoUrls(
       .filter((photo) => typeof photo.photo_name === "string" && typeof photo.photo_url === "string")
       .map((photo) => [String(photo.photo_name), String(photo.photo_url)] as [string, string]),
   );
+}
+
+async function fetchGooglePetCatalog(
+  city: string,
+  type: PetPlace["type"],
+  query: string,
+  signal: AbortSignal,
+): Promise<PetPlace[]> {
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  if (!publishableKey || !city.trim()) return [];
+  const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
+    method: "POST",
+    signal,
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${publishableKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      category: "pet",
+      petType: type,
+      city: restaurantCitySearchName(city),
+      query: query.trim(),
+      limit: 24,
+      languageCode: "ru",
+    }),
+  });
+  if (!response.ok) throw new Error("Google pet catalog request failed");
+  const data = await response.json().catch(() => null) as { petPlaces?: GooglePetCatalogPlace[] } | null;
+  const places = Array.isArray(data?.petPlaces) ? data.petPlaces : [];
+  return places.flatMap((place, index) => {
+    const name = String(place.name || "").trim();
+    if (!name) return [];
+    const placeId = String(place.place_id || `${city}-${type}-${index}`).trim();
+    const photoNames = Array.isArray(place.photo_names)
+      ? place.photo_names.filter((item): item is string => typeof item === "string")
+      : [];
+    const photoName = String(place.photo_name || photoNames[0] || "").trim();
+    const latitude = typeof place.latitude === "number" ? place.latitude : Number(place.latitude);
+    const longitude = typeof place.longitude === "number" ? place.longitude : Number(place.longitude);
+    const mapsUrl = String(place.google_maps_url || "").trim() ||
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, ${city}`)}`;
+    const rating = typeof place.rating === "number" ? place.rating : Number(place.rating);
+    const reviews = typeof place.rating_count === "number" ? place.rating_count : Number(place.rating_count);
+    return [{
+      id: `google-pet-${placeId}`,
+      googlePlaceId: placeId,
+      name,
+      city,
+      type,
+      address: String(place.address || "").trim(),
+      rating: Number.isFinite(rating) ? rating : undefined,
+      reviewCount: Number.isFinite(reviews) ? Math.trunc(reviews) : undefined,
+      photoUrl: String(place.photo_url || "").trim() || undefined,
+      photoName: photoName || undefined,
+      mapsUrl,
+      latitude: Number.isFinite(latitude) ? latitude : undefined,
+      longitude: Number.isFinite(longitude) ? longitude : undefined,
+      note: String(place.description || "").trim() || undefined,
+      phone: String(place.phone || "").trim() || undefined,
+      openNow: typeof place.open_now === "boolean" ? place.open_now : undefined,
+    } satisfies PetPlace];
+  });
+}
+
+async function enrichPetCatalogPhotos(places: PetPlace[], signal: AbortSignal) {
+  const photoNames = places
+    .filter((place) => !place.photoUrl)
+    .map((place) => place.photoName || "")
+    .filter(Boolean);
+  if (!photoNames.length) return places;
+  const photoUrls = await fetchGoogleRestaurantPhotoUrls(photoNames, signal);
+  return places.map((place) => {
+    if (place.photoUrl || !place.photoName) return place;
+    const photo = photoUrls.get(place.photoName);
+    return photo ? { ...place, photoUrl: photo } : place;
+  });
 }
 
 async function fetchGoogleRestaurantCatalog(
@@ -12925,9 +13026,39 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
   const [manualOpen, setManualOpen] = useState(false);
   const [editing, setEditing] = useState<PetPlace | undefined>();
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
+  const [liveCatalog, setLiveCatalog] = useState<PetPlace[] | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const saved = trip.petPlaces || [];
-  const catalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
+  const fallbackCatalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
+  const catalog = liveCatalog?.length ? liveCatalog : fallbackCatalog;
   const filterCount = Number(radius !== "10") + Number(Boolean(minRating)) + Number(openNow) + Number(aroundTheClock);
+  useEffect(() => {
+    const controller = new AbortController();
+    const citiesToSearch = selectedCity === "Все города"
+      ? (cities.length ? cities : ["Рим"]).slice(0, 6)
+      : [selectedCity];
+    setCatalogLoading(true);
+    setLiveCatalog(null);
+    void Promise.all(
+      citiesToSearch.map((city) =>
+        fetchGooglePetCatalog(city, selectedType, query, controller.signal).catch(() => []),
+      ),
+    )
+      .then(async (groups) => {
+        const places = groups.flat();
+        return enrichPetCatalogPhotos(places, controller.signal);
+      })
+      .then((places) => {
+        if (!controller.signal.aborted) setLiveCatalog(places);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLiveCatalog([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      });
+    return () => controller.abort();
+  }, [selectedCity, selectedType, query, cities.join("|")]);
   const matches = (place: PetPlace) => {
     const haystack = `${place.name} ${place.city} ${place.address} ${place.note || ""}`.toLocaleLowerCase("ru-RU");
     return place.type === selectedType &&
@@ -12954,7 +13085,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
-      <div className="pets-section-title-row"><h2 className="pets-section-title">Из каталога</h2><span>{visibleCatalog.length} мест</span></div><div className="pets-grid">{visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{visibleCatalog.length} мест</span></div><div className="pets-grid">{visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
       {!visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
       {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
@@ -12963,7 +13094,8 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
 }
 
 function PetCard({ place, saved = false, onPhoto, onAdd, onEdit, onDelete }: { place: PetPlace; saved?: boolean; onPhoto: (url: string) => void; onAdd?: () => void; onEdit?: () => void; onDelete?: () => void }) {
-  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions">{place.mapsUrl && <a href={place.mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>}{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
+  const mapsUrl = place.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name}, ${place.address || place.city}`)}`;
+  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions"><a href={mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
 }
 
 function Workspace({
