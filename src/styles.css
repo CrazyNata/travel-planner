@@ -7382,6 +7382,8 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .restaurant-card footer { border-top-color: #394158; }
 .app.app-dark .restaurant-price,
 .app.app-dark .google-rating { border-color: #4a4d60; background: #2b3143; color: #d8ddeb; }
+.app.app-dark .stay-price { color: #aab4c8; }
+.app.app-dark .stay-price b { color: #f7f8fc; }
 .app.app-dark .restaurant-catalog-card-photo,
 .app.app-dark .accommodation-catalog-card-photo { background: linear-gradient(135deg, #292847, #252c42); }
 .app.app-dark .pets-page {
