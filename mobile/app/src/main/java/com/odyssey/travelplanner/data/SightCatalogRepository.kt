@@ -246,7 +246,13 @@ class SightCatalogRepository(private val client: SupabaseClient) {
                 live.copy(sortOrder = index)
             }
         }
-        return SightCatalogSearchResult(merged, true)
+        // Keep curated rows that Google did not return in its top results. In
+        // particular, Google may omit a plaza or seasonal stop from a broad
+        // city search; dropping it forced the UI to attach a nearby landmark's
+        // rating by coordinates. Unmatched fallback rows remain available for
+        // an exact saved-name match (with their own rating/photo values).
+        val unmatchedFallback = fallback.filter { it.id !in matchedFallbackIds }
+        return SightCatalogSearchResult(merged + unmatchedFallback, true)
     }
 
     /** Fetches complete live attraction cards without persisting Google data. */
@@ -375,14 +381,18 @@ class SightCatalogRepository(private val client: SupabaseClient) {
 private fun sightMatchScore(entry: SightCatalogEntry, live: SightCatalogEntry): Int {
     val liveName = normalizeCatalogText(live.nameEn.ifBlank { live.nameRu })
     if (liveName.isBlank()) return 0
-    val staticNames = entry.allNames().map(::normalizeCatalogText).filter(String::isNotBlank)
+    val staticNames = listOf(entry.nameRu, entry.nameEn, entry.nameEs, entry.nameDe)
+        .map(::normalizeCatalogText)
+        .filter(String::isNotBlank)
     if (staticNames.any { it == liveName }) return 100
     if (staticNames.any { it.contains(liveName) || liveName.contains(it) }) return 70
-    val coordinatesMatch = entry.latitude != null && entry.longitude != null &&
-        live.latitude != null && live.longitude != null &&
-        kotlin.math.abs(entry.latitude - live.latitude) < 0.01 &&
-        kotlin.math.abs(entry.longitude - live.longitude) < 0.01
-    return if (coordinatesMatch) 40 else 0
+    // Coordinates alone are not a safe identity for dense historic centres:
+    // Marienplatz and the nearby Rathaus-Glockenspiel, for example, are only
+    // a few metres apart. Merging by a broad radius silently copied a live
+    // rating from one landmark onto another. Keep the curated row unchanged
+    // unless Google returned a compatible name; the screen can still match a
+    // saved point to a live result using its own guarded, one-to-one lookup.
+    return 0
 }
 
 private fun preferSightDescription(existing: String, live: String): String =

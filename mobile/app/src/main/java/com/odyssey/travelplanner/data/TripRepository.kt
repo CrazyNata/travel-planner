@@ -149,6 +149,7 @@ data class Sight(
     val longitude: Double?,
     val latitude: Double?,
     val rating: Double? = null,
+    val ratingCount: Int? = null,
     val link: String = "",
     val photoUnavailable: Boolean = false,
 )
@@ -156,8 +157,41 @@ data class Sight(
 private fun jsonText(element: JsonElement?): String =
     runCatching { element?.jsonPrimitive?.contentOrNull?.trim().orEmpty() }.getOrDefault("")
 
+private fun jsonDouble(element: JsonElement?): Double? {
+    val primitive = element?.jsonPrimitive ?: return null
+    return primitive.doubleOrNull
+        ?: primitive.contentOrNull
+            ?.trim()
+            ?.replace(',', '.')
+            ?.toDoubleOrNull()
+}
+
+private fun jsonInt(element: JsonElement?): Int? {
+    val primitive = element?.jsonPrimitive ?: return null
+    return primitive.intOrNull ?: jsonDouble(primitive)?.toInt()
+}
+
+private fun firstJsonDouble(objectValue: JsonObject, vararg keys: String): Double? =
+    keys.firstNotNullOfOrNull { key -> jsonDouble(objectValue[key]) }
+
+private fun firstJsonInt(objectValue: JsonObject, vararg keys: String): Int? =
+    keys.firstNotNullOfOrNull { key -> jsonInt(objectValue[key]) }
+
 private fun photoReferences(element: JsonElement?): List<String> = when (element) {
-    is JsonObject -> listOf("url", "image", "photo", "imageUrl", "photoUrl", "src", "path")
+    is JsonObject -> listOf(
+        "url",
+        "image",
+        "photo",
+        "imageUrl",
+        "photoUrl",
+        "image_url",
+        "photo_url",
+        "src",
+        "path",
+        "photoName",
+        "photo_name",
+        "name",
+    )
         .flatMap { key -> photoReferences(element[key]) }
         .distinct()
     is kotlinx.serialization.json.JsonArray -> element.flatMap(::photoReferences).distinct()
@@ -166,8 +200,13 @@ private fun photoReferences(element: JsonElement?): List<String> = when (element
 }
 
 private fun accommodationPhotoReferences(accommodation: JsonObject): List<String> =
-    listOf("photos", "photo", "image", "imageUrl", "photoUrl")
+    listOf("photos", "photoNames", "photo_names", "googlePhotos", "photo", "image", "imageUrl", "photoUrl")
         .flatMap { key -> photoReferences(accommodation[key]) }
+        .distinct()
+
+private fun restaurantPhotoReferences(restaurant: JsonObject): List<String> =
+    listOf("photos", "photoNames", "photo_names", "googlePhotos", "photo", "image", "imageUrl", "photoUrl")
+        .flatMap { key -> photoReferences(restaurant[key]) }
         .distinct()
 
 private fun sightPhotoUrl(sight: JsonObject): String {
@@ -184,6 +223,21 @@ private fun sightPhotoUrl(sight: JsonObject): String {
         }.getOrDefault("")
     }.orEmpty()
 }
+
+private fun sightPhotoName(sight: JsonObject): String {
+    listOf("photoName", "googlePhotoName", "photo_name").forEach { key ->
+        jsonText(sight[key]).takeIf(String::isNotBlank)?.let { return it }
+    }
+    val candidates = listOf("photoNames", "photo_names", "photos")
+        .flatMap { key -> photoReferences(sight[key]) }
+    return candidates.firstOrNull { it.startsWith("places/") && it.contains("/photos/") }.orEmpty()
+}
+
+private fun firstGooglePhotoReference(value: JsonObject, vararg keys: String): String =
+    keys.asSequence()
+        .flatMap { key -> photoReferences(value[key]).asSequence() }
+        .firstOrNull { it.startsWith("places/") && it.contains("/photos/") }
+        .orEmpty()
 data class Restaurant(
     val id: String,
     val name: String,
@@ -541,6 +595,22 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             rows.map { row ->
                 async {
                     fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    val coverReferences = buildList {
+                        text("coverImage").takeIf(String::isNotBlank)?.let(::add)
+                        row.payload["coverPhotos"]?.jsonArray.orEmpty().forEach { item ->
+                            val photo = item.jsonObject
+                            listOf("image", "imageUrl", "photo", "photoUrl", "url")
+                                .firstNotNullOfOrNull { key ->
+                                    photo[key]?.jsonPrimitive?.contentOrNull
+                                        ?.trim()
+                                        ?.takeIf(String::isNotBlank)
+                                }
+                                ?.let(::add)
+                        }
+                    }.distinct()
+                    val resolvedCoverImage = coverReferences.firstNotNullOfOrNull { reference ->
+                        client.resolveTripPhotoReference(reference)
+                    }
                     val role = currentUserRole(row, currentUserId)
                     TripCard(
                         id = row.id,
@@ -551,7 +621,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         // trips with a stale stored value of 0 are fixed on read.
                         progress = calculateTripProgress(row.payload),
                         cities = text("cities"),
-                        coverImage = client.resolveTripPhotoReference(text("coverImage")),
+                        coverImage = resolvedCoverImage,
                         isOwner = row.ownerId == currentUserId,
                         canEdit = roleCanEdit(role),
                     )
@@ -635,8 +705,14 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 photos = accommodationPhotoReferences(accommodation),
                 bookingUrl = accommodationText("bookingUrl").ifBlank { accommodationText("externalUrl") },
                 deadline = accommodationText("deadline"),
-                rating = accommodation["rating"]?.jsonPrimitive?.doubleOrNull
-                    ?: accommodation["hotelRating"]?.jsonPrimitive?.doubleOrNull,
+                rating = firstJsonDouble(
+                    accommodation,
+                    "rating",
+                    "hotelRating",
+                    "googleRating",
+                    "userRating",
+                    "score",
+                ),
                 source = accommodationText("source").ifBlank {
                     if (accommodationText("googlePlaceId").isNotBlank()) "google" else "manual"
                 },
@@ -646,9 +722,17 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 address = accommodationText("address").ifBlank { accommodationText("details") },
                 latitude = accommodation["latitude"]?.jsonPrimitive?.doubleOrNull,
                 longitude = accommodation["longitude"]?.jsonPrimitive?.doubleOrNull,
-                reviewCount = accommodation["reviewCount"]?.jsonPrimitive?.intOrNull
-                    ?: accommodation["userRatingCount"]?.jsonPrimitive?.intOrNull,
-                photoReference = accommodationText("photoReference").ifBlank { accommodationText("googlePhotoName") },
+                reviewCount = firstJsonInt(
+                    accommodation,
+                    "reviewCount",
+                    "userRatingCount",
+                    "googleReviews",
+                    "reviews",
+                    "ratingCount",
+                ),
+                photoReference = accommodationText("photoReference")
+                    .ifBlank { accommodationText("googlePhotoName") }
+                    .ifBlank { firstGooglePhotoReference(accommodation, "photoNames", "photo_names", "googlePhotos", "photos") },
                 website = accommodationText("website"),
                 phone = accommodationText("phone"),
                 type = accommodationText("type").ifBlank { accommodationText("category") },
@@ -694,12 +778,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             val name = sight["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             fun sightText(key: String) = sight[key]?.jsonPrimitive?.contentOrNull.orEmpty()
             val lngLat = sight["lnglat"]?.jsonArray.orEmpty()
+            val photoName = sightPhotoName(sight)
             Sight(
                 id = sightText("id").ifBlank { name },
                 name = name,
                 city = sightText("city"),
                 photo = sightPhotoUrl(sight),
-                photoName = sightText("photoName").ifBlank { sightText("googlePhotoName") },
+                photoName = photoName,
                 category = sightText("subcategory").ifBlank { sightText("group") },
                 done = sight["done"]?.jsonPrimitive?.booleanOrNull ?: false,
                 walkDay = sight["walkDay"]?.jsonPrimitive?.intOrNull ?: 0,
@@ -707,7 +792,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 description = sightText("description"),
                 longitude = lngLat.getOrNull(0)?.jsonPrimitive?.doubleOrNull,
                 latitude = lngLat.getOrNull(1)?.jsonPrimitive?.doubleOrNull,
-                rating = sight["rating"]?.jsonPrimitive?.doubleOrNull ?: sight["googleRating"]?.jsonPrimitive?.doubleOrNull,
+                rating = firstJsonDouble(sight, "rating", "googleRating", "userRating", "score"),
+                ratingCount = firstJsonInt(sight, "ratingCount", "googleReviews", "reviewCount", "userRatingCount"),
                 link = sightText("link").ifBlank { sightText("url") },
             )
         }
@@ -720,12 +806,18 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 name = name,
                 city = restaurantText("city"),
                 status = normalizeRestaurantStatus(restaurantText("status")),
-                photos = restaurant["photos"]?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull },
-                rating = restaurant["googleRating"]?.jsonPrimitive?.doubleOrNull,
-                reviews = restaurantText("googleReviews"),
-                price = restaurantText("price"),
-                note = restaurantText("note"),
-                link = restaurantText("link"),
+                photos = restaurantPhotoReferences(restaurant),
+                rating = firstJsonDouble(restaurant, "googleRating", "rating", "userRating", "score"),
+                reviews = listOf("googleReviews", "reviews", "ratingCount", "reviewCount", "userRatingCount")
+                    .firstNotNullOfOrNull { key -> restaurantText(key).takeIf(String::isNotBlank) }
+                    .orEmpty(),
+                price = restaurantText("price").ifBlank { restaurantText("priceLevel") },
+                note = restaurantText("note").ifBlank { restaurantText("cuisine") },
+                link = restaurantText("link")
+                    .ifBlank { restaurantText("address") }
+                    .ifBlank { restaurantText("mapsUrl") }
+                    .ifBlank { restaurantText("googleMapsUrl") }
+                    .ifBlank { restaurantText("url") },
                 date = restaurantText("date").ifBlank { restaurantText("dateTime") },
                 priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
@@ -747,10 +839,16 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 website = petText("website"),
                 latitude = pet["latitude"]?.jsonPrimitive?.doubleOrNull,
                 longitude = pet["longitude"]?.jsonPrimitive?.doubleOrNull,
-                rating = pet["rating"]?.jsonPrimitive?.doubleOrNull,
-                reviewCount = pet["reviewCount"]?.jsonPrimitive?.intOrNull,
-                photoUrl = petText("photoUrl").takeIf(String::isNotBlank),
-                photoName = petText("photoName").ifBlank { petText("googlePhotoName") },
+                rating = firstJsonDouble(pet, "rating", "googleRating", "userRating", "score"),
+                reviewCount = firstJsonInt(pet, "reviewCount", "googleReviews", "ratingCount", "userRatingCount"),
+                photoUrl = petText("photoUrl")
+                    .ifBlank { petText("photo") }
+                    .ifBlank { petText("imageUrl") }
+                    .ifBlank { petText("image") }
+                    .takeIf(String::isNotBlank),
+                photoName = petText("photoName")
+                    .ifBlank { petText("googlePhotoName") }
+                    .ifBlank { firstGooglePhotoReference(pet, "photoNames", "photo_names", "googlePhotos", "photos") },
                 photoAttribution = petText("photoAttribution").takeIf(String::isNotBlank),
                 source = petText("source").ifBlank { if (petText("googlePlaceId").isNotBlank()) "google" else "manual" },
                 googlePlaceId = petText("googlePlaceId").ifBlank { petText("placeId") },
@@ -1960,6 +2058,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 if (!entry.photoUrl.isNullOrBlank()) put("photo", entry.photoUrl.trim())
                 if (entry.photoName.isNotBlank()) put("photoName", entry.photoName.trim())
                 if (entry.rating != null) put("rating", entry.rating)
+                if (entry.ratingCount != null) put("ratingCount", entry.ratingCount)
                 if (mapUrl.isNotBlank()) put("link", mapUrl)
                 if (entry.longitude != null && entry.latitude != null) {
                     put("lnglat", buildJsonArray {

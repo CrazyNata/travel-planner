@@ -256,6 +256,8 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
@@ -1794,6 +1796,7 @@ fun OdysseyApp(
 }
 
 @Composable
+@SuppressLint("CredentialManagerSignInWithGoogle")
 private fun AuthScreen(
     rememberCredentials: Boolean,
     rememberedAccounts: List<RememberedAccount>,
@@ -1973,7 +1976,18 @@ private fun AuthScreen(
                 ).build()
                 val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
                 val credential = CredentialManager.create(context).getCredential(context, request).credential
-                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                // Credential Manager can return more than one credential type.
+                // Only the two Google ID-token variants are valid for this
+                // Supabase flow; parsing anything else throws a misleading
+                // bundle error and leaves sign-in in a broken state.
+                val isGoogleIdToken =
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL ||
+                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_SIWG_CREDENTIAL
+                if (!isGoogleIdToken) {
+                    error("Unsupported Google credential type: ${credential.type}")
+                }
+                val googleCredential: GoogleIdTokenCredential =
+                    GoogleIdTokenCredential.createFrom(credential.data)
                 SupabaseProvider.clientForCurrentAuthFlow().auth.signInWith(IDToken) {
                     idToken = googleCredential.idToken
                     provider = Google
@@ -6278,7 +6292,6 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
     }
     var sightDescriptionOverrides by remember(tripId, language) { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(tripId, language, missingSightDescriptionKey) {
-        sightDescriptionOverrides = emptyMap()
         if (missingSightDescriptionKey.isBlank()) return@LaunchedEffect
 
         val missingSights = sights.filter { isPlaceholderSightDescription(it.description) }
@@ -6302,19 +6315,84 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
     }
     val visibleSightCatalogKey = visibleSights.joinToString("|") { "${it.id}:${it.name}:${it.city}" }
     var sightCatalogEntries by remember(tripId, language) { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
+    var sightSpecificCatalogEntries by remember(tripId, language) { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
+    var sightCatalogLoading by remember(tripId, language) { mutableStateOf(false) }
     LaunchedEffect(tripId, language, selectedDayCity, visibleSightCatalogKey) {
-        sightCatalogEntries = emptyList()
-        if (selectedDayCity.isBlank() || visibleSights.isEmpty()) return@LaunchedEffect
+        if (selectedDayCity.isBlank() || visibleSights.isEmpty()) {
+            sightCatalogLoading = false
+            return@LaunchedEffect
+        }
 
-        val repository = SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
-        sightCatalogEntries = runCatching {
-            repository.searchWithLiveRatings(
-                city = selectedDayCity,
-                query = "",
-                language = language,
-                limit = 60,
-            ).entries
-        }.getOrElse { emptyList() }
+        sightCatalogLoading = true
+        try {
+            val repository = SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+            val result = runCatching {
+                repository.searchWithLiveRatings(
+                    city = selectedDayCity,
+                    query = "",
+                    language = language,
+                    limit = 60,
+                ).entries
+            }
+            // Keep the last successful catalog while the next request is in
+            // flight or temporarily unavailable. Clearing it here made
+            // ratings, descriptions, and catalog media flash out of the cards
+            // on every day change and cold start.
+            val broadEntries = result.getOrElse { sightCatalogEntries }
+            if (result.isSuccess) {
+                sightCatalogEntries = broadEntries
+            }
+
+            // A blank city search is intentionally fast and broad, but Google
+            // may rank a route's smaller landmarks below its first page.
+            // Resolve only the unmatched visible cards with name-focused
+            // queries in parallel. Acquire the gate for each network request,
+            // rather than for the whole query loop, so a slow fallback query
+            // for one sight cannot block the first query for every other card.
+            val missingSights = visibleSights.filter { sight ->
+                broadEntries.none { entry ->
+                    sightCatalogEntryMatchScore(sight, entry) > 0 && entry.rating != null
+                                }
+            }.take(12)
+            sightSpecificCatalogEntries = supervisorScope {
+                missingSights
+                    .map { sight ->
+                        async {
+                            val catalogAliases = broadEntries
+                                .filter { entry -> sightDescriptionNameMatches(sight.name, entry) }
+                                .flatMap { entry -> listOf(entry.nameEn, entry.nameEs, entry.nameDe) }
+                            val queries = (sightSpecificSearchQueries(sight.name) + catalogAliases)
+                                .map(String::trim)
+                                .filter(String::isNotBlank)
+                                .distinct()
+                            val collected = mutableListOf<SightCatalogEntry>()
+                            for (query in queries) {
+                                val entries = sightSpecificSearchGate.withPermit {
+                                    runCatching {
+                                        repository.searchWithLiveRatings(
+                                            city = selectedDayCity,
+                                            query = query,
+                                            language = "en",
+                                            limit = 10,
+                                        ).entries
+                                    }.getOrElse { emptyList() }
+                                }
+                                collected += entries
+                                if (entries.any { entry ->
+                                        entry.rating != null && sightCatalogEntryMatchScore(sight, entry) > 0
+                                    }) {
+                                    break
+                                }
+                            }
+                            collected
+                        }
+                    }
+                    .awaitAll()
+                    .flatten()
+            }
+        } finally {
+            sightCatalogLoading = false
+        }
     }
     val visibleSightsWithDescriptions = visibleSights.map { sight ->
         val override = sightDescriptionOverrides[sightDescriptionLookupKey(sight.city, sight.name)]
@@ -6324,8 +6402,32 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             sight
         }
     }
-    val sightCatalogById = visibleSightsWithDescriptions.associate { sight ->
-        sight.id to sightCatalogEntries.firstOrNull { entry -> sightDescriptionNameMatches(sight.name, entry) }
+    // Resolve the best live catalog entry once per saved sight. A simple
+    // first-match lookup can reuse one nearby Google result for several
+    // attractions (for example Karlsplatz for both Karlsplatz and Karlstor),
+    // which makes ratings and photos appear on the wrong card. Prefer strong
+    // name matches from either the broad or name-focused catalog request; do
+    // not use coordinate-only matches in a dense city centre. Keep
+    // duplicate place IDs from both requests until scoring is complete: the
+    // focused English result may be the only variant that matches a saved
+    // legacy name. Each place ID is assigned at most once below.
+    val catalogEntriesForVisibleSights = sightCatalogEntries + sightSpecificCatalogEntries
+    val sightCatalogCandidates = visibleSightsWithDescriptions.flatMap { sight ->
+        catalogEntriesForVisibleSights.mapNotNull { entry ->
+            sightCatalogEntryMatchScore(sight, entry)
+                .takeIf { it > 0 }
+                ?.let { score -> Triple(sight, entry, score) }
+        }
+    }.sortedByDescending { it.third }
+    val sightCatalogById = buildMap<String, SightCatalogEntry?> {
+        val assignedSightIds = mutableSetOf<String>()
+        val assignedCatalogIds = mutableSetOf<String>()
+        sightCatalogCandidates.forEach { (sight, entry, _) ->
+            if (sight.id in assignedSightIds || entry.id in assignedCatalogIds) return@forEach
+            put(sight.id, entry)
+            assignedSightIds += sight.id
+            assignedCatalogIds += entry.id
+        }
     }
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -6544,9 +6646,10 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                 SightCard(
                     sight = sight,
                     catalogEntry = sightCatalogById[sight.id],
+                    catalogLoading = sightCatalogLoading,
                     selected = sight.id == selectedSightId,
                     onSelect = { selectedSightId = sight.id },
-                    onOpenPhoto = { fullScreenSight = sight },
+                    onOpenPhoto = { selectedSight -> fullScreenSight = selectedSight },
                     canEdit = canEdit,
                     onEdit = { if (canEdit) editingSight = sight },
                 )
@@ -6621,15 +6724,145 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
 private fun sightDescriptionLookupKey(city: String, name: String): String =
     "${normalizeCatalogText(catalogCityName(city))}|${normalizeCatalogText(name)}"
 
+private fun sightCatalogCityMatches(city: String, entry: SightCatalogEntry): Boolean {
+    val normalizedCity = normalizeCatalogText(catalogCityName(city))
+    if (normalizedCity.isBlank()) return true
+    return listOf(
+        entry.cityNameRu,
+        entry.cityNameEn,
+        entry.cityNameEs,
+        entry.cityNameDe,
+        entry.cityKey,
+    ).any { candidate ->
+        normalizeCatalogText(catalogCityName(candidate)) == normalizedCity
+    }
+}
+
+private fun sightCatalogEntryMatchScore(sight: com.odyssey.travelplanner.data.Sight, entry: SightCatalogEntry): Int {
+    if (!sightCatalogCityMatches(sight.city, entry)) return 0
+    val normalizedNames = sightSpecificSearchQueries(sight.name)
+        .map(::normalizeCatalogText)
+        .filter(String::isNotBlank)
+        .distinct()
+    if (normalizedNames.isEmpty()) return 0
+    val entryNames = sightCatalogNameVariants(entry)
+        .map(::normalizeCatalogText)
+        .filter(String::isNotBlank)
+    val exactName = entryNames.any { candidate -> candidate in normalizedNames }
+    val ratingBonus = if (entry.rating != null) 100_000 else 0
+    if (exactName) return 2_000_000 + ratingBonus
+    // Do not attach a rating merely because two places are nearby. Dense city
+    // centres routinely put several different landmarks within a few metres.
+    // The name-focused query above supplies a safe match for entries that were
+    // not present in the broad city result.
+    return if (sightDescriptionNameMatches(sight.name, entry)) 1_500_000 + ratingBonus else 0
+}
+
 private fun sightDescriptionNameMatches(name: String, entry: SightCatalogEntry): Boolean {
-    val normalizedName = normalizeCatalogText(name)
-    if (normalizedName.isBlank()) return false
-    return entry.allNames()
+    val normalizedNames = sightSpecificSearchQueries(name)
+        .map(::normalizeCatalogText)
+        .filter(String::isNotBlank)
+    if (normalizedNames.isEmpty()) return false
+    return sightCatalogNameVariants(entry)
         .map(::normalizeCatalogText)
         .filter(String::isNotBlank)
         .any { candidate ->
-            candidate == normalizedName || candidate.contains(normalizedName) || normalizedName.contains(candidate)
+            normalizedNames.any { normalizedName ->
+                candidate == normalizedName || normalizedName.contains(candidate)
+            } || sightMeaningfulNameMatches(name, candidate)
         }
+}
+
+private val sightNameNoiseWords = setOf(
+    "the", "of", "in", "at", "on", "and", "a", "an", "to", "di", "del", "della", "dei", "de", "da", "la", "il", "lo", "le", "i", "gli",
+    "церковь", "храм", "собор", "площадь", "улица", "ворота", "фонтан", "музей",
+    "church", "basilica", "cathedral", "square", "street", "gate", "fountain", "fontana", "museum", "museo", "chiesa",
+)
+
+private fun sightMeaningfulNameTokens(value: String): Set<String> = normalizedPlaceName(value)
+    .split(' ')
+    .map { token -> token.trim() }
+    .filter { token -> token.length >= 3 && token !in sightNameNoiseWords }
+    .toSet()
+
+private fun sightMeaningfulNameMatches(savedName: String, liveName: String): Boolean {
+    val savedTokens = sightMeaningfulNameTokens(savedName)
+    val liveTokens = sightMeaningfulNameTokens(liveName)
+    if (savedTokens.size < 2 || liveTokens.isEmpty()) return false
+    val overlap = savedTokens.count { it in liveTokens }
+    return overlap >= savedTokens.size - 1 && overlap >= 2
+}
+
+private fun sightSpecificSearchQueries(name: String): List<String> {
+    val trimmed = name.trim()
+    if (trimmed.isBlank()) return emptyList()
+    val withoutParenthetical = trimmed
+        .replace(Regex("\\([^)]*\\)"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    val parentheticalNames = Regex("\\(([^()]*)\\)")
+        .findAll(trimmed)
+        .map { it.groupValues[1].trim() }
+        .filter(String::isNotBlank)
+        .toList()
+    val aliases = when (normalizeCatalogText(trimmed)) {
+        "капитолийские музеи" -> listOf("Capitoline Museums")
+        "дом джульетты", "дворик джульетты", "дворик джульетты casa di giulietta" -> listOf("Juliet's House", "Casa di Giulietta")
+        "пьяцца бра" -> listOf("Piazza Bra")
+        "пьяцца синьории", "площадь синьории" -> listOf("Piazza dei Signori")
+        "арки скалигеров" -> listOf("Scaliger Tombs")
+        "кастель-сан-пьетро" -> listOf("Castel San Pietro")
+        "римский форум" -> listOf("Roman Forum")
+        "фонтан треви" -> listOf("Trevi Fountain")
+        "фонтан четырех рек", "фонтан четырёх рек" -> listOf("Fontana dei Quattro Fiumi", "Fountain of the Four Rivers")
+        "храм адриана" -> listOf("Temple of Hadrian")
+        "испанская лестница" -> listOf("Spanish Steps")
+        "пьяцца навона" -> listOf("Piazza Navona")
+        "колизей" -> listOf("Colosseum")
+        else -> emptyList()
+    }
+    return (listOf(trimmed, withoutParenthetical) + parentheticalNames + aliases).distinct()
+}
+
+private fun sightCatalogNameVariants(entry: SightCatalogEntry): List<String> =
+    listOf(entry.nameRu, entry.nameEn, entry.nameEs, entry.nameDe)
+
+private val placeNameNoiseWords = setOf(
+    "restaurant", "ristorante", "restaurante", "gasthof", "hotel", "cafe", "café",
+    "кафе", "ресторан", "бар", "bar", "the", "der", "die", "das",
+)
+
+private fun normalizedPlaceName(value: String): String = value
+    .trim()
+    .lowercase(Locale.ROOT)
+    .replace('ё', 'е')
+    .replace("’", "")
+    .replace("'", "")
+    .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+
+/**
+ * Returns a score only when the saved name and the live Google name share all
+ * meaningful words. Generic words such as "restaurant" are ignored, but the
+ * result still has to contain a real landmark/business token; this prevents a
+ * nearby place from inheriting another card's rating or photo.
+ */
+private fun restaurantCatalogMatchScore(savedName: String, liveName: String): Int {
+    val saved = normalizedPlaceName(savedName)
+    val live = normalizedPlaceName(liveName)
+    if (saved.isBlank() || live.isBlank()) return 0
+    if (saved == live) return 2_000
+    if (saved.contains(live) || live.contains(saved)) return 1_800
+    val savedTokens = saved.split(' ').filter { it.isNotBlank() && it !in placeNameNoiseWords }
+    val liveTokens = live.split(' ').filter { it.isNotBlank() }.toSet()
+    if (savedTokens.isEmpty()) return 0
+    val overlap = savedTokens.count { it in liveTokens }
+    return when {
+        overlap == savedTokens.size && savedTokens.size >= 1 -> 1_500 + savedTokens.size
+        savedTokens.size >= 2 && overlap >= savedTokens.size - 1 -> 1_000 + overlap
+        else -> 0
+    }
 }
 
 private fun sightRouteDay(walkDay: Int): Int = walkDay.coerceAtLeast(1)
@@ -6642,6 +6875,9 @@ private fun sightLinkPoint(link: String): Point? =
 private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
+private val sightSpecificSearchGate = Semaphore(4)
+private val restaurantSpecificSearchGate = Semaphore(4)
+private val accommodationSpecificSearchGate = Semaphore(4)
 private val sightPhotoDownloadGate = Semaphore(6)
 private val sightPhotoLoadGate = Semaphore(6)
 private val restaurantPhotoLoadGate = Semaphore(6)
@@ -6659,6 +6895,11 @@ private fun openSightPhotoConnection(photoUrl: String): HttpURLConnection =
         setRequestProperty("Accept-Encoding", "identity")
         setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
     }
+
+private fun isGooglePlacesPhotoReference(value: String): Boolean {
+    val reference = value.trim()
+    return reference.startsWith("places/") && reference.contains("/photos/")
+}
 
 private fun decodeSightBitmap(photoUrl: String): Bitmap? {
     val connection = openSightPhotoConnection(photoUrl)
@@ -6681,6 +6922,20 @@ private fun decodeSightBitmap(photoUrl: String): Bitmap? {
             inPreferredConfig = Bitmap.Config.RGB_565
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun isReachableSightPhoto(photoUrl: String): Boolean {
+    val connection = runCatching { openSightPhotoConnection(photoUrl) }.getOrNull() ?: return false
+    return try {
+        if (connection.responseCode !in 200..299) return false
+        if (connection.contentType?.startsWith("image/", ignoreCase = true) != true) return false
+        val buffer = ByteArray(64)
+        connection.inputStream.use { it.read(buffer) > 0 }
+    } catch (_: Exception) {
+        false
     } finally {
         connection.disconnect()
     }
@@ -6734,29 +6989,33 @@ private suspend fun loadSightPhoto(vararg searchTexts: String): String? = withCo
                             val response = JSONObject(reader.readText())
                             if (endpoint.host == "api.openverse.org") {
                                 val results = response.optJSONArray("results") ?: return@run null
-                                for (index in 0 until results.length()) {
-                                    val result = results.optJSONObject(index) ?: continue
-                                    val photo = result.optString("thumbnail")
-                                        .ifBlank { result.optString("url") }
-                                    if (photo.isNotBlank()) return@run photo
+                                val candidates = buildList {
+                                    for (index in 0 until results.length()) {
+                                        val result = results.optJSONObject(index) ?: continue
+                                        val photo = result.optString("thumbnail")
+                                            .ifBlank { result.optString("url") }
+                                        if (photo.isNotBlank()) add(photo)
+                                    }
                                 }
-                                return@run null
+                                return@run candidates.firstOrNull(::isReachableSightPhoto)
                             }
                             val pages = response
                                 .optJSONObject("query")
                                 ?.optJSONObject("pages")
                                 ?: return@run null
                             val keys = pages.keys()
-                            while (keys.hasNext()) {
-                                val page = pages.optJSONObject(keys.next()) ?: continue
-                                val photo = page.optJSONArray("imageinfo")
-                                    ?.optJSONObject(0)
-                                    ?.optString("thumburl")
-                                    .orEmpty()
-                                    .ifBlank { page.optJSONObject("thumbnail")?.optString("source").orEmpty() }
-                                if (photo.isNotBlank()) return@run photo
+                            val candidates = buildList {
+                                while (keys.hasNext()) {
+                                    val page = pages.optJSONObject(keys.next()) ?: continue
+                                    val photo = page.optJSONArray("imageinfo")
+                                        ?.optJSONObject(0)
+                                        ?.optString("thumburl")
+                                        .orEmpty()
+                                        .ifBlank { page.optJSONObject("thumbnail")?.optString("source").orEmpty() }
+                                    if (photo.isNotBlank()) add(photo)
+                                }
                             }
-                            null
+                            candidates.firstOrNull(::isReachableSightPhoto)
                         }
                     }
                 }.getOrNull()
@@ -6831,13 +7090,34 @@ private fun SightPhoto(
     modifier: Modifier,
     onClick: (() -> Unit)? = null,
 ) {
+    val context = LocalContext.current
     val bitmap = rememberSightBitmap(sight)
-    val canOpenPhoto = onClick != null && !sight.photoUnavailable && (sight.photo.isNotBlank() || bitmap != null)
+    val photoUrl = sight.photo.takeIf(String::isNotBlank)
+    val photoRequest = remember(photoUrl) {
+        photoUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .size(480, 360)
+                .build()
+        }
+    }
+    val canOpenPhoto = onClick != null && !sight.photoUnavailable && (photoUrl != null || bitmap != null)
     val photoModifier = if (canOpenPhoto) modifier.clickable { onClick?.invoke() } else modifier
     Box(modifier = photoModifier.background(Color(0xFFE3E1EC)), contentAlignment = Alignment.Center) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = sight.name,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (photoRequest != null && !sight.photoUnavailable) {
+            // Coil renders the stored/public URL immediately while the
+            // compatibility loader resolves Google references or a fallback
+            // image in the background. The old path showed the empty-media
+            // icon until that second request completed.
+            AsyncImage(
+                model = photoRequest,
                 contentDescription = sight.name,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -6861,18 +7141,31 @@ internal fun daySightNamesToSave(placeNames: List<String>, draftName: String): L
     draftName.trim().takeIf { it.isNotBlank() }?.let { add(it) }
 }
 
-private fun keepMapGesturesInsideMap(mapView: MapView) {
-    mapView.setOnTouchListener { view, event ->
+/**
+ * Mapbox handles panning in [MapView.onTouchEvent]. Keeping the parent from
+ * stealing those gestures here preserves that behaviour while also exposing
+ * a real [performClick] implementation for accessibility services.
+ */
+private class AccessibleMapView(
+    context: Context,
+    mapInitOptions: MapInitOptions,
+) : MapView(context, mapInitOptions) {
+    override fun performClick(): Boolean = super.performClick()
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
             MotionEvent.ACTION_MOVE,
-            -> view.parent?.requestDisallowInterceptTouchEvent(true)
+            -> parent?.requestDisallowInterceptTouchEvent(true)
 
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL,
-            -> view.parent?.requestDisallowInterceptTouchEvent(false)
+            -> parent?.requestDisallowInterceptTouchEvent(false)
         }
-        false
+        if (event.actionMasked == MotionEvent.ACTION_UP) {
+            performClick()
+        }
+        return super.onTouchEvent(event)
     }
 }
 
@@ -7953,7 +8246,7 @@ private fun SightLocationPickerSheet(
         "Informationen zur Kartenquelle",
     )
     val mapView = remember(context, city, initialPoint) {
-        MapView(
+        AccessibleMapView(
             context,
             MapInitOptions(
                 context = context,
@@ -7962,7 +8255,6 @@ private fun SightLocationPickerSheet(
             ),
         ).also {
             it.scalebar.enabled = false
-            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
@@ -8154,20 +8446,41 @@ private fun SightLocationPickerSheet(
 private fun SightCard(
     sight: com.odyssey.travelplanner.data.Sight,
     catalogEntry: SightCatalogEntry? = null,
+    catalogLoading: Boolean = false,
     selected: Boolean,
     onSelect: () -> Unit,
-    onOpenPhoto: () -> Unit,
+    onOpenPhoto: (com.odyssey.travelplanner.data.Sight) -> Unit,
     canEdit: Boolean = true,
     onEdit: () -> Unit,
 ) {
     val displayedName = localizedSightName(sight.name)
+    val language = LocalLanguage.current
     val displayedCategory = localizedSightCategory(
         sight.category.trim().takeIf { it.isNotBlank() }
             ?: catalogEntry?.category?.trim().orEmpty(),
     ).uppercase(Locale.ROOT)
     val displayedRating = catalogEntry?.rating ?: sight.rating
-    val displayedRatingCount = catalogEntry?.ratingCount
-    val language = LocalLanguage.current
+    val displayedRatingCount = catalogEntry?.ratingCount ?: sight.ratingCount
+    val displayedDescription = sight.description
+        .takeIf { it.isNotBlank() && !isPlaceholderSightDescription(it) }
+        ?: catalogEntry?.description(language).orEmpty().takeIf(String::isNotBlank)
+        ?: sight.description
+    val mediaSight = if (
+        catalogEntry != null &&
+            !sight.photo.contains("/storage/v1/object/public/trip-photos/") &&
+            (!catalogEntry.photoUrl.isNullOrBlank() || catalogEntry.photoName.isNotBlank())
+    ) {
+        sight.copy(
+            // Imported trips may contain an expired Openverse URL. Prefer a
+            // current Google photo from the matched catalog entry, while
+            // preserving user-uploaded Supabase storage photos unchanged.
+            photo = if (!catalogEntry.photoUrl.isNullOrBlank()) catalogEntry.photoUrl else sight.photo,
+            photoName = sight.photoName.ifBlank { catalogEntry.photoName },
+            photoUnavailable = false,
+        )
+    } else {
+        sight
+    }
     val uriHandler = LocalUriHandler.current
     val cardShape = RoundedCornerShape(18.dp)
     Row(
@@ -8182,9 +8495,9 @@ private fun SightCard(
     ) {
         Box(modifier = Modifier.size(width = 96.dp, height = 112.dp).clip(RoundedCornerShape(14.dp))) {
             SightPhoto(
-                sight = sight,
+                sight = mediaSight,
                 modifier = Modifier.fillMaxSize(),
-                onClick = onOpenPhoto,
+                onClick = { onOpenPhoto(mediaSight) },
             )
         }
         Column(modifier = Modifier.weight(1f).clickable { onSelect() }) {
@@ -8246,9 +8559,32 @@ private fun SightCard(
                         )
                     }
                 }
+            } else if (catalogLoading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    modifier = Modifier.padding(top = 5.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 1.5.dp,
+                        color = primaryColor(),
+                    )
+                    Text(
+                        localized("Загрузка рейтинга", "Loading rating", "Cargando valoración", "Bewertung wird geladen"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 10.5.sp,
+                        lineHeight = 15.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             Text(
-                localizedSightInfo(sight.name, sight.description, sight.category),
+                localizedSightInfo(sight.name, displayedDescription, sight.category),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W600,
@@ -9268,6 +9604,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
+    var detailsRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
     var cityPickerOpen by remember { mutableStateOf(false) }
     var restaurantCatalogOpen by remember { mutableStateOf(false) }
     var openCatalogAfterCitySelection by remember { mutableStateOf(false) }
@@ -9284,6 +9621,50 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var draftPriceFilter by remember { mutableStateOf("") }
     var draftRatingFilter by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val restaurantEnrichmentKey = remember(overview.restaurants) {
+        overview.restaurants.joinToString("|") { restaurant ->
+            "${restaurant.id}:${restaurant.name}:${restaurant.city}:${restaurant.rating}:${restaurant.photos.joinToString(",")}"
+        }
+    }
+    var liveRestaurantEntries by remember(tripId, language) {
+        mutableStateOf<Map<String, RestaurantCatalogEntry>>(emptyMap())
+    }
+    LaunchedEffect(tripId, language, restaurantEnrichmentKey) {
+        val targets = overview.restaurants.filter { restaurant ->
+            restaurant.rating == null ||
+                restaurant.photos.none(String::isNotBlank) ||
+                restaurant.photos.any { photo ->
+                    photo.isNotBlank() && tripPhotoPath(photo) == null &&
+                        !photo.contains("/storage/v1/object/public/place-photos/", ignoreCase = true)
+                }
+        }
+        if (targets.isEmpty()) {
+            liveRestaurantEntries = emptyMap()
+            return@LaunchedEffect
+        }
+        val repository = RestaurantCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+        liveRestaurantEntries = supervisorScope {
+            targets.map { restaurant ->
+                async {
+                    runCatching {
+                        restaurantSpecificSearchGate.withPermit {
+                            repository.searchLiveRatings(
+                                city = restaurant.city,
+                                query = restaurant.name,
+                                language = "en",
+                                limit = 10,
+                            )
+                        }
+                    }.getOrElse { emptyList() }
+                        .map { entry -> entry to restaurantCatalogMatchScore(restaurant.name, entry.name("en")) }
+                        .filter { (_, score) -> score > 0 }
+                        .maxByOrNull { (_, score) -> score }
+                        ?.first
+                        ?.let { restaurant.id to it }
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
+    }
 
     fun resetRestaurantForm() {
         name = ""
@@ -9315,14 +9696,30 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
             overview.restaurants.map { it.city }
         ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     val cityOptions = listOf("Все города") + tripCityOptions
+    val restaurantsForDisplay = overview.restaurants.map { restaurant ->
+        val live = liveRestaurantEntries[restaurant.id] ?: return@map restaurant
+        val storedPhotos = restaurant.photos.filter(String::isNotBlank)
+        val hasUserUploadedPhoto = storedPhotos.any { photo -> tripPhotoPath(photo)?.contains("/restaurants/") == true }
+        val livePhotos = listOfNotNull(live.photoUrl?.takeIf(String::isNotBlank), live.photoName.takeIf(String::isNotBlank))
+        restaurant.copy(
+            photos = if (hasUserUploadedPhoto) {
+                storedPhotos
+            } else {
+                (livePhotos + storedPhotos).distinct()
+            },
+            rating = restaurant.rating ?: live.rating,
+            reviews = restaurant.reviews.ifBlank { live.ratingCount?.toString().orEmpty() },
+            link = restaurant.link.ifBlank { live.ratingPlaceUrl },
+        )
+    }
     val cityCounts = cityOptions.associateWith { option ->
         if (option == cityOptions.first()) {
-            overview.restaurants.size
+            restaurantsForDisplay.size
         } else {
-            overview.restaurants.count { restaurant -> cityFilterKey(restaurant.city) == cityFilterKey(option) }
+            restaurantsForDisplay.count { restaurant -> cityFilterKey(restaurant.city) == cityFilterKey(option) }
         }
     }
-    val visibleRestaurants = overview.restaurants.filter { restaurant ->
+    val visibleRestaurants = restaurantsForDisplay.filter { restaurant ->
         val note = restaurant.note.lowercase()
         val typeMatches = when (appliedTypeFilter) {
             "Бар" -> note.contains("бар") || note.contains("bar")
@@ -9527,7 +9924,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                     savingRestaurantId == restaurant.id,
                     uploadingRestaurantId == restaurant.id,
                     canEdit = canEdit,
-                    onEdit = { if (canEdit) editingRestaurant = restaurant },
+                    onOpenDetails = { detailsRestaurant = restaurant },
                     onAddPhoto = { uploadingRestaurantId = restaurant.id; photoPicker.launch("image/*") },
                     modifier = Modifier.padding(top = if (index == 0) 16.dp else 13.dp),
                 ) { status ->
@@ -9545,6 +9942,33 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                     }
                 }
             }
+        }
+    }
+    if (detailsRestaurant != null) {
+        ModalBottomSheet(
+            onDismissRequest = { detailsRestaurant = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = cardSurfaceColor(),
+            tonalElevation = 0.dp,
+            scrimColor = Color(0x730F0F19),
+            shape = RoundedCornerShape(topStart = 29.dp, topEnd = 29.dp),
+            dragHandle = null,
+        ) {
+            RestaurantDetailsSheet(
+                restaurant = detailsRestaurant!!,
+                canEdit = canEdit,
+                tripId = tripId,
+                onClose = { detailsRestaurant = null },
+                onEdit = {
+                    val restaurant = detailsRestaurant
+                    detailsRestaurant = null
+                    if (canEdit && restaurant != null) editingRestaurant = restaurant
+                },
+                onDeleted = {
+                    detailsRestaurant = null
+                    onRestaurantAdded()
+                },
+            )
         }
     }
     if (cityMenuOpen) {
@@ -12186,7 +12610,7 @@ private fun RestaurantCard(
     saving: Boolean,
     uploading: Boolean,
     canEdit: Boolean = true,
-    onEdit: () -> Unit,
+    onOpenDetails: () -> Unit,
     onAddPhoto: () -> Unit,
     modifier: Modifier = Modifier,
     onStatusChange: (String) -> Unit,
@@ -12194,9 +12618,39 @@ private fun RestaurantCard(
     val uriHandler = LocalUriHandler.current
     val cardBorderColor = contentBorderColor()
     // Failed signed-URL resolutions are represented by blank placeholders so
-    // photo indexes stay stable in the editor. They must not make a viewer
-    // appear to have a usable photo.
-    val photos = restaurant.photos.filter(String::isNotBlank)
+    // photo indexes stay stable in the editor. Google Places resource names
+    // are not image URLs; resolve one when an imported restaurant has no
+    // uploaded/public photo yet.
+    val uploadedPhotos = restaurant.photos
+        .filter(String::isNotBlank)
+        .filterNot(::isGooglePlacesPhotoReference)
+    val googlePhotoReferences = restaurant.photos
+        .filter(::isGooglePlacesPhotoReference)
+    val catalogRepository = remember { RestaurantCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow()) }
+    var googlePhotoUrl by remember(restaurant.id, googlePhotoReferences) { mutableStateOf<String?>(null) }
+    LaunchedEffect(restaurant.id, googlePhotoReferences, uploadedPhotos) {
+        if (uploadedPhotos.isEmpty() && googlePhotoReferences.isNotEmpty()) {
+            googlePhotoUrl = try {
+                restaurantPhotoLoadGate.withPermit {
+                    supervisorScope {
+                        googlePhotoReferences
+                            .map { reference ->
+                                async { catalogRepository.resolveRestaurantPhoto(reference)?.photoUrl }
+                            }
+                            .awaitAll()
+                            .firstOrNull { !it.isNullOrBlank() }
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Throwable) {
+                null
+            }
+        } else {
+            googlePhotoUrl = null
+        }
+    }
+    val photos = uploadedPhotos.ifEmpty { listOfNotNull(googlePhotoUrl) }
     var photoIndex by remember(restaurant.id, photos) { mutableStateOf(0) }
     var fullScreenPhotoIndex by remember(restaurant.id, photos) { mutableStateOf<Int?>(null) }
     val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
@@ -12394,19 +12848,30 @@ private fun RestaurantCard(
                 }
             }
         }
-        if (canEdit) {
+        val routeLink = restaurantLinkUri(restaurant.link)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
             OutlinedButton(
-                onClick = onEdit,
+                onClick = { routeLink?.let { runCatching { uriHandler.openUri(it) } } },
+                enabled = routeLink != null,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = labelColor()),
                 border = androidx.compose.foundation.BorderStroke(1.dp, contentBorderColor()),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 11.dp).height(42.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(11.dp),
+                modifier = Modifier.weight(1f).height(42.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    OdysseyEditIcon(15.dp, primaryColor())
-                    Text(localized("Редактировать", "Edit", "Editar", "Bearbeiten"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
-                }
+                Text(localized("Маршрут", "Route", "Ruta", "Route"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
+            }
+            Button(
+                onClick = onOpenDetails,
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).height(42.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+            ) {
+                Text(localized("Подробнее", "Details", "Detalles", "Details"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1)
             }
         }
         fullScreenPhotoIndex?.let { initialIndex ->
@@ -12421,6 +12886,273 @@ private fun RestaurantCard(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantDetailsSheet(
+    restaurant: com.odyssey.travelplanner.data.Restaurant,
+    canEdit: Boolean,
+    tripId: String,
+    onClose: () -> Unit,
+    onEdit: () -> Unit,
+    onDeleted: () -> Unit,
+) {
+    val language = LocalLanguage.current
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    val photos = restaurant.photos.filter(String::isNotBlank)
+    var fullScreenPhotoIndex by remember(restaurant.id, photos) { mutableStateOf<Int?>(null) }
+    var deleteDialogOpen by remember(restaurant.id) { mutableStateOf(false) }
+    var deleting by remember(restaurant.id) { mutableStateOf(false) }
+    var message by remember(restaurant.id) { mutableStateOf<String?>(null) }
+    val routeLink = restaurantLinkUri(restaurant.link)
+    val addressLabel = restaurantAddressLabel(restaurant.link)
+    val statusLabel = when (restaurant.status) {
+        "бронь" -> localized("Бронь подтверждена", "Reservation confirmed", "Reserva confirmada", "Reservierung bestätigt")
+        "были" -> localized("Посещено", "Visited", "Visitado", "Besucht")
+        else -> localized("Запланировано", "Planned", "Planeado", "Geplant")
+    }
+    val cuisine = localizedRestaurantNote(restaurant.note)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.94f)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .size(40.dp, 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(contentBorderColor()),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                localized("Подробнее", "Details", "Detalles", "Details"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 23.sp,
+                lineHeight = 29.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (canEdit) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(tintedSurfaceColor())
+                        .clickable(enabled = !deleting, onClick = onEdit),
+                ) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = localized("Редактировать", "Edit", "Editar", "Bearbeiten"),
+                        tint = primaryColor(),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(dangerSurfaceColor())
+                        .clickable(enabled = !deleting, onClick = { deleteDialogOpen = true }),
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = localized("Удалить", "Delete", "Eliminar", "Löschen"),
+                        tint = Color(0xFFE05A55),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(secondarySurfaceColor())
+                    .clickable(enabled = !deleting, onClick = onClose),
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                    tint = secondaryTextColor(),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(196.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(tintedSurfaceColor())
+                .clickable(enabled = photos.isNotEmpty() && !deleting) { fullScreenPhotoIndex = 0 },
+            contentAlignment = Alignment.Center,
+        ) {
+            photos.firstOrNull()?.let { photo ->
+                AsyncImage(
+                    model = photo,
+                    contentDescription = restaurant.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } ?: Icon(Icons.Outlined.Restaurant, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(44.dp))
+            if (photos.size > 1) {
+                Text(
+                    text = localized("${photos.size} фото", "${photos.size} photos", "${photos.size} fotos", "${photos.size} Fotos"),
+                    color = Color.White,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp)
+                        .background(Color(0x990F0F19), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                )
+            }
+        }
+        Text(
+            restaurant.name,
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 24.sp,
+            lineHeight = 29.sp,
+        )
+        Text(
+            restaurant.city.takeIf(String::isNotBlank)?.let { city -> localizedCityName(city) }
+                ?: localized("Город не указан", "City not specified", "Ciudad no indicada", "Stadt nicht angegeben"),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W700,
+            fontSize = 14.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            restaurant.rating?.let {
+                Text(
+                    "★ ${it.toString().removeSuffix(".0")}",
+                    color = Color(0xFFE29B32),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 14.sp,
+                )
+            }
+            if (restaurant.reviews.isNotBlank()) {
+                Text(
+                    restaurant.reviews,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 12.sp,
+                )
+            }
+            if (restaurant.price.isNotBlank()) {
+                Text(restaurant.price, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(13.dp))
+                .background(secondarySurfaceColor())
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            OdysseyCalendarIcon(17.dp, primaryColor())
+            Text(statusLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, modifier = Modifier.weight(1f))
+            restaurant.date.takeIf(String::isNotBlank)?.let {
+                Text(it, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
+        }
+        if (cuisine.isNotBlank() && !restaurant.note.contains("http", ignoreCase = true)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(localized("Кухня и заметка", "Cuisine and note", "Cocina y nota", "Küche und Notiz"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                Text(cuisine, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = 20.sp)
+            }
+        }
+        if (addressLabel.isNotBlank()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(localized("Адрес", "Address", "Dirección", "Adresse"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                Text(addressLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 14.sp, lineHeight = 20.sp)
+            }
+        }
+        if (message != null) {
+            Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+        }
+        routeLink?.let { link ->
+            OutlinedButton(
+                onClick = { runCatching { uriHandler.openUri(link) } },
+                enabled = !deleting,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(13.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, contentBorderColor()),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = labelColor()),
+            ) {
+                Text(localized("Открыть маршрут", "Open route", "Abrir ruta", "Route öffnen"), color = labelColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+    if (deleteDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) deleteDialogOpen = false },
+            title = { Text(localized("Удалить ресторан?", "Delete restaurant?", "¿Eliminar restaurante?", "Restaurant löschen?"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
+            text = { Text(localized("Ресторан будет удалён из поездки.", "The restaurant will be removed from the trip.", "El restaurante se eliminará del viaje.", "Das Restaurant wird aus der Reise entfernt."), fontFamily = Manrope) },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogOpen = false }, enabled = !deleting) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            deleting = true
+                            message = null
+                            runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteTripItem(tripId, "restaurants", restaurant.id) }
+                                .onSuccess {
+                                    deleting = false
+                                    deleteDialogOpen = false
+                                    onDeleted()
+                                }
+                                .onFailure {
+                                    deleting = false
+                                    message = localizedFailure(language, it, localized(language, "Не удалось удалить ресторан", "Could not delete restaurant", "No se pudo eliminar el restaurante", "Restaurant konnte nicht gelöscht werden"))
+                                }
+                        }
+                    },
+                    enabled = !deleting,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD9534F)),
+                ) {
+                    Text(if (deleting) localized("Удаляем…", "Deleting…", "Eliminando…", "Wird gelöscht…") else localized("Удалить", "Delete", "Eliminar", "Löschen"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+        )
+    }
+    fullScreenPhotoIndex?.let { initialIndex ->
+        if (photos.isNotEmpty()) {
+            FullScreenPhotoViewer(
+                photos = photos,
+                initialIndex = initialIndex,
+                accommodationName = restaurant.name,
+                onDismiss = { _ -> fullScreenPhotoIndex = null },
+            )
         }
     }
 }
@@ -12441,7 +13173,7 @@ private fun RestaurantMapCard(
     }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context, attributionDescription) {
-        MapView(
+        AccessibleMapView(
             context,
             MapInitOptions(
                 context = context,
@@ -12450,7 +13182,6 @@ private fun RestaurantMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
-            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
@@ -14633,9 +15364,68 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
     var accommodationDragInitialOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
+    val accommodationEnrichmentKey = remember(overview.accommodations) {
+        overview.accommodations.joinToString("|") { accommodation ->
+            "${accommodation.id}:${accommodation.name}:${accommodation.city}:${accommodation.rating}:${accommodation.photos.joinToString(",")}"
+        }
+    }
+    var liveAccommodationEntries by remember(tripId, language) {
+        mutableStateOf<Map<String, AccommodationCatalogEntry>>(emptyMap())
+    }
+    LaunchedEffect(tripId, language, accommodationEnrichmentKey) {
+        val targets = overview.accommodations.filter { accommodation ->
+            accommodation.rating == null || accommodation.photos.none(String::isNotBlank)
+        }
+        if (targets.isEmpty()) {
+            liveAccommodationEntries = emptyMap()
+            return@LaunchedEffect
+        }
+        val repository = AccommodationCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+        liveAccommodationEntries = supervisorScope {
+            targets.map { accommodation ->
+                async {
+                    runCatching {
+                        accommodationSpecificSearchGate.withPermit {
+                            repository.search(
+                                city = accommodation.city,
+                                query = accommodation.name,
+                                language = "en",
+                                limit = 10,
+                            )
+                        }
+                    }.getOrElse { emptyList() }
+                        .map { entry -> entry to restaurantCatalogMatchScore(accommodation.name, entry.name) }
+                        .filter { (_, score) -> score > 0 }
+                        .maxByOrNull { (_, score) -> score }
+                        ?.first
+                        ?.let { accommodation.id to it }
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
+    }
+
     val displayedAccommodations = orderedAccommodationIds.mapNotNull { id ->
         overview.accommodations.firstOrNull { it.id == id }
     } + overview.accommodations.filterNot { accommodation -> orderedAccommodationIds.contains(accommodation.id) }
+
+    val accommodationsForDisplay = displayedAccommodations.map { accommodation ->
+        val live = liveAccommodationEntries[accommodation.id] ?: return@map accommodation
+        accommodation.copy(
+            photos = if (accommodation.photos.any(String::isNotBlank)) {
+                accommodation.photos
+            } else {
+                listOfNotNull(live.photoUrl?.takeIf(String::isNotBlank), live.photoName.takeIf(String::isNotBlank))
+            },
+            rating = accommodation.rating ?: live.rating,
+            reviewCount = accommodation.reviewCount ?: live.reviewCount,
+            source = accommodation.source.ifBlank { live.source },
+            googlePlaceId = accommodation.googlePlaceId.ifBlank { live.placeId },
+            bookingUrl = accommodation.bookingUrl.ifBlank { live.googleMapsUrl },
+            website = accommodation.website.ifBlank { live.website },
+            phone = accommodation.phone.ifBlank { live.phone },
+            address = accommodation.address.ifBlank { live.address },
+        )
+    }
 
     fun updateAccommodationDrag(dragAmount: Float) {
         val draggedId = draggedAccommodationId ?: return
@@ -14758,9 +15548,10 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
         if (overview.accommodations.isEmpty()) {
             item { Text(localized("Жильё пока не добавлено", "No lodging added yet", "Aún no se ha añadido alojamiento", "Noch keine Unterkunft hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
         } else {
-            itemsIndexed(displayedAccommodations, key = { _, accommodation -> "accommodation:${accommodation.id}" }) { _, accommodation ->
+            itemsIndexed(accommodationsForDisplay, key = { _, accommodation -> "accommodation:${accommodation.id}" }) { _, accommodation ->
                 AccommodationCard(
                     accommodation,
+                    catalogEntry = liveAccommodationEntries[accommodation.id],
                     canEdit = canEdit,
                     dragEnabled = canEdit && !savingAccommodationOrder,
                     isDragging = draggedAccommodationId == accommodation.id,
@@ -15018,6 +15809,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
 @Composable
 private fun AccommodationCard(
     accommodation: com.odyssey.travelplanner.data.Accommodation,
+    catalogEntry: AccommodationCatalogEntry? = null,
     canEdit: Boolean = true,
     dragEnabled: Boolean = false,
     isDragging: Boolean = false,
@@ -15046,13 +15838,33 @@ private fun AccommodationCard(
         accommodation.website.isNotBlank() -> localized("Открыть сайт", "Open website", "Abrir sitio", "Website öffnen")
         else -> localized("Забронировать", "Book", "Reservar", "Buchen")
     }
-    val uploadedPhotos = accommodation.photos
+    // Google photo resource names are stable references, not image URLs. Keep
+    // them out of the Coil list and resolve the first one on demand; real
+    // uploaded/public URLs continue to render immediately.
+    val uploadedPhotos = accommodation.photos.filterNot(::isGooglePlacesPhotoReference)
+    val catalogPhotoUrls = listOfNotNull(catalogEntry?.photoUrl?.takeIf(String::isNotBlank))
+    val googlePhotoReferences = accommodation.photos
+        .filter(::isGooglePlacesPhotoReference)
+        .ifEmpty {
+            listOf(accommodation.photoReference, catalogEntry?.photoName)
+                .filterNotNull()
+                .filter(::isGooglePlacesPhotoReference)
+        }
     val catalogRepository = remember { AccommodationCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow()) }
-    var googlePhotoUrl by remember(accommodation.id, accommodation.photoReference) { mutableStateOf<String?>(null) }
-    LaunchedEffect(accommodation.id, accommodation.photoReference, uploadedPhotos) {
-        if (uploadedPhotos.isEmpty() && accommodation.photoReference.isNotBlank()) {
+    var googlePhotoUrl by remember(accommodation.id, accommodation.photoReference, catalogEntry?.photoName) { mutableStateOf<String?>(null) }
+    LaunchedEffect(accommodation.id, accommodation.photoReference, catalogEntry?.photoName, googlePhotoReferences, uploadedPhotos) {
+        if (uploadedPhotos.isEmpty() && googlePhotoReferences.isNotEmpty()) {
             googlePhotoUrl = try {
-                accommodationPhotoLoadGate.withPermit { catalogRepository.resolvePhoto(accommodation.photoReference)?.photoUrl }
+                accommodationPhotoLoadGate.withPermit {
+                    supervisorScope {
+                        googlePhotoReferences
+                            .map { reference ->
+                                async { catalogRepository.resolvePhoto(reference)?.photoUrl }
+                            }
+                            .awaitAll()
+                            .firstOrNull { !it.isNullOrBlank() }
+                    }
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Throwable) {
@@ -15060,7 +15872,9 @@ private fun AccommodationCard(
             }
         }
     }
-    val photos = uploadedPhotos.ifEmpty { listOfNotNull(googlePhotoUrl) }
+    val photos = uploadedPhotos.ifEmpty { catalogPhotoUrls + listOfNotNull(googlePhotoUrl) }
+    val displayedRating = accommodation.rating ?: catalogEntry?.rating
+    val displayedReviewCount = accommodation.reviewCount ?: catalogEntry?.reviewCount
     var photoIndex by remember(accommodation.id, photos) { mutableStateOf(0) }
     var fullScreenPhotoIndex by remember(accommodation.id, photos) { mutableStateOf<Int?>(null) }
     val activePhotoIndex = photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
@@ -15171,17 +15985,19 @@ private fun AccommodationCard(
                 OdysseyCalendarIcon(14.dp, primaryColor())
                 Text(dates, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            accommodation.rating?.let { rating ->
+            displayedRating?.let { rating ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 11.5.dp).height(17.dp)) {
                     Text("★", color = Color(0xFFF5A623), fontFamily = Manrope, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                    Text("· ${rating.toString().removeSuffix(".0")} / 10", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                    accommodation.reviewCount?.let { count ->
+                    val normalizedRating = rating.toString().removeSuffix(".0")
+                    val scaleSuffix = if (rating > 5.0) " / 10" else ""
+                    Text("$normalizedRating$scaleSuffix", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    displayedReviewCount?.let { count ->
                         Text("· ${catalogRatingCountLabel(count, language)}", color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp, lineHeight = 15.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-            if (accommodation.rating == null) {
-                accommodation.reviewCount?.let { count ->
+            if (displayedRating == null) {
+                displayedReviewCount?.let { count ->
                     Text(catalogRatingCountLabel(count, language), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
@@ -15231,7 +16047,17 @@ private fun FullScreenSightPhotoViewer(
     sight: com.odyssey.travelplanner.data.Sight,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val bitmap = rememberSightBitmap(sight)
+    val photoUrl = sight.photo.takeIf(String::isNotBlank)
+    val photoRequest = remember(photoUrl) {
+        photoUrl?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .size(1600, 1200)
+                .build()
+        }
+    }
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
@@ -15244,6 +16070,13 @@ private fun FullScreenSightPhotoViewer(
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
+                    contentDescription = localizedSightName(sight.name),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (photoRequest != null && !sight.photoUnavailable) {
+                AsyncImage(
+                    model = photoRequest,
                     contentDescription = localizedSightName(sight.name),
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
@@ -18954,7 +19787,7 @@ private fun OverviewMapCard(
         .distinctBy { "${it.longitude()},${it.latitude()}" }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context, attributionDescription) {
-        MapView(
+        AccessibleMapView(
             context,
             MapInitOptions(
                 context = context,
@@ -18963,7 +19796,6 @@ private fun OverviewMapCard(
             ),
         ).also {
             it.scalebar.enabled = false
-            keepMapGesturesInsideMap(it)
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
@@ -19172,6 +20004,17 @@ private fun restaurantLinkUri(value: String): String? {
     } else {
         "https://www.google.com/maps/search/?api=1&query=${Uri.encode(raw)}"
     }
+}
+
+private fun restaurantAddressLabel(value: String): String {
+    val raw = value.trim()
+    if (raw.isBlank()) return ""
+    if (!raw.startsWith("http://", ignoreCase = true) && !raw.startsWith("https://", ignoreCase = true)) return raw
+    val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return raw
+    val query = uri.getQueryParameter("query")
+        ?: uri.getQueryParameter("q")
+        ?: return raw
+    return query.replace('+', ' ').trim().ifBlank { raw }
 }
 
 private fun formatSightCoordinate(point: Point): String =
