@@ -14671,7 +14671,16 @@ export function App() {
         navigate(nextPath, { replace: true });
         return;
       }
-      if (location.pathname === "/auth" || location.pathname === "/") {
+      // Auth events can arrive after the component mounted (for example when
+      // another browser tab refreshes the Supabase session). The `location`
+      // captured by this effect is then stale and may still be `/`, which
+      // incorrectly redirects an already-open trip tab to the trips list.
+      // Read the current HashRouter route at the moment of the event instead.
+      const liveHashPath = window.location.hash.startsWith("#/")
+        ? window.location.hash.slice(1).split("?")[0]
+        : "";
+      const livePath = liveHashPath || window.location.pathname;
+      if (livePath === "/auth" || livePath === "/") {
         navigate("/trips", { replace: true });
       }
     };
