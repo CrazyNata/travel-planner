@@ -7197,6 +7197,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .trip-card,
 .app.app-dark .catalog-card,
 .app.app-dark .overview-route,
+.app.app-dark .draft-route-card,
 .app.app-dark .city-overview-card,
 .app.app-dark .map-card,
 .app.app-dark .place-row,
@@ -7218,6 +7219,51 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background: #202536;
   color: #edf0f7;
   box-shadow: 0 8px 22px #080a1426;
+}
+.app.app-dark .draft-route-card > header {
+  border-bottom-color: #394158;
+}
+.app.app-dark .draft-route-title h2 {
+  color: #f7f8fc;
+}
+.app.app-dark .draft-route-title span {
+  color: #98a2b7;
+}
+.app.app-dark .route-checklist p,
+.app.app-dark .route-checklist label {
+  color: #cbd2e1;
+}
+.app.app-dark .route-checklist label.completed span {
+  color: #8f98ae;
+}
+.app.app-dark .route-checklist p b {
+  color: #edf0f7;
+}
+.app.app-dark .route-checklist input {
+  appearance: none;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-content: center;
+  border: 1px solid #5b6580;
+  border-radius: 4px;
+  background: #2b3143;
+  cursor: pointer;
+}
+.app.app-dark .route-checklist input:checked {
+  border-color: #655be1;
+  background: #655be1;
+}
+.app.app-dark .route-checklist input:checked::after {
+  width: 9px;
+  height: 5px;
+  border-bottom: 2px solid #fff;
+  border-left: 2px solid #fff;
+  content: "";
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.app.app-dark .route-card-empty {
+  color: #98a2b7;
 }
 .app.app-dark .new-card { border-style: dashed; }
 .app.app-dark .weather-card:not(.has-photo) {
