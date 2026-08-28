@@ -344,7 +344,10 @@ const budgetCategories = [
 function inferBudgetCategory(name: string) {
   const value = name.trim().toLocaleLowerCase("ru-RU");
   if (!value) return undefined;
-  if (/(жиль|отел|гостини|апартамент|хостел|airbnb|booking)/.test(value)) {
+  // A city/tourist tax is normally charged with accommodation, so keep it
+  // with housing even when an older record was saved under the default food
+  // category.
+  if (/(жиль|отел|гостини|апартамент|хостел|airbnb|booking|городск.*налог|туристическ.*сбор)/.test(value)) {
     return "Жильё";
   }
   if (/(аренд.*(машин|авто)|бензин|такси|транспорт|поезд|перелет|самолет|дорог.*билет)/.test(value)) {
