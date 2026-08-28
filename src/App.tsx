@@ -307,6 +307,8 @@ type BudgetExpense = {
   id: string;
   name: string;
   amount: number;
+  /** Stored as the EUR-normalized amount for backwards-compatible totals. */
+  currency?: BudgetCurrency;
   category: string;
   scope: BudgetScope;
   paidBy: string;
@@ -9853,6 +9855,9 @@ function ExpenseForm({
   currency: BudgetCurrency;
 }) {
   const [name, setName] = useState(initial?.name || "");
+  const [entryCurrency, setEntryCurrency] = useState<BudgetCurrency>(
+    initial?.currency || currency,
+  );
   const [category, setCategory] = useState(
     () => inferBudgetCategory(initial?.name || "") || initial?.category || "Еда и рестораны",
   );
@@ -9885,11 +9890,15 @@ function ExpenseForm({
             setError("Укажите корректную сумму.");
             return;
           }
+          const selectedCurrency = budgetCurrencies[entryCurrency]
+            ? entryCurrency
+            : currency;
           setError("");
           onSave({
             id: initial?.id || crypto.randomUUID(),
             name: expenseName,
-            amount: amount / budgetCurrencies[currency].rate,
+            amount: amount / budgetCurrencies[selectedCurrency].rate,
+            currency: selectedCurrency,
             category: categoryManuallySelected ? category : inferBudgetCategory(expenseName) || category,
             scope,
             paidBy: String(form.get("paidBy") || initial?.paidBy || "Общее").trim() || "Общее",
@@ -9910,17 +9919,35 @@ function ExpenseForm({
         </label>
         <div className="expense-form-grid">
           <label>
-            Сумма, {budgetCurrencies[currency].label}
-            <input
-              name="amount"
-              inputMode="decimal"
-              defaultValue={
-                initial
-                  ? initial.amount * budgetCurrencies[currency].rate
-                  : undefined
-              }
-              placeholder="0"
-            />
+            Сумма
+            <div className="expense-amount-control">
+              <input
+                name="amount"
+                inputMode="decimal"
+                defaultValue={
+                  initial
+                    ? initial.amount * budgetCurrencies[entryCurrency].rate
+                    : undefined
+                }
+                placeholder="0"
+              />
+              <select
+                name="currency"
+                aria-label="Валюта траты"
+                value={entryCurrency}
+                onChange={(event) =>
+                  setEntryCurrency(event.target.value as BudgetCurrency)
+                }
+              >
+                {(Object.keys(budgetCurrencies) as BudgetCurrency[]).map(
+                  (item) => (
+                    <option value={item} key={item}>
+                      {budgetCurrencies[item].label} {item}
+                    </option>
+                  ),
+                )}
+              </select>
+            </div>
           </label>
           <label>
             Кто платил
