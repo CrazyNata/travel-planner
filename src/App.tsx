@@ -9905,7 +9905,9 @@ function ExpenseForm({
             category: categoryManuallySelected ? category : inferBudgetCategory(expenseName) || category,
             scope,
             paidBy: String(form.get("paidBy") || initial?.paidBy || "Общее").trim() || "Общее",
-            date: String(form.get("date") || "") || undefined,
+            // The date field is intentionally not shown in this compact form.
+            // Preserve an existing date when editing instead of clearing it.
+            date: initial?.date,
           });
           onClose();
         }}
@@ -9956,7 +9958,6 @@ function ExpenseForm({
             Кто платил
             <input name="paidBy" defaultValue={initial?.paidBy || "Общее"} placeholder="Например, Анна" />
           </label>
-          <label>Дата<input name="date" type="date" defaultValue={initial?.date} /></label>
         </div>
         <section>
           <b>Категория</b>
