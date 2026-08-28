@@ -10117,36 +10117,99 @@ function Budget({
         </article>
         {split.groups.map((group) => <article key={group.id}><span>{group.name}</span><b>{formatAmount(sharedTotal * group.people / splitPeopleTotal)}</b><small>Доля из общих трат</small></article>)}
       </div>
-      <div className="budget-grid">
-        <article className="panel">
-          <header className="budget-panel-heading">
-            <h2>По категориям</h2>
-          </header>
-          {categories.map((category) => {
-            const total = expenses.filter((expense) => expense.category === category).reduce((sum, expense) => sum + expense.amount, 0);
-            const all = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            return <div className="budget-row" key={category}><p><b>{category}</b><span>{formatAmount(total)}</span></p><div><i style={{ width: `${all ? (total / all) * 100 : 0}%` }} /></div></div>;
-          })}
-        </article>
-        <article className="panel">
-          <h2>Траты</h2>
-          {expenses.length ? expenses.map((expense) => (
-            <div className="split" key={expense.id}>
-              <span><b>{expense.name}</b><small>{expense.scope === "общий" ? "Общий" : expense.scope === "семья" ? "Семья" : "Личный"} · {expense.paidBy}</small></span>
-              <b>{formatAmount(expense.amount)}</b>
-              <button
-                type="button"
-                className="budget-expense-edit"
-                aria-label={`Редактировать трату ${expense.name}`}
-                title="Редактировать"
-                onClick={() => setEditing(expense)}
-              >
-                ✎
-              </button>
-            </div>
-          )) : <p>Добавьте первую трату и выберите: общий, семейный или личный бюджет.</p>}
-        </article>
-      </div>
+      <article className="panel budget-table-panel">
+        <header className="budget-table-heading">
+          <div>
+            <h2>Траты по категориям</h2>
+            <p>Все расходы в одной таблице</p>
+          </div>
+          <span>{expenses.length} {expenses.length === 1 ? "трата" : expenses.length < 5 ? "траты" : "трат"}</span>
+        </header>
+        <div className="budget-table-scroll">
+          <table className="budget-table">
+            <thead>
+              <tr>
+                <th>Категория</th>
+                <th>Трата</th>
+                <th>Кто платил</th>
+                <th>Дата</th>
+                <th>Сумма</th>
+                <th aria-label="Действия" />
+              </tr>
+            </thead>
+            <tbody>
+              {categories.flatMap((category) => {
+                const categoryExpenses = expenses.filter(
+                  (expense) => expense.category === category,
+                );
+                const total = categoryExpenses.reduce(
+                  (sum, expense) => sum + expense.amount,
+                  0,
+                );
+                const all = expenses.reduce(
+                  (sum, expense) => sum + expense.amount,
+                  0,
+                );
+                return [
+                  <tr className="budget-table-category" key={`category-${category}`}>
+                    <td colSpan={6}>
+                      <div className="budget-table-category-head">
+                        <b>{category}</b>
+                        <span>{formatAmount(total)}</span>
+                      </div>
+                      <div className="budget-table-progress">
+                        <i style={{ width: `${all ? (total / all) * 100 : 0}%` }} />
+                      </div>
+                    </td>
+                  </tr>,
+                  ...categoryExpenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td data-label="Категория">{category}</td>
+                      <td data-label="Трата" className="budget-table-expense-name">
+                        <b>{expense.name}</b>
+                        <small>
+                          {expense.scope === "общий"
+                            ? "Общий"
+                            : expense.scope === "семья"
+                              ? "Семья"
+                              : "Личный"}
+                        </small>
+                      </td>
+                      <td data-label="Кто платил">{expense.paidBy || "—"}</td>
+                      <td data-label="Дата">
+                        {expense.date
+                          ? expense.date.split("-").reverse().join(".")
+                          : "Без даты"}
+                      </td>
+                      <td data-label="Сумма" className="budget-table-amount">
+                        {formatAmount(expense.amount)}
+                      </td>
+                      <td className="budget-table-action">
+                        <button
+                          type="button"
+                          className="budget-expense-edit"
+                          aria-label={`Редактировать трату ${expense.name}`}
+                          title="Редактировать"
+                          onClick={() => setEditing(expense)}
+                        >
+                          ✎
+                        </button>
+                      </td>
+                    </tr>
+                  )),
+                ];
+              })}
+              {!expenses.length && (
+                <tr>
+                  <td className="budget-table-empty" colSpan={6}>
+                    Добавьте первую трату и выберите: общий, семейный или личный бюджет.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
       {adding && <ExpenseForm currency={currency} onClose={() => setAdding(false)} onSave={saveExpense} />}
       {editing && <ExpenseForm currency={currency} initial={editing} onClose={() => setEditing(null)} onSave={saveExpense} />}
       {splitting && <BudgetSplitForm currency={currency} initial={split} total={sharedTotal} onClose={() => setSplitting(false)} onSave={saveSplit} />}
