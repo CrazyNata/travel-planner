@@ -4365,7 +4365,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   padding-top: 18px;
   padding-bottom: 10px;
   border-bottom: 0;
-  background: #fafbfc;
+  background: #f7f6ff;
 }
 .budget-table-category:first-child td {
   padding-top: 16px;
@@ -4378,25 +4378,26 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   margin-bottom: 8px;
 }
 .budget-table-category-head b {
-  color: #252837;
-  font-size: 14px;
+  color: #28225f;
+  font-size: 15px;
+  font-weight: 900;
 }
 .budget-table-category-head span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 900;
 }
 .budget-table-progress {
-  height: 7px;
+  height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e9eaee;
+  background: #e1e0ed;
 }
 .budget-table-progress i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
 }
 .budget-table-expense-name {
   min-width: 190px;
@@ -7411,16 +7412,18 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background: #282e40;
 }
 .app.app-dark .budget-table-category td {
-  background: #1b2030;
+  background: #242a40;
 }
 .app.app-dark .budget-table-category-head b,
 .app.app-dark .budget-table-expense-name b {
   color: #f7f8fc;
 }
-.app.app-dark .budget-table-category-head span,
 .app.app-dark .budget-table-expense-name small,
 .app.app-dark .budget-table-heading p {
   color: #98a2b7;
+}
+.app.app-dark .budget-table-category-head span {
+  color: #a9a5ff;
 }
 .app.app-dark .budget-table-progress {
   background: #2b3143;
