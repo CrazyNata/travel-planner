@@ -9942,7 +9942,7 @@ function ExpenseForm({
                 {(Object.keys(budgetCurrencies) as BudgetCurrency[]).map(
                   (item) => (
                     <option value={item} key={item}>
-                      {budgetCurrencies[item].label} {item}
+                      {item}
                     </option>
                   ),
                 )}
