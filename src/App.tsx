@@ -10070,6 +10070,7 @@ function Budget({
     if (hasAutoCategories) onUpdateTrip({ ...trip, budgetExpenses: expenses });
   }, [hasAutoCategories]);
   const currency = trip.budgetCurrency || "EUR";
+  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const split = trip.budgetSplit || {
     groups: [
       { id: "family", name: "Моя семья", people: 2 },
@@ -10210,6 +10211,18 @@ function Budget({
                 </tr>
               )}
             </tbody>
+            {expenses.length > 0 && (
+              <tfoot>
+                <tr className="budget-table-total">
+                  <td colSpan={4}>
+                    <b>Итого</b>
+                    <small>Все расходы по поездке</small>
+                  </td>
+                  <td className="budget-table-amount">{formatAmount(totalExpenses)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </article>
