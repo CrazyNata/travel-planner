@@ -56,6 +56,8 @@ data class TripCard(
     val coverImage: String?,
     val isOwner: Boolean,
     val canEdit: Boolean = isOwner,
+    /** Lightweight lodging data used to schedule local reminders on the trips screen. */
+    val accommodations: List<Accommodation> = emptyList(),
 )
 
 @Serializable
@@ -615,7 +617,11 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                     TripCard(
                         id = row.id,
                         title = text("title").ifBlank { "Путешествие" },
-                        dates = text("dates"),
+                        dates = text("dates").ifBlank {
+                            listOf(text("startDate"), text("endDate"))
+                                .filter(String::isNotBlank)
+                                .joinToString(" — ")
+                        },
                         status = text("status").ifBlank { "Черновик" },
                         // Progress is derived from the current payload so legacy
                         // trips with a stale stored value of 0 are fixed on read.
@@ -624,6 +630,22 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         coverImage = resolvedCoverImage,
                         isOwner = row.ownerId == currentUserId,
                         canEdit = roleCanEdit(role),
+                        accommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
+                            val accommodation = item.jsonObject
+                            val name = jsonText(accommodation["name"]).takeIf(String::isNotBlank) ?: return@mapNotNull null
+                            Accommodation(
+                                id = jsonText(accommodation["id"]).ifBlank { name },
+                                city = jsonText(accommodation["city"]),
+                                name = name,
+                                dates = jsonText(accommodation["dates"]),
+                                price = jsonText(accommodation["price"]),
+                                status = jsonText(accommodation["status"]),
+                                details = "",
+                                photos = emptyList(),
+                                bookingUrl = "",
+                                deadline = jsonText(accommodation["deadline"]),
+                            )
+                        },
                     )
                 }
             }.awaitAll()

@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.view.MotionEvent
@@ -250,6 +251,7 @@ import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
 import com.odyssey.travelplanner.data.isPlaceholderSightDescription
 import com.odyssey.travelplanner.data.distanceMeters
+import com.odyssey.travelplanner.notifications.ReminderScheduler
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.IDToken
@@ -1464,6 +1466,13 @@ private fun primaryColor() = if (LocalDarkTheme.current) OdysseyDarkPrimary else
 @Composable
 private fun primaryContentColor() = if (LocalDarkTheme.current) OdysseyDarkOnPrimary else Color.White
 
+private fun notificationPermissionGranted(context: Context): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+
 @Composable
 private fun labelColor() = if (LocalDarkTheme.current) OdysseyDarkLabel else OdysseyLabel
 
@@ -1738,6 +1747,9 @@ fun OdysseyApp(
                         onLanguageChange = ::handleLanguageChange,
                         sessionRestoreVersion = sessionRestoreVersion,
                         accountProfile = accountProfile,
+                        onNotificationsChanged = { enabled ->
+                            accountProfile = accountProfile?.copy(notificationsEnabled = enabled)
+                        },
                     )
                 }
                 composable("settings") {
@@ -1754,6 +1766,9 @@ fun OdysseyApp(
                         onThemeSet = { darkTheme = it },
                         language = language,
                         onLanguageChange = { language = normalizeLanguage(it) },
+                        onNotificationsChanged = { enabled ->
+                            accountProfile = accountProfile?.copy(notificationsEnabled = enabled)
+                        },
                     )
                 }
                 composable("create-trip") {
@@ -1787,6 +1802,7 @@ fun OdysseyApp(
                         tripId = entry.arguments?.getString("tripId").orEmpty(),
                         onBack = { navController.popBackStack() },
                         onSettings = { navController.navigate("settings") },
+                        notificationsEnabled = accountProfile?.notificationsEnabled == true,
                     )
                 }
             }
@@ -2815,7 +2831,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?, onNotificationsChanged: (Boolean) -> Unit = {}) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
@@ -2832,8 +2848,64 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var accountDeleteDialogOpen by remember { mutableStateOf(false) }
     var accountDeleting by remember { mutableStateOf(false) }
+    var pendingNotificationEnable by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    fun persistNotifications(enabled: Boolean) {
+        val previous = notificationsEnabled
+        notificationsEnabled = enabled
+        scope.launch {
+            runCatching {
+                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
+                    profileAvatarUrl,
+                    enabled,
+                    language = language,
+                    darkTheme = darkTheme,
+                )
+            }.onSuccess {
+                onNotificationsChanged(enabled)
+                if (enabled) {
+                    ReminderScheduler.sync(context, trips, true, language)
+                } else {
+                    ReminderScheduler.cancelAll(context)
+                }
+                accountMessage = localized(
+                    language,
+                    if (enabled) "Уведомления включены" else "Уведомления выключены",
+                    if (enabled) "Notifications enabled" else "Notifications disabled",
+                    if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas",
+                    if (enabled) "Benachrichtigungen aktiviert" else "Benachrichtigungen deaktiviert",
+                )
+            }.onFailure {
+                notificationsEnabled = previous
+                accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить настройку уведомлений", "Could not save notification setting", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellung konnte nicht gespeichert werden"))
+            }
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val shouldEnable = pendingNotificationEnable
+        pendingNotificationEnable = false
+        if (shouldEnable) {
+            if (granted) {
+                persistNotifications(true)
+            } else {
+                accountMessage = localized(language, "Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
+            }
+        }
+    }
+
+    fun requestNotificationChange(enabled: Boolean) {
+        if (enabled && !notificationPermissionGranted(context)) {
+            pendingNotificationEnable = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            persistNotifications(enabled)
+        }
+    }
 
     fun reloadTrips(force: Boolean = false) {
         val now = System.currentTimeMillis()
@@ -2887,6 +2959,12 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
 
     LaunchedEffect(sessionRestoreVersion) {
         if (sessionRestoreVersion > 0) reloadTrips()
+    }
+
+    LaunchedEffect(trips, notificationsEnabled, language, loading, loadFailed) {
+        if (!loading && !loadFailed) {
+            ReminderScheduler.sync(context, trips, notificationsEnabled, language)
+        }
     }
 
     val upcoming = trips.filter {
@@ -3040,10 +3118,13 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                             onSaved = { updated ->
                                 trips = trips.map { if (it.id == updated.id) updated else it }
                                 editingTrip = null
+                                reloadTrips(force = true)
                             },
                             onDeleted = { deletedId ->
                                 trips = trips.filterNot { it.id == deletedId }
                                 editingTrip = null
+                                ReminderScheduler.cancelTrip(context, deletedId)
+                                reloadTrips(force = true)
                             },
                         )
                     }
@@ -3058,12 +3139,14 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 trips = trips,
                 language = language,
                 darkTheme = darkTheme,
+                notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
                 passwordEditorOpen = passwordEditorOpen,
                 newPassword = newPassword,
                 repeatedNewPassword = repeatedNewPassword,
                 accountMessage = accountMessage,
                 onDismiss = { accountMenuOpen = false },
                 onPhotoPick = { photoPicker.launch("image/*") },
+                onNotificationsToggle = ::requestNotificationChange,
                 onLanguageChange = { code ->
                     onLanguageChange(code)
                     scope.launch {
@@ -3114,6 +3197,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 },
                 onSignOut = {
                     scope.launch {
+                        ReminderScheduler.cancelAll(context)
                         SupabaseProvider.signOutForAccountPicker()
                         accountMenuOpen = false
                         onLogout()
@@ -3163,6 +3247,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 accountMessage = null
                                 runCatching {
                                     AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteAccount()
+                                    ReminderScheduler.cancelAll(context)
                                     SupabaseProvider.clearActiveSessionLocally()
                                 }.onSuccess {
                                     accountDeleteDialogOpen = false
@@ -3203,6 +3288,7 @@ private fun AccountSettingsScreen(
     onThemeSet: (Boolean) -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
+    onNotificationsChanged: (Boolean) -> Unit = {},
 ) {
     var profileEmail by remember { mutableStateOf("") }
     var profileAvatarUrl by remember { mutableStateOf<String?>(null) }
@@ -3213,9 +3299,65 @@ private fun AccountSettingsScreen(
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var accountDeleteDialogOpen by remember { mutableStateOf(false) }
     var accountDeleting by remember { mutableStateOf(false) }
+    var pendingNotificationEnable by remember { mutableStateOf(false) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    fun persistNotifications(enabled: Boolean) {
+        val previous = notificationsEnabled
+        notificationsEnabled = enabled
+        scope.launch {
+            runCatching {
+                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
+                    profileAvatarUrl,
+                    enabled,
+                    language = language,
+                    darkTheme = darkTheme,
+                )
+            }.onSuccess {
+                onNotificationsChanged(enabled)
+                if (enabled) {
+                    ReminderScheduler.sync(context, trips, true, language)
+                } else {
+                    ReminderScheduler.cancelAll(context)
+                }
+                accountMessage = localized(
+                    language,
+                    if (enabled) "Уведомления включены" else "Уведомления выключены",
+                    if (enabled) "Notifications enabled" else "Notifications disabled",
+                    if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas",
+                    if (enabled) "Benachrichtigungen aktiviert" else "Benachrichtigungen deaktiviert",
+                )
+            }.onFailure {
+                notificationsEnabled = previous
+                accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить настройку уведомлений", "Could not save notification setting", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellung konnte nicht gespeichert werden"))
+            }
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val shouldEnable = pendingNotificationEnable
+        pendingNotificationEnable = false
+        if (shouldEnable) {
+            if (granted) {
+                persistNotifications(true)
+            } else {
+                accountMessage = localized(language, "Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
+            }
+        }
+    }
+
+    fun requestNotificationChange(enabled: Boolean) {
+        if (enabled && !notificationPermissionGranted(context)) {
+            pendingNotificationEnable = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            persistNotifications(enabled)
+        }
+    }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -3248,6 +3390,10 @@ private fun AccountSettingsScreen(
         trips = runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }.getOrDefault(emptyList())
     }
 
+    LaunchedEffect(trips, notificationsEnabled, language) {
+        ReminderScheduler.sync(context, trips, notificationsEnabled, language)
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(if (darkTheme) OdysseyDarkBackground else OdysseyBackground)) {
         AccountSettingsSheet(
             profileEmail = profileEmail,
@@ -3255,12 +3401,14 @@ private fun AccountSettingsScreen(
             trips = trips,
             language = language,
             darkTheme = darkTheme,
+            notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
             passwordEditorOpen = passwordEditorOpen,
             newPassword = newPassword,
             repeatedNewPassword = repeatedNewPassword,
             accountMessage = accountMessage,
             onDismiss = onBack,
             onPhotoPick = { photoPicker.launch("image/*") },
+            onNotificationsToggle = ::requestNotificationChange,
             onLanguageChange = { code ->
                 onLanguageChange(code)
                 scope.launch {
@@ -3320,6 +3468,7 @@ private fun AccountSettingsScreen(
             },
             onSignOut = {
                 scope.launch {
+                    ReminderScheduler.cancelAll(context)
                     SupabaseProvider.signOutForAccountPicker()
                     onLogout()
                 }
@@ -3352,6 +3501,7 @@ private fun AccountSettingsScreen(
                             accountMessage = null
                             runCatching {
                                 AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).deleteAccount()
+                                ReminderScheduler.cancelAll(context)
                                 SupabaseProvider.clearActiveSessionLocally()
                             }.onSuccess {
                                 accountDeleteDialogOpen = false
@@ -3383,12 +3533,14 @@ private fun AccountSettingsSheet(
     trips: List<TripCard>,
     language: String,
     darkTheme: Boolean,
+    notificationsEnabled: Boolean,
     passwordEditorOpen: Boolean,
     newPassword: String,
     repeatedNewPassword: String,
     accountMessage: String?,
     onDismiss: () -> Unit,
     onPhotoPick: () -> Unit,
+    onNotificationsToggle: (Boolean) -> Unit,
     onLanguageChange: (String) -> Unit,
     onThemeToggle: () -> Unit,
     onPasswordEditorToggle: () -> Unit,
@@ -3525,6 +3677,36 @@ private fun AccountSettingsSheet(
                     }
                 }
                 AccountSettingsDivider(dividerColor)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(62.dp)
+                        .clickable { onNotificationsToggle(!notificationsEnabled) }
+                        .padding(horizontal = 13.dp),
+                ) {
+                    AccountIconTile(Icons.Outlined.NotificationsNone)
+                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(
+                            localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            localized("Сроки отмены и даты поездок", "Cancellation deadlines and trip dates", "Plazos de cancelación y fechas de viaje", "Stornierungsfristen und Reisedaten"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    AccountToggle(checked = notificationsEnabled, onClick = { onNotificationsToggle(!notificationsEnabled) })
+                }
+                AccountSettingsDivider(dividerColor)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 13.dp)) {
                     AccountIconTile(Icons.Outlined.DarkMode)
                     Text(localized("Тёмная тема", "Dark theme", "Tema oscuro", "Dunkles Thema"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
@@ -3606,6 +3788,28 @@ private fun AccountIconTile(icon: androidx.compose.ui.graphics.vector.ImageVecto
 @Composable
 private fun AccountSettingsDivider(color: Color) {
     Spacer(Modifier.fillMaxWidth().height(1.dp).background(color))
+}
+
+@Composable
+private fun AccountToggle(checked: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(40.dp)
+            .height(24.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (checked) primaryColor() else Color(0xFFE4E1EB))
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                .padding(3.dp)
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, if (checked) OdysseyDarkBorder else Color(0xFFD6D2DE), CircleShape),
+        )
+    }
 }
 
 @Composable
@@ -5889,9 +6093,15 @@ private fun TripCityChip(city: String, onRemove: () -> Unit) {
 }
 
 @Composable
-private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: () -> Unit) {
+private fun TripOverviewScreen(
+    tripId: String,
+    onBack: () -> Unit,
+    onSettings: () -> Unit,
+    notificationsEnabled: Boolean,
+) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
+    val context = LocalContext.current
     val cityCatalogContext = LocalContext.current
     val cityCatalogRepository = remember(cityCatalogContext) { CityCatalogRepository(cityCatalogContext.assets) }
     var overview by remember { mutableStateOf<TripOverview?>(null) }
@@ -5945,6 +6155,12 @@ private fun TripOverviewScreen(tripId: String, onBack: () -> Unit, onSettings: (
                 weatherRepository.loadCurrent(cities, trip.dates, catalogCoordinates + trip.cityCoordinates)
             }.getOrDefault(emptyMap())
             weatherLoading = false
+        }
+    }
+
+    LaunchedEffect(overview, notificationsEnabled, language) {
+        overview?.let { trip ->
+            ReminderScheduler.syncTrip(context, trip, notificationsEnabled, language)
         }
     }
 

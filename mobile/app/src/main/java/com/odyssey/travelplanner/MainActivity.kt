@@ -50,6 +50,10 @@ internal fun parseAndroidDeepLink(value: String?): AndroidDeepLink? {
 }
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_NOTIFICATION_TRIP_ID = "notification_trip_id"
+    }
+
     private var pendingTripId by mutableStateOf<String?>(null)
     private var pendingPasswordReset by mutableStateOf(false)
 
@@ -80,6 +84,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun readDeepLink(intent: Intent?) {
+        val notificationTripId = intent?.getStringExtra(EXTRA_NOTIFICATION_TRIP_ID)
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+        if (notificationTripId != null) {
+            pendingTripId = notificationTripId
+            return
+        }
         when (val deepLink = parseAndroidDeepLink(intent?.dataString)) {
             is AndroidDeepLink.Invite -> pendingTripId = deepLink.tripId
             AndroidDeepLink.PasswordReset -> pendingPasswordReset = true
