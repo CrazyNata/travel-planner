@@ -3,6 +3,7 @@ package com.odyssey.travelplanner.ui
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.app.TimePickerDialog
 import android.graphics.Bitmap
@@ -13,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.provider.Settings
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -343,6 +345,7 @@ private val Manrope = FontFamily(
 )
 private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 private val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
+private const val NotificationSettingsPageScale = 1.15f
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
 private val LocalDeviceLocation = staticCompositionLocalOf<DeviceLocation?> { null }
@@ -1476,6 +1479,18 @@ private fun notificationPermissionGranted(context: Context): Boolean =
             context,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
+
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    runCatching {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:${context.packageName}"),
+            ),
+        )
+    }
+}
 
 private data class NotificationSettingsDraft(
     val notificationsEnabled: Boolean,
@@ -3573,6 +3588,8 @@ private fun NotificationSettingsScreen(
     var messageIsError by remember { mutableStateOf(false) }
     var pendingSave by remember { mutableStateOf<NotificationSettingsDraft?>(null) }
     var phonePermissionGranted by remember { mutableStateOf(notificationPermissionGranted(context)) }
+    var exactAlarmPermissionGranted by remember { mutableStateOf(ReminderScheduler.canScheduleExactAlarms(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
     var helpOpen by remember { mutableStateOf(false) }
     val settingsSavedMessage = localized(
         language,
@@ -3595,6 +3612,21 @@ private fun NotificationSettingsScreen(
         "No se concedió el permiso de notificaciones",
         "Benachrichtigungsberechtigung wurde nicht erteilt",
     )
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val wasGranted = exactAlarmPermissionGranted
+                val isGranted = ReminderScheduler.canScheduleExactAlarms(context)
+                exactAlarmPermissionGranted = isGranted
+                if (wasGranted != isGranted && notificationsEnabled) {
+                    scope.launch { ReminderScheduler.refreshFromSupabase(context) }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     fun saveDraft(draft: NotificationSettingsDraft) {
         if (isSaving) return
@@ -3652,18 +3684,25 @@ private fun NotificationSettingsScreen(
     val divider = contentBorderColor()
     val detailColor = secondaryTextColor()
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(background),
     ) {
+        val pageScale = NotificationSettingsPageScale
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .width(maxWidth / pageScale)
+                .height(maxHeight / pageScale)
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 14.dp),
+                .padding(horizontal = 24.dp, vertical = 14.dp)
+                .graphicsLayer {
+                    scaleX = pageScale
+                    scaleY = pageScale
+                    transformOrigin = TransformOrigin(0f, 0f)
+                },
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 IconButton(onClick = onBack) {
@@ -3733,6 +3772,58 @@ private fun NotificationSettingsScreen(
                         fontWeight = FontWeight.W500,
                         fontSize = 9.sp,
                         modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+            }
+
+            if (notificationsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !exactAlarmPermissionGranted) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(warningSurfaceColor())
+                        .clickable { openExactAlarmSettings(context) }
+                        .padding(12.dp),
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(29.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(Color(0xFFFFE1B8)),
+                    ) {
+                        Icon(
+                            Icons.Outlined.AccessTime,
+                            contentDescription = null,
+                            tint = Color(0xFFB97828),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(
+                            localized("Разрешите точное время", "Allow exact time", "Permita la hora exacta", "Genaue Uhrzeit erlauben"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 10.sp,
+                        )
+                        Text(
+                            localized("Иначе Android может перенести время напоминания.", "Otherwise Android may shift the reminder time.", "De lo contrario, Android puede cambiar la hora del recordatorio.", "Sonst kann Android die Erinnerungszeit verschieben."),
+                            color = detailColor,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W500,
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    Text(
+                        localized("Разрешить", "Allow", "Permitir", "Erlauben"),
+                        color = Color(0xFFB97828),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 9.sp,
                     )
                 }
             }

@@ -11,6 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import org.json.JSONArray
+import org.json.JSONObject
 import com.odyssey.travelplanner.MainActivity
 import com.odyssey.travelplanner.R
 import com.odyssey.travelplanner.data.AccountRepository
@@ -31,6 +33,9 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
+
+private const val ACTION_EXACT_ALARM_PERMISSION_STATE_CHANGED =
+    "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
 
 internal enum class ReminderKind {
     TRIP,
@@ -425,7 +430,9 @@ internal object ReminderPlanner {
 }
 
 internal object ReminderScheduler {
-    const val ACTION_DELIVER = "com.odyssey.travelplanner.action.DELIVER_REMINDER"
+    // The suffix also invalidates alarms created by releases that had no
+    // persistent registry; their old broadcasts are ignored after upgrade.
+    const val ACTION_DELIVER = "com.odyssey.travelplanner.action.DELIVER_REMINDER_V2"
     private const val ACTION_REFRESH = "com.odyssey.travelplanner.action.REFRESH_REMINDERS"
     private const val CHANNEL_ID = "trip_reminders"
     private const val MAINTENANCE_REQUEST_CODE = 0
@@ -437,8 +444,12 @@ internal object ReminderScheduler {
     private const val EXTRA_TARGET_DATE = "target_date"
     private const val EXTRA_TITLE = "notification_title"
     private const val EXTRA_TEXT = "notification_text"
+    private const val SCHEDULER_PREFERENCES = "reminder_scheduler"
+    private const val SCHEDULED_ALARMS_KEY = "scheduled_alarms"
+    private const val FALLBACK_ALARM_WINDOW_MILLIS = 10 * 60 * 1000L
 
     private val lock = Any()
+    // Technical scheduler state only; no user-visible trip data is persisted here.
     private val scheduledCodesByTrip = mutableMapOf<String, Set<Int>>()
 
     fun sync(
@@ -469,16 +480,19 @@ internal object ReminderScheduler {
         }
 
         val previousCodes = synchronized(lock) {
-            val codes = scheduledCodesByTrip.values.flatten().toSet()
+            val registry = mergedRegistryLocked(appContext)
+            val codes = registry.values.flatten().toSet()
             scheduledCodesByTrip.clear()
+            writePersistedRegistry(appContext, emptyMap())
             codes
         }
         previousCodes.forEach { cancelCode(appContext, it) }
         events.forEach { schedule(appContext, it) }
         synchronized(lock) {
-            events.groupBy { event -> "$accountId:${event.tripId}" }
+            val registry = events.groupBy { event -> "$accountId:${event.tripId}" }
                 .mapValues { (_, grouped) -> grouped.map(ReminderEvent::requestCode).toSet() }
-                .forEach { (tripKey, codes) -> scheduledCodesByTrip[tripKey] = codes }
+            scheduledCodesByTrip.putAll(registry)
+            writePersistedRegistry(appContext, registry)
         }
 
         if (canSchedule) {
@@ -502,7 +516,14 @@ internal object ReminderScheduler {
         val appContext = context.applicationContext
         val accountId = SupabaseProvider.clientForCurrentAuthFlow().auth.currentUserOrNull()?.id?.toString().orEmpty()
         val tripKey = "$accountId:${trip.id}"
-        val previousCodes = synchronized(lock) { scheduledCodesByTrip.remove(tripKey).orEmpty() }
+        val previousCodes = synchronized(lock) {
+            val registry = mergedRegistryLocked(appContext)
+            val codes = registry.remove(tripKey).orEmpty()
+            scheduledCodesByTrip.clear()
+            scheduledCodesByTrip.putAll(registry)
+            writePersistedRegistry(appContext, registry)
+            codes
+        }
         previousCodes.forEach { cancelCode(appContext, it) }
         val canSchedule = notificationsEnabled && canPostNotifications(appContext) && accountId.isNotBlank()
         val events = if (canSchedule) {
@@ -521,7 +542,11 @@ internal object ReminderScheduler {
         events.forEach { schedule(appContext, it) }
         if (events.isNotEmpty()) {
             synchronized(lock) {
-                scheduledCodesByTrip[tripKey] = events.map(ReminderEvent::requestCode).toSet()
+                val registry = mergedRegistryLocked(appContext)
+                registry[tripKey] = events.map(ReminderEvent::requestCode).toMutableSet()
+                scheduledCodesByTrip.clear()
+                scheduledCodesByTrip.putAll(registry)
+                writePersistedRegistry(appContext, registry)
             }
             ensureChannel(appContext)
             scheduleMaintenance(appContext)
@@ -533,8 +558,10 @@ internal object ReminderScheduler {
     fun cancelAll(context: Context) {
         val appContext = context.applicationContext
         val codes = synchronized(lock) {
-            val current = scheduledCodesByTrip.values.flatten().toSet()
+            val registry = mergedRegistryLocked(appContext)
+            val current = registry.values.flatten().toSet()
             scheduledCodesByTrip.clear()
+            writePersistedRegistry(appContext, emptyMap())
             current
         }
         codes.forEach { cancelCode(appContext, it) }
@@ -544,8 +571,12 @@ internal object ReminderScheduler {
     fun cancelTrip(context: Context, tripId: String) {
         val appContext = context.applicationContext
         val codes = synchronized(lock) {
-            val matchingKeys = scheduledCodesByTrip.keys.filter { key -> key.endsWith(":$tripId") }
-            val matchingCodes = matchingKeys.flatMap { key -> scheduledCodesByTrip.remove(key).orEmpty() }.toSet()
+            val registry = mergedRegistryLocked(appContext)
+            val matchingKeys = registry.keys.filter { key -> key.endsWith(":$tripId") }
+            val matchingCodes = matchingKeys.flatMap { key -> registry.remove(key).orEmpty() }.toSet()
+            scheduledCodesByTrip.clear()
+            scheduledCodesByTrip.putAll(registry)
+            writePersistedRegistry(appContext, registry)
             matchingCodes
         }
         codes.forEach { cancelCode(appContext, it) }
@@ -564,12 +595,18 @@ internal object ReminderScheduler {
             return
         }
         val client = SupabaseProvider.clientForCurrentAuthFlow()
-        val profile = runCatching { AccountRepository(client).loadProfile() }.getOrElse { return }
+        val profile = runCatching { AccountRepository(client).loadProfile() }.getOrElse {
+            cancelAll(appContext)
+            return
+        }
         if (!profile.notificationsEnabled) {
             cancelAll(appContext)
             return
         }
-        val trips = runCatching { SupabaseTripRepository(client).loadTrips() }.getOrElse { return }
+        val trips = runCatching { SupabaseTripRepository(client).loadTrips() }.getOrElse {
+            cancelAll(appContext)
+            return
+        }
         sync(
             appContext,
             trips,
@@ -585,8 +622,15 @@ internal object ReminderScheduler {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return false
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-        return manager?.areNotificationsEnabled() != false
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return false
+        if (!manager.areNotificationsEnabled()) return false
+        return manager.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
+    internal fun canScheduleExactAlarms(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return false
+        return alarmManager.canScheduleExactAlarms()
     }
 
     internal suspend fun shouldDeliver(context: Context, intent: Intent): Boolean {
@@ -601,8 +645,8 @@ internal object ReminderScheduler {
 
         // A preference change is persisted in Supabase. Check it when the
         // process was started by an alarm so an old alarm cannot resurrect
-        // notifications after the user turns them off. A short timeout keeps
-        // reminders useful when the device is offline.
+        // notifications after the user turns them off. Fail closed when the
+        // profile cannot be confirmed within the short timeout.
         return withTimeoutOrNull(1_500L) {
             runCatching {
                 val profile = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile()
@@ -612,7 +656,7 @@ internal object ReminderScheduler {
                     else -> true
                 }
             }.getOrNull()
-        } ?: true
+        } == true
     }
 
     internal fun post(context: Context, intent: Intent) {
@@ -673,9 +717,26 @@ internal object ReminderScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        alarmManager.setAndAllowWhileIdle(
+        val exactScheduled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            canScheduleExactAlarms(context)
+        } else {
+            true
+        }
+        if (exactScheduled) {
+            runCatching {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    event.triggerAtMillis,
+                    pendingIntent,
+                )
+            }.onSuccess { return }.onFailure { error ->
+                if (error !is SecurityException) throw error
+            }
+        }
+        alarmManager.setWindow(
             AlarmManager.RTC_WAKEUP,
             event.triggerAtMillis,
+            FALLBACK_ALARM_WINDOW_MILLIS,
             pendingIntent,
         )
     }
@@ -741,6 +802,55 @@ internal object ReminderScheduler {
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
     }
+
+    private fun mergedRegistryLocked(context: Context): MutableMap<String, MutableSet<Int>> {
+        val registry = readPersistedRegistry(context)
+        scheduledCodesByTrip.forEach { (tripKey, codes) ->
+            registry.getOrPut(tripKey) { mutableSetOf() }.addAll(codes)
+        }
+        return registry
+    }
+
+    private fun readPersistedRegistry(context: Context): MutableMap<String, MutableSet<Int>> {
+        val encoded = context
+            .getSharedPreferences(SCHEDULER_PREFERENCES, Context.MODE_PRIVATE)
+            .getString(SCHEDULED_ALARMS_KEY, null)
+            ?: return mutableMapOf()
+        return runCatching {
+            val result = mutableMapOf<String, MutableSet<Int>>()
+            val records = JSONArray(encoded)
+            for (index in 0 until records.length()) {
+                val record = records.optJSONObject(index) ?: continue
+                val tripKey = record.optString("tripKey").trim()
+                val requestCode = record.optInt("requestCode", 0)
+                if (tripKey.isNotBlank() && requestCode > 0) {
+                    result.getOrPut(tripKey) { mutableSetOf() }.add(requestCode)
+                }
+            }
+            result
+        }.getOrDefault(mutableMapOf())
+    }
+
+    private fun writePersistedRegistry(
+        context: Context,
+        registry: Map<String, Set<Int>>,
+    ) {
+        val records = JSONArray()
+        registry.forEach { (tripKey, requestCodes) ->
+            requestCodes.forEach { requestCode ->
+                records.put(
+                    JSONObject()
+                        .put("tripKey", tripKey)
+                        .put("requestCode", requestCode),
+                )
+            }
+        }
+        context
+            .getSharedPreferences(SCHEDULER_PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
+            .putString(SCHEDULED_ALARMS_KEY, records.toString())
+            .commit()
+    }
 }
 
 class ReminderAlarmReceiver : BroadcastReceiver() {
@@ -765,6 +875,7 @@ class ReminderRescheduleReceiver : BroadcastReceiver() {
                 Intent.ACTION_TIMEZONE_CHANGED,
                 Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_MY_PACKAGE_REPLACED,
+                ACTION_EXACT_ALARM_PERMISSION_STATE_CHANGED,
                 ACTION_REFRESH_FOR_RECEIVER,
             )
         ) return
