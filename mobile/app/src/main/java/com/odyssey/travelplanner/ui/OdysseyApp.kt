@@ -3574,6 +3574,27 @@ private fun NotificationSettingsScreen(
     var pendingSave by remember { mutableStateOf<NotificationSettingsDraft?>(null) }
     var phonePermissionGranted by remember { mutableStateOf(notificationPermissionGranted(context)) }
     var helpOpen by remember { mutableStateOf(false) }
+    val settingsSavedMessage = localized(
+        language,
+        "Настройки сохранены",
+        "Settings saved",
+        "Ajustes guardados",
+        "Einstellungen gespeichert",
+    )
+    val settingsSaveFailureFallback = localized(
+        language,
+        "Не удалось сохранить настройки уведомлений",
+        "Could not save notification settings",
+        "No se pudo guardar la configuración de notificaciones",
+        "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    )
+    val notificationPermissionDeniedMessage = localized(
+        language,
+        "Разрешение на уведомления не выдано",
+        "Notification permission was not granted",
+        "No se concedió el permiso de notificaciones",
+        "Benachrichtigungsberechtigung wurde nicht erteilt",
+    )
 
     fun saveDraft(draft: NotificationSettingsDraft) {
         if (isSaving) return
@@ -3583,14 +3604,14 @@ private fun NotificationSettingsScreen(
             try {
                 onSave(draft)
                 messageIsError = false
-                message = localized("Настройки сохранены", "Settings saved", "Ajustes guardados", "Einstellungen gespeichert")
+                message = settingsSavedMessage
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 messageIsError = true
                 message = localizedFailure(
                     language,
                     error,
-                    localized("Не удалось сохранить настройки уведомлений", "Could not save notification settings", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellungen konnten nicht gespeichert werden"),
+                    settingsSaveFailureFallback,
                 )
             }
             isSaving = false
@@ -3607,7 +3628,7 @@ private fun NotificationSettingsScreen(
             saveDraft(draft)
         } else if (!granted) {
             messageIsError = true
-            message = localized("Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
+            message = notificationPermissionDeniedMessage
         }
     }
 
