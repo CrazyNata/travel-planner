@@ -27,6 +27,9 @@ data class AccountProfile(
     val notificationsEnabled: Boolean,
     val language: String = "RU",
     val darkTheme: Boolean = false,
+    val tripRemindersEnabled: Boolean = true,
+    val cancellationRemindersEnabled: Boolean = true,
+    val reminderHour: Int = 9,
 )
 
 class AccountRepository(private val client: SupabaseClient) {
@@ -40,6 +43,9 @@ class AccountRepository(private val client: SupabaseClient) {
             notificationsEnabled = row?.value?.get("notifications_enabled")?.jsonPrimitive?.content == "true",
             language = row?.value?.get("language")?.jsonPrimitive?.contentOrNull ?: "RU",
             darkTheme = row?.value?.get("dark_theme")?.jsonPrimitive?.content == "true",
+            tripRemindersEnabled = row?.value?.get("trip_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            cancellationRemindersEnabled = row?.value?.get("cancellation_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            reminderHour = row?.value?.get("reminder_hour")?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(0, 23) ?: 9,
         )
     }
 
@@ -48,6 +54,9 @@ class AccountRepository(private val client: SupabaseClient) {
         notificationsEnabled: Boolean,
         language: String? = null,
         darkTheme: Boolean? = null,
+        tripRemindersEnabled: Boolean? = null,
+        cancellationRemindersEnabled: Boolean? = null,
+        reminderHour: Int? = null,
     ) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
@@ -58,6 +67,9 @@ class AccountRepository(private val client: SupabaseClient) {
         value["notifications_enabled"] = JsonPrimitive(notificationsEnabled)
         language?.let { value["language"] = JsonPrimitive(it) }
         darkTheme?.let { value["dark_theme"] = JsonPrimitive(it) }
+        tripRemindersEnabled?.let { value["trip_reminders_enabled"] = JsonPrimitive(it) }
+        cancellationRemindersEnabled?.let { value["cancellation_reminders_enabled"] = JsonPrimitive(it) }
+        reminderHour?.coerceIn(0, 23)?.let { value["reminder_hour"] = JsonPrimitive(it) }
         client.from("user_data").upsert(
             UserDataRow(
                 userId = userId,

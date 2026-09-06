@@ -74,6 +74,9 @@ internal object ReminderPlanner {
         accountId: String = "",
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
+        tripRemindersEnabled: Boolean = true,
+        cancellationRemindersEnabled: Boolean = true,
+        reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> = planReminderTrips(
         trips = trips.map { trip ->
             ReminderTrip(
@@ -88,6 +91,9 @@ internal object ReminderPlanner {
         accountId = accountId,
         now = now,
         zone = zone,
+        tripRemindersEnabled = tripRemindersEnabled,
+        cancellationRemindersEnabled = cancellationRemindersEnabled,
+        reminderHour = reminderHour,
     )
 
     private fun planReminderTrips(
@@ -96,8 +102,22 @@ internal object ReminderPlanner {
         accountId: String = "",
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
+        tripRemindersEnabled: Boolean = true,
+        cancellationRemindersEnabled: Boolean = true,
+        reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> = trips
-        .flatMap { trip -> plan(trip, language, accountId, now, zone) }
+        .flatMap {
+            trip -> plan(
+                trip = trip,
+                language = language,
+                accountId = accountId,
+                now = now,
+                zone = zone,
+                tripRemindersEnabled = tripRemindersEnabled,
+                cancellationRemindersEnabled = cancellationRemindersEnabled,
+                reminderHour = reminderHour,
+            )
+        }
         .distinctBy(ReminderEvent::key)
         .sortedBy(ReminderEvent::triggerAtMillis)
 
@@ -107,48 +127,57 @@ internal object ReminderPlanner {
         accountId: String = "",
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
+        tripRemindersEnabled: Boolean = true,
+        cancellationRemindersEnabled: Boolean = true,
+        reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> {
         if (isFinishedTrip(trip.status)) return emptyList()
 
         val result = buildList {
-            parseDateRange(trip.dates)?.let { (start, end) ->
-                if (!end.isBefore(start)) {
-                    tripReminderDays.forEach { daysBefore ->
-                        reminderAt(
-                            kind = ReminderKind.TRIP,
-                            accountId = accountId,
-                            trip = trip,
-                            accommodation = null,
-                            targetDate = start,
-                            daysRemaining = daysBefore,
-                            triggerDate = start.minusDays(daysBefore),
-                            language = language,
-                            now = now,
-                            zone = zone,
-                        )?.let(::add)
+            if (tripRemindersEnabled) {
+                parseDateRange(trip.dates)?.let { (start, end) ->
+                    if (!end.isBefore(start)) {
+                        tripReminderDays.forEach { daysBefore ->
+                            reminderAt(
+                                kind = ReminderKind.TRIP,
+                                accountId = accountId,
+                                trip = trip,
+                                accommodation = null,
+                                targetDate = start,
+                                daysRemaining = daysBefore,
+                                triggerDate = start.minusDays(daysBefore),
+                                language = language,
+                                now = now,
+                                zone = zone,
+                                reminderHour = reminderHour,
+                            )?.let(::add)
+                        }
                     }
                 }
             }
 
-            trip.accommodations
-                .filterNot { accommodation -> isStayedAccommodation(accommodation.status) }
-                .forEach { accommodation ->
-                    val deadline = parseSingleDate(accommodation.deadline) ?: return@forEach
-                    cancellationReminderDays.forEach { daysBefore ->
-                        reminderAt(
-                            kind = ReminderKind.FREE_CANCELLATION,
-                            accountId = accountId,
-                            trip = trip,
-                            accommodation = accommodation,
-                            targetDate = deadline,
-                            daysRemaining = daysBefore,
-                            triggerDate = deadline.minusDays(daysBefore),
-                            language = language,
-                            now = now,
-                            zone = zone,
-                        )?.let(::add)
+            if (cancellationRemindersEnabled) {
+                trip.accommodations
+                    .filterNot { accommodation -> isStayedAccommodation(accommodation.status) }
+                    .forEach { accommodation ->
+                        val deadline = parseSingleDate(accommodation.deadline) ?: return@forEach
+                        cancellationReminderDays.forEach { daysBefore ->
+                            reminderAt(
+                                kind = ReminderKind.FREE_CANCELLATION,
+                                accountId = accountId,
+                                trip = trip,
+                                accommodation = accommodation,
+                                targetDate = deadline,
+                                daysRemaining = daysBefore,
+                                triggerDate = deadline.minusDays(daysBefore),
+                                language = language,
+                                now = now,
+                                zone = zone,
+                                reminderHour = reminderHour,
+                            )?.let(::add)
+                        }
                     }
-                }
+            }
         }
         return result
     }
@@ -172,10 +201,11 @@ internal object ReminderPlanner {
         language: String,
         now: Instant,
         zone: ZoneId,
+        reminderHour: Int,
     ): ReminderEvent? {
         val triggerAt = ZonedDateTime.of(
             triggerDate,
-            LocalTime.of(REMINDER_HOUR, 0),
+            LocalTime.of(reminderHour.coerceIn(0, 23), 0),
             zone,
         ).toInstant()
         if (!triggerAt.isAfter(now)) return null
@@ -417,12 +447,23 @@ internal object ReminderScheduler {
         notificationsEnabled: Boolean,
         language: String,
         now: Instant = Instant.now(),
+        tripRemindersEnabled: Boolean = true,
+        cancellationRemindersEnabled: Boolean = true,
+        reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
     ) {
         val appContext = context.applicationContext
         val accountId = SupabaseProvider.clientForCurrentAuthFlow().auth.currentUserOrNull()?.id?.toString().orEmpty()
         val canSchedule = notificationsEnabled && canPostNotifications(appContext) && accountId.isNotBlank()
         val events = if (canSchedule) {
-            ReminderPlanner.plan(trips, language, accountId = accountId, now = now)
+            ReminderPlanner.plan(
+                trips,
+                language,
+                accountId = accountId,
+                now = now,
+                tripRemindersEnabled = tripRemindersEnabled,
+                cancellationRemindersEnabled = cancellationRemindersEnabled,
+                reminderHour = reminderHour,
+            )
         } else {
             emptyList()
         }
@@ -454,6 +495,9 @@ internal object ReminderScheduler {
         notificationsEnabled: Boolean,
         language: String,
         now: Instant = Instant.now(),
+        tripRemindersEnabled: Boolean = true,
+        cancellationRemindersEnabled: Boolean = true,
+        reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
     ) {
         val appContext = context.applicationContext
         val accountId = SupabaseProvider.clientForCurrentAuthFlow().auth.currentUserOrNull()?.id?.toString().orEmpty()
@@ -467,6 +511,9 @@ internal object ReminderScheduler {
                 language,
                 accountId = accountId,
                 now = now,
+                tripRemindersEnabled = tripRemindersEnabled,
+                cancellationRemindersEnabled = cancellationRemindersEnabled,
+                reminderHour = reminderHour,
             )
         } else {
             emptyList()
@@ -523,7 +570,15 @@ internal object ReminderScheduler {
             return
         }
         val trips = runCatching { SupabaseTripRepository(client).loadTrips() }.getOrElse { return }
-        sync(appContext, trips, notificationsEnabled = true, language = profile.language)
+        sync(
+            appContext,
+            trips,
+            notificationsEnabled = true,
+            language = profile.language,
+            tripRemindersEnabled = profile.tripRemindersEnabled,
+            cancellationRemindersEnabled = profile.cancellationRemindersEnabled,
+            reminderHour = profile.reminderHour,
+        )
     }
 
     internal fun canPostNotifications(context: Context): Boolean {
@@ -550,7 +605,12 @@ internal object ReminderScheduler {
         // reminders useful when the device is offline.
         return withTimeoutOrNull(1_500L) {
             runCatching {
-                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile().notificationsEnabled
+                val profile = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile()
+                profile.notificationsEnabled && when (intent.getStringExtra(EXTRA_KIND)) {
+                    ReminderKind.TRIP.name -> profile.tripRemindersEnabled
+                    ReminderKind.FREE_CANCELLATION.name -> profile.cancellationRemindersEnabled
+                    else -> true
+                }
             }.getOrNull()
         } ?: true
     }

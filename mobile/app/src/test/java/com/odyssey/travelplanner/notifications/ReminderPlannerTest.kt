@@ -51,6 +51,61 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun respectsReminderCategoriesAndSelectedHour() {
+        val trip = TripCard(
+            id = "trip-settings",
+            title = "Италия",
+            dates = "2026-01-31 – 2026-02-07",
+            status = "Предстоящее",
+            progress = 10,
+            cities = "Рим",
+            coverImage = null,
+            isOwner = true,
+            accommodations = listOf(accommodation("stay-settings", "Casa Roma", "Рим", "2026-01-08")),
+        )
+
+        val events = ReminderPlanner.plan(
+            trips = listOf(trip),
+            language = "RU",
+            now = ZonedDateTime.of(2026, 1, 1, 8, 0, 0, 0, zone).toInstant(),
+            zone = zone,
+            tripRemindersEnabled = false,
+            cancellationRemindersEnabled = true,
+            reminderHour = 18,
+        )
+
+        assertTrue(events.isNotEmpty())
+        assertTrue(events.all { it.kind == ReminderKind.FREE_CANCELLATION })
+        assertTrue(events.all { ZonedDateTime.ofInstant(Instant.ofEpochMilli(it.triggerAtMillis), zone).hour == 18 })
+    }
+
+    @Test
+    fun canDisableAllReminderCategories() {
+        val trip = TripCard(
+            id = "trip-empty-settings",
+            title = "Италия",
+            dates = "2026-01-31 – 2026-02-07",
+            status = "Предстоящее",
+            progress = 10,
+            cities = "Рим",
+            coverImage = null,
+            isOwner = true,
+            accommodations = listOf(accommodation("stay-empty-settings", "Casa Roma", "Рим", "2026-01-08")),
+        )
+
+        val events = ReminderPlanner.plan(
+            trips = listOf(trip),
+            language = "RU",
+            now = Instant.parse("2026-01-01T08:00:00Z"),
+            zone = zone,
+            tripRemindersEnabled = false,
+            cancellationRemindersEnabled = false,
+        )
+
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
     fun skipsFinishedTripsAndStayedLodging() {
         val trip = TripCard(
             id = "trip-2",

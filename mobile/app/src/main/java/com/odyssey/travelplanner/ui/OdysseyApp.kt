@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.app.TimePickerDialog
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.location.LocationListener
@@ -22,6 +23,7 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -116,6 +118,7 @@ import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Hotel
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Edit
@@ -251,6 +254,7 @@ import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
 import com.odyssey.travelplanner.data.isPlaceholderSightDescription
 import com.odyssey.travelplanner.data.distanceMeters
+import com.odyssey.travelplanner.notifications.ReminderPlanner
 import com.odyssey.travelplanner.notifications.ReminderScheduler
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
@@ -1473,6 +1477,13 @@ private fun notificationPermissionGranted(context: Context): Boolean =
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
 
+private data class NotificationSettingsDraft(
+    val notificationsEnabled: Boolean,
+    val tripRemindersEnabled: Boolean,
+    val cancellationRemindersEnabled: Boolean,
+    val reminderHour: Int,
+)
+
 @Composable
 private fun labelColor() = if (LocalDarkTheme.current) OdysseyDarkLabel else OdysseyLabel
 
@@ -1747,8 +1758,13 @@ fun OdysseyApp(
                         onLanguageChange = ::handleLanguageChange,
                         sessionRestoreVersion = sessionRestoreVersion,
                         accountProfile = accountProfile,
-                        onNotificationsChanged = { enabled ->
-                            accountProfile = accountProfile?.copy(notificationsEnabled = enabled)
+                        onNotificationSettingsChanged = { settings ->
+                            accountProfile = accountProfile?.copy(
+                                notificationsEnabled = settings.notificationsEnabled,
+                                tripRemindersEnabled = settings.tripRemindersEnabled,
+                                cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                                reminderHour = settings.reminderHour,
+                            )
                         },
                     )
                 }
@@ -1766,8 +1782,13 @@ fun OdysseyApp(
                         onThemeSet = { darkTheme = it },
                         language = language,
                         onLanguageChange = { language = normalizeLanguage(it) },
-                        onNotificationsChanged = { enabled ->
-                            accountProfile = accountProfile?.copy(notificationsEnabled = enabled)
+                        onNotificationSettingsChanged = { settings ->
+                            accountProfile = accountProfile?.copy(
+                                notificationsEnabled = settings.notificationsEnabled,
+                                tripRemindersEnabled = settings.tripRemindersEnabled,
+                                cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                                reminderHour = settings.reminderHour,
+                            )
                         },
                     )
                 }
@@ -1803,6 +1824,9 @@ fun OdysseyApp(
                         onBack = { navController.popBackStack() },
                         onSettings = { navController.navigate("settings") },
                         notificationsEnabled = accountProfile?.notificationsEnabled == true,
+                        tripRemindersEnabled = accountProfile?.tripRemindersEnabled ?: true,
+                        cancellationRemindersEnabled = accountProfile?.cancellationRemindersEnabled ?: true,
+                        reminderHour = accountProfile?.reminderHour ?: ReminderPlanner.REMINDER_HOUR,
                     )
                 }
             }
@@ -2831,7 +2855,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?, onNotificationsChanged: (Boolean) -> Unit = {}) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?, onNotificationSettingsChanged: (NotificationSettingsDraft) -> Unit = {}) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
@@ -2842,70 +2866,18 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var profileEmail by remember { mutableStateOf("") }
     var profileAvatarUrl by remember { mutableStateOf(accountProfile?.avatarUrl) }
     var notificationsEnabled by remember { mutableStateOf(accountProfile?.notificationsEnabled ?: false) }
+    var tripRemindersEnabled by remember { mutableStateOf(accountProfile?.tripRemindersEnabled ?: true) }
+    var cancellationRemindersEnabled by remember { mutableStateOf(accountProfile?.cancellationRemindersEnabled ?: true) }
+    var reminderHour by remember { mutableStateOf(accountProfile?.reminderHour ?: ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var repeatedNewPassword by remember { mutableStateOf("") }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var accountDeleteDialogOpen by remember { mutableStateOf(false) }
     var accountDeleting by remember { mutableStateOf(false) }
-    var pendingNotificationEnable by remember { mutableStateOf(false) }
+    var notificationSettingsOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    fun persistNotifications(enabled: Boolean) {
-        val previous = notificationsEnabled
-        notificationsEnabled = enabled
-        scope.launch {
-            runCatching {
-                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
-                    profileAvatarUrl,
-                    enabled,
-                    language = language,
-                    darkTheme = darkTheme,
-                )
-            }.onSuccess {
-                onNotificationsChanged(enabled)
-                if (enabled) {
-                    ReminderScheduler.sync(context, trips, true, language)
-                } else {
-                    ReminderScheduler.cancelAll(context)
-                }
-                accountMessage = localized(
-                    language,
-                    if (enabled) "Уведомления включены" else "Уведомления выключены",
-                    if (enabled) "Notifications enabled" else "Notifications disabled",
-                    if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas",
-                    if (enabled) "Benachrichtigungen aktiviert" else "Benachrichtigungen deaktiviert",
-                )
-            }.onFailure {
-                notificationsEnabled = previous
-                accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить настройку уведомлений", "Could not save notification setting", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellung konnte nicht gespeichert werden"))
-            }
-        }
-    }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        val shouldEnable = pendingNotificationEnable
-        pendingNotificationEnable = false
-        if (shouldEnable) {
-            if (granted) {
-                persistNotifications(true)
-            } else {
-                accountMessage = localized(language, "Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
-            }
-        }
-    }
-
-    fun requestNotificationChange(enabled: Boolean) {
-        if (enabled && !notificationPermissionGranted(context)) {
-            pendingNotificationEnable = true
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            persistNotifications(enabled)
-        }
-    }
 
     fun reloadTrips(force: Boolean = false) {
         val now = System.currentTimeMillis()
@@ -2952,6 +2924,9 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         accountProfile?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
+            tripRemindersEnabled = profile.tripRemindersEnabled
+            cancellationRemindersEnabled = profile.cancellationRemindersEnabled
+            reminderHour = profile.reminderHour
         }
     }
 
@@ -2961,9 +2936,17 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         if (sessionRestoreVersion > 0) reloadTrips()
     }
 
-    LaunchedEffect(trips, notificationsEnabled, language, loading, loadFailed) {
+    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language, loading, loadFailed) {
         if (!loading && !loadFailed) {
-            ReminderScheduler.sync(context, trips, notificationsEnabled, language)
+            ReminderScheduler.sync(
+                context,
+                trips,
+                notificationsEnabled,
+                language,
+                tripRemindersEnabled = tripRemindersEnabled,
+                cancellationRemindersEnabled = cancellationRemindersEnabled,
+                reminderHour = reminderHour,
+            )
         }
     }
 
@@ -3146,7 +3129,10 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 accountMessage = accountMessage,
                 onDismiss = { accountMenuOpen = false },
                 onPhotoPick = { photoPicker.launch("image/*") },
-                onNotificationsToggle = ::requestNotificationChange,
+                onNotificationSettingsOpen = {
+                    accountMenuOpen = false
+                    notificationSettingsOpen = true
+                },
                 onLanguageChange = { code ->
                     onLanguageChange(code)
                     scope.launch {
@@ -3202,6 +3188,46 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         accountMenuOpen = false
                         onLogout()
                     }
+                },
+            )
+        }
+        if (notificationSettingsOpen) {
+            NotificationSettingsScreen(
+                language = language,
+                initialSettings = NotificationSettingsDraft(
+                    notificationsEnabled = notificationsEnabled,
+                    tripRemindersEnabled = tripRemindersEnabled,
+                    cancellationRemindersEnabled = cancellationRemindersEnabled,
+                    reminderHour = reminderHour,
+                ),
+                onBack = {
+                    notificationSettingsOpen = false
+                    accountMenuOpen = true
+                },
+                onSave = { settings ->
+                    AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
+                        profileAvatarUrl,
+                        settings.notificationsEnabled,
+                        language = language,
+                        darkTheme = darkTheme,
+                        tripRemindersEnabled = settings.tripRemindersEnabled,
+                        cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        reminderHour = settings.reminderHour,
+                    )
+                    notificationsEnabled = settings.notificationsEnabled
+                    tripRemindersEnabled = settings.tripRemindersEnabled
+                    cancellationRemindersEnabled = settings.cancellationRemindersEnabled
+                    reminderHour = settings.reminderHour
+                    onNotificationSettingsChanged(settings)
+                    ReminderScheduler.sync(
+                        context,
+                        trips,
+                        settings.notificationsEnabled,
+                        language,
+                        tripRemindersEnabled = settings.tripRemindersEnabled,
+                        cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        reminderHour = settings.reminderHour,
+                    )
                 },
             )
         }
@@ -3288,76 +3314,24 @@ private fun AccountSettingsScreen(
     onThemeSet: (Boolean) -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
-    onNotificationsChanged: (Boolean) -> Unit = {},
+    onNotificationSettingsChanged: (NotificationSettingsDraft) -> Unit = {},
 ) {
     var profileEmail by remember { mutableStateOf("") }
     var profileAvatarUrl by remember { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(false) }
+    var tripRemindersEnabled by remember { mutableStateOf(true) }
+    var cancellationRemindersEnabled by remember { mutableStateOf(true) }
+    var reminderHour by remember { mutableStateOf(ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var repeatedNewPassword by remember { mutableStateOf("") }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var accountDeleteDialogOpen by remember { mutableStateOf(false) }
     var accountDeleting by remember { mutableStateOf(false) }
-    var pendingNotificationEnable by remember { mutableStateOf(false) }
+    var notificationSettingsOpen by remember { mutableStateOf(false) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    fun persistNotifications(enabled: Boolean) {
-        val previous = notificationsEnabled
-        notificationsEnabled = enabled
-        scope.launch {
-            runCatching {
-                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
-                    profileAvatarUrl,
-                    enabled,
-                    language = language,
-                    darkTheme = darkTheme,
-                )
-            }.onSuccess {
-                onNotificationsChanged(enabled)
-                if (enabled) {
-                    ReminderScheduler.sync(context, trips, true, language)
-                } else {
-                    ReminderScheduler.cancelAll(context)
-                }
-                accountMessage = localized(
-                    language,
-                    if (enabled) "Уведомления включены" else "Уведомления выключены",
-                    if (enabled) "Notifications enabled" else "Notifications disabled",
-                    if (enabled) "Notificaciones activadas" else "Notificaciones desactivadas",
-                    if (enabled) "Benachrichtigungen aktiviert" else "Benachrichtigungen deaktiviert",
-                )
-            }.onFailure {
-                notificationsEnabled = previous
-                accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить настройку уведомлений", "Could not save notification setting", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellung konnte nicht gespeichert werden"))
-            }
-        }
-    }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        val shouldEnable = pendingNotificationEnable
-        pendingNotificationEnable = false
-        if (shouldEnable) {
-            if (granted) {
-                persistNotifications(true)
-            } else {
-                accountMessage = localized(language, "Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
-            }
-        }
-    }
-
-    fun requestNotificationChange(enabled: Boolean) {
-        if (enabled && !notificationPermissionGranted(context)) {
-            pendingNotificationEnable = true
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            persistNotifications(enabled)
-        }
-    }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -3385,17 +3359,64 @@ private fun AccountSettingsScreen(
         runCatching { AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile() }.getOrNull()?.let { profile ->
             profileAvatarUrl = profile.avatarUrl
             notificationsEnabled = profile.notificationsEnabled
+            tripRemindersEnabled = profile.tripRemindersEnabled
+            cancellationRemindersEnabled = profile.cancellationRemindersEnabled
+            reminderHour = profile.reminderHour
             onThemeSet(profile.darkTheme)
         }
         trips = runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }.getOrDefault(emptyList())
     }
 
-    LaunchedEffect(trips, notificationsEnabled, language) {
-        ReminderScheduler.sync(context, trips, notificationsEnabled, language)
+    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language) {
+        ReminderScheduler.sync(
+            context,
+            trips,
+            notificationsEnabled,
+            language,
+            tripRemindersEnabled = tripRemindersEnabled,
+            cancellationRemindersEnabled = cancellationRemindersEnabled,
+            reminderHour = reminderHour,
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(if (darkTheme) OdysseyDarkBackground else OdysseyBackground)) {
-        AccountSettingsSheet(
+        if (notificationSettingsOpen) {
+            NotificationSettingsScreen(
+                language = language,
+                initialSettings = NotificationSettingsDraft(
+                    notificationsEnabled = notificationsEnabled,
+                    tripRemindersEnabled = tripRemindersEnabled,
+                    cancellationRemindersEnabled = cancellationRemindersEnabled,
+                    reminderHour = reminderHour,
+                ),
+                onBack = { notificationSettingsOpen = false },
+                onSave = { settings ->
+                    AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
+                        profileAvatarUrl,
+                        settings.notificationsEnabled,
+                        language = language,
+                        darkTheme = darkTheme,
+                        tripRemindersEnabled = settings.tripRemindersEnabled,
+                        cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        reminderHour = settings.reminderHour,
+                    )
+                    notificationsEnabled = settings.notificationsEnabled
+                    tripRemindersEnabled = settings.tripRemindersEnabled
+                    cancellationRemindersEnabled = settings.cancellationRemindersEnabled
+                    reminderHour = settings.reminderHour
+                    onNotificationSettingsChanged(settings)
+                    ReminderScheduler.sync(
+                        context,
+                        trips,
+                        settings.notificationsEnabled,
+                        language,
+                        tripRemindersEnabled = settings.tripRemindersEnabled,
+                        cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        reminderHour = settings.reminderHour,
+                    )
+                },
+            )
+        } else AccountSettingsSheet(
             profileEmail = profileEmail,
             profileAvatarUrl = profileAvatarUrl,
             trips = trips,
@@ -3408,7 +3429,7 @@ private fun AccountSettingsScreen(
             accountMessage = accountMessage,
             onDismiss = onBack,
             onPhotoPick = { photoPicker.launch("image/*") },
-            onNotificationsToggle = ::requestNotificationChange,
+            onNotificationSettingsOpen = { notificationSettingsOpen = true },
             onLanguageChange = { code ->
                 onLanguageChange(code)
                 scope.launch {
@@ -3525,6 +3546,378 @@ private fun AccountSettingsScreen(
     }
 }
 
+@Composable
+private fun NotificationSettingsScreen(
+    language: String,
+    initialSettings: NotificationSettingsDraft,
+    onBack: () -> Unit,
+    onSave: suspend (NotificationSettingsDraft) -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var notificationsEnabled by remember(initialSettings) { mutableStateOf(initialSettings.notificationsEnabled) }
+    var tripRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.tripRemindersEnabled) }
+    var cancellationRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.cancellationRemindersEnabled) }
+    var reminderHour by remember(initialSettings) { mutableStateOf(initialSettings.reminderHour.coerceIn(0, 23)) }
+    var selectedPreset by remember(initialSettings) {
+        mutableStateOf(
+            when {
+                !initialSettings.tripRemindersEnabled && initialSettings.cancellationRemindersEnabled -> 1
+                else -> 0
+            },
+        )
+    }
+    var isSaving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var messageIsError by remember { mutableStateOf(false) }
+    var pendingSave by remember { mutableStateOf<NotificationSettingsDraft?>(null) }
+    var phonePermissionGranted by remember { mutableStateOf(notificationPermissionGranted(context)) }
+    var helpOpen by remember { mutableStateOf(false) }
+
+    fun saveDraft(draft: NotificationSettingsDraft) {
+        if (isSaving) return
+        isSaving = true
+        message = null
+        scope.launch {
+            try {
+                onSave(draft)
+                messageIsError = false
+                message = localized("Настройки сохранены", "Settings saved", "Ajustes guardados", "Einstellungen gespeichert")
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                messageIsError = true
+                message = localizedFailure(
+                    language,
+                    error,
+                    localized("Не удалось сохранить настройки уведомлений", "Could not save notification settings", "No se pudo guardar la configuración de notificaciones", "Benachrichtigungseinstellungen konnten nicht gespeichert werden"),
+                )
+            }
+            isSaving = false
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        phonePermissionGranted = granted
+        val draft = pendingSave
+        pendingSave = null
+        if (granted && draft != null) {
+            saveDraft(draft)
+        } else if (!granted) {
+            messageIsError = true
+            message = localized("Разрешение на уведомления не выдано", "Notification permission was not granted", "No se concedió el permiso de notificaciones", "Benachrichtigungsberechtigung wurde nicht erteilt")
+        }
+    }
+
+    fun submit() {
+        val draft = NotificationSettingsDraft(
+            notificationsEnabled = notificationsEnabled,
+            tripRemindersEnabled = tripRemindersEnabled,
+            cancellationRemindersEnabled = cancellationRemindersEnabled,
+            reminderHour = reminderHour,
+        )
+        if (draft.notificationsEnabled && !phonePermissionGranted) {
+            pendingSave = draft
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            saveDraft(draft)
+        }
+    }
+
+    val background = if (LocalDarkTheme.current) OdysseyDarkBackground else OdysseyBackground
+    val groupBackground = cardSurfaceColor()
+    val divider = contentBorderColor()
+    val detailColor = secondaryTextColor()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.Outlined.ArrowBack,
+                        contentDescription = localized("Назад", "Back", "Atrás", "Zurück"),
+                        tint = contentTextColor(),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 2.dp)) {
+                    Text(
+                        localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 20.sp,
+                    )
+                    Text(
+                        localized("Настройте напоминания под себя", "Set reminders your way", "Configure sus recordatorios", "Erinnerungen anpassen"),
+                        color = detailColor,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W500,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                IconButton(onClick = { helpOpen = true }) {
+                    Text("?", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp)
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (phonePermissionGranted) tintedSurfaceColor() else warningSurfaceColor())
+                    .clickable(enabled = !phonePermissionGranted) { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                    .padding(12.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(29.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (phonePermissionGranted) Color(0xFFE4DEFF) else Color(0xFFFFE1B8)),
+                ) {
+                    Icon(
+                        if (phonePermissionGranted) Icons.Filled.Check else Icons.Outlined.NotificationsNone,
+                        contentDescription = null,
+                        tint = if (phonePermissionGranted) primaryColor() else Color(0xFFB97828),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Column(modifier = Modifier.padding(start = 10.dp)) {
+                    Text(
+                        if (phonePermissionGranted) localized("Разрешение телефона включено", "Phone permission is enabled", "Permiso del teléfono activado", "Telefonberechtigung aktiviert") else localized("Разрешите уведомления телефона", "Allow phone notifications", "Permita las notificaciones", "Telefonbenachrichtigungen erlauben"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 10.sp,
+                    )
+                    Text(
+                        if (phonePermissionGranted) localized("Ramingo сможет напоминать о важных датах.", "Ramingo can remind you about important dates.", "Ramingo puede recordar fechas importantes.", "Ramingo kann an wichtige Termine erinnern.") else localized("Нажмите, чтобы открыть системное разрешение.", "Tap to open the system permission.", "Toque para abrir el permiso del sistema.", "Tippen, um die Systemberechtigung zu öffnen."),
+                        color = detailColor,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W500,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 13.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, divider, RoundedCornerShape(16.dp))
+                    .background(groupBackground),
+            ) {
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.NotificationsNone,
+                    title = localized("Все уведомления", "All notifications", "Todas las notificaciones", "Alle Benachrichtigungen"),
+                    detail = localized("Поездки, жильё и задачи", "Trips, lodging, and tasks", "Viajes, alojamientos y tareas", "Reisen, Unterkünfte und Aufgaben"),
+                    checked = notificationsEnabled,
+                    onClick = {
+                        notificationsEnabled = !notificationsEnabled
+                        selectedPreset = -1
+                    },
+                )
+                AccountSettingsDivider(divider)
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.DateRange,
+                    title = localized("До начала поездки", "Before the trip", "Antes del viaje", "Vor der Reise"),
+                    detail = localized("30, 14, 7, 3 и 1 день", "30, 14, 7, 3 and 1 day", "30, 14, 7, 3 y 1 día", "30, 14, 7, 3 und 1 Tag"),
+                    checked = tripRemindersEnabled,
+                    enabled = notificationsEnabled,
+                    onClick = {
+                        if (notificationsEnabled) {
+                            tripRemindersEnabled = !tripRemindersEnabled
+                            selectedPreset = -1
+                        }
+                    },
+                )
+                AccountSettingsDivider(divider)
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.Hotel,
+                    title = localized("Бесплатная отмена", "Free cancellation", "Cancelación gratuita", "Kostenlose Stornierung"),
+                    detail = localized("7, 3, 1 день и день дедлайна", "7, 3, 1 day and deadline day", "7, 3, 1 día y el día límite", "7, 3, 1 Tag und am Fristtag"),
+                    checked = cancellationRemindersEnabled,
+                    enabled = notificationsEnabled,
+                    onClick = {
+                        if (notificationsEnabled) {
+                            cancellationRemindersEnabled = !cancellationRemindersEnabled
+                            selectedPreset = -1
+                        }
+                    },
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    localized("Время отправки", "Delivery time", "Hora de envío", "Sendezeit"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    localized("Часовой пояс: авто", "Time zone: auto", "Zona horaria: auto", "Zeitzone: auto"),
+                    color = primaryColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 9.sp,
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, divider, RoundedCornerShape(16.dp))
+                    .background(groupBackground)
+                    .clickable {
+                        TimePickerDialog(
+                            context,
+                            { _, hourOfDay, _ ->
+                                reminderHour = hourOfDay
+                                selectedPreset = -1
+                            },
+                            reminderHour,
+                            0,
+                            true,
+                        ).show()
+                    }
+                    .padding(12.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(29.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()),
+                ) {
+                    Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp))
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(localized("Ежедневное время", "Daily time", "Hora diaria", "Tägliche Zeit"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp)
+                    Text(localized("Напоминания не будут приходить ночью", "Reminders will not arrive at night", "Los recordatorios no llegarán de noche", "Erinnerungen kommen nicht nachts"), color = detailColor, fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+                }
+                Text(String.format(Locale.ROOT, "%02d:00", reminderHour), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 11.sp, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(tintedSurfaceColor()).padding(horizontal = 10.dp, vertical = 8.dp))
+            }
+
+            Text(
+                localized("Быстрый пресет", "Quick preset", "Preajuste rápido", "Schnellvorgabe"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(
+                    localized("Сбалансированный", "Balanced", "Equilibrado", "Ausgewogen"),
+                    localized("Только важное", "Important only", "Solo importante", "Nur wichtig"),
+                    localized("Всё", "Everything", "Todo", "Alles"),
+                ).forEachIndexed { index, label ->
+                    val selected = selectedPreset == index
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(if (index == 0) 1.2f else 1f)
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, if (selected) Color(0xFFC8C0FF) else divider, RoundedCornerShape(10.dp))
+                            .background(if (selected) tintedSurfaceColor() else groupBackground)
+                            .clickable {
+                                selectedPreset = index
+                                notificationsEnabled = true
+                                when (index) {
+                                    1 -> {
+                                        tripRemindersEnabled = false
+                                        cancellationRemindersEnabled = true
+                                    }
+                                    else -> {
+                                        tripRemindersEnabled = true
+                                        cancellationRemindersEnabled = true
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 5.dp),
+                    ) {
+                        Text(label, color = if (selected) primaryColor() else detailColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+
+            message?.let {
+                Text(it, color = if (messageIsError) Color(0xFFE85B56) else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+            }
+            Button(
+                onClick = ::submit,
+                enabled = !isSaving,
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                shape = RoundedCornerShape(13.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(48.dp),
+            ) {
+                Text(if (isSaving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить настройки", "Save settings", "Guardar ajustes", "Einstellungen speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+            }
+        }
+    }
+
+    if (helpOpen) {
+        AlertDialog(
+            onDismissRequest = { helpOpen = false },
+            title = { Text(localized("О напоминаниях", "About reminders", "Sobre los recordatorios", "Über Erinnerungen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
+            text = { Text(localized("Ramingo напомнит о начале поездки и дедлайнах бесплатной отмены жилья. Настройки сохраняются в профиле аккаунта.", "Ramingo reminds you about trip starts and free-cancellation deadlines. Settings are saved to your account profile.", "Ramingo te recuerda los inicios de viaje y los plazos de cancelación gratuita. Los ajustes se guardan en tu perfil.", "Ramingo erinnert dich an Reisebeginn und Fristen für kostenlose Stornierung. Die Einstellungen werden in deinem Profil gespeichert."), fontFamily = Manrope, fontSize = 13.sp) },
+            confirmButton = { TextButton(onClick = { helpOpen = false }) { Text(localized("Понятно", "Got it", "Entendido", "Verstanden"), fontFamily = Manrope, fontWeight = FontWeight.W800) } },
+        )
+    }
+}
+
+@Composable
+private fun NotificationSettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    detail: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = if (enabled) 1f else .48f }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(29.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()),
+        ) {
+            Icon(icon, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp))
+        }
+        Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp)
+            Text(detail, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+        }
+        AccountToggle(checked = checked, onClick = onClick)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountSettingsSheet(
@@ -3540,7 +3933,7 @@ private fun AccountSettingsSheet(
     accountMessage: String?,
     onDismiss: () -> Unit,
     onPhotoPick: () -> Unit,
-    onNotificationsToggle: (Boolean) -> Unit,
+    onNotificationSettingsOpen: () -> Unit,
     onLanguageChange: (String) -> Unit,
     onThemeToggle: () -> Unit,
     onPasswordEditorToggle: () -> Unit,
@@ -3676,37 +4069,6 @@ private fun AccountSettingsSheet(
                         }
                     }
                 }
-                AccountSettingsDivider(dividerColor)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(62.dp)
-                        .clickable { onNotificationsToggle(!notificationsEnabled) }
-                        .padding(horizontal = 13.dp),
-                ) {
-                    AccountIconTile(Icons.Outlined.NotificationsNone)
-                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(
-                            localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"),
-                            color = contentTextColor(),
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W700,
-                            fontSize = 14.sp,
-                        )
-                        Text(
-                            localized("Сроки отмены и даты поездок", "Cancellation deadlines and trip dates", "Plazos de cancelación y fechas de viaje", "Stornierungsfristen und Reisedaten"),
-                            color = secondaryTextColor(),
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W600,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    AccountToggle(checked = notificationsEnabled, onClick = { onNotificationsToggle(!notificationsEnabled) })
-                }
-                AccountSettingsDivider(dividerColor)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 13.dp)) {
                     AccountIconTile(Icons.Outlined.DarkMode)
                     Text(localized("Тёмная тема", "Dark theme", "Tema oscuro", "Dunkles Thema"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
@@ -3729,6 +4091,17 @@ private fun AccountSettingsSheet(
                         )
                     }
                 }
+                AccountSettingsDivider(dividerColor)
+                AccountMenuItem(
+                    Icons.Outlined.NotificationsNone,
+                    localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"),
+                    trailing = localized(
+                        if (notificationsEnabled) "Включены" else "Выключены",
+                        if (notificationsEnabled) "On" else "Off",
+                        if (notificationsEnabled) "Activadas" else "Desactivadas",
+                        if (notificationsEnabled) "Aktiv" else "Aus",
+                    ),
+                ) { onNotificationSettingsOpen() }
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(Icons.Outlined.Lock, localized("Сменить пароль", "Change password", "Cambiar contraseña", "Passwort ändern")) { onPasswordEditorToggle() }
                 if (passwordEditorOpen) {
@@ -6098,6 +6471,9 @@ private fun TripOverviewScreen(
     onBack: () -> Unit,
     onSettings: () -> Unit,
     notificationsEnabled: Boolean,
+    tripRemindersEnabled: Boolean = true,
+    cancellationRemindersEnabled: Boolean = true,
+    reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
 ) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
@@ -6158,9 +6534,17 @@ private fun TripOverviewScreen(
         }
     }
 
-    LaunchedEffect(overview, notificationsEnabled, language) {
+    LaunchedEffect(overview, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language) {
         overview?.let { trip ->
-            ReminderScheduler.syncTrip(context, trip, notificationsEnabled, language)
+            ReminderScheduler.syncTrip(
+                context,
+                trip,
+                notificationsEnabled,
+                language,
+                tripRemindersEnabled = tripRemindersEnabled,
+                cancellationRemindersEnabled = cancellationRemindersEnabled,
+                reminderHour = reminderHour,
+            )
         }
     }
 
@@ -6321,7 +6705,13 @@ private fun TripOverviewScreen(
                 "route" -> TripRouteContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "sights" -> SightsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "restaurants" -> RestaurantsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
-                "accommodation" -> AccommodationContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
+                "accommodation" -> AccommodationContent(
+                    tripId = tripId,
+                    overview = overview!!,
+                    canEdit = overview!!.canEdit,
+                    notificationsEnabled = notificationsEnabled,
+                    onStatusUpdated = { refresh++ },
+                )
                 "pets" -> PetsContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "budget" -> BudgetContent(
                     tripId = tripId,
@@ -15544,7 +15934,13 @@ private fun BudgetExpenseSheet(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onStatusUpdated: () -> Unit) {
+private fun AccommodationContent(
+    tripId: String,
+    overview: TripOverview,
+    canEdit: Boolean = true,
+    notificationsEnabled: Boolean = false,
+    onStatusUpdated: () -> Unit,
+) {
     val context = LocalContext.current
     val language = LocalLanguage.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -15768,6 +16164,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
                 AccommodationCard(
                     accommodation,
                     catalogEntry = liveAccommodationEntries[accommodation.id],
+                    remindersEnabled = notificationsEnabled && notificationPermissionGranted(context),
                     canEdit = canEdit,
                     dragEnabled = canEdit && !savingAccommodationOrder,
                     isDragging = draggedAccommodationId == accommodation.id,
@@ -16026,6 +16423,7 @@ private fun AccommodationContent(tripId: String, overview: TripOverview, canEdit
 private fun AccommodationCard(
     accommodation: com.odyssey.travelplanner.data.Accommodation,
     catalogEntry: AccommodationCatalogEntry? = null,
+    remindersEnabled: Boolean = false,
     canEdit: Boolean = true,
     dragEnabled: Boolean = false,
     isDragging: Boolean = false,
@@ -16218,10 +16616,11 @@ private fun AccommodationCard(
                 }
             }
             if (accommodation.deadline.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp).height(17.dp)) {
-                    Text("✓", color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.width(14.dp))
-                    Text(localized("Бесплатная отмена до ${formatAccommodationDeadline(accommodation.deadline, language)}", "Free cancellation until ${formatAccommodationDeadline(accommodation.deadline, language)}", "Cancelación gratuita hasta ${formatAccommodationDeadline(accommodation.deadline, language)}", "Kostenlose Stornierung bis ${formatAccommodationDeadline(accommodation.deadline, language)}"), color = Color(0xFF22B07D), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                AccommodationDeadlineCard(
+                    deadline = accommodation.deadline,
+                    language = language,
+                    remindersEnabled = remindersEnabled,
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
                 if (canEdit) {
@@ -16254,6 +16653,175 @@ private fun AccommodationCard(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AccommodationDeadlineCard(deadline: String, language: String, remindersEnabled: Boolean) {
+    val status = accommodationDeadlineStatus(deadline)
+    if (status == null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 10.dp).height(17.dp),
+        ) {
+            Text(
+                "✓",
+                color = Color(0xFF22B07D),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 14.sp,
+                lineHeight = 17.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.width(14.dp),
+            )
+            Text(
+                localized(
+                    "Бесплатная отмена до ${formatAccommodationDeadline(deadline, language)}",
+                    "Free cancellation until ${formatAccommodationDeadline(deadline, language)}",
+                    "Cancelación gratuita hasta ${formatAccommodationDeadline(deadline, language)}",
+                    "Kostenlose Stornierung bis ${formatAccommodationDeadline(deadline, language)}",
+                ),
+                color = Color(0xFF22B07D),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        return
+    }
+
+    val daysRemaining = status.daysRemaining
+    val expired = daysRemaining < 0L
+    val urgent = !expired && daysRemaining <= 3L
+    val accent = when {
+        expired -> Color(0xFFD85A67)
+        urgent -> Color(0xFFF0A03D)
+        else -> Color(0xFF22B07D)
+    }
+    val panel = accent.copy(alpha = if (LocalDarkTheme.current) 0.16f else 0.08f)
+    val border = accent.copy(alpha = if (LocalDarkTheme.current) 0.55f else 0.28f)
+    val countdownLabel = accommodationDeadlineCountdownLabel(daysRemaining, language)
+    val subtitle = when {
+        expired -> localized("Бесплатная отмена завершилась", "Free cancellation has ended", "La cancelación gratuita ha terminado", "Kostenlose Stornierung beendet")
+        daysRemaining == 0L -> localized("Дедлайн сегодня", "Deadline is today", "La fecha límite es hoy", "Frist ist heute")
+        urgent -> localized("Дедлайн приближается", "Deadline is approaching", "La fecha límite se acerca", "Die Frist rückt näher")
+        else -> localized("До конца указанной даты", "Until the end of the date", "Hasta el final de la fecha", "Bis zum Ende des Datums")
+    }
+    val detail = localized(
+        "До ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+        "Until ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+        "Hasta ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+        "Bis ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(panel)
+            .border(1.dp, border, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = if (expired) "!" else "✓",
+                color = accent,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W900,
+                fontSize = 19.sp,
+                lineHeight = 22.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.width(23.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = localized("Бесплатная отмена", "Free cancellation", "Cancelación gratuita", "Kostenlose Stornierung"),
+                    color = accent,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+                Text(
+                    text = subtitle,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 9.5.sp,
+                    lineHeight = 13.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                if (expired) {
+                    Text("—", color = accent, fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 19.sp, lineHeight = 21.sp)
+                } else {
+                    Text(daysRemaining.toString(), color = if (urgent) accent else primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 21.sp, lineHeight = 21.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                }
+                Text(
+                    text = if (expired) localized("истёк", "ended", "terminó", "beendet") else localized("дней осталось", "days left", "días", "Tage übrig"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 8.5.sp,
+                    lineHeight = 11.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                )
+            }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 23.dp, top = 7.dp).fillMaxWidth(),
+        ) {
+            Text(
+                text = detail,
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 9.5.sp,
+                lineHeight = 13.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = if (remindersEnabled) {
+                    localized("✓ Напоминания включены", "✓ Reminders on", "✓ Recordatorios activos", "✓ Erinnerungen an")
+                } else {
+                    localized("Напоминания выключены", "Reminders off", "Recordatorios apagados", "Erinnerungen aus")
+                },
+                color = if (remindersEnabled) accent else secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 8.5.sp,
+                lineHeight = 11.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.padding(start = 6.dp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (!expired) {
+            Text(
+                text = countdownLabel,
+                color = accent,
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 9.5.sp,
+                lineHeight = 13.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                modifier = Modifier.padding(start = 23.dp, top = 2.dp),
+            )
         }
     }
 }
