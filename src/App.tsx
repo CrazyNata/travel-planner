@@ -454,6 +454,36 @@ function sightRatingFor(sight: StoredSight): SightRating {
   };
 }
 
+function normalizeSightName(name: string) {
+  return name
+    .toLocaleLowerCase("ru-RU")
+    .replace(/[’'`]/g, " ")
+    .replace(/[^a-zа-яё0-9]+/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const sightNameAliasGroups = [
+  ["piazza del duomo", "пьяцца дель дуомо"],
+  ["piazza della repubblica", "пьяцца делла репубблика"],
+  ["via de tornabuoni"],
+  ["ponte santa trinita", "понте санта тринита"],
+  ["ponte vecchio", "понте веккьо"],
+  ["piazza della signoria", "площадь синьории"],
+  ["piazza santa croce", "базилика санта кроче"],
+];
+
+function sightNamesMatch(left: string, right: string) {
+  const leftKey = normalizeSightName(left);
+  const rightKey = normalizeSightName(right);
+  if (!leftKey || !rightKey) return false;
+  if (leftKey === rightKey) return true;
+  return sightNameAliasGroups.some((group) => {
+    const normalizedGroup = group.map(normalizeSightName);
+    return normalizedGroup.includes(leftKey) && normalizedGroup.includes(rightKey);
+  });
+}
+
 function formatSightReviews(reviews: number) {
   return reviews.toLocaleString("ru-RU");
 }
@@ -13178,15 +13208,15 @@ function DayEditor({
       if (current.some((item) => item.name === sight.name)) return current;
       return [
         ...current,
-        {
-          name: sight.name,
-          subcategory: sight.subcategory || sight.group || "Достопримечательность",
-          description: sightDescriptionFor(sight),
-          photo: catalogPhotoFor(sight, index),
-          photoPosition: sight.photoPosition,
-          lnglat: sight.lnglat,
-          googleRating: sight.googleRating,
-          googleReviews: sight.googleReviews,
+          {
+            name: sight.name,
+            subcategory: sight.subcategory || sight.group || "Достопримечательность",
+            description: sightDescriptionFor(sight),
+            photo: sight.photo,
+            photoPosition: sight.photoPosition,
+            lnglat: sight.lnglat,
+            googleRating: sight.googleRating,
+            googleReviews: sight.googleReviews,
         },
       ];
     });
@@ -14113,13 +14143,41 @@ function Workspace({
                     walkDay: dayNumber,
                     walkOrder: index,
                   }));
+                const nextSights = [...(trip.sights || [])];
+                newSights.forEach((sight) => {
+                  const existingIndex = nextSights.findIndex(
+                    (existing) =>
+                      existing.walkDay === dayNumber &&
+                      sightNamesMatch(existing.name, sight.name),
+                  );
+                  if (existingIndex < 0) {
+                    nextSights.push(sight);
+                    return;
+                  }
+                  const existing = nextSights[existingIndex];
+                  nextSights[existingIndex] = {
+                    ...existing,
+                    ...sight,
+                    id: existing.id,
+                    name: existing.name,
+                    city: existing.city || city,
+                    description: existing.description?.trim() || sight.description,
+                    photo: sight.photo || existing.photo,
+                    photoPosition: sight.photoPosition ?? existing.photoPosition,
+                    lnglat: sight.lnglat || existing.lnglat,
+                    googleRating: sight.googleRating ?? existing.googleRating,
+                    googleReviews: sight.googleReviews ?? existing.googleReviews,
+                    walkDay: existing.walkDay ?? sight.walkDay,
+                    walkOrder: existing.walkOrder ?? sight.walkOrder,
+                  };
+                });
                 onUpdateTrip({
                   ...trip,
                   sightDaysVersion: 1,
                   sightDays: sightDays.map((day, index) =>
                     index === dayIndex ? { ...day, title: city } : day,
                   ),
-                  sights: [...trip.sights || [], ...newSights],
+                  sights: nextSights,
                 });
               }}
               onRenameDay={(id, title) =>
