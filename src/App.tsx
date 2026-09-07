@@ -4123,7 +4123,7 @@ type GoogleSightCatalogPlace = {
   longitude?: unknown;
 };
 
-async function fetchGoogleSightCatalog(city: string, signal: AbortSignal) {
+async function fetchGoogleSightCatalog(city: string, signal: AbortSignal, query = "") {
   const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
   if (!publishableKey || !city.trim()) throw new Error("Google Places is not configured");
   const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
@@ -4137,6 +4137,7 @@ async function fetchGoogleSightCatalog(city: string, signal: AbortSignal) {
     body: JSON.stringify({
       category: "sight",
       city: restaurantCitySearchName(city),
+      query: query.trim() || undefined,
       limit: 60,
       languageCode: "ru",
     }),
@@ -4181,9 +4182,9 @@ async function fetchGoogleSightCatalog(city: string, signal: AbortSignal) {
   });
 }
 
-async function fetchSightCatalog(city: string, signal: AbortSignal) {
+async function fetchSightCatalog(city: string, signal: AbortSignal, query = "") {
   try {
-    const googleItems = await fetchGoogleSightCatalog(city, signal);
+    const googleItems = await fetchGoogleSightCatalog(city, signal, query);
     if (googleItems.length) return googleItems;
   } catch (error) {
     if (signal.aborted) throw error;
@@ -13158,7 +13159,7 @@ function DayEditor({
     const controller = new AbortController();
     setCatalogLoading(true);
     setCatalogError("");
-    void fetchSightCatalog(searchCity, controller.signal)
+    void fetchSightCatalog(searchCity, controller.signal, catalogQuery.trim())
       .then((items) => {
         setRemoteCatalog(items);
         void enrichSightCatalogPhotos(items, controller.signal)
@@ -13180,7 +13181,7 @@ function DayEditor({
         if (!controller.signal.aborted) setCatalogLoading(false);
       });
     return () => controller.abort();
-  }, [catalogOpen, city]);
+  }, [catalogOpen, city, catalogQuery]);
   const cityCatalog = attractionCatalog.filter(
     (sight) =>
       !city ||
