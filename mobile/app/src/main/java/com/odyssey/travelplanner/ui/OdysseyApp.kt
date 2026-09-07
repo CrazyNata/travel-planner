@@ -2891,6 +2891,8 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
     var accountDeleteDialogOpen by remember { mutableStateOf(false) }
     var accountDeleting by remember { mutableStateOf(false) }
     var notificationSettingsOpen by remember { mutableStateOf(false) }
+    var restoringTripId by remember { mutableStateOf<String?>(null) }
+    var tripActionMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -2965,13 +2967,15 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         }
     }
 
-    val upcoming = trips.filter {
+    val deletedTrips = trips.filter { !it.deletedAt.isNullOrBlank() }
+    val activeTrips = trips.filter { it.deletedAt.isNullOrBlank() }
+    val upcoming = activeTrips.filter {
         !it.status.contains("чернов", ignoreCase = true) &&
             !it.status.contains("заверш", ignoreCase = true) &&
             !it.status.contains("прошед", ignoreCase = true)
     }
-    val drafts = trips.filter { it.status.contains("чернов", ignoreCase = true) }
-    val completed = trips.filter {
+    val drafts = activeTrips.filter { it.status.contains("чернов", ignoreCase = true) }
+    val completed = activeTrips.filter {
         it.status.contains("заверш", ignoreCase = true) ||
             it.status.contains("прошед", ignoreCase = true)
     }
@@ -2979,15 +2983,49 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
         "upcoming" -> upcoming
         "drafts" -> drafts
         "completed" -> completed
-        else -> trips
+        "deleted" -> deletedTrips
+        else -> activeTrips
     }
     fun tripCountLabel(count: Int): String = if (loading) "…" else count.toString()
-    val filters = listOf(
-        "all" to localized("Все · ${tripCountLabel(trips.size)}", "All · ${tripCountLabel(trips.size)}", "Todos · ${tripCountLabel(trips.size)}", "Alle · ${tripCountLabel(trips.size)}"),
-        "upcoming" to localized("Предстоящие · ${tripCountLabel(upcoming.size)}", "Upcoming · ${tripCountLabel(upcoming.size)}", "Próximos · ${tripCountLabel(upcoming.size)}", "Bevorstehend · ${tripCountLabel(upcoming.size)}"),
-        "drafts" to localized("Черновики · ${tripCountLabel(drafts.size)}", "Drafts · ${tripCountLabel(drafts.size)}", "Borradores · ${tripCountLabel(drafts.size)}", "Entwürfe · ${tripCountLabel(drafts.size)}"),
-        "completed" to localized("Завершённые · ${tripCountLabel(completed.size)}", "Completed · ${tripCountLabel(completed.size)}", "Completados · ${tripCountLabel(completed.size)}", "Abgeschlossen · ${tripCountLabel(completed.size)}"),
-    )
+    val filters = buildList {
+        add("all" to localized("Все · ${tripCountLabel(activeTrips.size)}", "All · ${tripCountLabel(activeTrips.size)}", "Todos · ${tripCountLabel(activeTrips.size)}", "Alle · ${tripCountLabel(activeTrips.size)}"))
+        add("upcoming" to localized("Предстоящие · ${tripCountLabel(upcoming.size)}", "Upcoming · ${tripCountLabel(upcoming.size)}", "Próximos · ${tripCountLabel(upcoming.size)}", "Bevorstehend · ${tripCountLabel(upcoming.size)}"))
+        add("drafts" to localized("Черновики · ${tripCountLabel(drafts.size)}", "Drafts · ${tripCountLabel(drafts.size)}", "Borradores · ${tripCountLabel(drafts.size)}", "Entwürfe · ${tripCountLabel(drafts.size)}"))
+        add("completed" to localized("Завершённые · ${tripCountLabel(completed.size)}", "Completed · ${tripCountLabel(completed.size)}", "Completados · ${tripCountLabel(completed.size)}", "Abgeschlossen · ${tripCountLabel(completed.size)}"))
+        if (deletedTrips.isNotEmpty()) {
+            add("deleted" to localized("Удалённые · ${tripCountLabel(deletedTrips.size)}", "Deleted · ${tripCountLabel(deletedTrips.size)}", "Eliminados · ${tripCountLabel(deletedTrips.size)}", "Gelöscht · ${tripCountLabel(deletedTrips.size)}"))
+        }
+    }
+
+    LaunchedEffect(filter, deletedTrips.size) {
+        if (filter == "deleted" && deletedTrips.isEmpty()) filter = "all"
+    }
+
+    fun restoreTrip(trip: TripCard) {
+        scope.launch {
+            restoringTripId = trip.id
+            tripActionMessage = null
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).restoreTrip(trip.id)
+            }
+                .onSuccess {
+                    trips = trips.map { current ->
+                        if (current.id == trip.id) current.copy(deletedAt = null) else current
+                    }
+                    filter = "all"
+                }
+                .onFailure {
+                    tripActionMessage = localizedFailure(language, it, localized(
+                        language,
+                        "Не удалось восстановить путешествие",
+                        "Could not restore trip",
+                        "No se pudo restaurar el viaje",
+                        "Die Reise konnte nicht wiederhergestellt werden",
+                    ))
+                }
+            restoringTripId = null
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -3061,6 +3099,17 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     }
                 }
             }
+            tripActionMessage?.let { message ->
+                item {
+                    Text(
+                        message,
+                        color = Color(0xFFE0524B),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
             if (loading) {
                 item { TripsLoadingCard() }
             } else if (loadFailed) {
@@ -3084,7 +3133,15 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                     )
                 }
             } else {
-                items(visibleTrips, key = { it.id }) { trip -> TripListCard(trip, onTripClick) { editingTrip = trip } }
+                items(visibleTrips, key = { it.id }) { trip ->
+                    TripListCard(
+                        trip = trip,
+                        onTripClick = onTripClick,
+                        onEdit = { editingTrip = trip },
+                        onRestore = { restoreTrip(trip) },
+                        restoring = restoringTripId == trip.id,
+                    )
+                }
             }
             item { NewTripCard(onNewTrip) }
         }
@@ -3119,7 +3176,9 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 reloadTrips(force = true)
                             },
                             onDeleted = { deletedId ->
-                                trips = trips.filterNot { it.id == deletedId }
+                                trips = trips.map { current ->
+                                    if (current.id == deletedId) current.copy(deletedAt = java.time.Instant.now().toString()) else current
+                                }
                                 editingTrip = null
                                 ReminderScheduler.cancelTrip(context, deletedId)
                                 reloadTrips(force = true)
@@ -5031,7 +5090,7 @@ private fun EditTripPanel(
                     fontSize = 13.sp,
                 )
                 Text(
-                    if (trip.isOwner) localized("Удаление нельзя отменить", "This cannot be undone", "No se puede deshacer", "Das kann nicht rückgängig gemacht werden")
+                    if (trip.isOwner) localized("Путешествие можно восстановить позже", "The trip can be restored later", "El viaje se puede restaurar más tarde", "Die Reise kann später wiederhergestellt werden")
                     else localized("Поездка останется у остальных участников", "The trip will remain for the other members", "El viaje permanecerá para los demás participantes", "Die Reise bleibt für die anderen Mitglieder erhalten"),
                     color = Color(0xFFB78380),
                     fontFamily = Manrope,
@@ -5130,15 +5189,15 @@ private fun EditTripPanel(
         AlertDialog(
             onDismissRequest = { if (!deleting) deleteDialogOpen = false },
             title = {
-                Text(localized("Удалить путешествие?", "Delete trip?", "¿Eliminar viaje?", "Reise löschen?"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                Text(localized("Переместить путешествие в удалённые?", "Move trip to deleted?", "¿Mover el viaje a eliminados?", "Reise in Gelöscht verschieben?"), fontFamily = Manrope, fontWeight = FontWeight.W800)
             },
             text = {
                 Text(
                     localized(
-                        "Путешествие, его фотографии и данные будут удалены без возможности восстановления.",
-                        "This trip, its photos, and all of its data will be permanently deleted.",
-                        "Este viaje, sus fotos y todos sus datos se eliminarán de forma permanente.",
-                        "Diese Reise, ihre Fotos und alle Daten werden dauerhaft gelöscht.",
+                        "Путешествие будет перемещено в «Удалённые». Его маршрут, фотографии и данные можно будет восстановить.",
+                        "The trip will move to Deleted. Its route, photos, and data can be restored.",
+                        "El viaje se moverá a Eliminados. Su ruta, fotos y datos se podrán restaurar.",
+                        "Die Reise wird in „Gelöscht“ verschoben. Route, Fotos und Daten können wiederhergestellt werden.",
                     ),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W600,
@@ -20982,18 +21041,29 @@ private fun WeatherPlaceholder(
 }
 
 @Composable
-private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: () -> Unit) {
+private fun TripListCard(
+    trip: TripCard,
+    onTripClick: (String) -> Unit,
+    onEdit: () -> Unit,
+    onRestore: () -> Unit,
+    restoring: Boolean = false,
+) {
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
+    val isDeleted = !trip.deletedAt.isNullOrBlank()
     val isDraft = trip.status.contains("чернов", ignoreCase = true)
-    val statusColor = if (isDraft) Color(0xFFE0A34B) else Color(0xFF22B07D)
+    val statusColor = when {
+        isDeleted -> primaryColor()
+        isDraft -> Color(0xFFE0A34B)
+        else -> Color(0xFF22B07D)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(10.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x20141428), spotColor = Color(0x20141428))
             .clip(RoundedCornerShape(22.dp))
             .background(if (darkTheme) OdysseyDarkSurface else Color.White)
-            .clickable { onTripClick(trip.id) },
+            .clickable(enabled = !isDeleted) { onTripClick(trip.id) },
     ) {
         Box(modifier = Modifier.fillMaxWidth().height(205.dp).background(Color(0xFFE6E4DD))) {
             if (trip.coverImage != null) {
@@ -21012,20 +21082,20 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .padding(12.dp)
-                    .background(Color(0xEEFFFFFF), RoundedCornerShape(20.dp))
+                    .background(if (isDeleted) Color(0xFFEEEBFF) else Color(0xEEFFFFFF), RoundedCornerShape(20.dp))
                     .padding(horizontal = 11.dp, vertical = 5.dp),
             ) {
                 Spacer(Modifier.size(7.dp).background(statusColor, RoundedCornerShape(4.dp)))
                 Text(
-                    text = localizedTripStatus(trip.status),
-                    color = Color(0xFF33333A),
+                    text = if (isDeleted) localized("Удалено", "Deleted", "Eliminado", "Gelöscht") else localizedTripStatus(trip.status),
+                    color = if (isDeleted) primaryColor() else Color(0xFF33333A),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(start = 6.dp),
                 )
             }
-            if (trip.canEdit) {
+            if (trip.canEdit && !isDeleted) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(36.dp).background(Color(0xF8FFFFFF), RoundedCornerShape(12.dp)).clickable { onEdit() },
@@ -21061,7 +21131,7 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
             Text(
                 text = buildAnnotatedString {
                     pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.W800))
-                    append(localized("Маршрут заполнен на ${trip.progress}%", "Route ${trip.progress}% complete", "Ruta completada al ${trip.progress}%", "Route zu ${trip.progress}% abgeschlossen"))
+                    append(if (isDeleted) localized("Данные поездки сохранены", "Trip data is preserved", "Los datos del viaje están guardados", "Reisedaten sind erhalten") else localized("Маршрут заполнен на ${trip.progress}%", "Route ${trip.progress}% complete", "Ruta completada al ${trip.progress}%", "Route zu ${trip.progress}% abgeschlossen"))
                     pop()
                     if (trip.cities.isNotBlank()) append(" · ${localizedCityList(trip.cities, language)}")
                 },
@@ -21071,6 +21141,45 @@ private fun TripListCard(trip: TripCard, onTripClick: (String) -> Unit, onEdit: 
                 fontSize = 11.5.sp,
                 modifier = Modifier.padding(top = 9.dp),
             )
+            if (isDeleted) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 13.dp)
+                        .border(1.dp, if (darkTheme) Color(0xFF4B456F) else Color(0xFFEEEBF8), RoundedCornerShape(13.dp))
+                        .padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
+                ) {
+                    Text(
+                        localized("Вернутся все разделы поездки", "All trip sections will return", "Volverán todas las secciones del viaje", "Alle Reisebereiche kommen zurück"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 10.sp,
+                        lineHeight = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (trip.isOwner) {
+                        Button(
+                            onClick = onRestore,
+                            enabled = !restoring,
+                            colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                            shape = RoundedCornerShape(11.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                if (restoring) localized("Возвращаем…", "Restoring…", "Restaurando…", "Wird wiederhergestellt…") else localized("Восстановить", "Restore", "Restaurar", "Wiederherstellen"),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

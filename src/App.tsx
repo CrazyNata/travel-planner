@@ -212,8 +212,12 @@ type TripSummary = {
   budgetCurrency?: BudgetCurrency;
   petPlaces?: PetPlace[];
   members?: TripMember[];
+  /** True when the signed-in user owns the persisted trip row. */
+  isOwner?: boolean;
   publicLinkEnabled?: boolean;
   published?: boolean;
+  /** ISO timestamp set when the whole trip is moved to the deleted filter. */
+  deletedAt?: string;
 };
 type TripRow = {
   id: string;
@@ -868,6 +872,10 @@ function tripFromRow(row: TripRow): TripSummary | null {
   } satisfies TripSummary;
 }
 
+function isTripDeleted(trip: Pick<TripSummary, "deletedAt">): boolean {
+  return Boolean(trip.deletedAt?.trim());
+}
+
 function markTripOwner(trip: TripSummary, ownerId?: string) {
   if (!trip.members?.length) return trip;
   if (trip.members.some((member) => member.role === "Владелец")) return trip;
@@ -908,7 +916,9 @@ function saveTripToSupabase(trip: TripSummary) {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user) return;
-      const payload = canonicalTripPhotoUrls(trip);
+      const nextPayload = { ...trip };
+      delete nextPayload.isOwner;
+      const payload = canonicalTripPhotoUrls(nextPayload);
       const { data: updated, error: updateError } = await supabase
         .from("trips")
         .update({ payload })
@@ -5743,6 +5753,7 @@ function Trips({
   onOpenTrip,
   onUpdateTrip,
   onDeleteTrip,
+  onRestoreTrip,
   onLeaveTrip,
 }: {
   go: (view: View) => void;
@@ -5751,26 +5762,49 @@ function Trips({
   onOpenTrip: (trip: TripSummary) => void;
   onUpdateTrip: (trip: TripSummary) => void;
   onDeleteTrip: (trip: TripSummary) => Promise<void>;
+  onRestoreTrip: (trip: TripSummary) => Promise<void>;
   onLeaveTrip: (trip: TripSummary) => Promise<void>;
 }) {
   const [filter, setFilter] = useState("all");
   const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
+  const [restoringTripId, setRestoringTripId] = useState<string | null>(null);
   const allTrips = drafts;
-  const filters = [
-    ["all", `Все · ${allTrips.length}`],
+  const deletedTrips = allTrips.filter(isTripDeleted);
+  const activeTrips = allTrips.filter((trip) => !isTripDeleted(trip));
+  const filters: [string, string][] = [
+    ["all", `Все · ${activeTrips.length}`],
     ["upcoming", "Предстоящие"],
     ["draft", "Черновики"],
     ["completed", "Завершённые"],
   ];
+  if (deletedTrips.length > 0) {
+    filters.push(["deleted", `Удалённые · ${deletedTrips.length}`]);
+  }
   const statusByFilter: Record<string, string> = {
     upcoming: "Предстоящее",
     draft: "Черновик",
     completed: "Завершённое",
   };
+  useEffect(() => {
+    if (filter === "deleted" && deletedTrips.length === 0) setFilter("all");
+  }, [deletedTrips.length, filter]);
   const filteredTrips =
-    filter === "all"
-      ? allTrips
-      : allTrips.filter((trip) => trip.status === statusByFilter[filter]);
+    filter === "deleted"
+      ? deletedTrips
+      : filter === "all"
+        ? activeTrips
+        : activeTrips.filter((trip) => trip.status === statusByFilter[filter]);
+  const restore = async (trip: TripSummary) => {
+    setRestoringTripId(trip.id);
+    try {
+      await onRestoreTrip(trip);
+      setFilter("all");
+    } catch {
+      window.alert("Не удалось восстановить путешествие. Попробуйте ещё раз.");
+    } finally {
+      setRestoringTripId(null);
+    }
+  };
   return (
     <div className="page wide">
       <header className="page-title">
@@ -5791,11 +5825,15 @@ function Trips({
         ))}
       </div>
       <div className="trip-grid">
-        {filteredTrips.map((trip) => (
+        {filteredTrips.map((trip) => {
+          const deleted = isTripDeleted(trip);
+          return (
           <article
-            className="trip-card"
-            key={trip.title}
-            onClick={() => onOpenTrip(trip)}
+            className={`trip-card${deleted ? " deleted-trip-card" : ""}`}
+            key={trip.id}
+            onClick={() => {
+              if (!deleted) onOpenTrip(trip);
+            }}
           >
             <div
               className={`cover ${trip.tone} ${trip.coverImage ? "has-image" : ""}`}
@@ -5805,23 +5843,27 @@ function Trips({
                   : undefined
               }
             >
-              <div
-                className="trip-card-actions"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  className="trip-card-menu-trigger"
-                  onClick={() => setEditingTrip(trip)}
-                  aria-label={`Настройки: ${trip.title}`}
-                  aria-haspopup="dialog"
+              {!deleted && (
+                <div
+                  className="trip-card-actions"
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <i />
-                  <i />
-                  <i />
-                </button>
-              </div>
-              <span className="status">● {trip.status}</span>
+                  <button
+                    type="button"
+                    className="trip-card-menu-trigger"
+                    onClick={() => setEditingTrip(trip)}
+                    aria-label={`Настройки: ${trip.title}`}
+                    aria-haspopup="dialog"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </button>
+                </div>
+              )}
+              <span className={`status${deleted ? " deleted" : ""}`}>
+                ● {deleted ? "Удалено" : trip.status}
+              </span>
             </div>
             <div className="trip-info">
               <h2>{trip.title}</h2>
@@ -5830,12 +5872,29 @@ function Trips({
                 <i style={{ width: `${trip.progress}%` }} />
               </div>
               <small>
-                <span>Маршрут заполнен на {trip.progress}%</span>
+                <span>{deleted ? "Данные поездки сохранены" : `Маршрут заполнен на ${trip.progress}%`}</span>
                 <span>{trip.cities}</span>
               </small>
+              {deleted && trip.isOwner !== false && (
+                <div className="trip-card-restore-row">
+                  <span>Маршрут, жильё и другие разделы вернутся вместе.</span>
+                  <button
+                    className="trip-card-restore"
+                    type="button"
+                    disabled={restoringTripId === trip.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void restore(trip);
+                    }}
+                  >
+                    {restoringTripId === trip.id ? "Возвращаем…" : "Восстановить"}
+                  </button>
+                </div>
+              )}
             </div>
           </article>
-        ))}
+          );
+        })}
         {filteredTrips.length === 0 && (
           <div className="empty-state">
             В этой категории пока нет путешествий.
@@ -10690,7 +10749,7 @@ function TripCardEditor({
     const isCollaborator = accessKind === "collaborator";
     const confirmation = isCollaborator
       ? `Выйти из путешествия «${trip.title}»? Вы потеряете к нему доступ.`
-      : `Удалить путешествие «${trip.title}»? Это действие нельзя отменить.`;
+      : `Удалить путешествие «${trip.title}»? Его можно будет восстановить из раздела «Удалённые».`;
     if (!window.confirm(confirmation)) {
       return;
     }
@@ -10853,7 +10912,7 @@ function TripCardEditor({
               <small>
                 {accessKind === "collaborator"
                   ? "Доступ к поездке будет закрыт"
-                  : "Удаление нельзя отменить"}
+                  : "Путешествие можно восстановить позже"}
               </small>
             </button>
           )}
@@ -11411,10 +11470,12 @@ function WeatherOverview({
   cities,
   tripDates,
   coverPhotos = weatherCoverPhotos,
+  brightenPhotos = false,
 }: {
   cities: string[];
   tripDates: string;
   coverPhotos?: CoverPhoto[];
+  brightenPhotos?: boolean;
 }) {
   const [mode, setMode] = useState<"now" | "trip">("now");
   const [weather, setWeather] = useState<
@@ -11519,7 +11580,7 @@ function WeatherOverview({
               style={
                 photo
                   ? {
-                      backgroundImage: `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
+                      backgroundImage: `linear-gradient(rgba(18, 18, 26, ${brightenPhotos ? 0.12 : 0.42}), rgba(18, 18, 26, ${brightenPhotos ? 0.26 : 0.72})), url(${photo.image})`,
                     }
                   : undefined
               }
@@ -11840,6 +11901,7 @@ function TripOverview({
           cities={overviewCities}
           tripDates={trip.dates}
           coverPhotos={coverPhotos}
+          brightenPhotos={trip.title === "Рождественская Италия"}
         />
       </div>
     );
@@ -11854,7 +11916,7 @@ function TripOverview({
               style={
                 activeCover
                   ? {
-                      backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})`,
+                      backgroundImage: `linear-gradient(rgba(27, 28, 31, ${trip.title === "Рождественская Италия" ? 0.08 : 0.3}), rgba(27, 28, 31, ${trip.title === "Рождественская Италия" ? 0.08 : 0.3})), url(${activeCover.image})`,
                     }
                   : undefined
               }
@@ -11984,7 +12046,11 @@ function TripOverview({
               </footer>
             </aside>
           </div>
-          <WeatherOverview cities={overviewCities} tripDates={trip.dates} />
+          <WeatherOverview
+            cities={overviewCities}
+            tripDates={trip.dates}
+            brightenPhotos={trip.title === "Рождественская Италия"}
+          />
         </div>
         {expandedPhoto !== null && coverPhotos[expandedPhoto] && (
           <div
@@ -14812,7 +14878,7 @@ export function App() {
           : [...items, signedTrip],
       );
     };
-    const loadUserData = async () => {
+    const loadUserData = async (currentUserId: string) => {
       const { data, error } = await supabase
         .from("trips")
         .select("id,payload,owner_id");
@@ -14821,10 +14887,10 @@ export function App() {
         return;
       }
       const parsedRemoteDrafts = ((data || []) as TripRow[])
-        .map((row) => {
+      .map((row) => {
           const trip = tripFromRow(row);
           return trip
-            ? markTripOwner(trip, row.owner_id)
+            ? markTripOwner({ ...trip, isOwner: row.owner_id === currentUserId }, row.owner_id)
             : null;
         })
         .filter((trip): trip is TripSummary => trip !== null);
@@ -14864,7 +14930,7 @@ export function App() {
         email: data.session.user.email || "",
         name: data.session.user.user_metadata.full_name || data.session.user.email || "Путешественник",
       });
-      void loadUserData();
+      void loadUserData(data.session.user.id);
       void loadSavedTrip();
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
@@ -14875,7 +14941,7 @@ export function App() {
           setIsAuthenticated(true);
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
           if (event === "SIGNED_IN") {
-            void loadUserData();
+            void loadUserData(session.user.id);
             void loadSavedTrip();
           }
         } else if (event === "SIGNED_OUT") {
@@ -14958,18 +15024,45 @@ export function App() {
         if (error) console.error("Could not save the trip.", error);
       });
   };
-  const deleteTrip = async (trip: TripSummary) => {
+  const setTripDeleted = async (trip: TripSummary, deleted: boolean) => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session?.user) throw new Error("Not authenticated");
-    const { error } = await supabase
+    const nextPayload = { ...trip };
+    delete nextPayload.isOwner;
+    const deletedAt = deleted ? new Date().toISOString() : undefined;
+    if (deletedAt) nextPayload.deletedAt = deletedAt;
+    else delete nextPayload.deletedAt;
+    const payload = canonicalTripPhotoUrls(nextPayload);
+    const { data, error } = await supabase
       .from("trips")
-      .delete()
+      .update({ payload })
       .eq("id", trip.id)
-      .eq("owner_id", session.user.id);
+      .eq("owner_id", session.user.id)
+      .select("id");
     if (error) throw error;
-    setDrafts((items) => items.filter((item) => item.id !== trip.id));
+    if (!data?.length) throw new Error("Trip was not updated");
+    return deletedAt;
+  };
+  const deleteTrip = async (trip: TripSummary) => {
+    const deletedAt = await setTripDeleted(trip, true);
+    setDrafts((items) =>
+      items.map((item) =>
+        item.id === trip.id ? { ...item, deletedAt } : item,
+      ),
+    );
+  };
+  const restoreTrip = async (trip: TripSummary) => {
+    await setTripDeleted(trip, false);
+    setDrafts((items) =>
+      items.map((item) => {
+        if (item.id !== trip.id) return item;
+        const restored = { ...item };
+        delete restored.deletedAt;
+        return restored;
+      }),
+    );
   };
   const leaveTrip = async (trip: TripSummary) => {
     const { error } = await supabase.functions.invoke("leave-trip", {
@@ -15039,12 +15132,12 @@ export function App() {
         open={menu}
         close={() => setMenu(false)}
         profileName={profileName}
-        tripCount={drafts.length}
+        tripCount={drafts.filter((trip) => !isTripDeleted(trip)).length}
         darkTheme={darkTheme}
         onDarkThemeChange={persistDarkTheme}
         cityCount={
           new Set(
-            drafts.flatMap((trip) =>
+            drafts.filter((trip) => !isTripDeleted(trip)).flatMap((trip) =>
               trip.cities
                 .split(/[,·]/)
                 .map((city) => city.trim())
@@ -15064,6 +15157,7 @@ export function App() {
             drafts={drafts}
             onUpdateTrip={updateTrip}
             onDeleteTrip={deleteTrip}
+            onRestoreTrip={restoreTrip}
             onLeaveTrip={leaveTrip}
             onOpenTrip={(trip) => {
               setActiveTrip(trip);

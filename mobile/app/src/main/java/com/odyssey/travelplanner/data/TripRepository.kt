@@ -27,6 +27,8 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonPrimitive
+import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
@@ -58,6 +60,8 @@ data class TripCard(
     val canEdit: Boolean = isOwner,
     /** Lightweight lodging data used to schedule local reminders on the trips screen. */
     val accommodations: List<Accommodation> = emptyList(),
+    /** ISO timestamp set when the whole trip is moved to the deleted filter. */
+    val deletedAt: String? = null,
 )
 
 @Serializable
@@ -450,6 +454,7 @@ interface TripRepository {
         cityCoordinates: Map<String, CityLocation> = emptyMap(),
     ): TripCard
     suspend fun deleteTrip(id: String)
+    suspend fun restoreTrip(id: String)
     suspend fun leaveTrip(id: String)
     suspend fun updateTripSection(id: String, key: String, value: JsonElement)
     suspend fun addRouteLeg(
@@ -630,6 +635,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         coverImage = resolvedCoverImage,
                         isOwner = row.ownerId == currentUserId,
                         canEdit = roleCanEdit(role),
+                        deletedAt = text("deletedAt").takeIf(String::isNotBlank),
                         accommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
                             val accommodation = item.jsonObject
                             val name = jsonText(accommodation["name"]).takeIf(String::isNotBlank) ?: return@mapNotNull null
@@ -1066,15 +1072,17 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             "Только владелец путешествия может его удалить"
         }
 
-        collectTripPhotoPaths(current.payload).forEach { path ->
-            client.storage.from("trip-photos").delete(path)
+        updateTripSection(id, "deletedAt", JsonPrimitive(Instant.now().toString()))
+    }
+
+    override suspend fun restoreTrip(id: String) {
+        val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
+            ?: throw AuthSessionRequiredException()
+        val current = loadTripRow(id)
+        check(current.ownerId == currentUserId) {
+            "Только владелец путешествия может его восстановить"
         }
-        client.from("trips").delete {
-            filter {
-                eq("id", id)
-                eq("owner_id", currentUserId)
-            }
-        }
+        updateTripSection(id, "deletedAt", JsonPrimitive(""))
     }
 
     override suspend fun leaveTrip(id: String) {

@@ -837,6 +837,15 @@ button {
   transform: translateY(-3px);
   box-shadow: 0 12px 28px #3c281414;
 }
+.trip-card.deleted-trip-card {
+  border-color: #d9d4f4;
+  box-shadow: 0 8px 22px #4c46d614;
+  cursor: default;
+}
+.trip-card.deleted-trip-card:hover {
+  transform: none;
+  box-shadow: 0 12px 28px #4c46d622;
+}
 .cover {
   position: relative;
   height: 190px;
@@ -930,6 +939,10 @@ button {
   font-size: 10px;
   font-weight: 800;
 }
+.status.deleted {
+  background: #eeebff;
+  color: var(--accent);
+}
 .cover-label {
   position: absolute;
   right: 13px;
@@ -988,6 +1001,35 @@ button {
 }
 .trip-info small span:last-child {
   text-align: right;
+}
+.trip-card-restore-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 13px;
+  border-top: 1px solid #eeebf8;
+  padding-top: 12px;
+}
+.trip-card-restore-row > span {
+  color: #8c88a2;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.trip-card-restore {
+  flex: none;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  padding: 9px 11px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 6px 13px #4c46d63d;
+}
+.trip-card-restore:disabled {
+  cursor: progress;
+  opacity: .65;
 }
 .new-card {
   display: flex;

@@ -467,7 +467,7 @@ internal object ReminderScheduler {
         val canSchedule = notificationsEnabled && canPostNotifications(appContext) && accountId.isNotBlank()
         val events = if (canSchedule) {
             ReminderPlanner.plan(
-                trips,
+                trips.filter { it.deletedAt.isNullOrBlank() },
                 language,
                 accountId = accountId,
                 now = now,
