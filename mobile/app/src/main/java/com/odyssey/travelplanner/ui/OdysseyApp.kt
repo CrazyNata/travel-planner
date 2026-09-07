@@ -7078,8 +7078,12 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             .groupBy { catalogCityName(it.city) }
             .filterKeys(String::isNotBlank)
             .forEach { (cityName, citySights) ->
+                // The saved trip already contains the useful description for
+                // most places. Use the curated catalog here instead of
+                // starting another Google Places request for every city while
+                // the sights screen is opening.
                 val entries = runCatching {
-                    repository.searchWithLiveRatings(city = cityName, query = "", language = language, limit = 60).entries
+                    repository.search(city = cityName, query = "", limit = 60)
                 }.getOrElse { emptyList() }
                 entries.forEach { entry ->
                     val description = entry.description(language).trim()
@@ -7092,7 +7096,6 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
     }
     val visibleSightCatalogKey = visibleSights.joinToString("|") { "${it.id}:${it.name}:${it.city}" }
     var sightCatalogEntries by remember(tripId, language) { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
-    var sightSpecificCatalogEntries by remember(tripId, language) { mutableStateOf<List<SightCatalogEntry>>(emptyList()) }
     var sightCatalogLoading by remember(tripId, language) { mutableStateOf(false) }
     LaunchedEffect(tripId, language, selectedDayCity, visibleSightCatalogKey) {
         if (selectedDayCity.isBlank() || visibleSights.isEmpty()) {
@@ -7100,9 +7103,22 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             return@LaunchedEffect
         }
 
-        sightCatalogLoading = true
+        // Render the saved sights immediately. Ratings and catalog photos are
+        // optional enrichment and must not make every card look blocked on a
+        // network spinner during the first screen render.
+        sightCatalogLoading = false
         try {
             val repository = SightCatalogRepository(SupabaseProvider.clientForCurrentAuthFlow())
+            val fallbackEntries = runCatching {
+                repository.search(
+                    city = selectedDayCity,
+                    query = "",
+                    limit = 60,
+                )
+            }.getOrElse { sightCatalogEntries }
+            if (fallbackEntries.isNotEmpty()) {
+                sightCatalogEntries = fallbackEntries
+            }
             val result = runCatching {
                 repository.searchWithLiveRatings(
                     city = selectedDayCity,
@@ -7119,54 +7135,6 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             if (result.isSuccess) {
                 sightCatalogEntries = broadEntries
             }
-
-            // A blank city search is intentionally fast and broad, but Google
-            // may rank a route's smaller landmarks below its first page.
-            // Resolve only the unmatched visible cards with name-focused
-            // queries in parallel. Acquire the gate for each network request,
-            // rather than for the whole query loop, so a slow fallback query
-            // for one sight cannot block the first query for every other card.
-            val missingSights = visibleSights.filter { sight ->
-                broadEntries.none { entry ->
-                    sightCatalogEntryMatchScore(sight, entry) > 0 && entry.rating != null
-                                }
-            }.take(12)
-            sightSpecificCatalogEntries = supervisorScope {
-                missingSights
-                    .map { sight ->
-                        async {
-                            val catalogAliases = broadEntries
-                                .filter { entry -> sightDescriptionNameMatches(sight.name, entry) }
-                                .flatMap { entry -> listOf(entry.nameEn, entry.nameEs, entry.nameDe) }
-                            val queries = (sightSpecificSearchQueries(sight.name) + catalogAliases)
-                                .map(String::trim)
-                                .filter(String::isNotBlank)
-                                .distinct()
-                            val collected = mutableListOf<SightCatalogEntry>()
-                            for (query in queries) {
-                                val entries = sightSpecificSearchGate.withPermit {
-                                    runCatching {
-                                        repository.searchWithLiveRatings(
-                                            city = selectedDayCity,
-                                            query = query,
-                                            language = "en",
-                                            limit = 10,
-                                        ).entries
-                                    }.getOrElse { emptyList() }
-                                }
-                                collected += entries
-                                if (entries.any { entry ->
-                                        entry.rating != null && sightCatalogEntryMatchScore(sight, entry) > 0
-                                    }) {
-                                    break
-                                }
-                            }
-                            collected
-                        }
-                    }
-                    .awaitAll()
-                    .flatten()
-            }
         } finally {
             sightCatalogLoading = false
         }
@@ -7179,16 +7147,13 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
             sight
         }
     }
-    // Resolve the best live catalog entry once per saved sight. A simple
-    // first-match lookup can reuse one nearby Google result for several
+    // Resolve the best live or curated catalog entry once per saved sight. A
+    // simple first-match lookup can reuse one nearby Google result for several
     // attractions (for example Karlsplatz for both Karlsplatz and Karlstor),
     // which makes ratings and photos appear on the wrong card. Prefer strong
-    // name matches from either the broad or name-focused catalog request; do
-    // not use coordinate-only matches in a dense city centre. Keep
-    // duplicate place IDs from both requests until scoring is complete: the
-    // focused English result may be the only variant that matches a saved
-    // legacy name. Each place ID is assigned at most once below.
-    val catalogEntriesForVisibleSights = sightCatalogEntries + sightSpecificCatalogEntries
+    // name matches and never use coordinates alone in a dense city centre.
+    // Each catalog place is assigned at most once below.
+    val catalogEntriesForVisibleSights = sightCatalogEntries
     val sightCatalogCandidates = visibleSightsWithDescriptions.flatMap { sight ->
         catalogEntriesForVisibleSights.mapNotNull { entry ->
             sightCatalogEntryMatchScore(sight, entry)
@@ -7652,7 +7617,6 @@ private fun sightLinkPoint(link: String): Point? =
 private val sightPhotoUrlCache = ConcurrentHashMap<String, String>()
 private val sightBitmapCache = ConcurrentHashMap<String, Bitmap>()
 private val sightPhotoSearchGate = Semaphore(6)
-private val sightSpecificSearchGate = Semaphore(4)
 private val restaurantSpecificSearchGate = Semaphore(4)
 private val accommodationSpecificSearchGate = Semaphore(4)
 private val sightPhotoDownloadGate = Semaphore(6)
@@ -7830,23 +7794,33 @@ private fun rememberSightBitmap(sight: com.odyssey.travelplanner.data.Sight): Bi
         bitmap = null
         if (sight.photoUnavailable) return@LaunchedEffect
 
-        val googlePhotoUrl = sight.photoName
-            .takeIf(String::isNotBlank)
-            ?.let { photoName ->
-                runCatching { catalogRepository.resolveSightPhoto(photoName)?.photoUrl }
-                    .getOrNull()
-                    .orEmpty()
-            }
-            .orEmpty()
-        val candidates = buildList {
-            googlePhotoUrl.takeIf(String::isNotBlank)?.let(::add)
+        // Prefer a stored/direct image immediately. Resolving a Google photo
+        // reference first added an extra network round trip even when the
+        // card already had a usable URL from the catalog.
+        val directCandidates = buildList {
             sight.photo.takeIf(String::isNotBlank)?.let(::add)
             knownSightPhotoUrl(sight)?.let(::add)
         }
-        for (photoUrl in candidates.distinct()) {
+        for (photoUrl in directCandidates.distinct()) {
             cachedSightBitmap(photoUrl)?.let {
                 bitmap = it
                 return@LaunchedEffect
+            }
+        }
+        if (sight.photo.isBlank()) {
+            val googlePhotoUrl = sight.photoName
+                .takeIf(String::isNotBlank)
+                ?.let { photoName ->
+                    runCatching { catalogRepository.resolveSightPhoto(photoName)?.photoUrl }
+                        .getOrNull()
+                        .orEmpty()
+                }
+                .orEmpty()
+            googlePhotoUrl.takeIf(String::isNotBlank)?.let { photoUrl ->
+                cachedSightBitmap(photoUrl)?.let {
+                    bitmap = it
+                    return@LaunchedEffect
+                }
             }
         }
         cachedSightPhotoUrl(
