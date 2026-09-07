@@ -2339,7 +2339,7 @@ button {
   line-height: 1.4;
 }
 .cover-photo-caption.christmas-photo-caption {
-  background: linear-gradient(0deg, rgba(15, 16, 23, 0.22), rgba(15, 16, 23, 0));
+  background: linear-gradient(0deg, rgba(15, 16, 23, 0.08), rgba(15, 16, 23, 0));
 }
 .cover-gallery {
   min-width: 0;

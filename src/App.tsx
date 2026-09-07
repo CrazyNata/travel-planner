@@ -11581,7 +11581,7 @@ function WeatherOverview({
                 photo
                   ? {
                       backgroundImage: brightenPhotos
-                        ? `url(${photo.image})`
+                        ? `linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.18)), url(${photo.image})`
                         : `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
                     }
                   : undefined
@@ -11920,7 +11920,7 @@ function TripOverview({
                   ? {
                       backgroundImage:
                         trip.title === "Рождественская Италия"
-                          ? `url(${activeCover.image})`
+                          ? `linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.18)), url(${activeCover.image})`
                           : `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})`,
                     }
                   : undefined
