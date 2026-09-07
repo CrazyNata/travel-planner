@@ -55,7 +55,6 @@ type CoverPhoto = {
   description?: string;
   textColor?: string;
 };
-let weatherCoverPhotos: CoverPhoto[] = [];
 const tripPhotoUrlLifetimeSeconds = 24 * 60 * 60;
 
 function tripPhotoPath(url: string) {
@@ -11469,12 +11468,12 @@ const weatherDescription = (code: number) => {
 function WeatherOverview({
   cities,
   tripDates,
-  coverPhotos = weatherCoverPhotos,
+  coverPhotos,
   brightenPhotos = false,
 }: {
   cities: string[];
   tripDates: string;
-  coverPhotos?: CoverPhoto[];
+  coverPhotos: CoverPhoto[];
   brightenPhotos?: boolean;
 }) {
   const [mode, setMode] = useState<"now" | "trip">("now");
@@ -11707,7 +11706,6 @@ function TripOverview({
           ]
         : []
   ).filter((photo) => photo.id !== "verona-cover");
-  weatherCoverPhotos = coverPhotos;
   const activeCover =
     coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
   useEffect(() => {
@@ -12060,6 +12058,7 @@ function TripOverview({
           <WeatherOverview
             cities={overviewCities}
             tripDates={trip.dates}
+            coverPhotos={coverPhotos}
             brightenPhotos={trip.title === "Рождественская Италия"}
           />
         </div>
