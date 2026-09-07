@@ -8502,6 +8502,15 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .sights-day-card {
   position: relative;
   min-width: 0;
+  cursor: grab;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.sights-day-card:active { cursor: grabbing; }
+.sights-day-card.dragging { opacity: .45; }
+.sights-day-card.drop-target > button:first-child {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #6e68e833;
+  transform: translateX(2px);
 }
 .sights-day-card > button:first-child {
   display: block;

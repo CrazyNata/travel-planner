@@ -12600,6 +12600,7 @@ function Sights({
   onCreateDay,
   onRenameDay,
   onDeleteDay,
+  onReorderDay,
 }: {
   sights: StoredSight[];
   days: { id: string; title: string; photo?: string; photoPosition?: number }[];
@@ -12609,6 +12610,7 @@ function Sights({
   onCreateDay: (dayIndex: number, city: string, places: DayPlaceDraft[]) => void;
   onRenameDay: (id: string, title: string) => void;
   onDeleteDay: (id: string, dayIndex: number) => void;
+  onReorderDay: (from: number, to: number) => void;
 }) {
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
@@ -12628,6 +12630,8 @@ function Sights({
     title: string;
   } | null>(null);
   const [editingDayTitle, setEditingDayTitle] = useState("");
+  const [draggedDay, setDraggedDay] = useState<number | null>(null);
+  const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -12720,12 +12724,45 @@ function Sights({
                 ).length;
                 return (
                   <div
-                    className={
-                      selectedDay === index
-                        ? "sights-day-card active"
-                        : "sights-day-card"
-                    }
+                    className={`sights-day-card${selectedDay === index ? " active" : ""}${draggedDay === index ? " dragging" : ""}${dropTargetDay === index && draggedDay !== index ? " drop-target" : ""}`}
                     key={day.id}
+                    draggable
+                    title="Перетащите день, чтобы изменить порядок"
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      setDraggedDay(index);
+                      setDropTargetDay(index);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDropTargetDay(index);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedDay !== null && draggedDay !== index) {
+                        const nextSelectedDay =
+                          selectedDay === draggedDay
+                            ? index
+                            : draggedDay < index &&
+                                selectedDay > draggedDay &&
+                                selectedDay <= index
+                              ? selectedDay - 1
+                              : draggedDay > index &&
+                                  selectedDay >= index &&
+                                  selectedDay < draggedDay
+                                ? selectedDay + 1
+                                : selectedDay;
+                        setSelectedDay(nextSelectedDay);
+                        onReorderDay(draggedDay, index);
+                      }
+                      setDraggedDay(null);
+                      setDropTargetDay(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedDay(null);
+                      setDropTargetDay(null);
+                    }}
                   >
                     <button
                       type="button"
@@ -13737,8 +13774,11 @@ function Workspace({
                           ]
                         : savedSightDays;
   useEffect(() => {
-    const index = 0;
-    setSelectedSightDayId(sightDays[index]?.id || sightDays[0].id);
+    setSelectedSightDayId((current) =>
+      sightDays.some((day) => day.id === current)
+        ? current
+        : sightDays[0]?.id || "sights-day-1",
+    );
   }, [sightDays]);
   useEffect(() => {
     const selectDay = (event: Event) =>
@@ -14108,6 +14148,30 @@ function Workspace({
                         : sight,
                     ),
                   sightNotes: nextSightNotes,
+                });
+              }}
+              onReorderDay={(from, to) => {
+                if (from === to) return;
+                const nextSightDays = [...sightDays];
+                const [movedDay] = nextSightDays.splice(from, 1);
+                if (!movedDay) return;
+                nextSightDays.splice(to, 0, movedDay);
+                const nextSights = tripSights.map((sight) => {
+                  const oldDayIndex = (sight.walkDay || 0) - 1;
+                  const oldDay = sightDays[oldDayIndex];
+                  if (!oldDay) return sight;
+                  const nextDayIndex = nextSightDays.findIndex(
+                    (day) => day.id === oldDay.id,
+                  );
+                  return nextDayIndex >= 0
+                    ? { ...sight, walkDay: nextDayIndex + 1 }
+                    : sight;
+                });
+                onUpdateTrip({
+                  ...trip,
+                  sightDaysVersion: 1,
+                  sightDays: nextSightDays,
+                  sights: nextSights,
                 });
               }}
             />
