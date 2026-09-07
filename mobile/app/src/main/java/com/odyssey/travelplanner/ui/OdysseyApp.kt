@@ -222,6 +222,7 @@ import com.odyssey.travelplanner.data.AuthFailure
 import com.odyssey.travelplanner.data.classifyAuthFailure
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.Sight
+import com.odyssey.travelplanner.data.SightDay
 import com.odyssey.travelplanner.data.SightCatalogEntry
 import com.odyssey.travelplanner.data.SightCatalogRepository
 import com.odyssey.travelplanner.data.RestaurantCatalogEntry
@@ -7018,6 +7019,7 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val darkTheme = LocalDarkTheme.current
     val language = LocalLanguage.current
+    val scope = rememberCoroutineScope()
     val sights = overview.sights.sortedWith(compareBy<com.odyssey.travelplanner.data.Sight> { sightRouteDay(it.walkDay) }.thenBy { it.walkOrder })
     val initialRouteCity = listOf(
         sights.firstOrNull()?.city,
@@ -7025,19 +7027,80 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
         overview.cities.firstOrNull(),
         overview.overviewMapPoints.firstOrNull(),
     ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
-    var routeDay by remember(tripId) { mutableStateOf(sights.firstOrNull()?.walkDay?.let(::sightRouteDay) ?: 1) }
-    var dayMenuOpen by remember { mutableStateOf(false) }
-    var creatingDay by remember { mutableStateOf(false) }
-    val dayCities = remember(sights, overview.routeLegs, initialRouteCity) {
+    val fallbackDayCities = remember(sights, overview.routeLegs, initialRouteCity) {
         val totalDays = maxOf(
             sights.maxOfOrNull { sightRouteDay(it.walkDay) } ?: 1,
             overview.routeDayCount,
             overview.routeLegs.maxOfOrNull { routeLegDayNumber(it, overview.routeLegs) } ?: overview.routeLegs.size,
+            1,
         )
         (1..totalDays).map { day ->
             sights.firstOrNull { sightRouteDay(it.walkDay) == day }?.city?.takeIf(String::isNotBlank)
                 ?: overview.routeLegs.firstOrNull { routeLegDayNumber(it, overview.routeLegs) == day }?.to
                 ?: initialRouteCity
+        }
+    }
+    val sightDays = remember(overview.sightDays, fallbackDayCities) {
+        val totalDays = maxOf(overview.sightDays.size, fallbackDayCities.size, 1)
+        (1..totalDays).map { index ->
+            val fallbackCity = fallbackDayCities.getOrNull(index - 1).orEmpty()
+            overview.sightDays.getOrNull(index - 1)?.let { savedDay ->
+                savedDay.copy(title = savedDay.title.ifBlank { fallbackCity })
+            } ?: SightDay(
+                id = "sights-day-$index",
+                title = fallbackCity,
+            )
+        }
+    }
+    var routeDay by remember(tripId) { mutableStateOf(sights.firstOrNull()?.walkDay?.let(::sightRouteDay) ?: 1) }
+    var dayMenuOpen by remember { mutableStateOf(false) }
+    var creatingDay by remember { mutableStateOf(false) }
+    val dayCities = sightDays.map { it.title.ifBlank { initialRouteCity } }
+    val selectedSightDayId = sightDays.getOrNull(routeDay - 1)?.id ?: "sights-day-$routeDay"
+    val storedSightNotes = overview.sightNotes[selectedSightDayId].orEmpty()
+    var sightNotesDraft by remember(tripId, selectedSightDayId, storedSightNotes) { mutableStateOf(storedSightNotes) }
+    var savingSightNotes by remember(tripId, selectedSightDayId) { mutableStateOf(false) }
+    var savingDayOrder by remember(tripId) { mutableStateOf(false) }
+    var sightActionMessage by remember(tripId, selectedSightDayId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(sightDays.size) {
+        routeDay = routeDay.coerceIn(1, sightDays.size)
+    }
+
+    fun moveSightDay(fromIndex: Int, toIndex: Int) {
+        if (savingDayOrder || toIndex !in sightDays.indices || fromIndex !in sightDays.indices) return
+        val nextDays = sightDays.toMutableList().apply {
+            add(toIndex, removeAt(fromIndex))
+        }
+        val selectedIndex = routeDay - 1
+        val previousRouteDay = routeDay
+        routeDay = when {
+            selectedIndex == fromIndex -> toIndex + 1
+            selectedIndex == toIndex -> fromIndex + 1
+            else -> routeDay
+        }
+        scope.launch {
+            savingDayOrder = true
+            runCatching {
+                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).reorderSightDays(
+                    id = tripId,
+                    currentDayIds = sightDays.map { it.id },
+                    orderedDayIds = nextDays.map { it.id },
+                )
+            }.onSuccess {
+                sightActionMessage = null
+                dayMenuOpen = false
+                onSightUpdated()
+            }.onFailure {
+                routeDay = previousRouteDay
+                sightActionMessage = localizedFailure(language, it, localized(
+                    language,
+                    "Не удалось сохранить порядок дней. Проверьте интернет и повторите попытку.",
+                    "Could not save the day order. Check your connection and try again.",
+                    "No se pudo guardar el orden de los días. Comprueba la conexión e inténtalo de nuevo.",
+                    "Die Reihenfolge der Tage konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+                ))
+            }
+            savingDayOrder = false
         }
     }
     val selectedDayCity = dayCities.getOrNull(routeDay - 1).orEmpty().ifBlank { initialRouteCity }
@@ -7297,12 +7360,38 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                 shadowElevation = 16.dp,
             ) {
                 Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp)) {
-                    dayCities.forEachIndexed { index, dayCity ->
+                    sightDays.forEachIndexed { index, _ ->
+                        val dayCity = dayCities.getOrNull(index).orEmpty()
                         val selected = index + 1 == routeDay
-                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) tintedSurfaceColor() else Color.Transparent).clickable { routeDay = index + 1; dayMenuOpen = false }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} ${index + 1}", color = if (selected) primaryColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.width(64.dp))
-                            Text(localizedCityName(dayCity), color = if (selected) primaryColor() else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-                            Spacer(Modifier.weight(1f))
+                        Row(modifier = Modifier.fillMaxWidth().height(43.dp).padding(horizontal = 12.dp).clip(RoundedCornerShape(11.dp)).background(if (selected) tintedSurfaceColor() else Color.Transparent).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f).fillMaxHeight().clickable { routeDay = index + 1; dayMenuOpen = false },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("${localized("ДЕНЬ", "DAY", "DÍA", "TAG")} ${index + 1}", color = if (selected) primaryColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, modifier = Modifier.width(64.dp))
+                                Text(localizedCityName(dayCity), color = if (selected) primaryColor() else contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.weight(1f))
+                            }
+                            if (canEdit && sightDays.size > 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(enabled = index > 0 && !savingDayOrder) { moveSightDay(index, index - 1) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = localized("Выше", "Move up", "Subir", "Nach oben"), tint = if (index > 0 && !savingDayOrder) primaryColor() else secondaryTextColor().copy(alpha = 0.35f), modifier = Modifier.size(18.dp))
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(enabled = index < sightDays.lastIndex && !savingDayOrder) { moveSightDay(index, index + 1) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = localized("Ниже", "Move down", "Bajar", "Nach unten"), tint = if (index < sightDays.lastIndex && !savingDayOrder) primaryColor() else secondaryTextColor().copy(alpha = 0.35f), modifier = Modifier.size(18.dp))
+                                }
+                            }
                             if (selected) Text("✓", color = primaryColor(), fontSize = 18.sp, fontWeight = FontWeight.W800)
                         }
                     }
@@ -7316,6 +7405,11 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                 }
             }
         }
+        }
+        sightActionMessage?.let { message ->
+            item {
+                Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
+            }
         }
         item {
             Box(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
@@ -7396,6 +7490,41 @@ private fun SightsContent(tripId: String, overview: TripOverview, canEdit: Boole
                     onEdit = { if (canEdit) editingSight = sight },
                 )
             }
+        }
+        item {
+            SightNotesCard(
+                value = sightNotesDraft,
+                savedValue = storedSightNotes,
+                canEdit = canEdit,
+                saving = savingSightNotes,
+                onValueChange = { sightNotesDraft = it },
+                onSave = {
+                    if (!savingSightNotes && sightNotesDraft.trim() != storedSightNotes.trim()) {
+                        scope.launch {
+                            savingSightNotes = true
+                            runCatching {
+                                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateSightNotes(
+                                    id = tripId,
+                                    dayId = selectedSightDayId,
+                                    notes = sightNotesDraft,
+                                )
+                            }.onSuccess {
+                                sightActionMessage = null
+                                onSightUpdated()
+                            }.onFailure {
+                                sightActionMessage = localizedFailure(language, it, localized(
+                                    language,
+                                    "Не удалось сохранить заметки.",
+                                    "Could not save the notes.",
+                                    "No se pudieron guardar las notas.",
+                                    "Die Notizen konnten nicht gespeichert werden.",
+                                ))
+                            }
+                            savingSightNotes = false
+                        }
+                    }
+                },
+            )
         }
     }
     if (canEdit && editingSight != null) {
@@ -9189,6 +9318,112 @@ private fun SightLocationPickerSheet(
                     fontWeight = FontWeight.W800,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SightNotesCard(
+    value: String,
+    savedValue: String,
+    canEdit: Boolean,
+    saving: Boolean,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(secondarySurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tintedSurfaceColor()),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Edit, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(17.dp))
+            }
+            Column {
+                Text(
+                    localized("Заметки", "Notes", "Notas", "Notizen"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 15.sp,
+                )
+                Text(
+                    localized("Адреса, билеты, идеи и всё, что пригодится в прогулке.", "Addresses, tickets, ideas, and anything useful for the walk.", "Direcciones, entradas, ideas y todo lo útil para el paseo.", "Adressen, Tickets, Ideen und alles, was beim Spaziergang hilft."),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                )
+            }
+        }
+        if (canEdit) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 5,
+                maxLines = 10,
+                placeholder = {
+                    Text(
+                        localized("Например: купить билеты заранее, прийти к открытию...", "For example: buy tickets in advance, arrive at opening time...", "Por ejemplo: comprar entradas con antelación, llegar a la apertura...", "Zum Beispiel: Tickets im Voraus kaufen, zur Öffnung kommen..."),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                    )
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = primaryColor(),
+                    unfocusedBorderColor = contentBorderColor(),
+                    focusedTextColor = contentTextColor(),
+                    unfocusedTextColor = contentTextColor(),
+                    cursorColor = primaryColor(),
+                ),
+            )
+            Button(
+                onClick = onSave,
+                enabled = !saving && value.trim() != savedValue.trim(),
+                shape = RoundedCornerShape(11.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Speichern…")
+                    else localized("Сохранить заметки", "Save notes", "Guardar notas", "Notizen speichern"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            }
+        } else if (value.isBlank()) {
+            Text(
+                localized("Заметок пока нет", "No notes yet", "Aún no hay notas", "Noch keine Notizen"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 12.sp,
+            )
+        } else {
+            Text(
+                value,
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+            )
         }
     }
 }
