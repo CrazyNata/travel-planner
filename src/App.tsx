@@ -11465,6 +11465,14 @@ const weatherDescription = (code: number) => {
   return "Ливень";
 };
 
+const canonicalWeatherCity = (value?: string) => {
+  const normalized = value?.trim().toLocaleLowerCase("ru") || "";
+  const match = Object.keys(mapLocations)
+    .sort((left, right) => right.length - left.length)
+    .find((city) => normalized.includes(city.toLocaleLowerCase("ru")));
+  return match?.toLocaleLowerCase("ru") || normalized;
+};
+
 function WeatherOverview({
   cities,
   tripDates,
@@ -11568,19 +11576,25 @@ function WeatherOverview({
       <div className="weather-grid">
         {weatherCities.map((city) => {
           const current = weather[city.name];
-          const photo = coverPhotos.find(
-            (item) =>
-              item.city?.trim().toLocaleLowerCase("ru") ===
-              city.name.toLocaleLowerCase("ru"),
+          const cityIndex = weatherCities.findIndex(
+            (weatherCity) => weatherCity.name === city.name,
           );
+          const photo =
+            coverPhotos.find(
+              (item) =>
+                canonicalWeatherCity(item.city) ===
+                canonicalWeatherCity(city.name),
+            ) || coverPhotos[cityIndex];
           return (
             <article
-              className={photo ? "weather-card has-photo" : "weather-card"}
+              className={`weather-card${photo ? " has-photo" : ""}${
+                photo && brightenPhotos ? " christmas-weather-photo" : ""
+              }`}
               style={
                 photo
                   ? {
                       backgroundImage: brightenPhotos
-                        ? `linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.18)), url(${photo.image})`
+                        ? `url(${photo.image})`
                         : `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
                     }
                   : undefined
@@ -11750,12 +11764,15 @@ function TripOverview({
     if (!files?.length) return;
     try {
       const uploadedPhotos = await Promise.all(
-        Array.from(files).map(async (file) => ({
+        Array.from(files).map(async (file, index) => ({
           id: crypto.randomUUID(),
           image: await uploadCoverPhoto(
             file,
             file.name.split(".").pop()?.toLowerCase() || "jpg",
           ),
+          city:
+            overviewCities[coverPhotos.length + index] ||
+            overviewCities[overviewCities.length - 1],
         })),
       );
       const nextPhotos = [...coverPhotos, ...uploadedPhotos];
@@ -11912,13 +11929,21 @@ function TripOverview({
           <div className="overview-draft">
             <div className="cover-photo-stack">
               <section
-              className={activeCover ? "has-draft-cover cover-photo-preview" : ""}
+              className={
+                activeCover
+                  ? `has-draft-cover cover-photo-preview${
+                      trip.title === "Рождественская Италия"
+                        ? " christmas-bright-cover"
+                        : ""
+                    }`
+                  : ""
+              }
               style={
                 activeCover
                   ? {
                       backgroundImage:
                         trip.title === "Рождественская Италия"
-                          ? `linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.18)), url(${activeCover.image})`
+                          ? `url(${activeCover.image})`
                           : `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})`,
                     }
                   : undefined
