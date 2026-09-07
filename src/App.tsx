@@ -11580,7 +11580,9 @@ function WeatherOverview({
               style={
                 photo
                   ? {
-                      backgroundImage: `linear-gradient(rgba(18, 18, 26, ${brightenPhotos ? 0.12 : 0.42}), rgba(18, 18, 26, ${brightenPhotos ? 0.26 : 0.72})), url(${photo.image})`,
+                      backgroundImage: brightenPhotos
+                        ? `url(${photo.image})`
+                        : `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
                     }
                   : undefined
               }
@@ -11916,7 +11918,10 @@ function TripOverview({
               style={
                 activeCover
                   ? {
-                      backgroundImage: `linear-gradient(rgba(27, 28, 31, ${trip.title === "Рождественская Италия" ? 0.08 : 0.3}), rgba(27, 28, 31, ${trip.title === "Рождественская Италия" ? 0.08 : 0.3})), url(${activeCover.image})`,
+                      backgroundImage:
+                        trip.title === "Рождественская Италия"
+                          ? `url(${activeCover.image})`
+                          : `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})`,
                     }
                   : undefined
               }
@@ -11987,7 +11992,13 @@ function TripOverview({
                     ＋ Фото
                   </button>
                   {activeCover.city && (
-                    <div className="cover-photo-caption">
+                    <div
+                      className={`cover-photo-caption${
+                        trip.title === "Рождественская Италия"
+                          ? " christmas-photo-caption"
+                          : ""
+                      }`}
+                    >
                       <b>{activeCover.city}</b>
                       {activeCover.description && (
                         <span>{activeCover.description}</span>
