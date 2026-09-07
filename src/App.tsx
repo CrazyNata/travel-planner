@@ -1342,6 +1342,13 @@ function accommodationStartTime(stay: SavedAccommodation) {
   return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
 }
 
+function accommodationCancellationTime(stay: SavedAccommodation) {
+  const deadline = stay.deadline?.trim() || "";
+  if (!deadline) return Number.POSITIVE_INFINITY;
+  const timestamp = Date.parse(`${deadline}T00:00:00Z`);
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
 type AccommodationCurrency =
   | "EUR"
   | "USD"
@@ -9245,7 +9252,9 @@ function AccommodationList({
   cities?: string[];
 }) {
   const [filter, setFilter] = useState("Все");
-  const [orderMode, setOrderMode] = useState<"date" | "manual">("date");
+  const [sortMode, setSortMode] = useState<"date" | "cancellation" | "payment">("date");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   const [activePhotos, setActivePhotos] = useState<Record<string, number>>({});
   const [expandedPhoto, setExpandedPhoto] = useState<{
     photos: string[];
@@ -9256,8 +9265,23 @@ function AccommodationList({
   );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedAccommodation | null>(null);
-  const [draggedStayId, setDraggedStayId] = useState<string | null>(null);
-  const [dropTargetStayId, setDropTargetStayId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !sortMenuRef.current?.contains(event.target)) {
+        setSortMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSortMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sortMenuOpen]);
   const saveStay = (stay: SavedAccommodation) => {
     const index = stays.findIndex((item) => item.id === stay.id);
     onChange(
@@ -9267,39 +9291,101 @@ function AccommodationList({
     );
     setStatuses((current) => ({ ...current, [stay.name]: stay.status }));
   };
-  const orderedStays = orderMode === "date"
-    ? stays
-        .map((stay, index) => ({ stay, index }))
-        .sort((first, second) =>
-          accommodationStartTime(first.stay) - accommodationStartTime(second.stay) ||
-          first.index - second.index,
-        )
-        .map(({ stay }) => stay)
-    : stays;
+  const sortLabels = {
+    date: "по дате",
+    cancellation: "по отмене",
+    payment: "по оплате",
+  } as const;
+  const paymentOrder: Record<string, number> = {
+    оплачено: 0,
+    бронь: 1,
+    хочу: 2,
+    пожили: 3,
+  };
+  const orderedStays = stays
+    .map((stay, index) => ({ stay, index }))
+    .sort((first, second) => {
+      if (sortMode === "payment") {
+        const firstStatus = statuses[first.stay.name] || first.stay.status;
+        const secondStatus = statuses[second.stay.name] || second.stay.status;
+        return (paymentOrder[firstStatus] ?? 9) - (paymentOrder[secondStatus] ?? 9) || first.index - second.index;
+      }
+      const firstTime = sortMode === "cancellation"
+        ? accommodationCancellationTime(first.stay)
+        : accommodationStartTime(first.stay);
+      const secondTime = sortMode === "cancellation"
+        ? accommodationCancellationTime(second.stay)
+        : accommodationStartTime(second.stay);
+      return firstTime - secondTime || first.index - second.index;
+    })
+    .map(({ stay }) => stay);
   const visible = orderedStays.filter(
     (stay) => filter === "Все" || statuses[stay.name] === filter,
   );
-  const canReorder = orderMode === "manual" && filter === "Все";
-  const reorderStays = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const fromIndex = stays.findIndex((stay) => stay.id === fromId);
-    const toIndex = stays.findIndex((stay) => stay.id === toId);
-    if (fromIndex === -1 || toIndex === -1) return;
-    const next = [...stays];
-    const [moved] = next.splice(fromIndex, 1);
-    if (!moved) return;
-    next.splice(toIndex, 0, moved);
-    onChange(next);
-  };
   const statusLabels = ["хочу", "бронь", "оплачено", "пожили"];
+  const sortOptions: {
+    id: "date" | "cancellation" | "payment";
+    label: string;
+    hint: string;
+    icon: string;
+  }[] = [
+    { id: "date", label: "По дате", hint: "Сначала ближайшее заселение", icon: "▣" },
+    { id: "cancellation", label: "По отмене", hint: "Сначала ближайший дедлайн", icon: "↶" },
+    { id: "payment", label: "По оплате", hint: "Сначала оплаченные", icon: "¤" },
+  ];
   return (
     <>
       <section className="accommodation-page">
         <header className="accommodation-heading">
           <h2>Жильё</h2>
-          <button className="accent" onClick={() => setAdding(true)}>
-            ＋ Добавить жильё
-          </button>
+          <div className="accommodation-heading-actions">
+            <div className="accommodation-sort" ref={sortMenuRef}>
+              <button
+                type="button"
+                className="accommodation-sort-trigger"
+                aria-expanded={sortMenuOpen}
+                aria-controls="accommodation-sort-menu"
+                onClick={() => setSortMenuOpen((open) => !open)}
+              >
+                <span aria-hidden="true">↕</span>
+                <span>Сортировка: {sortLabels[sortMode]}</span>
+                <span className="accommodation-sort-chevron" aria-hidden="true">⌄</span>
+              </button>
+              {sortMenuOpen && (
+                <div
+                  id="accommodation-sort-menu"
+                  className="accommodation-sort-menu"
+                  role="menu"
+                  aria-label="Сортировать жильё"
+                >
+                  <b>Сортировать жильё</b>
+                  {sortOptions.map((option) => (
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={sortMode === option.id}
+                      className={sortMode === option.id ? "active" : ""}
+                      onClick={() => {
+                        setSortMode(option.id);
+                        setSortMenuOpen(false);
+                      }}
+                      key={option.id}
+                    >
+                      <span className="accommodation-sort-icon" aria-hidden="true">{option.icon}</span>
+                      <span>
+                        <strong>{option.label}</strong>
+                        <small>{option.hint}</small>
+                      </span>
+                      <i aria-hidden="true">✓</i>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className="accent" onClick={() => setAdding(true)}>
+              ＋ Добавить жильё
+            </button>
+          </div>
         </header>
         <div className="accommodation-tabs">
           <button className="active">Список жилья</button>
@@ -9320,25 +9406,6 @@ function AccommodationList({
             </button>
           ))}
         </div>
-        <div className="accommodation-order-controls" aria-label="Порядок жилья">
-          <span>Порядок:</span>
-          <button
-            className={orderMode === "date" ? "active" : ""}
-            onClick={() => {
-              setOrderMode("date");
-              setDraggedStayId(null);
-              setDropTargetStayId(null);
-            }}
-          >
-            По датам
-          </button>
-          <button
-            className={orderMode === "manual" ? "active" : ""}
-            onClick={() => setOrderMode("manual")}
-          >
-            Вручную
-          </button>
-        </div>
         <div className="accommodation-grid">
           {visible.map((stay, index) => {
             const photos = stay.photos || [];
@@ -9356,30 +9423,8 @@ function AccommodationList({
             };
             return (
               <article
-                className={`accommodation-card c${index % 6}${canReorder ? " is-draggable" : ""}${draggedStayId === stay.id ? " is-dragging" : ""}${dropTargetStayId === stay.id ? " is-drop-target" : ""}`}
+                className={`accommodation-card c${index % 6}`}
                 key={stay.name}
-                draggable={canReorder}
-                onDragStart={(event) => {
-                  if (!canReorder) return;
-                  event.dataTransfer.effectAllowed = "move";
-                  setDraggedStayId(stay.id);
-                }}
-                onDragOver={(event) => {
-                  if (!canReorder || !draggedStayId || draggedStayId === stay.id) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  setDropTargetStayId(stay.id);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (canReorder && draggedStayId) reorderStays(draggedStayId, stay.id);
-                  setDraggedStayId(null);
-                  setDropTargetStayId(null);
-                }}
-                onDragEnd={() => {
-                  setDraggedStayId(null);
-                  setDropTargetStayId(null);
-                }}
               >
               <div
                 className="accommodation-photo"

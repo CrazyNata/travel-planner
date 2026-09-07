@@ -1990,7 +1990,25 @@ button {
 .accommodation-page { max-width: 1030px; }
 .accommodation-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .accommodation-heading h2 { margin: 0; font: 600 36px/1 Unbounded, sans-serif; letter-spacing: -.07em; }
+.accommodation-heading-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 .accommodation-heading .accent { border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 12px 17px; color: #fff; font-weight: 800; box-shadow: 0 8px 18px #4c46d64d; }
+.accommodation-sort { position: relative; }
+.accommodation-sort-trigger { display: inline-flex; min-height: 43px; align-items: center; gap: 8px; border: 1px solid #e2e4ea; border-radius: 12px; background: #fff; padding: 0 12px; color: #343a48; font-size: 12px; font-weight: 800; cursor: pointer; }
+.accommodation-sort-trigger:hover,
+.accommodation-sort-trigger[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.accommodation-sort-trigger > span:first-child { color: var(--accent); font-size: 18px; line-height: 1; }
+.accommodation-sort-chevron { color: #8d94a5; font-size: 16px; line-height: 1; }
+.accommodation-sort-menu { position: absolute; z-index: 25; top: calc(100% + 9px); right: 0; width: 278px; padding: 7px; border: 1px solid #e2e4ea; border-radius: 15px; background: #fff; box-shadow: 0 18px 38px #25233429; }
+.accommodation-sort-menu > b { display: block; padding: 8px 10px 7px; color: #8d94a5; font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.accommodation-sort-menu > button { display: grid; grid-template-columns: 30px minmax(0, 1fr) 17px; width: 100%; align-items: center; gap: 8px; border: 0; border-radius: 10px; background: transparent; padding: 10px; color: #343a48; text-align: left; cursor: pointer; }
+.accommodation-sort-menu > button:hover,
+.accommodation-sort-menu > button.active { background: #eeeaff; color: var(--accent); }
+.accommodation-sort-menu > button > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.accommodation-sort-menu strong { color: #343a48; font-size: 12px; }
+.accommodation-sort-menu small { overflow: hidden; color: #8d94a5; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.accommodation-sort-menu > button > i { color: var(--accent); font-size: 15px; font-style: normal; font-weight: 900; opacity: 0; }
+.accommodation-sort-menu > button.active > i { opacity: 1; }
+.accommodation-sort-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #f3f1ff; color: var(--accent); font-size: 16px; font-weight: 900; }
 .accommodation-tabs { display: flex; gap: 28px; margin-top: 22px; border-bottom: 1px solid #e2e3e8; }
 .accommodation-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 0 3px 14px; color: #9aa1b2; font-size: 13px; font-weight: 800; }
 .accommodation-tabs button.active { border-color: var(--accent); color: #22242b; }
@@ -6212,11 +6230,16 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   .ticket-grid {
     grid-template-columns: 1fr;
   }
+  .accommodation-heading-actions { flex-wrap: wrap; }
 }
 
 @media (max-width: 520px) {
   .accommodation-heading { align-items: flex-start; flex-direction: column; }
-  .accommodation-heading .accent { width: 100%; }
+  .accommodation-heading-actions { width: 100%; align-items: stretch; flex-direction: column; }
+  .accommodation-heading-actions .accent,
+  .accommodation-sort,
+  .accommodation-sort-trigger { width: 100%; }
+  .accommodation-sort-menu { right: auto; left: 0; width: min(278px, calc(100vw - 32px)); }
   .accommodation-grid { grid-template-columns: 1fr; }
   .cancellation-intro { align-items: flex-start; flex-direction: column; }
   .cancellation-summary { grid-template-columns: 1fr; gap: 10px; }
@@ -7554,6 +7577,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .photo-filters button,
 .app.app-dark .accommodation-filters button,
 .app.app-dark .accommodation-order-controls button,
+.app.app-dark .accommodation-sort-trigger,
 .app.app-dark .restaurant-dropdown-trigger,
 .app.app-dark .restaurant-search,
 .app.app-dark .walking-actions button,
@@ -7579,6 +7603,7 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .accommodation-filters button.active,
 .app.app-dark .sight-day-tabs button.active,
 .app.app-dark .accommodation-order-controls button.active,
+.app.app-dark .accommodation-sort-trigger[aria-expanded="true"],
 .app.app-dark .restaurant-dropdown-trigger:hover,
 .app.app-dark .restaurant-dropdown-trigger[aria-expanded="true"],
 .app.app-dark .weather-switch button.active,
@@ -7586,6 +7611,18 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background: #655be1;
   color: #fff;
 }
+.app.app-dark .accommodation-sort-menu {
+  border-color: #3f4862;
+  background: #202536;
+  box-shadow: 0 18px 38px #080a144d;
+}
+.app.app-dark .accommodation-sort-menu > b,
+.app.app-dark .accommodation-sort-menu small { color: #a8b1c4; }
+.app.app-dark .accommodation-sort-menu > button { color: #edf0f7; }
+.app.app-dark .accommodation-sort-menu > button:hover,
+.app.app-dark .accommodation-sort-menu > button.active { background: #383463; }
+.app.app-dark .accommodation-sort-menu strong { color: #edf0f7; }
+.app.app-dark .accommodation-sort-icon { background: #2b3143; color: #b8b3ff; }
 .app.app-dark input,
 .app.app-dark textarea,
 .app.app-dark select,
