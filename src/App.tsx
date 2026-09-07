@@ -3964,6 +3964,35 @@ const attractionCatalog: StoredSight[] = Array.from(
   ).values(),
 );
 
+const christmasSightDefaults: StoredSight[] = [
+  ...munichDayOneSights,
+  ...veronaDayTwoSights,
+  ...romeDayThreeSights,
+  ...romeDayFourSights,
+  ...romeDayFiveSights,
+  ...pisaDaySixSights,
+  ...sanMarinoDaySixSights,
+  ...chioggiaDayEightSights,
+  ...veniceDayNineSights,
+  ...milanDayTenSights,
+  ...ravensburgDayElevenSights,
+  ...pragueDayTwelveSights,
+  ...pragueDayThirteenSights,
+  ...pragueDayFourteenSights,
+];
+
+function withChristmasSightDefaults(trip: TripSummary) {
+  if (trip.title !== "Рождественская Италия") return trip;
+  const savedSights = trip.sights || [];
+  const savedSightIds = new Set(savedSights.map((sight) => sight.id));
+  const missingSights = christmasSightDefaults.filter(
+    (sight) => !savedSightIds.has(sight.id),
+  );
+  return missingSights.length
+    ? { ...trip, sights: [...savedSights, ...missingSights] }
+    : trip;
+}
+
 type WikipediaAttractionPage = {
   pageid?: number;
   title?: string;
@@ -13812,22 +13841,7 @@ function Workspace({
       sightNotes: { ...trip.sightNotes, [selectedDay.id]: pragueNotes },
     });
   }, [selectedSightDayId, sightDays, trip, onUpdateTrip]);
-  const defaultChristmasSights = [
-    ...munichDayOneSights,
-    ...veronaDayTwoSights,
-    ...romeDayThreeSights,
-    ...romeDayFourSights,
-    ...romeDayFiveSights,
-    ...pisaDaySixSights,
-    ...sanMarinoDaySixSights,
-    ...chioggiaDayEightSights,
-    ...veniceDayNineSights,
-    ...milanDayTenSights,
-    ...ravensburgDayElevenSights,
-    ...pragueDayTwelveSights,
-    ...pragueDayThirteenSights,
-    ...pragueDayFourteenSights,
-  ];
+  const defaultChristmasSights = christmasSightDefaults;
   const tripSights = useDemoSightContent
     ? [
         ...defaultChristmasSights.map((sight) => ({
@@ -15034,17 +15048,22 @@ export function App() {
       const remoteDrafts = await Promise.all(
         parsedRemoteDrafts.map((trip) => signTripPhotoUrls(trip)),
       );
+      const syncedRemoteDrafts = remoteDrafts.map((trip) => {
+        const syncedTrip = withChristmasSightDefaults(trip);
+        if (syncedTrip !== trip) saveTripToSupabase(syncedTrip);
+        return syncedTrip;
+      });
       setDrafts((current) => [
-        ...remoteDrafts,
+        ...syncedRemoteDrafts,
         ...current.filter(
           (trip) =>
             trip.id === "supabase-main" &&
-            !remoteDrafts.some((remote) => remote.id === trip.id),
+            !syncedRemoteDrafts.some((remote) => remote.id === trip.id),
         ),
       ]);
       setActiveTrip((current) =>
-        remoteDrafts.find((trip) => trip.id === current.id) ||
-        remoteDrafts[0] ||
+        syncedRemoteDrafts.find((trip) => trip.id === current.id) ||
+        syncedRemoteDrafts[0] ||
         current,
       );
     };
