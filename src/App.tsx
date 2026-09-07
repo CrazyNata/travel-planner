@@ -11096,7 +11096,10 @@ function OverviewEditor({
   const [title, setTitle] = useState(trip.title);
   const [startDate, setStartDate] = useState(trip.startDate || "");
   const [endDate, setEndDate] = useState(trip.endDate || "");
-  const [weatherCities, setWeatherCities] = useState(routeCities);
+  const savedWeatherCities = parseTripCities(trip.cities);
+  const [weatherCities, setWeatherCities] = useState(
+    savedWeatherCities.length ? savedWeatherCities : routeCities,
+  );
   const [mapPoints, setMapPoints] = useState(
     trip.overviewMapPoints || routeCities,
   );
@@ -11829,14 +11832,19 @@ function TripOverview({
       ? ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`
       : ""
   }`;
+  const routeCities = (trip.days || []).flatMap((day) =>
+    day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+  );
   const overviewCities = mergeTripCities(
     trip.overviewMapPoints?.length
       ? trip.overviewMapPoints
       : parseTripCities(trip.cities),
-    (trip.days || []).flatMap((day) =>
-      day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
-    ),
+    routeCities,
   );
+  const savedWeatherCities = parseTripCities(trip.cities);
+  const weatherCities = savedWeatherCities.length
+    ? mergeTripCities(savedWeatherCities)
+    : mergeTripCities(routeCities);
   const coverPhotos = (
     trip.coverPhotos?.length
       ? trip.coverPhotos
@@ -12046,7 +12054,7 @@ function TripOverview({
           </aside>
         </div>
         <WeatherOverview
-          cities={overviewCities}
+          cities={weatherCities}
           tripDates={trip.dates}
           coverPhotos={coverPhotos}
           brightenPhotos={trip.title === "Рождественская Италия"}
@@ -12212,7 +12220,7 @@ function TripOverview({
             </aside>
           </div>
           <WeatherOverview
-            cities={overviewCities}
+            cities={weatherCities}
             tripDates={trip.dates}
             coverPhotos={coverPhotos}
             brightenPhotos={trip.title === "Рождественская Италия"}
