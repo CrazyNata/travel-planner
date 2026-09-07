@@ -1161,6 +1161,59 @@ const accommodationCities = [
   "Озеро Комо, Италия",
 ];
 
+const knownTripCityNames = Array.from(
+  new Set([
+    ...Object.keys(mapLocations),
+    ...accommodationCities.map((city) => city.split(",")[0].trim()),
+  ]),
+).sort((left, right) => right.length - left.length);
+
+function knownTripCity(value: string) {
+  const normalized = value.trim().toLocaleLowerCase("ru");
+  return knownTripCityNames.find((city) => {
+    const known = city.toLocaleLowerCase("ru");
+    return (
+      normalized === known ||
+      normalized.startsWith(`${known} `) ||
+      normalized.startsWith(`${known},`)
+    );
+  });
+}
+
+function parseTripCities(value?: string) {
+  const tokens = (value || "")
+    .split(/[·,;]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const result: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!knownTripCity(token)) {
+      result.push(token);
+      continue;
+    }
+    const next = tokens[index + 1];
+    if (next && !knownTripCity(next)) {
+      result.push(`${token}, ${next}`);
+      index += 1;
+    } else {
+      result.push(token);
+    }
+  }
+  return result;
+}
+
+function mergeTripCities(...cityLists: string[][]) {
+  const seen = new Set<string>();
+  return cityLists.flat().filter((value) => {
+    const city = knownTripCity(value)?.toLocaleLowerCase("ru");
+    const key = city || value.trim().toLocaleLowerCase("ru");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function externalUrl(value: string) {
   if (!value) return "#";
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -6022,6 +6075,7 @@ function CreateTrip({
             tone: "stone",
             isDraft: true,
             coverImage,
+            overviewMapPoints: parseTripCities(cities),
           });
         }}
       >
@@ -10931,14 +10985,10 @@ function OverviewEditor({
   onClose: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const routeCities = Array.from(
-    new Set(
-      [
-        ...(trip.cities || "").split(/[·,]/).map((city) => city.trim()),
-        ...(trip.days || []).flatMap((day) =>
-          day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
-        ),
-      ].filter(Boolean),
+  const routeCities = mergeTripCities(
+    parseTripCities(trip.cities),
+    (trip.days || []).flatMap((day) =>
+      day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
     ),
   );
   const [cityIndex, setCityIndex] = useState(0);
@@ -11696,16 +11746,14 @@ function TripOverview({
       ? ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`
       : ""
   }`;
-  const overviewCities =
+  const overviewCities = mergeTripCities(
     trip.overviewMapPoints?.length
       ? trip.overviewMapPoints
-      : Array.from(
-          new Set(
-            (trip.days || []).flatMap((day) =>
-              day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
-            ).filter(Boolean),
-          ),
-        );
+      : parseTripCities(trip.cities),
+    (trip.days || []).flatMap((day) =>
+      day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+    ),
+  );
   const coverPhotos = (
     trip.coverPhotos?.length
       ? trip.coverPhotos
