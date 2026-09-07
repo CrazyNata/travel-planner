@@ -466,7 +466,7 @@ function normalizeSightName(name: string) {
 const sightNameAliasGroups = [
   ["piazza del duomo", "пьяцца дель дуомо"],
   ["piazza della repubblica", "пьяцца делла репубблика"],
-  ["via de tornabuoni"],
+  ["via de tornabuoni", "palazzo medici tornaquinci"],
   ["ponte santa trinita", "понте санта тринита"],
   ["ponte vecchio", "понте веккьо"],
   ["piazza della signoria", "площадь синьории"],
