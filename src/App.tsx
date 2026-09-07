@@ -9347,7 +9347,16 @@ function AccommodationList({
                 aria-controls="accommodation-sort-menu"
                 onClick={() => setSortMenuOpen((open) => !open)}
               >
-                <span aria-hidden="true">↕</span>
+                <svg
+                  className="accommodation-sort-trigger-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v18" />
+                  <path d="m8 7 4-4 4 4" />
+                  <path d="m16 17-4 4-4-4" />
+                </svg>
                 <span>Сортировка: {sortLabels[sortMode]}</span>
                 <span className="accommodation-sort-chevron" aria-hidden="true">⌄</span>
               </button>
