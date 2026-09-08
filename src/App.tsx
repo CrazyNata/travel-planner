@@ -1478,6 +1478,13 @@ const knownSightPhotoUrls: Record<string, string> = {
   "munich-marienplatz": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/November_2007%2C_Marienplatz_9.jpg/960px-November_2007%2C_Marienplatz_9.jpg",
   "munich-neues-rathaus": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Rathaus_and_Marienplatz_from_Peterskirche_-_August_2006.jpg/960px-Rathaus_and_Marienplatz_from_Peterskirche_-_August_2006.jpg",
   "munich-christkindlmarkt": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/M%C3%BCnchner_Christkindlmarkt_4.JPG/960px-M%C3%BCnchner_Christkindlmarkt_4.JPG",
+  "rome-four-rivers": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Rome_%28Italy%29%2C_Piazza_Navona%2C_Fontana_dei_Quattro_Fiumi_--_2013_--_3927.jpg/960px-Rome_%28Italy%29%2C_Piazza_Navona%2C_Fontana_dei_Quattro_Fiumi_--_2013_--_3927.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-sant-agnese": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e9/Sant-Agnese-in-Agone-Rome-May-2009.jpg/960px-Sant-Agnese-in-Agone-Rome-May-2009.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-spagna-tree": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/36/Piazza_di_Spagna_in_Rome_%282%29.jpg/960px-Piazza_di_Spagna_in_Rome_%282%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-condotti": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Via_dei_Condotti.jpg/960px-Via_dei_Condotti.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-palatine": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Pinus_pinea_on_Palatine_Hill.jpg/960px-Pinus_pinea_on_Palatine_Hill.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-palatine-view": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Palatine_Hill_from_Circus_Maximus_Rome.jpg/960px-Palatine_Hill_from_Circus_Maximus_Rome.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "rome-pincio": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9d/Pincio_terrace_in_Rome.jpg/960px-Pincio_terrace_in_Rome.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
 };
 
 const knownSightPhotoNameRules: [RegExp, string][] = [
