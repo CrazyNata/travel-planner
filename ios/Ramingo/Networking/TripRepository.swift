@@ -364,7 +364,8 @@ final class TripRepository {
             status: payload.text("status", fallback: "Черновик"),
             progress: min(max(payload.integer("progress") ?? 0, 0), 100),
             cities: payload.text("cities").split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty },
-            cityCoordinates: payload.object("cityCoordinates").compactMapValues { object in
+            cityCoordinates: payload.object("cityCoordinates").compactMapValues { value in
+                let object = value.objectValue ?? [:]
                 guard let latitude = object.number("latitude"), let longitude = object.number("longitude") else { return nil }
                 return Coordinate(latitude: latitude, longitude: longitude)
             },

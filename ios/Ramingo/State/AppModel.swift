@@ -35,24 +35,24 @@ final class AppModel: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
-        await runAuth {
-            session = try await client.signIn(email: email, password: password)
-            try await reloadTrips()
+        await self.runAuth {
+            self.session = try await self.client.signIn(email: email, password: password)
+            try await self.reloadTrips()
         }
     }
 
     func signUp(email: String, password: String) async {
-        await runAuth {
-            let result = try await client.signUp(email: email, password: password)
-            session = result ?? client.session
-            if session != nil { try await reloadTrips() }
+        await self.runAuth {
+            let result = try await self.client.signUp(email: email, password: password)
+            self.session = result ?? self.client.session
+            if self.session != nil { try await self.reloadTrips() }
         }
     }
 
     func signInWithGoogle() async {
-        await runAuth {
-            session = try await client.signInWithGoogle()
-            try await reloadTrips()
+        await self.runAuth {
+            self.session = try await self.client.signInWithGoogle()
+            try await self.reloadTrips()
         }
     }
 

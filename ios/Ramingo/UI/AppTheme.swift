@@ -130,7 +130,7 @@ struct RemotePhotoView: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: reference) {
             guard let reference, !reference.isEmpty else { return }
-            url = await client.resolvePhoto(reference)
+            url = try? await client.resolvePhoto(reference)
         }
     }
 
