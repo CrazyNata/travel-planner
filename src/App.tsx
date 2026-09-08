@@ -1683,7 +1683,28 @@ async function loadSightCatalogPhotos(city: string) {
   const request = (async () => {
     const signal = new AbortController().signal;
     const catalog = await fetchSightCatalog(city, signal);
-    return enrichSightCatalogPhotos(catalog, signal);
+    const extraPhotoNames = Array.from(new Set(
+      catalog.flatMap((sight) => (sight.photoNames || []).slice(1)).filter(Boolean),
+    )).slice(0, 24);
+    const [enrichedCatalog, extraPhotoUrls] = await Promise.all([
+      enrichSightCatalogPhotos(catalog, signal),
+      fetchGoogleRestaurantPhotoUrls(extraPhotoNames, signal),
+    ]);
+    const variantPhotos = new Set<string>();
+    const variants: StoredSight[] = [];
+    extraPhotoUrls.forEach((photo, photoName) => {
+      if (!photo || variantPhotos.has(photo)) return;
+      const source = catalog.find((sight) => sight.photoNames?.includes(photoName));
+      if (!source) return;
+      variantPhotos.add(photo);
+      variants.push({
+        ...source,
+        id: `${source.id}-photo-variant-${variants.length}`,
+        photo,
+        photoNames: [photoName],
+      });
+    });
+    return [...enrichedCatalog, ...variants];
   })().catch(() => [] as StoredSight[]);
   sightCatalogPhotoRequests.set(key, request);
   return request;
