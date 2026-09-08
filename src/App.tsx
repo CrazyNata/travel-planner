@@ -1582,7 +1582,7 @@ async function fetchGoogleSightPhoto(
       .filter(({ distance }) => distance < 0.006)
       .sort((first, second) => first.distance - second.distance)
       .find(({ candidate }) => candidate.photo);
-    return nearbyMatch?.candidate.photo;
+    return nearbyMatch?.candidate.photo || candidates[0]?.photo;
   } catch {
     return undefined;
   } finally {
