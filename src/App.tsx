@@ -1552,6 +1552,44 @@ async function fetchWikimediaSightPhoto(
   return unused?.url;
 }
 
+function sightPhotoDistance(first: StoredSight, second: StoredSight) {
+  if (!first.lnglat || !second.lnglat) return Number.POSITIVE_INFINITY;
+  return Math.hypot(first.lnglat[0] - second.lnglat[0], first.lnglat[1] - second.lnglat[1]);
+}
+
+async function fetchGoogleSightPhoto(
+  sight: StoredSight,
+  reservedPhotos: Set<string>,
+) {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 6_000);
+  try {
+    const catalog = await fetchGoogleSightCatalog(
+      sight.city,
+      controller.signal,
+      sight.name,
+      8,
+      "en",
+    );
+    const enrichedCatalog = await enrichSightCatalogPhotos(catalog, controller.signal);
+    const candidates = enrichedCatalog.filter(
+      (candidate) => candidate.photo && !reservedPhotos.has(candidate.photo),
+    );
+    const exactMatch = candidates.find((candidate) => catalogSightMatches(sight, candidate));
+    if (exactMatch?.photo) return exactMatch.photo;
+    const nearbyMatch = candidates
+      .map((candidate) => ({ candidate, distance: sightPhotoDistance(sight, candidate) }))
+      .filter(({ distance }) => distance < 0.006)
+      .sort((first, second) => first.distance - second.distance)
+      .find(({ candidate }) => candidate.photo);
+    return nearbyMatch?.candidate.photo;
+  } catch {
+    return undefined;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
 function sightImageCacheHasUrl(url: string) {
   return Array.from(sightImageCache.values()).some((cached) => cached === url);
 }
@@ -1584,7 +1622,9 @@ async function resolveSightPhoto(
       const googlePhoto = photoUrls.get(sight.photoNames[0]);
       if (googlePhoto && !reservedPhotos.has(googlePhoto)) return googlePhoto;
     }
-    return fetchWikimediaSightPhoto(sight, reservedPhotos).catch(() => undefined);
+    const wikimediaPhoto = await fetchWikimediaSightPhoto(sight, reservedPhotos).catch(() => undefined);
+    if (wikimediaPhoto) return wikimediaPhoto;
+    return fetchGoogleSightPhoto(sight, reservedPhotos);
   })();
   sightPhotoRequests.set(key, request);
   const photo = await request;
@@ -4282,7 +4322,13 @@ type GoogleSightCatalogPlace = {
   longitude?: unknown;
 };
 
-async function fetchGoogleSightCatalog(city: string, signal: AbortSignal, query = "") {
+async function fetchGoogleSightCatalog(
+  city: string,
+  signal: AbortSignal,
+  query = "",
+  limit = 60,
+  languageCode = "ru",
+) {
   const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
   if (!publishableKey || !city.trim()) throw new Error("Google Places is not configured");
   const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
@@ -4297,8 +4343,8 @@ async function fetchGoogleSightCatalog(city: string, signal: AbortSignal, query 
       category: "sight",
       city: restaurantCitySearchName(city),
       query: query.trim() || undefined,
-      limit: 60,
-      languageCode: "ru",
+      limit,
+      languageCode,
     }),
   });
   if (!response.ok) throw new Error("Google sight catalog request failed");
@@ -4796,6 +4842,9 @@ function restaurantCitySearchName(city: string) {
     [/верона|verona/, "Verona"],
     [/милан|milan/, "Milan"],
     [/пиза|pisa/, "Pisa"],
+    [/кьоджа|chioggia/, "Chioggia"],
+    [/сан[- ]?марино|san[- ]?marino/, "San Marino"],
+    [/равенсбург|ravensburg/, "Ravensburg"],
   ];
   return aliases.find(([pattern]) => pattern.test(name))?.[1] || city.split(",")[0].trim();
 }
