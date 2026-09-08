@@ -12954,6 +12954,15 @@ function Sights({
             publishPhoto(sight.id, match.photo);
           }
         }
+        for (const sight of routePhotoSights) {
+          if (nextPhotos.has(sight.id)) continue;
+          const fallback = catalogItems.find(
+            (candidate) => candidate.city === sight.city && candidate.photo && !reservedPhotos.has(candidate.photo),
+          );
+          if (!fallback?.photo) continue;
+          reservedPhotos.add(fallback.photo);
+          publishPhoto(sight.id, fallback.photo);
+        }
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
