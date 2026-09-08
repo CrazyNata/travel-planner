@@ -1,0 +1,122 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: App Store version, for example 0.1.0
+        required: false
+        type: string
+      version_code:
+        description: Increasing iOS build number, for example 10001
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  archive-and-upload:
+    runs-on: macos-latest
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+      APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+      APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      INPUT_VERSION_NAME: ${{ inputs.version_name }}
+      INPUT_VERSION_CODE: ${{ inputs.version_code }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Show Apple toolchain
+        run: |
+          xcode-select --print-path
+          xcodebuild -version
+
+      - name: Verify App Store Connect and app configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$APPLE_TEAM_ID"
+          test -n "$APPSTORE_ISSUER_ID"
+          test -n "$APPSTORE_API_KEY_ID"
+          test -n "$APPSTORE_API_PRIVATE_KEY"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_name="${INPUT_VERSION_NAME:-0.1.${GITHUB_RUN_NUMBER}}"
+          version_code="${INPUT_VERSION_CODE:-$((10000 + GITHUB_RUN_NUMBER))}"
+          test "$version_code" -gt 1
+          echo "IOS_VERSION_NAME=$version_name" >> "$GITHUB_ENV"
+          echo "IOS_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+
+      - name: Prepare App Store Connect API key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/AuthKey_${APPSTORE_API_KEY_ID}.p8"
+          printf '%s' "$APPSTORE_API_PRIVATE_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          echo "APPSTORE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Archive signed iOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project ios/Ramingo.xcodeproj \
+            -scheme Ramingo \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Ramingo.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APPSTORE_API_KEY_PATH" \
+            -authenticationKeyID "$APPSTORE_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
+            MARKETING_VERSION="$IOS_VERSION_NAME" \
+            CURRENT_PROJECT_VERSION="$IOS_VERSION_CODE" \
+            PRODUCT_BUNDLE_IDENTIFIER="${IOS_BUNDLE_ID:-com.odyssey.ramingo.ios}" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            SUPABASE_URL="${SUPABASE_URL:-https://hxcavgtlucyoqudbrgse.supabase.co}" \
+            SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Export App Store package
+        shell: bash
+        run: |
+          set -euo pipefail
+          export_path="$RUNNER_TEMP/RamingoExport"
+          mkdir -p "$export_path"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Ramingo.xcarchive" \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath "$export_path" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APPSTORE_API_KEY_PATH" \
+            -authenticationKeyID "$APPSTORE_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID"
+          test -s "$export_path/Ramingo.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ramingo-ios-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/RamingoExport/Ramingo.ipa
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v5
+        with:
+          app-path: ${{ runner.temp }}/RamingoExport/Ramingo.ipa
+          issuer-id: ${{ vars.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ vars.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          uses-non-exempt-encryption: 'false'
+          wait-for-processing: 'true'

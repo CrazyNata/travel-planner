@@ -1,0 +1,54 @@
+name: iOS build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Show Apple toolchain
+        run: |
+          xcode-select --print-path
+          xcodebuild -version
+
+      - name: Build unsigned iOS Simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log="$RUNNER_TEMP/ramingo-ios-build.log"
+          xcodebuild \
+            -project ios/Ramingo.xcodeproj \
+            -scheme Ramingo \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/RamingoDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$build_log"
+          test -d "$RUNNER_TEMP/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app"
+
+      - name: Upload Simulator build
+        uses: actions/upload-artifact@v6
+        with:
+          name: ramingo-ios-simulator-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app
+            ${{ runner.temp }}/ramingo-ios-build.log
+          if-no-files-found: error
