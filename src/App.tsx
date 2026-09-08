@@ -1469,15 +1469,147 @@ function mapStyle() {
 }
 
 const sightImageCache = new globalThis.Map<string, string>();
+const sightPhotoRequests = new globalThis.Map<string, Promise<string | undefined>>();
+const sightCatalogPhotoRequests = new globalThis.Map<string, Promise<StoredSight[]>>();
+
+// Keep the first Munich screen useful even while the live catalog is loading.
+// The remaining built-in sights are resolved from Google Places and Wikimedia
+// below; these are only a fast, per-place seed and never replace a user's own
+// uploaded photo.
+const knownSightPhotoUrls: Record<string, string> = {
+  "munich-karlsplatz": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Karlsplatz%2C_M%C3%BAnich%2C_Alemania1.JPG/960px-Karlsplatz%2C_M%C3%BAnich%2C_Alemania1.JPG",
+  "munich-neuhauser": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Neuhauser_Stra%C3%9Fe_%28M%C3%BCnchen%29%2C_2006_%2802%29.jpg/960px-Neuhauser_Stra%C3%9Fe_%28M%C3%BCnchen%29%2C_2006_%2802%29.jpg",
+  "munich-karlstor": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Munich%2C_the_Karlstor.JPG/960px-Munich%2C_the_Karlstor.JPG",
+  "munich-marienplatz": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/November_2007%2C_Marienplatz_9.jpg/960px-November_2007%2C_Marienplatz_9.jpg",
+  "munich-neues-rathaus": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Rathaus_and_Marienplatz_from_Peterskirche_-_August_2006.jpg/960px-Rathaus_and_Marienplatz_from_Peterskirche_-_August_2006.jpg",
+  "munich-christkindlmarkt": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/M%C3%BCnchner_Christkindlmarkt_4.JPG/960px-M%C3%BCnchner_Christkindlmarkt_4.JPG",
+};
+
+function sightPhotoKey(sight: StoredSight) {
+  return `${sight.id}|${sight.name}|${sight.city}`;
+}
+
+function sightPhotoFor(sight: StoredSight, resolvedPhotos: Record<string, string> = {}) {
+  return sight.photo || knownSightPhotoUrls[sight.id] || resolvedPhotos[sight.id] || "";
+}
+
+function normalizedPhotoTitle(value: string) {
+  return value.toLocaleLowerCase().replace(/[’'`]/g, " ").replace(/[^a-zа-яё0-9]+/giu, " ").trim();
+}
+
+async function fetchWikimediaSightPhoto(
+  sight: StoredSight,
+  reservedPhotos: Set<string> = new Set(),
+) {
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: `${sight.name} ${sight.city}`,
+    gsrnamespace: "6",
+    gsrlimit: "12",
+    prop: "imageinfo",
+    iiprop: "url",
+    iiurlwidth: "900",
+    format: "json",
+    origin: "*",
+  });
+  const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+  if (!response.ok) return undefined;
+  const data = await response.json() as {
+    query?: {
+      pages?: Record<string, { index?: number; title?: string; imageinfo?: { thumburl?: string }[] }>;
+    };
+  };
+  const candidates = Object.values(data.query?.pages || {})
+    .sort((first, second) => (first.index || 0) - (second.index || 0))
+    .map((page) => ({
+      title: page.title || "",
+      url: page.imageinfo?.[0]?.thumburl || "",
+    }))
+    .filter(({ url }) => url);
+  const rejectedTitles = /\b(map|logo|flag|diagram|screenshot|poster|ticket|station|u[- ]?bahn|metro)\b/i;
+  const unused = candidates.find(({ title, url }) =>
+    !reservedPhotos.has(url) && !sightImageCacheHasUrl(url) && !rejectedTitles.test(title),
+  );
+  return (unused || candidates.find(({ url }) => !reservedPhotos.has(url)))?.url || candidates[0]?.url;
+}
+
+function sightImageCacheHasUrl(url: string) {
+  return Array.from(sightImageCache.values()).some((cached) => cached === url);
+}
+
+async function resolveSightPhoto(
+  sight: StoredSight,
+  reservedPhotos: Set<string> = new Set(),
+) {
+  const directPhoto = sight.photo?.trim();
+  if (directPhoto) {
+    sightImageCache.set(sightPhotoKey(sight), directPhoto);
+    return directPhoto;
+  }
+  const knownPhoto = knownSightPhotoUrls[sight.id];
+  if (knownPhoto) {
+    sightImageCache.set(sightPhotoKey(sight), knownPhoto);
+    return knownPhoto;
+  }
+  const key = sightPhotoKey(sight);
+  const cached = sightImageCache.get(key);
+  if (cached) return cached;
+  const pending = sightPhotoRequests.get(key);
+  if (pending) return pending;
+  const request = (async () => {
+    if (sight.photoNames?.[0]) {
+      const photoUrls = await fetchGoogleRestaurantPhotoUrls(
+        [sight.photoNames[0]],
+        new AbortController().signal,
+      ).catch(() => new globalThis.Map<string, string>());
+      const googlePhoto = photoUrls.get(sight.photoNames[0]);
+      if (googlePhoto && !reservedPhotos.has(googlePhoto)) return googlePhoto;
+    }
+    return fetchWikimediaSightPhoto(sight, reservedPhotos).catch(() => undefined);
+  })();
+  sightPhotoRequests.set(key, request);
+  const photo = await request;
+  if (photo) sightImageCache.set(key, photo);
+  sightPhotoRequests.delete(key);
+  return photo;
+}
+
+async function loadSightCatalogPhotos(city: string) {
+  const key = city.trim().toLocaleLowerCase();
+  if (!key) return [];
+  const cached = sightCatalogPhotoRequests.get(key);
+  if (cached) return cached;
+  const request = (async () => {
+    const signal = new AbortController().signal;
+    const catalog = await fetchSightCatalog(city, signal);
+    return enrichSightCatalogPhotos(catalog, signal);
+  })().catch(() => [] as StoredSight[]);
+  sightCatalogPhotoRequests.set(key, request);
+  return request;
+}
+
+function catalogSightMatches(saved: StoredSight, candidate: StoredSight) {
+  if (sightNamesMatch(saved.name, candidate.name)) return true;
+  if (saved.lnglat && candidate.lnglat) {
+    const distance = Math.hypot(saved.lnglat[0] - candidate.lnglat[0], saved.lnglat[1] - candidate.lnglat[1]);
+    if (distance < 0.002) return true;
+  }
+  const savedName = normalizedPhotoTitle(saved.name);
+  const candidateName = normalizedPhotoTitle(candidate.name);
+  return savedName.length > 5 && candidateName.length > 5 &&
+    (savedName.includes(candidateName) || candidateName.includes(savedName));
+}
 
 function SightCardImage({ sight }: { sight: StoredSight }) {
   const cacheKey = `${sight.name}|${sight.city}`;
   const [image, setImage] = useState(
-    () => sight.photo || sightImageCache.get(cacheKey) || "",
+    () => sightPhotoFor(sight) || sightImageCache.get(cacheKey) || "",
   );
   useEffect(() => {
-    if (sight.photo) {
-      setImage(sight.photo);
+    const directPhoto = sightPhotoFor(sight);
+    if (directPhoto) {
+      setImage(directPhoto);
       return;
     }
     const cached = sightImageCache.get(cacheKey);
@@ -1485,41 +1617,12 @@ function SightCardImage({ sight }: { sight: StoredSight }) {
       setImage(cached);
       return;
     }
-    const controller = new AbortController();
-    const params = new URLSearchParams({
-      action: "query",
-      generator: "search",
-      gsrsearch: `${sight.name} ${sight.city}`,
-      gsrnamespace: "6",
-      prop: "imageinfo",
-      iiprop: "url",
-      iiurlwidth: "900",
-      format: "json",
-      origin: "*",
+    let active = true;
+    void resolveSightPhoto(sight).then((photo) => {
+      if (active && photo) setImage(photo);
     });
-    void fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
-      signal: controller.signal,
-    })
-      .then((response) => response.json())
-      .then((data: {
-        query?: {
-          pages?: Record<
-            string,
-            { index?: number; imageinfo?: { thumburl?: string }[] }
-          >;
-        };
-      }) => {
-        const photo = Object.values(data.query?.pages || {})
-          .sort((first, second) => (first.index || 0) - (second.index || 0))
-          .find((page) => page.imageinfo?.[0]?.thumburl)?.imageinfo?.[0]
-          ?.thumburl;
-        if (!photo) return;
-        sightImageCache.set(cacheKey, photo);
-        setImage(photo);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [cacheKey, sight.city, sight.name, sight.photo]);
+    return () => { active = false; };
+  }, [cacheKey, sight.city, sight.id, sight.name, sight.photo, sight.photoNames]);
   if (!image) return null;
   return (
     <img
@@ -4839,7 +4942,7 @@ async function fetchRestaurantCatalog(
 }
 
 function catalogPhotoFor(sight: StoredSight, index: number) {
-  return sight.photo || defaultSightPhotos[index % defaultSightPhotos.length];
+  return sightPhotoFor(sight) || defaultSightPhotos[index % defaultSightPhotos.length];
 }
 
 function compressCoverPhoto(file: File) {
@@ -12663,6 +12766,7 @@ function Sights({
   const [editingDayTitle, setEditingDayTitle] = useState("");
   const [draggedDay, setDraggedDay] = useState<number | null>(null);
   const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
+  const [sightPhotos, setSightPhotos] = useState<Record<string, string>>({});
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -12692,6 +12796,64 @@ function Sights({
   const routeSights = sights
     .filter((sight) => (sight.walkDay || 1) === selectedDay + 1)
     .sort((a, b) => (a.walkOrder || 0) - (b.walkOrder || 0));
+  const routePhotoKey = routeSights
+    .map((sight) => `${sightPhotoKey(sight)}:${sight.photo || ""}`)
+    .join(";");
+  useEffect(() => {
+    let cancelled = false;
+    const routePhotoSights = [...routeSights];
+    const reservedPhotos = new Set(
+      routePhotoSights
+        .map((sight) => sightPhotoFor(sight))
+        .filter(Boolean),
+    );
+    const citiesForPhotos = Array.from(new Set(routePhotoSights.map((sight) => sight.city).filter(Boolean)));
+    void Promise.all(citiesForPhotos.map((cityName) => loadSightCatalogPhotos(cityName)))
+      .then(async (catalogs) => {
+        if (cancelled) return;
+        const nextPhotos = new globalThis.Map<string, string>();
+        const catalogItems = catalogs.flat();
+        for (const sight of routePhotoSights) {
+          const directPhoto = sightPhotoFor(sight);
+          if (directPhoto) {
+            nextPhotos.set(sight.id, directPhoto);
+            continue;
+          }
+          const match = catalogItems.find(
+            (candidate) =>
+              candidate.photo &&
+              !reservedPhotos.has(candidate.photo) &&
+              catalogSightMatches(sight, candidate),
+          );
+          if (match?.photo) {
+            nextPhotos.set(sight.id, match.photo);
+            reservedPhotos.add(match.photo);
+          }
+        }
+        if (!cancelled && nextPhotos.size) {
+          setSightPhotos((current) => ({
+            ...current,
+            ...Object.fromEntries(nextPhotos),
+          }));
+        }
+        for (const sight of routePhotoSights) {
+          if (nextPhotos.has(sight.id)) continue;
+          const photo = await resolveSightPhoto(sight, reservedPhotos);
+          if (photo) {
+            nextPhotos.set(sight.id, photo);
+            reservedPhotos.add(photo);
+            if (!cancelled) {
+              setSightPhotos((current) => ({
+                ...current,
+                [sight.id]: photo,
+              }));
+            }
+          }
+        }
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [routePhotoKey]);
   const copyRoute = async () => {
     if (routeSights.length < 2) return;
     const points = routeSights.map((sight) =>
@@ -12864,7 +13026,7 @@ function Sights({
                 {visibleSights.map((sight) => {
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
-                  const photoUrl = sight.photo || defaultSightPhotos[(sightNumber - 1) % defaultSightPhotos.length];
+                  const photoUrl = sightPhotoFor(sight, sightPhotos);
                   const description = shortDescriptionFor(sight);
                   const rating = sightRatingFor(sight);
                   return (
@@ -12889,7 +13051,9 @@ function Sights({
                           type="button"
                           className="sights-event-photo-button"
                           aria-label={`Увеличить фото: ${sight.name}`}
+                          disabled={!photoUrl}
                           onClick={() => {
+                            if (!photoUrl) return;
                             focusSight(sight);
                             setExpandedPhoto({
                               url: photoUrl,
@@ -12897,12 +13061,18 @@ function Sights({
                             });
                           }}
                         >
-                          <img
-                            className="sights-event-thumb"
-                            src={photoUrl}
-                            alt=""
-                            loading="lazy"
-                          />
+                          {photoUrl ? (
+                            <img
+                              className="sights-event-thumb"
+                              src={photoUrl}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="sights-event-photo-placeholder" aria-hidden="true">
+                              {sight.name.slice(0, 1)}
+                            </span>
+                          )}
                         </button>
                         <div className="sights-timeline-card-content">
                           <small className="sights-event-category">{categoryFor(sight)}</small>
