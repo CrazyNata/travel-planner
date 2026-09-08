@@ -375,14 +375,14 @@ final class TripRepository {
             budgetExpenses: expenses(from: payload),
             budgetGroups: payload.object("budgetSplit").array("groups").compactMap { value in
                 let object = value.objectValue ?? [:]
-                let name = object.text("name").nonEmpty else { return nil }
+                guard let name = object.text("name").nonEmpty else { return nil }
                 return BudgetGroup(name: name, people: max(object.integer("people") ?? 1, 1))
             },
             members: members(from: payload),
             sights: sights(from: payload),
             sightDays: payload.array("sightDays").enumerated().compactMap { index, value in
                 let object = value.objectValue ?? [:]
-                let title = object.text("title", fallback: object.text("city")).nonEmpty else { return nil }
+                guard let title = object.text("title", fallback: object.text("city")).nonEmpty else { return nil }
                 return SightDay(id: object.text("id", fallback: "sights-day-\(index + 1)"), title: title, photo: object.text("photo"))
             },
             restaurants: restaurants(from: payload),
