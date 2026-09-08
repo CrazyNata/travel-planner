@@ -1520,7 +1520,7 @@ async function fetchWikimediaSightPhoto(
     gsrlimit: "12",
     prop: "imageinfo",
     iiprop: "url",
-    iiurlwidth: "900",
+    iiurlwidth: "640",
     format: "json",
     origin: "*",
   });
@@ -1584,6 +1584,31 @@ async function resolveSightPhoto(
   if (photo) sightImageCache.set(key, photo);
   sightPhotoRequests.delete(key);
   return photo;
+}
+
+async function resolveSightPhotosInParallel(
+  sights: StoredSight[],
+  reservedPhotos: Set<string>,
+  onResolved: (sightId: string, photo: string) => void,
+) {
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < sights.length) {
+      const sight = sights[nextIndex++];
+      let photo: string | undefined;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        photo = await resolveSightPhoto(sight, reservedPhotos);
+        if (!photo || !reservedPhotos.has(photo)) break;
+      }
+      if (!photo || reservedPhotos.has(photo)) continue;
+      reservedPhotos.add(photo);
+      onResolved(sight.id, photo);
+    }
+  };
+  const workerCount = Math.min(4, sights.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, () => worker()),
+  );
 }
 
 async function loadSightCatalogPhotos(city: string) {
@@ -12831,8 +12856,23 @@ function Sights({
     const nextPhotos = new globalThis.Map(Object.entries(initialPhotos));
     const reservedPhotos = new Set(nextPhotos.values());
     const citiesForPhotos = Array.from(new Set(routePhotoSights.map((sight) => sight.city).filter(Boolean)));
+    const publishPhoto = (sightId: string, photo: string) => {
+      nextPhotos.set(sightId, photo);
+      if (!cancelled) {
+        setSightPhotos((current) => ({ ...current, [sightId]: photo }));
+      }
+    };
+    if (nextPhotos.size) {
+      setSightPhotos((current) => ({
+        ...current,
+        ...Object.fromEntries(nextPhotos),
+      }));
+    }
+    const fallbackSights = routePhotoSights.filter((sight) => !nextPhotos.has(sight.id));
+    void resolveSightPhotosInParallel(fallbackSights, reservedPhotos, publishPhoto)
+      .catch(() => undefined);
     void Promise.all(citiesForPhotos.map((cityName) => loadSightCatalogPhotos(cityName)))
-      .then(async (catalogs) => {
+      .then((catalogs) => {
         if (cancelled) return;
         const catalogItems = catalogs.flat();
         for (const sight of routePhotoSights) {
@@ -12844,28 +12884,8 @@ function Sights({
               catalogSightMatches(sight, candidate),
           );
           if (match?.photo) {
-            nextPhotos.set(sight.id, match.photo);
             reservedPhotos.add(match.photo);
-          }
-        }
-        if (!cancelled && nextPhotos.size) {
-          setSightPhotos((current) => ({
-            ...current,
-            ...Object.fromEntries(nextPhotos),
-          }));
-        }
-        for (const sight of routePhotoSights) {
-          if (nextPhotos.has(sight.id)) continue;
-          const photo = await resolveSightPhoto(sight, reservedPhotos);
-          if (photo) {
-            nextPhotos.set(sight.id, photo);
-            reservedPhotos.add(photo);
-            if (!cancelled) {
-              setSightPhotos((current) => ({
-                ...current,
-                [sight.id]: photo,
-              }));
-            }
+            publishPhoto(sight.id, match.photo);
           }
         }
       })
