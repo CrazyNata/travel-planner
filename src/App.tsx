@@ -1592,7 +1592,14 @@ async function fetchGoogleSightPhoto(
       .filter(({ distance }) => distance < 0.006)
       .sort((first, second) => first.distance - second.distance)
       .find(({ candidate }) => candidate.photo);
-    return nearbyMatch?.candidate.photo || candidates[0]?.photo;
+    if (nearbyMatch?.candidate.photo || candidates[0]?.photo) {
+      return nearbyMatch?.candidate.photo || candidates[0]?.photo;
+    }
+    const extraPhotoNames = Array.from(new Set(
+      enrichedCatalog.flatMap((candidate) => candidate.photoNames || []).filter(Boolean),
+    )).slice(0, 24);
+    const extraPhotoUrls = await fetchGoogleRestaurantPhotoUrls(extraPhotoNames, controller.signal);
+    return Array.from(extraPhotoUrls.values()).find((photo) => !reservedPhotos.has(photo));
   } catch {
     return undefined;
   } finally {
