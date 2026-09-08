@@ -1519,6 +1519,8 @@ async function fetchWikimediaSightPhoto(
   sight: StoredSight,
   reservedPhotos: Set<string> = new Set(),
 ) {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 3_000);
   const params = new URLSearchParams({
     action: "query",
     generator: "search",
@@ -1531,25 +1533,33 @@ async function fetchWikimediaSightPhoto(
     format: "json",
     origin: "*",
   });
-  const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
-  if (!response.ok) return undefined;
-  const data = await response.json() as {
-    query?: {
-      pages?: Record<string, { index?: number; title?: string; imageinfo?: { thumburl?: string }[] }>;
+  try {
+    const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) return undefined;
+    const data = await response.json() as {
+      query?: {
+        pages?: Record<string, { index?: number; title?: string; imageinfo?: { thumburl?: string }[] }>;
+      };
     };
-  };
-  const candidates = Object.values(data.query?.pages || {})
-    .sort((first, second) => (first.index || 0) - (second.index || 0))
-    .map((page) => ({
-      title: page.title || "",
-      url: page.imageinfo?.[0]?.thumburl || "",
-    }))
-    .filter(({ url }) => url);
-  const rejectedTitles = /\b(map|logo|flag|diagram|screenshot|poster|ticket|station|u[- ]?bahn|metro)\b/i;
-  const unused = candidates.find(({ title, url }) =>
-    !reservedPhotos.has(url) && !sightImageCacheHasUrl(url) && !rejectedTitles.test(title),
-  );
-  return unused?.url;
+    const candidates = Object.values(data.query?.pages || {})
+      .sort((first, second) => (first.index || 0) - (second.index || 0))
+      .map((page) => ({
+        title: page.title || "",
+        url: page.imageinfo?.[0]?.thumburl || "",
+      }))
+      .filter(({ url }) => url);
+    const rejectedTitles = /\b(map|logo|flag|diagram|screenshot|poster|ticket|station|u[- ]?bahn|metro)\b/i;
+    const unused = candidates.find(({ title, url }) =>
+      !reservedPhotos.has(url) && !sightImageCacheHasUrl(url) && !rejectedTitles.test(title),
+    );
+    return unused?.url;
+  } catch {
+    return undefined;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 function sightPhotoDistance(first: StoredSight, second: StoredSight) {
@@ -1622,9 +1632,9 @@ async function resolveSightPhoto(
       const googlePhoto = photoUrls.get(sight.photoNames[0]);
       if (googlePhoto && !reservedPhotos.has(googlePhoto)) return googlePhoto;
     }
-    const wikimediaPhoto = await fetchWikimediaSightPhoto(sight, reservedPhotos).catch(() => undefined);
-    if (wikimediaPhoto) return wikimediaPhoto;
-    return fetchGoogleSightPhoto(sight, reservedPhotos);
+    const googlePhoto = await fetchGoogleSightPhoto(sight, reservedPhotos);
+    if (googlePhoto) return googlePhoto;
+    return fetchWikimediaSightPhoto(sight, reservedPhotos);
   })();
   sightPhotoRequests.set(key, request);
   const photo = await request;
@@ -1652,7 +1662,7 @@ async function resolveSightPhotosInParallel(
       onResolved(sight.id, photo);
     }
   };
-  const workerCount = Math.min(4, sights.length);
+  const workerCount = Math.min(8, sights.length);
   await Promise.all(
     Array.from({ length: workerCount }, () => worker()),
   );
