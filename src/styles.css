@@ -3470,6 +3470,7 @@ html[data-empty-sight-day="true"] .sight-feature {
 .day-place-catalog-list > button:not(:disabled):hover { border-color: #a9a4e9; background: #f7f6ff; }
 .day-place-catalog-list > button:disabled { cursor: default; opacity: .58; }
 .day-place-catalog-list img { width: 72px; height: 60px; border-radius: 9px; object-fit: cover; }
+.day-place-catalog-photo-placeholder { display: grid !important; width: 72px; height: 60px; place-items: center; border-radius: 9px; background: linear-gradient(135deg, #ecebff, #f8e9d7); color: #5b56df; font-size: 24px; font-weight: 900; }
 .day-place-catalog-list span { display: grid; min-width: 0; gap: 2px; }
 .day-place-catalog-list b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .day-place-catalog-list .catalog-place-category { overflow: hidden; color: #8b81c8; font-size: 8px; font-weight: 900; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }

@@ -143,11 +143,6 @@ async function signedTripPhotoUrl(path: string) {
   return data.signedUrl;
 }
 
-const defaultSightPhotos = [
-  "/sight-photos/munich-square.png",
-  "/sight-photos/munich-street.png",
-  "/sight-photos/munich-gate.png",
-];
 type TripMember = {
   id: string;
   initials: string;
@@ -1485,12 +1480,28 @@ const knownSightPhotoUrls: Record<string, string> = {
   "munich-christkindlmarkt": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/M%C3%BCnchner_Christkindlmarkt_4.JPG/960px-M%C3%BCnchner_Christkindlmarkt_4.JPG",
 };
 
+const knownSightPhotoNameRules: [RegExp, string][] = [
+  [/karlsplatz|stachus/i, "munich-karlsplatz"],
+  [/neuhauser\s+stra(?:ss|ß)e/i, "munich-neuhauser"],
+  [/karlstor/i, "munich-karlstor"],
+  [/marienplatz/i, "munich-marienplatz"],
+  [/neues\s+rathaus|new\s+town\s+hall/i, "munich-neues-rathaus"],
+  [/christkindlmarkt|christmas\s+market/i, "munich-christkindlmarkt"],
+];
+
 function sightPhotoKey(sight: StoredSight) {
   return `${sight.id}|${sight.name}|${sight.city}`;
 }
 
+function knownSightPhotoFor(sight: StoredSight) {
+  const byId = knownSightPhotoUrls[sight.id];
+  if (byId) return byId;
+  const rule = knownSightPhotoNameRules.find(([pattern]) => pattern.test(sight.name));
+  return rule ? knownSightPhotoUrls[rule[1]] : "";
+}
+
 function sightPhotoFor(sight: StoredSight, resolvedPhotos: Record<string, string> = {}) {
-  return sight.photo || knownSightPhotoUrls[sight.id] || resolvedPhotos[sight.id] || "";
+  return sight.photo || knownSightPhotoFor(sight) || resolvedPhotos[sight.id] || "";
 }
 
 function normalizedPhotoTitle(value: string) {
@@ -1531,7 +1542,7 @@ async function fetchWikimediaSightPhoto(
   const unused = candidates.find(({ title, url }) =>
     !reservedPhotos.has(url) && !sightImageCacheHasUrl(url) && !rejectedTitles.test(title),
   );
-  return (unused || candidates.find(({ url }) => !reservedPhotos.has(url)))?.url || candidates[0]?.url;
+  return unused?.url;
 }
 
 function sightImageCacheHasUrl(url: string) {
@@ -1543,18 +1554,18 @@ async function resolveSightPhoto(
   reservedPhotos: Set<string> = new Set(),
 ) {
   const directPhoto = sight.photo?.trim();
-  if (directPhoto) {
+  if (directPhoto && !reservedPhotos.has(directPhoto)) {
     sightImageCache.set(sightPhotoKey(sight), directPhoto);
     return directPhoto;
   }
-  const knownPhoto = knownSightPhotoUrls[sight.id];
-  if (knownPhoto) {
+  const knownPhoto = knownSightPhotoFor(sight);
+  if (knownPhoto && !reservedPhotos.has(knownPhoto)) {
     sightImageCache.set(sightPhotoKey(sight), knownPhoto);
     return knownPhoto;
   }
   const key = sightPhotoKey(sight);
   const cached = sightImageCache.get(key);
-  if (cached) return cached;
+  if (cached && !reservedPhotos.has(cached)) return cached;
   const pending = sightPhotoRequests.get(key);
   if (pending) return pending;
   const request = (async () => {
@@ -1599,6 +1610,19 @@ function catalogSightMatches(saved: StoredSight, candidate: StoredSight) {
   const candidateName = normalizedPhotoTitle(candidate.name);
   return savedName.length > 5 && candidateName.length > 5 &&
     (savedName.includes(candidateName) || candidateName.includes(savedName));
+}
+
+function uniqueSightPhotoAssignments(sights: StoredSight[]) {
+  const assignments: Record<string, string> = {};
+  const reservedPhotos = new Set<string>();
+  sights.forEach((sight) => {
+    const candidates = [sight.photo?.trim() || "", knownSightPhotoFor(sight)];
+    const photo = candidates.find((candidate) => candidate && !reservedPhotos.has(candidate));
+    if (!photo) return;
+    assignments[sight.id] = photo;
+    reservedPhotos.add(photo);
+  });
+  return assignments;
 }
 
 function SightCardImage({ sight }: { sight: StoredSight }) {
@@ -4941,8 +4965,8 @@ async function fetchRestaurantCatalog(
   return enriched;
 }
 
-function catalogPhotoFor(sight: StoredSight, index: number) {
-  return sightPhotoFor(sight) || defaultSightPhotos[index % defaultSightPhotos.length];
+function catalogPhotoFor(sight: StoredSight, resolvedPhotos: Record<string, string>) {
+  return resolvedPhotos[sight.id] || "";
 }
 
 function compressCoverPhoto(file: File) {
@@ -12799,26 +12823,20 @@ function Sights({
   const routePhotoKey = routeSights
     .map((sight) => `${sightPhotoKey(sight)}:${sight.photo || ""}`)
     .join(";");
+  const initialRoutePhotos = uniqueSightPhotoAssignments(routeSights);
   useEffect(() => {
     let cancelled = false;
     const routePhotoSights = [...routeSights];
-    const reservedPhotos = new Set(
-      routePhotoSights
-        .map((sight) => sightPhotoFor(sight))
-        .filter(Boolean),
-    );
+    const initialPhotos = uniqueSightPhotoAssignments(routePhotoSights);
+    const nextPhotos = new globalThis.Map(Object.entries(initialPhotos));
+    const reservedPhotos = new Set(nextPhotos.values());
     const citiesForPhotos = Array.from(new Set(routePhotoSights.map((sight) => sight.city).filter(Boolean)));
     void Promise.all(citiesForPhotos.map((cityName) => loadSightCatalogPhotos(cityName)))
       .then(async (catalogs) => {
         if (cancelled) return;
-        const nextPhotos = new globalThis.Map<string, string>();
         const catalogItems = catalogs.flat();
         for (const sight of routePhotoSights) {
-          const directPhoto = sightPhotoFor(sight);
-          if (directPhoto) {
-            nextPhotos.set(sight.id, directPhoto);
-            continue;
-          }
+          if (nextPhotos.has(sight.id)) continue;
           const match = catalogItems.find(
             (candidate) =>
               candidate.photo &&
@@ -13026,7 +13044,7 @@ function Sights({
                 {visibleSights.map((sight) => {
                   const tone = markerToneFor(sight);
                   const sightNumber = routeSights.findIndex((item) => item.id === sight.id) + 1;
-                  const photoUrl = sightPhotoFor(sight, sightPhotos);
+                  const photoUrl = sightPhotos[sight.id] || initialRoutePhotos[sight.id] || "";
                   const description = shortDescriptionFor(sight);
                   const rating = sightRatingFor(sight);
                   return (
@@ -13374,6 +13392,7 @@ function DayEditor({
       );
     })
     .slice(0, 24);
+  const catalogPhotos = uniqueSightPhotoAssignments(catalogItems);
   const addCatalogPlace = (sight: StoredSight, index: number) => {
     setPlaces((current) => {
       if (current.some((item) => item.name === sight.name)) return current;
@@ -13515,6 +13534,7 @@ function DayEditor({
                   {catalogItems.map((item, index) => {
                     const added = places.some((place) => place.name === item.name);
                     const rating = sightRatingFor(item);
+                    const photo = catalogPhotoFor(item, catalogPhotos);
                     return (
                       <button
                         type="button"
@@ -13523,11 +13543,13 @@ function DayEditor({
                         onClick={() => addCatalogPlace(item, index)}
                         key={item.id}
                       >
-                        <img
-                          src={catalogPhotoFor(item, index)}
-                          alt=""
-                          loading="lazy"
-                        />
+                        {photo ? (
+                          <img src={photo} alt="" loading="lazy" />
+                        ) : (
+                          <span className="day-place-catalog-photo-placeholder" aria-hidden="true">
+                            {item.name.slice(0, 1)}
+                          </span>
+                        )}
                         <span>
                           <small className="catalog-place-category">
                             {item.subcategory || item.group || "Достопримечательность"}
