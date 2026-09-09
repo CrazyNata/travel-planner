@@ -7171,6 +7171,21 @@ function RouteTab({
   const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
+  const orderedDraftDays = draftDays
+    .map((draftDay, sourceIndex) => ({
+      draftDay,
+      sourceIndex,
+      routeDate: routeDateForDay(startDate, draftDay, sourceIndex, accommodations),
+    }))
+    .sort((left, right) => {
+      if (left.routeDate && right.routeDate) {
+        return left.routeDate.localeCompare(right.routeDate) ||
+          left.sourceIndex - right.sourceIndex;
+      }
+      if (left.routeDate) return -1;
+      if (right.routeDate) return 1;
+      return left.sourceIndex - right.sourceIndex;
+    });
   useEffect(
     () =>
       setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))),
@@ -7245,12 +7260,12 @@ function RouteTab({
               Планирование по дням · добавляйте автопереезды и дорожные заметки
             </span>
           </div>
-          {draftDays.map((draftDay, index) => (
+          {orderedDraftDays.map(({ draftDay, sourceIndex, routeDate }, index) => (
             <DraftRouteCard
               day={draftDay}
               index={index}
-              routeDate={routeDateForDay(startDate, draftDay, index, accommodations)}
-              editing={editingRoadDay === index}
+              routeDate={routeDate}
+              editing={editingRoadDay === sourceIndex}
               dragDisabled={editingRoadDay !== null}
               selected={selectedRouteDay === index}
               dragging={draggedDay === index}
@@ -7259,23 +7274,27 @@ function RouteTab({
               onEdit={() => {
                 setDraggedDay(null);
                 setDropTargetDay(null);
-                onEditingRoadDayChange?.(index);
+                onEditingRoadDayChange?.(sourceIndex);
               }}
-              onChange={(roadLeg) => onUpdateDraftDay?.(index, { roadLeg })}
+              onChange={(roadLeg) => onUpdateDraftDay?.(sourceIndex, { roadLeg })}
               onSave={(roadLeg) => {
-                onUpdateDraftDay?.(index, { roadLeg });
+                onUpdateDraftDay?.(sourceIndex, { roadLeg });
                 onEditingRoadDayChange?.(null);
               }}
               onCancel={() => onEditingRoadDayChange?.(null)}
-              onDelete={() => onDeleteDraftDay?.(index)}
+              onDelete={() => onDeleteDraftDay?.(sourceIndex)}
               onDragStart={() => {
                 setDraggedDay(index);
                 setDropTargetDay(index);
               }}
               onDragOver={() => setDropTargetDay(index)}
               onDrop={() => {
-                if (draggedDay !== null && draggedDay !== index)
-                  onReorderDraftDays?.(draggedDay, index);
+                const draggedSourceIndex =
+                  draggedDay === null
+                    ? null
+                    : orderedDraftDays[draggedDay]?.sourceIndex;
+                if (draggedSourceIndex !== null && draggedSourceIndex !== sourceIndex)
+                  onReorderDraftDays?.(draggedSourceIndex, sourceIndex);
                 setDraggedDay(null);
                 setDropTargetDay(null);
               }}
@@ -7291,7 +7310,10 @@ function RouteTab({
           </button>
         </div>
         <aside className="map-card">
-          <TripMap routeDays={draftDays} activeDay={selectedRouteDay} />
+          <TripMap
+            routeDays={orderedDraftDays.map(({ draftDay }) => draftDay)}
+            activeDay={selectedRouteDay}
+          />
           <footer>
             <span>Общий маршрут</span>
             <b>
