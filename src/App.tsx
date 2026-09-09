@@ -2131,20 +2131,81 @@ function routeDistancePathsFor(days: DraftDay[]) {
 
 type RoutedDistance = { distance: number; duration: number };
 
+async function fetchWithTimeout(url: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8_000);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function openStreetMapRouter(profile: RouteTravelProfile) {
   if (profile === "walking") return "routed-foot";
   if (profile === "cycling") return "routed-bike";
   return "routed-car";
 }
 
-async function loadRoutedDistance(url: string): Promise<RoutedDistance | null> {
+async function loadRoutedDistance(
+  url: string,
+  init?: RequestInit,
+): Promise<RoutedDistance | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, init);
     if (!response.ok) return null;
     const data = (await response.json()) as {
       routes?: RoutedDistance[];
     };
     return data.routes?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function valhallaCosting(profile: RouteTravelProfile) {
+  if (profile === "walking") return "pedestrian";
+  if (profile === "cycling") return "bicycle";
+  return "auto";
+}
+
+async function loadValhallaDistance(
+  coordinates: RouteCoordinate[],
+  profile: RouteTravelProfile,
+): Promise<RoutedDistance | null> {
+  try {
+    const response = await fetchWithTimeout(
+      "https://valhalla1.openstreetmap.de/route",
+      {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          locations: coordinates.map(([longitude, latitude]) => ({
+            lat: latitude,
+            lon: longitude,
+          })),
+          costing: valhallaCosting(profile),
+          units: "kilometers",
+        }),
+      },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as {
+      trip?: { summary?: { length?: number; time?: number } };
+    };
+    const summary = data.trip?.summary;
+    const routeLength = summary?.length;
+    const routeTime = summary?.time;
+    if (
+      !Number.isFinite(routeLength) ||
+      routeLength === undefined ||
+      routeLength < 0
+    )
+      return null;
+    return {
+      distance: routeLength * 1000,
+      duration: Number.isFinite(routeTime) ? Math.max(0, routeTime || 0) : 0,
+    };
   } catch {
     return null;
   }
@@ -2168,6 +2229,8 @@ async function loadRouteTotals(
         );
         if (mapboxRoute) return mapboxRoute;
       }
+      const valhallaRoute = await loadValhallaDistance(coordinates, profile);
+      if (valhallaRoute) return valhallaRoute;
       return loadRoutedDistance(
         `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
       );

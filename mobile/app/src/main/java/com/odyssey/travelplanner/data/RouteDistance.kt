@@ -263,7 +263,45 @@ private suspend fun routeDistanceMeters(
     profile: String,
     mapboxAccessToken: String,
 ): Double? = mapboxRouteDistanceMeters(coordinates, profile, mapboxAccessToken)
+    ?: valhallaRouteDistanceMeters(coordinates, profile)
     ?: openStreetMapRouteDistanceMeters(coordinates, profile)
+
+private fun valhallaCosting(profile: String): String = when (profile) {
+    "walking" -> "pedestrian"
+    "cycling" -> "bicycle"
+    else -> "auto"
+}
+
+private suspend fun valhallaRouteDistanceMeters(
+    coordinates: List<CityLocation>,
+    profile: String,
+): Double? = withContext(Dispatchers.IO) {
+    if (coordinates.size > 25) return@withContext null
+    val locations = coordinates.joinToString(",", prefix = "[", postfix = "]") {
+        "{\"lat\":${it.latitude},\"lon\":${it.longitude}}"
+    }
+    val body = "{\"locations\":$locations,\"costing\":\"${valhallaCosting(profile)}\",\"units\":\"kilometers\"}"
+    val connection = runCatching {
+        URL("https://valhalla1.openstreetmap.de/route").openConnection() as HttpURLConnection
+    }.getOrNull() ?: return@withContext null
+    try {
+        connection.connectTimeout = 8_000
+        connection.readTimeout = 8_000
+        connection.requestMethod = "POST"
+        connection.doOutput = true
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Content-Type", "text/plain")
+        connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
+        connection.outputStream.bufferedWriter().use { it.write(body) }
+        if (connection.responseCode !in 200..299) return@withContext null
+        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+        parseValhallaRouteDistance(responseBody)
+    } catch (_: Exception) {
+        null
+    } finally {
+        connection.disconnect()
+    }
+}
 
 private fun openStreetMapRouter(profile: String): String = when (profile) {
     "walking" -> "routed-foot"
@@ -336,4 +374,17 @@ private fun parseRouteDistance(body: String): Double? = runCatching {
         ?.jsonPrimitive
         ?.doubleOrNull
         ?.takeIf { it.isFinite() && it >= 0.0 }
+}.getOrNull()
+
+private fun parseValhallaRouteDistance(body: String): Double? = runCatching {
+    Json.parseToJsonElement(body)
+        .jsonObject["trip"]
+        ?.jsonObject
+        ?.get("summary")
+        ?.jsonObject
+        ?.get("length")
+        ?.jsonPrimitive
+        ?.doubleOrNull
+        ?.takeIf { it.isFinite() && it >= 0.0 }
+        ?.times(1000.0)
 }.getOrNull()
