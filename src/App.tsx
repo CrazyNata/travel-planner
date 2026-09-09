@@ -7186,6 +7186,10 @@ function RouteTab({
       if (right.routeDate) return 1;
       return left.sourceIndex - right.sourceIndex;
     });
+  const visibleDraftDays = orderedDraftDays.filter(
+    ({ draftDay, sourceIndex }) =>
+      Boolean(draftDay.roadLeg) || editingRoadDay === sourceIndex,
+  );
   useEffect(
     () =>
       setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))),
@@ -7260,7 +7264,7 @@ function RouteTab({
               Планирование по дням · добавляйте автопереезды и дорожные заметки
             </span>
           </div>
-          {orderedDraftDays.map(({ draftDay, sourceIndex, routeDate }, index) => (
+          {visibleDraftDays.map(({ draftDay, sourceIndex, routeDate }, index) => (
             <DraftRouteCard
               day={draftDay}
               index={index}
@@ -7292,7 +7296,7 @@ function RouteTab({
                 const draggedSourceIndex =
                   draggedDay === null
                     ? null
-                    : orderedDraftDays[draggedDay]?.sourceIndex;
+                    : visibleDraftDays[draggedDay]?.sourceIndex;
                 if (draggedSourceIndex !== null && draggedSourceIndex !== sourceIndex)
                   onReorderDraftDays?.(draggedSourceIndex, sourceIndex);
                 setDraggedDay(null);
@@ -7305,13 +7309,20 @@ function RouteTab({
               key={draftDay.id}
             />
           ))}
-          <button className="add-route-day" onClick={onAddDraftDay}>
-            ＋ Добавить день
+          <button
+            className="add-route-day"
+            onClick={() => {
+              const newDayIndex = draftDays.length;
+              onAddDraftDay?.();
+              onEditingRoadDayChange?.(newDayIndex);
+            }}
+          >
+            ＋ Добавить маршрут
           </button>
         </div>
         <aside className="map-card">
           <TripMap
-            routeDays={orderedDraftDays.map(({ draftDay }) => draftDay)}
+            routeDays={visibleDraftDays.map(({ draftDay }) => draftDay)}
             activeDay={selectedRouteDay}
           />
           <footer>
