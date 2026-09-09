@@ -204,6 +204,35 @@ class TripRouteScheduleTest {
         )
     }
 
+    @Test
+    fun explicitRoadLegDateOverridesTheAccommodationStay() {
+        val accommodations = listOf(
+            Accommodation(
+                id = "milan-stay",
+                city = "Милан",
+                name = "Милан",
+                dates = "2026-10-03 – 2026-10-06",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 10, 4),
+            routeDateFromAccommodations(
+                from = "Милан",
+                to = "Комо",
+                accommodations = accommodations,
+                startDate = LocalDate.of(2026, 10, 3),
+                fallbackIndex = 0,
+                explicitDate = "2026-10-04",
+            ),
+        )
+    }
+
     private fun routeDay(id: String, date: String, from: String, to: String) = buildJsonObject {
         put("id", id)
         put("city", to)

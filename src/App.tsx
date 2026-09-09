@@ -1444,6 +1444,11 @@ function routeDateForDay(
   const roadLeg = day.roadLeg;
   if (!roadLeg) return fallbackDate;
 
+  const explicitDate = /^\d{4}-\d{2}-\d{2}$/.test(roadLeg.date || "")
+    ? roadLeg.date || ""
+    : "";
+  if (explicitDate) return explicitDate;
+
   const fallbackYear = startDate
     ? new Date(`${startDate}T00:00:00Z`).getUTCFullYear()
     : new Date().getUTCFullYear();
@@ -1473,10 +1478,7 @@ function routeDateForDay(
       accommodationDateParts(stay.dates, fallbackYear).checkIn,
     ),
   );
-  const explicitDate = /^\d{4}-\d{2}-\d{2}$/.test(roadLeg.date || "")
-    ? roadLeg.date || ""
-    : "";
-  return fromCheckOut || toCheckIn || explicitDate || fallbackDate;
+  return fromCheckOut || toCheckIn || fallbackDate;
 }
 
 function formatAccommodationDates(value: string) {
@@ -6762,6 +6764,7 @@ function RoadLegEditor({
 }) {
   const [from, setFrom] = useState(roadLeg?.from || "");
   const [to, setTo] = useState(roadLeg?.to || "");
+  const [date, setDate] = useState(roadLeg?.date || "");
   const [checkInFrom, setCheckInFrom] = useState(roadLeg?.checkInFrom || "");
   const [checkInTo, setCheckInTo] = useState(roadLeg?.checkInTo || "");
   const [checkOutFrom, setCheckOutFrom] = useState(roadLeg?.checkOutFrom || "");
@@ -6776,7 +6779,7 @@ function RoadLegEditor({
   latestRoadLeg.current = {
     from: from.trim(),
     to: to.trim(),
-    date: roadLeg?.date,
+    date: date || undefined,
     checkInFrom,
     checkInTo,
     checkOutFrom,
@@ -6803,7 +6806,7 @@ function RoadLegEditor({
         emitChange({
           from: from.trim(),
           to: to.trim(),
-          date: roadLeg?.date,
+          date: date || undefined,
           checkInFrom,
           checkInTo,
           checkOutFrom,
@@ -6817,6 +6820,7 @@ function RoadLegEditor({
   }, [
     from,
     to,
+    date,
     checkInFrom,
     checkInTo,
     checkOutFrom,
@@ -6840,7 +6844,7 @@ function RoadLegEditor({
         onSave({
           from: from.trim(),
           to: to.trim(),
-          date: roadLeg?.date,
+          date: date || undefined,
           checkInFrom,
           checkInTo,
           checkOutFrom,
@@ -6870,6 +6874,14 @@ function RoadLegEditor({
             value={to}
             onChange={(event) => setTo(event.target.value)}
             placeholder="Например, Верона"
+          />
+        </label>
+        <label>
+          Дата маршрута
+          <input
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
           />
         </label>
       </div>

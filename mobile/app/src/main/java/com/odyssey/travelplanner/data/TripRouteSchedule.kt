@@ -162,9 +162,10 @@ private fun closestAccommodationDate(dates: List<LocalDate>, fallback: LocalDate
 }
 
 /**
- * Uses lodging dates to place a road leg on the day the traveler leaves the
- * current stay. The destination check-in is the fallback for incomplete
- * lodging data; explicit or trip-index dates are only the last fallback.
+ * Uses an explicit road-leg date when one was entered. This is important for
+ * day trips that start and end during the same accommodation stay. Lodging
+ * dates place undated legs on the day the traveler leaves the current stay;
+ * the destination check-in is the fallback for incomplete lodging data.
  */
 internal fun routeDateFromAccommodations(
     from: String,
@@ -175,6 +176,7 @@ internal fun routeDateFromAccommodations(
     explicitDate: String = "",
 ): LocalDate? {
     val fallback = startDate?.plusDays(fallbackIndex.toLong())
+    parseRouteDate(explicitDate, startDate?.year)?.let { return it }
     val fromCheckOut = accommodations
         .filter { citiesMatch(it.city, from) }
         .mapNotNull { accommodationDateRange(it.dates, startDate?.year)?.second }
@@ -185,7 +187,6 @@ internal fun routeDateFromAccommodations(
         .let { closestAccommodationDate(it, fallback) }
     return fromCheckOut
         ?: toCheckIn
-        ?: parseRouteDate(explicitDate, startDate?.year)
         ?: fallback
 }
 
