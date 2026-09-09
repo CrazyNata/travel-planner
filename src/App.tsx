@@ -1939,6 +1939,18 @@ type RouteTotals = {
   approximate?: boolean;
 };
 
+// Ramingo route-distance rule:
+// 1. Preserve the ordered origin, waypoints, destination, and travel mode
+//    from the saved Google Maps link.
+// 2. Measure that ordered path with a road/path routing provider.
+// 3. Use straight-line distance only when every provider is unavailable and
+//    keep the result visibly approximate (≈).
+const routeDistancePolicy = {
+  endpointToleranceMeters: 75_000,
+  maxCoordinatesPerRoute: 25,
+  requestTimeoutMs: 8_000,
+} as const;
+
 function coordinateFromMapsPart(value: string): RouteCoordinate | null {
   const match = value.trim().match(
     /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/,
@@ -2042,7 +2054,7 @@ function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
   ) => Boolean(
     endpoint &&
       city &&
-      straightLineDistanceMeters(endpoint, city) <= 75_000,
+      straightLineDistanceMeters(endpoint, city) <= routeDistancePolicy.endpointToleranceMeters,
   );
   if (parsedMapRoute.fromQuery && parsedMapRoute.coordinates.length) {
     return uniqueRouteCoordinates([
@@ -2133,7 +2145,10 @@ type RoutedDistance = { distance: number; duration: number };
 
 async function fetchWithTimeout(url: string, init?: RequestInit) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 8_000);
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    routeDistancePolicy.requestTimeoutMs,
+  );
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -2219,7 +2234,7 @@ async function loadRouteTotals(
   if (!fallbackTotals) return null;
   const routes = await Promise.all(
     paths.map(async ({ coordinates, profile }) => {
-      if (coordinates.length > 25) return null;
+      if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
       const path = coordinates.map(([longitude, latitude]) =>
         `${longitude},${latitude}`,
       ).join(";");

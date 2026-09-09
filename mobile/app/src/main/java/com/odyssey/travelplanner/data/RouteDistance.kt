@@ -29,6 +29,17 @@ internal data class RouteLegCoordinates(
 
 private const val EarthRadiusKm = 6_371.0088
 
+/**
+ * Ramingo route-distance rule shared by every Android route screen:
+ * preserve ordered map stops and travel mode, ask a routing provider for the
+ * network distance, and mark the straight-line fallback as approximate.
+ */
+private object RouteDistancePolicy {
+    const val endpointToleranceKm = 75.0
+    const val maxCoordinatesPerRoute = 25
+    const val requestTimeoutMs = 8_000
+}
+
 private data class RouteDistancePath(
     val coordinates: List<CityLocation>,
     val profile: String,
@@ -111,7 +122,7 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
     )
 }
 
-private fun googleTravelProfile(mapsUrl: String): String {
+internal fun googleTravelProfile(mapsUrl: String): String {
     val travelMode = runCatching { Uri.parse(mapsUrl).getQueryParameter("travelmode") }
         .getOrNull()
         ?.lowercase()
@@ -127,8 +138,8 @@ private suspend fun resolveGoogleRedirect(mapsUrl: String): String = withContext
     val connection = runCatching { URL(mapsUrl).openConnection() as HttpURLConnection }.getOrNull()
         ?: return@withContext mapsUrl
     try {
-        connection.connectTimeout = 8_000
-        connection.readTimeout = 8_000
+        connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
+        connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
         connection.requestMethod = "GET"
         connection.instanceFollowRedirects = true
         connection.useCaches = false
@@ -175,7 +186,8 @@ private suspend fun routeDistancePath(
     val resolvedUrl = resolveGoogleRedirect(leg.mapsUrl)
     val parsedMapRoute = googleRouteCoordinates(resolvedUrl)
     fun endpointMatchesCity(endpoint: CityLocation?, city: CityLocation): Boolean =
-        endpoint != null && straightLineDistanceKm(endpoint, city) <= 75.0
+        endpoint != null &&
+            straightLineDistanceKm(endpoint, city) <= RouteDistancePolicy.endpointToleranceKm
     val coordinates = when {
         parsedMapRoute.fromQuery && parsedMapRoute.coordinates.isNotEmpty() -> uniqueConsecutiveCoordinates(
             buildList {
@@ -276,7 +288,7 @@ private suspend fun valhallaRouteDistanceMeters(
     coordinates: List<CityLocation>,
     profile: String,
 ): Double? = withContext(Dispatchers.IO) {
-    if (coordinates.size > 25) return@withContext null
+    if (coordinates.size > RouteDistancePolicy.maxCoordinatesPerRoute) return@withContext null
     val locations = coordinates.joinToString(",", prefix = "[", postfix = "]") {
         "{\"lat\":${it.latitude},\"lon\":${it.longitude}}"
     }
@@ -285,8 +297,8 @@ private suspend fun valhallaRouteDistanceMeters(
         URL("https://valhalla1.openstreetmap.de/route").openConnection() as HttpURLConnection
     }.getOrNull() ?: return@withContext null
     try {
-        connection.connectTimeout = 8_000
-        connection.readTimeout = 8_000
+        connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
+        connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
         connection.requestMethod = "POST"
         connection.doOutput = true
         connection.setRequestProperty("Accept", "application/json")
@@ -313,7 +325,7 @@ private suspend fun openStreetMapRouteDistanceMeters(
     coordinates: List<CityLocation>,
     profile: String,
 ): Double? = withContext(Dispatchers.IO) {
-    if (coordinates.size > 25) return@withContext null
+    if (coordinates.size > RouteDistancePolicy.maxCoordinatesPerRoute) return@withContext null
     val path = coordinates.joinToString(";") { "${it.longitude},${it.latitude}" }
     val endpoint = "https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/" +
         path +
@@ -321,8 +333,8 @@ private suspend fun openStreetMapRouteDistanceMeters(
     val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }.getOrNull()
         ?: return@withContext null
     try {
-        connection.connectTimeout = 8_000
-        connection.readTimeout = 8_000
+        connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
+        connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
         connection.requestMethod = "GET"
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
@@ -341,7 +353,7 @@ private suspend fun mapboxRouteDistanceMeters(
     profile: String,
     accessToken: String,
 ): Double? = withContext(Dispatchers.IO) {
-    if (coordinates.size > 25 || accessToken.isBlank()) return@withContext null
+    if (coordinates.size > RouteDistancePolicy.maxCoordinatesPerRoute || accessToken.isBlank()) return@withContext null
     val encodedToken = URLEncoder.encode(accessToken, StandardCharsets.UTF_8.toString())
     val path = coordinates.joinToString(";") { "${it.longitude},${it.latitude}" }
     val endpoint = "https://api.mapbox.com/directions/v5/mapbox/$profile/" +
@@ -350,8 +362,8 @@ private suspend fun mapboxRouteDistanceMeters(
     val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }.getOrNull()
         ?: return@withContext null
     try {
-        connection.connectTimeout = 8_000
-        connection.readTimeout = 8_000
+        connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
+        connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
         connection.requestMethod = "GET"
         connection.setRequestProperty("Accept", "application/json")
         if (connection.responseCode !in 200..299) return@withContext null
