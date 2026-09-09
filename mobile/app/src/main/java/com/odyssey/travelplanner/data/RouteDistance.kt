@@ -98,7 +98,7 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
         destination = null,
     )
     if (mapsUrl.isBlank()) return emptyResult
-    val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyResult
+    val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull()
     val origin = googleQueryParameter(mapsUrl, "origin")
     val waypoints = googleQueryParameter(mapsUrl, "waypoints")
     val destination = googleQueryParameter(mapsUrl, "destination")
@@ -124,7 +124,7 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
         )
     }
 
-    val directionPath = uri.path
+    val directionPath = (uri?.path ?: runCatching { URI(mapsUrl).path }.getOrNull())
         ?.substringAfter("/dir/", "")
         ?.substringBefore("/@", "")
         .orEmpty()
