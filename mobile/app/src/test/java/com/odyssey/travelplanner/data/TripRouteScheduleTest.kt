@@ -137,6 +137,73 @@ class TripRouteScheduleTest {
         )
     }
 
+    @Test
+    fun lodgingCheckoutDatePlacesTheRouteAfterAStationaryStay() {
+        val accommodations = listOf(
+            Accommodation(
+                id = "prague-stay",
+                city = "Прага",
+                name = "Прага",
+                dates = "2026-12-19 – 2026-12-22",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+            Accommodation(
+                id = "munich-stay",
+                city = "Мюнхен",
+                name = "Мюнхен",
+                dates = "2026-12-22 – 2026-12-24",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 12, 22),
+            routeDateFromAccommodations(
+                from = "Прага",
+                to = "Мюнхен",
+                accommodations = accommodations,
+                startDate = LocalDate.of(2026, 12, 19),
+                fallbackIndex = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun destinationCheckInDateIsUsedWhenTheOriginStayIsMissing() {
+        val accommodations = listOf(
+            Accommodation(
+                id = "munich-stay",
+                city = "Мюнхен",
+                name = "Мюнхен",
+                dates = "2026-12-24 – 2026-12-26",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 12, 24),
+            routeDateFromAccommodations(
+                from = "Прага",
+                to = "Мюнхен",
+                accommodations = accommodations,
+                startDate = LocalDate.of(2026, 12, 19),
+                fallbackIndex = 0,
+            ),
+        )
+    }
+
     private fun routeDay(id: String, date: String, from: String, to: String) = buildJsonObject {
         put("id", id)
         put("city", to)

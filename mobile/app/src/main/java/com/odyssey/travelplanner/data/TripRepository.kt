@@ -753,7 +753,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val days = row.payload["days"]?.jsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
         val routeStartDate = tripStartDate(row.payload)
         val orderedRouteIds = routeDayIdsInDateOrder(days, routeStartDate)
-        val legs = routeDayObjectsInDateOrder(days, routeStartDate).mapIndexedNotNull { routeIndex, day ->
+        val rawLegs = routeDayObjectsInDateOrder(days, routeStartDate).mapIndexedNotNull { routeIndex, day ->
             val dayData = day
             val roadLeg = dayData["roadLeg"]?.jsonObject ?: return@mapIndexedNotNull null
             val from = roadLeg["from"]?.jsonPrimitive?.contentOrNull ?: return@mapIndexedNotNull null
@@ -829,6 +829,22 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 phone = accommodationText("phone"),
                 type = accommodationText("type").ifBlank { accommodationText("category") },
                 tripCityId = accommodationText("tripCityId"),
+            )
+        }
+        val legs = rawLegs.mapIndexed { routeIndex, leg ->
+            val scheduledDate = routeDateFromAccommodations(
+                from = leg.from,
+                to = leg.to,
+                accommodations = accommodations,
+                startDate = routeStartDate,
+                fallbackIndex = routeIndex,
+                explicitDate = leg.date,
+            )
+            if (scheduledDate == null) leg else leg.copy(
+                date = scheduledDate.toString(),
+                dateDay = "",
+                dateMonth = "",
+                weekday = "",
             )
         }
         val expenses = row.payload["budgetExpenses"]?.jsonArray.orEmpty().mapNotNull { item ->

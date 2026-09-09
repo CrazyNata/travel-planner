@@ -38,6 +38,7 @@ type Tab =
 type RoadLeg = {
   from: string;
   to: string;
+  date?: string;
   checkInFrom: string;
   checkInTo: string;
   checkOutFrom: string;
@@ -419,6 +420,7 @@ function isAutomaticBudgetExpense(expense: BudgetExpense) {
 type StoredDay = {
   id?: string;
   city?: string;
+  date?: string;
   dayMapUrl?: string;
   checkInFrom?: string;
   checkInTo?: string;
@@ -665,11 +667,18 @@ function parseTripDateRange(value: string) {
   return [iso(match[3], startMonth, match[1]), iso(match[6], endMonth, match[4])] as const;
 }
 
-function formatRouteDayBadge(startDate: string | undefined, offset: number) {
-  if (!startDate) return null;
+function isoDateAt(startDate: string | undefined, offset: number) {
+  if (!startDate) return "";
   const date = new Date(`${startDate}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return null;
+  if (Number.isNaN(date.getTime())) return "";
   date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatRouteDateBadge(dateValue: string | undefined) {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
   return {
     day: String(date.getUTCDate()),
     month: new Intl.DateTimeFormat("ru-RU", {
@@ -896,6 +905,7 @@ function savedTrip(payload: StoredTripPayload): TripSummary | null {
           ? {
               from,
               to,
+              date: day.date || "",
               checkInFrom: day.checkInFrom || "",
               checkInTo: day.checkInTo || "",
               checkOutFrom: day.checkOutFrom || "",
@@ -1358,7 +1368,10 @@ const accommodationMonthNumbers: Record<string, number> = {
   dec: 12,
 };
 
-function accommodationDateParts(value?: string) {
+function accommodationDateParts(
+  value?: string,
+  fallbackYear = new Date().getFullYear(),
+) {
   const raw = value?.trim() || "";
   if (!raw) return { checkIn: "", checkOut: "" };
 
@@ -1387,7 +1400,7 @@ function accommodationDateParts(value?: string) {
   const monthForSecond = secondMonth || firstMonth;
   if (!monthForFirst || !monthForSecond) return { checkIn: "", checkOut: "" };
 
-  const year = Number(raw.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear());
+  const year = Number(raw.match(/\b(20\d{2})\b/)?.[1] || fallbackYear);
   const secondYear = secondMonth && firstMonth && secondMonth < firstMonth ? year + 1 : year;
   const toIso = (day: string, month: number, dateYear: number) => {
     const date = new Date(Date.UTC(dateYear, month - 1, Number(day)));
@@ -1400,6 +1413,70 @@ function accommodationDateParts(value?: string) {
     checkIn: toIso(range[1], monthForFirst, year),
     checkOut: toIso(range[3], monthForSecond, secondYear),
   };
+}
+
+function normalizeCityForMatch(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function citiesMatch(left: string, right: string) {
+  const normalizedLeft = normalizeCityForMatch(left);
+  const normalizedRight = normalizeCityForMatch(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+  return normalizedLeft === normalizedRight ||
+    normalizedLeft.startsWith(`${normalizedRight} `) ||
+    normalizedRight.startsWith(`${normalizedLeft} `);
+}
+
+function routeDateForDay(
+  startDate: string | undefined,
+  day: DraftDay,
+  index: number,
+  accommodations: SavedAccommodation[] = [],
+) {
+  const fallbackDate = isoDateAt(startDate, index);
+  const roadLeg = day.roadLeg;
+  if (!roadLeg) return fallbackDate;
+
+  const fallbackYear = startDate
+    ? new Date(`${startDate}T00:00:00Z`).getUTCFullYear()
+    : new Date().getUTCFullYear();
+  const fallbackTimestamp = Date.parse(`${fallbackDate}T00:00:00Z`);
+  const nearestDate = (dates: string[]) => {
+    const validDates = dates
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      .sort();
+    if (!validDates.length) return "";
+    const afterFallback = Number.isFinite(fallbackTimestamp)
+      ? validDates.find(
+          (date) => Date.parse(`${date}T00:00:00Z`) >= fallbackTimestamp,
+        )
+      : validDates[0];
+    return afterFallback || validDates[validDates.length - 1];
+  };
+  const staysIn = (city: string) => accommodations.filter((stay) =>
+    citiesMatch(stay.city, city),
+  );
+  const fromCheckOut = nearestDate(
+    staysIn(roadLeg.from).map((stay) =>
+      accommodationDateParts(stay.dates, fallbackYear).checkOut,
+    ),
+  );
+  const toCheckIn = nearestDate(
+    staysIn(roadLeg.to).map((stay) =>
+      accommodationDateParts(stay.dates, fallbackYear).checkIn,
+    ),
+  );
+  const explicitDate = /^\d{4}-\d{2}-\d{2}$/.test(roadLeg.date || "")
+    ? roadLeg.date || ""
+    : "";
+  return fromCheckOut || toCheckIn || explicitDate || fallbackDate;
 }
 
 function formatAccommodationDates(value: string) {
@@ -6699,6 +6776,7 @@ function RoadLegEditor({
   latestRoadLeg.current = {
     from: from.trim(),
     to: to.trim(),
+    date: roadLeg?.date,
     checkInFrom,
     checkInTo,
     checkOutFrom,
@@ -6725,6 +6803,7 @@ function RoadLegEditor({
         emitChange({
           from: from.trim(),
           to: to.trim(),
+          date: roadLeg?.date,
           checkInFrom,
           checkInTo,
           checkOutFrom,
@@ -6761,6 +6840,7 @@ function RoadLegEditor({
         onSave({
           from: from.trim(),
           to: to.trim(),
+          date: roadLeg?.date,
           checkInFrom,
           checkInTo,
           checkOutFrom,
@@ -6882,7 +6962,7 @@ function GoogleMapsLink({ url }: { url: string }) {
 function DraftRouteCard({
   day,
   index,
-  startDate,
+  routeDate,
   editing,
   dragDisabled,
   selected,
@@ -6901,7 +6981,7 @@ function DraftRouteCard({
 }: {
   day: DraftDay;
   index: number;
-  startDate?: string;
+  routeDate?: string;
   editing: boolean;
   dragDisabled: boolean;
   selected: boolean;
@@ -6919,7 +6999,7 @@ function DraftRouteCard({
   onDragEnd: () => void;
 }) {
   const roadLeg = day.roadLeg;
-  const dateBadge = formatRouteDayBadge(startDate, index);
+  const dateBadge = formatRouteDateBadge(routeDate);
   const routeMapsUrl = roadLeg
     ? roadLeg.mapsUrl || mapsUrl(roadLeg.from, roadLeg.to)
     : "";
@@ -7053,6 +7133,7 @@ function RouteTab({
   isDraft = false,
   draftDays = [],
   startDate,
+  accommodations = [],
   editingRoadDay = null,
   onEditingRoadDayChange,
   onAddDraftDay,
@@ -7063,6 +7144,7 @@ function RouteTab({
   isDraft?: boolean;
   draftDays?: DraftDay[];
   startDate?: string;
+  accommodations?: SavedAccommodation[];
   editingRoadDay?: number | null;
   onEditingRoadDayChange?: (day: number | null) => void;
   onAddDraftDay?: () => void;
@@ -7154,7 +7236,7 @@ function RouteTab({
             <DraftRouteCard
               day={draftDay}
               index={index}
-              startDate={startDate}
+              routeDate={routeDateForDay(startDate, draftDay, index, accommodations)}
               editing={editingRoadDay === index}
               dragDisabled={editingRoadDay !== null}
               selected={selectedRouteDay === index}
@@ -14495,6 +14577,7 @@ function Workspace({
             isDraft={trip.isDraft}
             draftDays={draftDays}
             startDate={tripStartDate}
+            accommodations={trip.accommodations || []}
             editingRoadDay={editingRoadDay}
             onEditingRoadDayChange={setEditingRoadDay}
             onAddDraftDay={() =>
@@ -15704,6 +15787,7 @@ export function App() {
         ...existing,
         id: existing.id || day.id,
         city: leg ? `${leg.from} → ${leg.to}` : existing.city,
+        date: leg?.date || existing.date,
         dayMapUrl:
           leg?.mapsUrl ||
           (leg ? mapsUrl(leg.from, leg.to) : existing.dayMapUrl),

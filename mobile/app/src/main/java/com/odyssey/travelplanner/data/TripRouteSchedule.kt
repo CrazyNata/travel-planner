@@ -1,5 +1,6 @@
 package com.odyssey.travelplanner.data
 
+import java.text.Normalizer
 import java.time.LocalDate
 import java.util.Locale
 import kotlinx.serialization.json.JsonArray
@@ -93,6 +94,99 @@ private fun parseRouteDate(value: String, fallbackYear: Int?): LocalDate? {
         return runCatching { LocalDate.of(year, month, match.groupValues[1].toInt()) }.getOrNull()
     }
     return null
+}
+
+private fun normalizedCity(value: String): String =
+    Normalizer.normalize(value.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace("\\p{M}+".toRegex(), "")
+        .replace("[^\\p{L}\\p{N}]+".toRegex(), " ")
+        .trim()
+
+private fun citiesMatch(left: String, right: String): Boolean {
+    val normalizedLeft = normalizedCity(left)
+    val normalizedRight = normalizedCity(right)
+    if (normalizedLeft.isBlank() || normalizedRight.isBlank()) return false
+    return normalizedLeft == normalizedRight ||
+        normalizedLeft.startsWith("$normalizedRight ") ||
+        normalizedRight.startsWith("$normalizedLeft ")
+}
+
+private fun accommodationDateRange(value: String, fallbackYear: Int?): Pair<LocalDate, LocalDate>? {
+    val source = value.trim()
+    if (source.isBlank()) return null
+
+    val monthPattern = routeMonthIndices.keys.sortedByDescending(String::length)
+        .joinToString("|") { Regex.escape(it) }
+    val range = Regex(
+        """^\s*(\d{1,2})(?:\s+($monthPattern))?\s*[–-]\s*(\d{1,2})(?:\s+($monthPattern))?(?:\s+(\d{4}))?""",
+        RegexOption.IGNORE_CASE,
+    ).find(source)
+    if (range != null) {
+        val firstMonth = range.groupValues[2].takeIf(String::isNotBlank)
+            ?.let { routeMonthIndices[it.lowercase(Locale.ROOT).removeSuffix(".")] }
+        val secondMonth = range.groupValues[4].takeIf(String::isNotBlank)
+            ?.let { routeMonthIndices[it.lowercase(Locale.ROOT).removeSuffix(".")] }
+        val firstMonthValue = firstMonth ?: secondMonth
+        val secondMonthValue = secondMonth ?: firstMonth
+        val year = range.groupValues[5].toIntOrNull()
+            ?: Regex("\\b(20\\d{2})\\b").find(source)?.groupValues?.get(1)?.toIntOrNull()
+            ?: fallbackYear
+        if (firstMonthValue != null && secondMonthValue != null && year != null) {
+            val secondYear = if (secondMonthValue < firstMonthValue) year + 1 else year
+            val first = runCatching { LocalDate.of(year, firstMonthValue, range.groupValues[1].toInt()) }.getOrNull()
+            val second = runCatching { LocalDate.of(secondYear, secondMonthValue, range.groupValues[3].toInt()) }.getOrNull()
+            if (first != null && second != null) return first to second
+        }
+    }
+
+    val patterns = listOf(
+        Regex("""(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)"""),
+        Regex("""(?<!\d)\d{1,2}[./]\d{1,2}[./]\d{4}(?!\d)"""),
+        Regex("""(?<!\d)\d{1,2}\s+(?:$monthPattern)(?:\s+\d{4})?""", RegexOption.IGNORE_CASE),
+    )
+    val dates = patterns.asSequence()
+        .flatMap { pattern -> pattern.findAll(source).asSequence() }
+        .mapNotNull { match -> parseRouteDate(match.value, fallbackYear) }
+        .distinct()
+        .sorted()
+        .toList()
+    return if (dates.size >= 2) dates.first() to dates[1] else null
+}
+
+private fun closestAccommodationDate(dates: List<LocalDate>, fallback: LocalDate?): LocalDate? {
+    val sorted = dates.sorted()
+    if (sorted.isEmpty()) return null
+    return fallback?.let { date ->
+        sorted.firstOrNull { !it.isBefore(date) } ?: sorted.last()
+    } ?: sorted.first()
+}
+
+/**
+ * Uses lodging dates to place a road leg on the day the traveler leaves the
+ * current stay. The destination check-in is the fallback for incomplete
+ * lodging data; explicit or trip-index dates are only the last fallback.
+ */
+internal fun routeDateFromAccommodations(
+    from: String,
+    to: String,
+    accommodations: List<Accommodation>,
+    startDate: LocalDate?,
+    fallbackIndex: Int,
+    explicitDate: String = "",
+): LocalDate? {
+    val fallback = startDate?.plusDays(fallbackIndex.toLong())
+    val fromCheckOut = accommodations
+        .filter { citiesMatch(it.city, from) }
+        .mapNotNull { accommodationDateRange(it.dates, startDate?.year)?.second }
+        .let { closestAccommodationDate(it, fallback) }
+    val toCheckIn = accommodations
+        .filter { citiesMatch(it.city, to) }
+        .mapNotNull { accommodationDateRange(it.dates, startDate?.year)?.first }
+        .let { closestAccommodationDate(it, fallback) }
+    return fromCheckOut
+        ?: toCheckIn
+        ?: parseRouteDate(explicitDate, startDate?.year)
+        ?: fallback
 }
 
 internal fun tripStartDate(payload: JsonObject): LocalDate? {
