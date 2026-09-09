@@ -2,7 +2,9 @@ package com.odyssey.travelplanner.data
 
 import android.net.Uri
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +67,22 @@ private fun googleCoordinate(value: String): CityLocation? {
     return CityLocation(latitude = latitude, longitude = longitude)
 }
 
+private fun googleQueryParameter(mapsUrl: String, name: String): String? {
+    val rawQuery = runCatching { URI(mapsUrl).rawQuery }.getOrNull()
+    val decodedQueryValue = rawQuery
+        ?.split('&')
+        ?.firstNotNullOfOrNull { part ->
+            val separator = part.indexOf('=')
+            val rawKey = if (separator >= 0) part.substring(0, separator) else part
+            val rawValue = if (separator >= 0) part.substring(separator + 1) else ""
+            val key = runCatching { URLDecoder.decode(rawKey, "UTF-8") }.getOrNull()
+            if (key != name) return@firstNotNullOfOrNull null
+            runCatching { URLDecoder.decode(rawValue, "UTF-8") }.getOrNull()
+        }
+    return decodedQueryValue
+        ?: runCatching { Uri.parse(mapsUrl).getQueryParameter(name) }.getOrNull()
+}
+
 private fun uniqueConsecutiveCoordinates(coordinates: List<CityLocation>): List<CityLocation> =
     coordinates.filterIndexed { index, coordinate ->
         val previous = coordinates.getOrNull(index - 1)
@@ -81,9 +99,9 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
     )
     if (mapsUrl.isBlank()) return emptyResult
     val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyResult
-    val origin = uri.getQueryParameter("origin")
-    val waypoints = uri.getQueryParameter("waypoints")
-    val destination = uri.getQueryParameter("destination")
+    val origin = googleQueryParameter(mapsUrl, "origin")
+    val waypoints = googleQueryParameter(mapsUrl, "waypoints")
+    val destination = googleQueryParameter(mapsUrl, "destination")
     val hasQuery = origin != null || waypoints != null || destination != null
     val originCoordinate = origin?.let(::googleCoordinate)
     val waypointCoordinates = waypoints
@@ -123,8 +141,7 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
 }
 
 internal fun googleTravelProfile(mapsUrl: String): String {
-    val travelMode = runCatching { Uri.parse(mapsUrl).getQueryParameter("travelmode") }
-        .getOrNull()
+    val travelMode = googleQueryParameter(mapsUrl, "travelmode")
         ?.lowercase()
     return when (travelMode) {
         "walking" -> "walking"
