@@ -1,5 +1,6 @@
 package com.odyssey.travelplanner.data
 
+import android.net.Uri
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -14,6 +15,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.math.abs
 
 internal data class RouteDistanceSummary(
     val distanceKm: Double,
@@ -26,6 +28,82 @@ internal data class RouteLegCoordinates(
 )
 
 private const val EarthRadiusKm = 6_371.0088
+
+private data class RouteDistancePath(
+    val coordinates: List<CityLocation>,
+    val profile: String,
+)
+
+private val googleCoordinatePattern = Regex(
+    "^\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)\\s*$",
+)
+
+private fun googleCoordinate(value: String): CityLocation? {
+    val match = googleCoordinatePattern.matchEntire(value) ?: return null
+    val latitude = match.groupValues[1].toDoubleOrNull() ?: return null
+    val longitude = match.groupValues[2].toDoubleOrNull() ?: return null
+    if (!latitude.isFinite() || !longitude.isFinite() || abs(latitude) > 90.0 || abs(longitude) > 180.0) return null
+    return CityLocation(latitude = latitude, longitude = longitude)
+}
+
+private fun uniqueConsecutiveCoordinates(coordinates: List<CityLocation>): List<CityLocation> =
+    coordinates.filterIndexed { index, coordinate ->
+        val previous = coordinates.getOrNull(index - 1)
+        previous == null || previous.latitude != coordinate.latitude || previous.longitude != coordinate.longitude
+    }
+
+internal fun googleRouteCoordinates(mapsUrl: String): List<CityLocation> {
+    if (mapsUrl.isBlank()) return emptyList()
+    val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyList()
+    val queryCoordinates = listOf("origin", "waypoints", "destination")
+        .flatMap { key ->
+            uri.getQueryParameter(key)
+                ?.split('|', ';')
+                .orEmpty()
+        }
+        .mapNotNull(::googleCoordinate)
+    if (queryCoordinates.size >= 2) return uniqueConsecutiveCoordinates(queryCoordinates)
+
+    val directionPath = uri.path
+        ?.substringAfter("/dir/", "")
+        ?.substringBefore("/@", "")
+        .orEmpty()
+    return uniqueConsecutiveCoordinates(
+        directionPath.split('/').mapNotNull(::googleCoordinate),
+    )
+}
+
+private fun googleTravelProfile(mapsUrl: String): String {
+    val travelMode = runCatching { Uri.parse(mapsUrl).getQueryParameter("travelmode") }
+        .getOrNull()
+        ?.lowercase()
+    return when (travelMode) {
+        "walking" -> "walking"
+        "bicycling" -> "cycling"
+        else -> "driving"
+    }
+}
+
+private suspend fun resolveGoogleRedirect(mapsUrl: String): String = withContext(Dispatchers.IO) {
+    if (!mapsUrl.contains("maps.app.goo.gl") && !mapsUrl.contains("goo.gl/maps")) return@withContext mapsUrl
+    val connection = runCatching { URL(mapsUrl).openConnection() as HttpURLConnection }.getOrNull()
+        ?: return@withContext mapsUrl
+    try {
+        connection.connectTimeout = 8_000
+        connection.readTimeout = 8_000
+        connection.requestMethod = "GET"
+        connection.instanceFollowRedirects = true
+        connection.useCaches = false
+        connection.setRequestProperty("Accept", "text/html,application/xhtml+xml")
+        connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
+        connection.responseCode
+        connection.url?.toString()?.takeIf { it.isNotBlank() } ?: mapsUrl
+    } catch (_: Exception) {
+        mapsUrl
+    } finally {
+        connection.disconnect()
+    }
+}
 
 private fun resolveCityLocation(city: String, savedCoordinates: Map<String, CityLocation>): CityLocation? {
     savedCoordinates[city]?.let { return it }
@@ -48,6 +126,24 @@ internal fun routeLegCoordinates(
     val from = resolveCityLocation(leg.from, savedCoordinates) ?: return null
     val to = resolveCityLocation(leg.to, savedCoordinates) ?: return null
     return RouteLegCoordinates(from = from, to = to)
+}
+
+private suspend fun routeDistancePath(
+    leg: RouteLeg,
+    savedCoordinates: Map<String, CityLocation>,
+): RouteDistancePath? {
+    val from = resolveCityLocation(leg.from, savedCoordinates) ?: return null
+    val to = resolveCityLocation(leg.to, savedCoordinates) ?: return null
+    val resolvedUrl = resolveGoogleRedirect(leg.mapsUrl)
+    val mapCoordinates = googleRouteCoordinates(resolvedUrl)
+    val coordinates = when {
+        mapCoordinates.size >= 2 -> mapCoordinates
+        mapCoordinates.size == 1 -> uniqueConsecutiveCoordinates(listOf(from, mapCoordinates.first(), to))
+        else -> listOf(from, to)
+    }
+    return coordinates.takeIf { it.size >= 2 }?.let {
+        RouteDistancePath(coordinates = it, profile = googleTravelProfile(resolvedUrl))
+    }
 }
 
 internal fun straightLineDistanceKm(from: CityLocation, to: CityLocation): Double {
@@ -77,40 +173,51 @@ internal suspend fun loadRouteDistanceSummary(
     mapboxAccessToken: String,
 ): RouteDistanceSummary? {
     if (routeLegs.isEmpty()) return null
-    val coordinates = routeLegs.map { routeLegCoordinates(it, savedCoordinates) }
-    if (coordinates.any { it == null }) return null
-    val resolvedCoordinates = coordinates.filterNotNull()
-    val fallbackDistanceKm = resolvedCoordinates.sumOf { straightLineDistanceKm(it.from, it.to) }
+    val paths = supervisorScope {
+        routeLegs.map { leg ->
+            async { routeDistancePath(leg, savedCoordinates) }
+        }.awaitAll()
+    }
+    if (paths.any { it == null }) return null
+    val resolvedPaths = paths.filterNotNull()
+    val fallbackDistanceKm = resolvedPaths.sumOf { pathDistanceKm(it.coordinates) }
     val token = mapboxAccessToken.trim()
     if (token.isBlank()) {
         return RouteDistanceSummary(fallbackDistanceKm, isApproximate = true)
     }
 
-    val drivingDistances = supervisorScope {
-        resolvedCoordinates.map { leg ->
+    val routeDistances = supervisorScope {
+        resolvedPaths.map { path ->
             async {
-                mapboxDrivingDistanceMeters(leg.from, leg.to, token)
+                mapboxRouteDistanceMeters(path.coordinates, path.profile, token)
             }
         }.awaitAll()
     }
-    return if (drivingDistances.all { it != null }) {
-        RouteDistanceSummary(
-            distanceKm = drivingDistances.filterNotNull().sum() / 1000.0,
-            isApproximate = false,
-        )
-    } else {
-        RouteDistanceSummary(fallbackDistanceKm, isApproximate = true)
+    if (!routeDistances.any { it != null }) {
+        return RouteDistanceSummary(fallbackDistanceKm, isApproximate = true)
     }
+    val distanceKm = resolvedPaths.indices.sumOf { index ->
+        (routeDistances[index] ?: pathDistanceKm(resolvedPaths[index].coordinates) * 1000.0) / 1000.0
+    }
+    return RouteDistanceSummary(
+        distanceKm = distanceKm,
+        isApproximate = routeDistances.any { it == null },
+    )
 }
 
-private suspend fun mapboxDrivingDistanceMeters(
-    from: CityLocation,
-    to: CityLocation,
+private fun pathDistanceKm(coordinates: List<CityLocation>): Double =
+    coordinates.zipWithNext().sumOf { (from, to) -> straightLineDistanceKm(from, to) }
+
+private suspend fun mapboxRouteDistanceMeters(
+    coordinates: List<CityLocation>,
+    profile: String,
     accessToken: String,
 ): Double? = withContext(Dispatchers.IO) {
+    if (coordinates.size > 25) return@withContext null
     val encodedToken = URLEncoder.encode(accessToken, StandardCharsets.UTF_8.toString())
-    val endpoint = "https://api.mapbox.com/directions/v5/mapbox/driving/" +
-        "${from.longitude},${from.latitude};${to.longitude},${to.latitude}" +
+    val path = coordinates.joinToString(";") { "${it.longitude},${it.latitude}" }
+    val endpoint = "https://api.mapbox.com/directions/v5/mapbox/$profile/" +
+        path +
         "?overview=false&access_token=$encodedToken"
     val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }.getOrNull()
         ?: return@withContext null

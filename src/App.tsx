@@ -1920,12 +1920,96 @@ function mapLocation(city: string) {
   )?.[1];
 }
 
-type RouteCoordinateLeg = [[number, number], [number, number]];
+type RouteCoordinate = [number, number];
+type RouteTravelProfile = "driving" | "walking" | "cycling";
+type RouteDistancePath = {
+  coordinates: RouteCoordinate[];
+  profile: RouteTravelProfile;
+};
 type RouteTotals = {
   distance: number;
   duration: number;
   approximate?: boolean;
 };
+
+function coordinateFromMapsPart(value: string): RouteCoordinate | null {
+  const match = value.trim().match(
+    /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/,
+  );
+  if (!match) return null;
+  const latitude = Number(match[1]);
+  const longitude = Number(match[2]);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  )
+    return null;
+  return [longitude, latitude];
+}
+
+function uniqueRouteCoordinates(coordinates: RouteCoordinate[]) {
+  return coordinates.filter((coordinate, index) => {
+    const previous = coordinates[index - 1];
+    return !previous || previous[0] !== coordinate[0] || previous[1] !== coordinate[1];
+  });
+}
+
+function routeCoordinatesFromMapsUrl(mapsUrl: string): RouteCoordinate[] {
+  if (!mapsUrl.trim()) return [];
+  try {
+    const url = new URL(mapsUrl);
+    const queryCoordinates = ["origin", "waypoints", "destination"]
+      .flatMap((key) => url.searchParams.get(key)?.split(/[|;]/) || [])
+      .map(coordinateFromMapsPart)
+      .filter((coordinate): coordinate is RouteCoordinate => Boolean(coordinate));
+    if (queryCoordinates.length >= 2) return uniqueRouteCoordinates(queryCoordinates);
+
+    const dirPath = url.pathname.split("/dir/")[1]?.split("/@")[0] || "";
+    const pathCoordinates = dirPath
+      .split("/")
+      .map(coordinateFromMapsPart)
+      .filter((coordinate): coordinate is RouteCoordinate => Boolean(coordinate));
+    return uniqueRouteCoordinates(pathCoordinates);
+  } catch {
+    return [];
+  }
+}
+
+function routeTravelProfile(mapsUrl: string): RouteTravelProfile {
+  try {
+    const mode = new URL(mapsUrl).searchParams.get("travelmode")?.toLowerCase();
+    if (mode === "walking") return "walking";
+    if (mode === "bicycling") return "cycling";
+  } catch {
+    // Use the app's default automobile profile for an invalid or short URL.
+  }
+  return "driving";
+}
+
+function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
+  const mapCoordinates = routeCoordinatesFromMapsUrl(leg.mapsUrl || "");
+  if (mapCoordinates.length >= 2) return mapCoordinates;
+  const cityCoordinates = [mapLocation(leg.from), mapLocation(leg.to)].filter(
+    (coordinate): coordinate is RouteCoordinate => Boolean(coordinate),
+  );
+  if (mapCoordinates.length === 1 && cityCoordinates.length === 2) {
+    return uniqueRouteCoordinates([
+      cityCoordinates[0],
+      mapCoordinates[0],
+      cityCoordinates[1],
+    ]);
+  }
+  return cityCoordinates;
+}
+
+function routeDistancePathForLeg(leg: RoadLeg): RouteDistancePath | null {
+  const coordinates = routeCoordinatesForLeg(leg);
+  return coordinates.length >= 2
+    ? { coordinates, profile: routeTravelProfile(leg.mapsUrl || "") }
+    : null;
+}
 
 function straightLineDistanceMeters(
   from: [number, number],
@@ -1945,15 +2029,73 @@ function straightLineDistanceMeters(
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function fallbackRouteTotals(legs: RouteCoordinateLeg[]): RouteTotals | null {
-  if (!legs.length) return null;
+function routePathDistanceMeters(coordinates: RouteCoordinate[]) {
+  return coordinates.slice(1).reduce(
+    (total, coordinate, index) =>
+      total + straightLineDistanceMeters(coordinates[index], coordinate),
+    0,
+  );
+}
+
+function fallbackRouteTotals(paths: RouteDistancePath[]): RouteTotals | null {
+  if (!paths.length) return null;
   return {
-    distance: legs.reduce(
-      (total, [from, to]) => total + straightLineDistanceMeters(from, to),
+    distance: paths.reduce(
+      (total, path) => total + routePathDistanceMeters(path.coordinates),
       0,
     ),
     duration: 0,
     approximate: true,
+  };
+}
+
+function routeDistancePathsFor(days: DraftDay[]) {
+  const routeDays = days.filter((day) => day.roadLeg);
+  if (!routeDays.length) return null;
+  const paths = routeDays.map((day) => routeDistancePathForLeg(day.roadLeg!));
+  return paths.every((path): path is RouteDistancePath => Boolean(path))
+    ? paths
+    : null;
+}
+
+async function loadRouteTotals(
+  paths: RouteDistancePath[],
+  token: string,
+): Promise<RouteTotals | null> {
+  const fallbackTotals = fallbackRouteTotals(paths);
+  if (!fallbackTotals || !token) return fallbackTotals;
+  const routes = await Promise.all(
+    paths.map(async ({ coordinates, profile }) => {
+      if (coordinates.length > 25) return null;
+      try {
+        const path = coordinates.map(([longitude, latitude]) =>
+          `${longitude},${latitude}`,
+        ).join(";");
+        const response = await fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${token}`,
+        );
+        if (!response.ok) return null;
+        const data = (await response.json()) as {
+          routes?: { distance: number; duration: number }[];
+        };
+        return data.routes?.[0] || null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  if (!routes.some(Boolean)) return fallbackTotals;
+  return {
+    distance: paths.reduce(
+      (total, path, index) =>
+        total + (routes[index]?.distance ?? routePathDistanceMeters(path.coordinates)),
+      0,
+    ),
+    duration: routes.reduce(
+      (total, route) => total + (route?.duration || 0),
+      0,
+    ),
+    approximate: routes.some((route) => !route),
   };
 }
 
@@ -2042,11 +2184,7 @@ function routeSegmentsFor(days: DraftDay[]) {
   return days.flatMap((day, dayIndex) => {
     const leg = day.roadLeg;
     if (!leg) return [];
-    const coordinates = [leg.from, leg.to]
-      .map(mapLocation)
-      .filter((coordinate): coordinate is [number, number] =>
-        Boolean(coordinate),
-      );
+    const coordinates = routeCoordinatesForLeg(leg);
     return coordinates.length ? [{ dayIndex, coordinates }] : [];
   });
 }
@@ -7199,56 +7337,15 @@ function RouteTab({
   );
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const routeDaysWithLeg = draftDays.filter((day) => day.roadLeg);
-    const legs = routeDaysWithLeg
-      .map((day) => [mapLocation(day.roadLeg!.from), mapLocation(day.roadLeg!.to)])
-      .filter((leg): leg is [[number, number], [number, number]] =>
-        Boolean(leg[0] && leg[1]),
-      );
-    if (legs.length !== routeDaysWithLeg.length || !legs.length) {
+    const paths = routeDistancePathsFor(draftDays);
+    if (!paths) {
       setRouteTotals(null);
       return;
     }
-    const fallbackTotals = fallbackRouteTotals(legs);
-    if (!token) {
-      setRouteTotals(fallbackTotals);
-      return;
-    }
     let cancelled = false;
-    void Promise.all(
-      legs.map(async ([from, to]) => {
-        const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/driving/${from.join(",")};${to.join(",")}?overview=false&access_token=${token}`,
-        );
-        const data = (await response.json()) as {
-          routes?: { distance: number; duration: number }[];
-        };
-        return data.routes?.[0];
-      }),
-    )
-      .then((routes) => {
-        const validRoutes = routes.filter(
-          (route): route is { distance: number; duration: number } =>
-            Boolean(route),
-        );
-        if (cancelled) return;
-        if (validRoutes.length !== legs.length) {
-          setRouteTotals(fallbackTotals);
-          return;
-        }
-        setRouteTotals(
-          validRoutes.reduce<RouteTotals>(
-            (total, route) => ({
-              distance: total.distance + route.distance,
-              duration: total.duration + route.duration,
-            }),
-            { distance: 0, duration: 0 },
-          ),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setRouteTotals(fallbackTotals);
-      });
+    void loadRouteTotals(paths, token).then((totals) => {
+      if (!cancelled) setRouteTotals(totals);
+    });
     return () => {
       cancelled = true;
     };
@@ -12310,58 +12407,19 @@ function TripOverview({
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const routeDays = (trip.days || []).filter((day) => day.roadLeg);
   const routeKey = routeDays
-    .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}`)
+    .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}:${day.roadLeg?.mapsUrl || ""}`)
     .join("|");
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const legs = routeDays
-      .map((day) => [mapLocation(day.roadLeg!.from), mapLocation(day.roadLeg!.to)])
-      .filter((leg): leg is [[number, number], [number, number]] =>
-        Boolean(leg[0] && leg[1]),
-      );
-    if (legs.length !== routeDays.length || !legs.length) {
+    const paths = routeDistancePathsFor(routeDays);
+    if (!paths) {
       setRouteTotals(null);
       return;
     }
-    const fallbackTotals = fallbackRouteTotals(legs);
-    if (!token) {
-      setRouteTotals(fallbackTotals);
-      return;
-    }
     let cancelled = false;
-    void Promise.all(
-      legs.map(async ([from, to]) => {
-        const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/driving/${from.join(",")};${to.join(",")}?overview=false&access_token=${token}`,
-        );
-        const data = (await response.json()) as {
-          routes?: { distance: number; duration: number }[];
-        };
-        return data.routes?.[0];
-      }),
-    )
-      .then((routes) => {
-        const validRoutes = routes.filter(
-          (route): route is { distance: number; duration: number } => Boolean(route),
-        );
-        if (cancelled) return;
-        if (validRoutes.length !== legs.length) {
-          setRouteTotals(fallbackTotals);
-          return;
-        }
-        setRouteTotals(
-          validRoutes.reduce(
-            (total, route) => ({
-              distance: total.distance + route.distance,
-              duration: total.duration + route.duration,
-            }),
-            { distance: 0, duration: 0 },
-          ),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setRouteTotals(fallbackTotals);
-      });
+    void loadRouteTotals(paths, token).then((totals) => {
+      if (!cancelled) setRouteTotals(totals);
+    });
     return () => {
       cancelled = true;
     };
