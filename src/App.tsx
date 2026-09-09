@@ -1943,8 +1943,9 @@ type RouteTotals = {
 // 1. Preserve the ordered origin, waypoints, destination, and travel mode
 //    from the saved Google Maps link.
 // 2. Measure that ordered path with a road/path routing provider.
-// 3. Use straight-line distance only when every provider is unavailable and
-//    keep the result visibly approximate (≈).
+// 3. Never mix straight-line segments into the displayed total. If the
+//    routing providers are unavailable, leave the distance blank until a
+//    complete network calculation is available.
 const routeDistancePolicy = {
   endpointToleranceMeters: 75_000,
   maxCoordinatesPerRoute: 25,
@@ -2112,26 +2113,6 @@ function straightLineDistanceMeters(
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function routePathDistanceMeters(coordinates: RouteCoordinate[]) {
-  return coordinates.slice(1).reduce(
-    (total, coordinate, index) =>
-      total + straightLineDistanceMeters(coordinates[index], coordinate),
-    0,
-  );
-}
-
-function fallbackRouteTotals(paths: RouteDistancePath[]): RouteTotals | null {
-  if (!paths.length) return null;
-  return {
-    distance: paths.reduce(
-      (total, path) => total + routePathDistanceMeters(path.coordinates),
-      0,
-    ),
-    duration: 0,
-    approximate: true,
-  };
-}
-
 function routeDistancePathsFor(days: DraftDay[]) {
   const routeDays = days.filter((day) => day.roadLeg);
   if (!routeDays.length) return null;
@@ -2184,13 +2165,25 @@ function valhallaCosting(profile: RouteTravelProfile) {
   return "auto";
 }
 
+function valhallaRouteEndpoint() {
+  const hostname = window.location.hostname.toLocaleLowerCase();
+  const isRamingoHost = [
+    "ramingo.online",
+    "www.ramingo.online",
+    "travelplanner.muntim.ru",
+  ].includes(hostname);
+  return isRamingoHost
+    ? `${window.location.origin}/routing/valhalla/route`
+    : "https://valhalla1.openstreetmap.de/route";
+}
+
 async function loadValhallaDistance(
   coordinates: RouteCoordinate[],
   profile: RouteTravelProfile,
 ): Promise<RoutedDistance | null> {
   try {
     const response = await fetchWithTimeout(
-      "https://valhalla1.openstreetmap.de/route",
+      valhallaRouteEndpoint(),
       {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
@@ -2230,8 +2223,6 @@ async function loadRouteTotals(
   paths: RouteDistancePath[],
   token: string,
 ): Promise<RouteTotals | null> {
-  const fallbackTotals = fallbackRouteTotals(paths);
-  if (!fallbackTotals) return null;
   const routes = await Promise.all(
     paths.map(async ({ coordinates, profile }) => {
       if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
@@ -2251,18 +2242,13 @@ async function loadRouteTotals(
       );
     }),
   );
-  if (!routes.some(Boolean)) return fallbackTotals;
+  // A trip total is meaningful only when every leg was routed on the
+  // network. Never silently replace a failed leg with a straight-line sum.
+  if (routes.some((route) => !route)) return null;
+  const exactRoutes = routes as RoutedDistance[];
   return {
-    distance: paths.reduce(
-      (total, path, index) =>
-        total + (routes[index]?.distance ?? routePathDistanceMeters(path.coordinates)),
-      0,
-    ),
-    duration: routes.reduce(
-      (total, route) => total + (route?.duration || 0),
-      0,
-    ),
-    approximate: routes.some((route) => !route),
+    distance: exactRoutes.reduce((total, route) => total + route.distance, 0),
+    duration: exactRoutes.reduce((total, route) => total + route.duration, 0),
   };
 }
 

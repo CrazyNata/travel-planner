@@ -245,7 +245,6 @@ internal suspend fun loadRouteDistanceSummary(
     }
     if (paths.any { it == null }) return null
     val resolvedPaths = paths.filterNotNull()
-    val fallbackDistanceKm = resolvedPaths.sumOf { pathDistanceKm(it.coordinates) }
     val token = mapboxAccessToken.trim()
 
     val routeDistances = supervisorScope {
@@ -255,20 +254,17 @@ internal suspend fun loadRouteDistanceSummary(
             }
         }.awaitAll()
     }
-    if (!routeDistances.any { it != null }) {
-        return RouteDistanceSummary(fallbackDistanceKm, isApproximate = true)
-    }
-    val distanceKm = resolvedPaths.indices.sumOf { index ->
-        (routeDistances[index] ?: pathDistanceKm(resolvedPaths[index].coordinates) * 1000.0) / 1000.0
-    }
+    // Never mix straight-line segments into the displayed trip total. The
+    // Android screen shows a distance only after every leg has a network
+    // route; this keeps a temporary provider outage from producing a wrong
+    // number that looks authoritative.
+    if (routeDistances.any { it == null }) return null
+    val distanceKm = routeDistances.filterNotNull().sumOf { it } / 1000.0
     return RouteDistanceSummary(
         distanceKm = distanceKm,
-        isApproximate = routeDistances.any { it == null },
+        isApproximate = false,
     )
 }
-
-private fun pathDistanceKm(coordinates: List<CityLocation>): Double =
-    coordinates.zipWithNext().sumOf { (from, to) -> straightLineDistanceKm(from, to) }
 
 private suspend fun routeDistanceMeters(
     coordinates: List<CityLocation>,
@@ -293,26 +289,33 @@ private suspend fun valhallaRouteDistanceMeters(
         "{\"lat\":${it.latitude},\"lon\":${it.longitude}}"
     }
     val body = "{\"locations\":$locations,\"costing\":\"${valhallaCosting(profile)}\",\"units\":\"kilometers\"}"
-    val connection = runCatching {
-        URL("https://valhalla1.openstreetmap.de/route").openConnection() as HttpURLConnection
-    }.getOrNull() ?: return@withContext null
-    try {
-        connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
-        connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
-        connection.requestMethod = "POST"
-        connection.doOutput = true
-        connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("Content-Type", "text/plain")
-        connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
-        connection.outputStream.bufferedWriter().use { it.write(body) }
-        if (connection.responseCode !in 200..299) return@withContext null
-        val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
-        parseValhallaRouteDistance(responseBody)
-    } catch (_: Exception) {
-        null
-    } finally {
-        connection.disconnect()
+    val endpoints = listOf(
+        "https://ramingo.online/routing/valhalla/route",
+        "https://valhalla1.openstreetmap.de/route",
+    )
+    for (endpoint in endpoints) {
+        val connection = runCatching {
+            URL(endpoint).openConnection() as HttpURLConnection
+        }.getOrNull() ?: continue
+        val result = try {
+            connection.connectTimeout = RouteDistancePolicy.requestTimeoutMs
+            connection.readTimeout = RouteDistancePolicy.requestTimeoutMs
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("Content-Type", "text/plain")
+            connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
+            connection.outputStream.bufferedWriter().use { it.write(body) }
+            if (connection.responseCode !in 200..299) null
+            else connection.inputStream.bufferedReader().use { parseValhallaRouteDistance(it.readText()) }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
+        if (result != null) return@withContext result
     }
+    null
 }
 
 private fun openStreetMapRouter(profile: String): String = when (profile) {
