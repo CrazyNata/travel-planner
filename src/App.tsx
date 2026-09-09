@@ -1922,6 +1922,12 @@ function mapLocation(city: string) {
 
 type RouteCoordinate = [number, number];
 type RouteTravelProfile = "driving" | "walking" | "cycling";
+type ParsedRouteCoordinates = {
+  coordinates: RouteCoordinate[];
+  fromQuery: boolean;
+  hasOrigin: boolean;
+  hasDestination: boolean;
+};
 type RouteDistancePath = {
   coordinates: RouteCoordinate[];
   profile: RouteTravelProfile;
@@ -1956,24 +1962,55 @@ function uniqueRouteCoordinates(coordinates: RouteCoordinate[]) {
   });
 }
 
-function routeCoordinatesFromMapsUrl(mapsUrl: string): RouteCoordinate[] {
-  if (!mapsUrl.trim()) return [];
+function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
+  const emptyResult = {
+    coordinates: [],
+    fromQuery: false,
+    hasOrigin: false,
+    hasDestination: false,
+  } satisfies ParsedRouteCoordinates;
+  if (!mapsUrl.trim()) return emptyResult;
   try {
     const url = new URL(mapsUrl);
-    const queryCoordinates = ["origin", "waypoints", "destination"]
-      .flatMap((key) => url.searchParams.get(key)?.split(/[|;]/) || [])
+    const origin = url.searchParams.get("origin");
+    const waypoints = url.searchParams.get("waypoints");
+    const destination = url.searchParams.get("destination");
+    const hasQuery = origin !== null || waypoints !== null || destination !== null;
+    const originCoordinate = origin ? coordinateFromMapsPart(origin) : null;
+    const waypointCoordinates = (waypoints?.split(/[|;]/) || [])
       .map(coordinateFromMapsPart)
       .filter((coordinate): coordinate is RouteCoordinate => Boolean(coordinate));
-    if (queryCoordinates.length >= 2) return uniqueRouteCoordinates(queryCoordinates);
+    const destinationCoordinate = destination
+      ? coordinateFromMapsPart(destination)
+      : null;
+    const queryCoordinates = [
+      ...(originCoordinate ? [originCoordinate] : []),
+      ...waypointCoordinates,
+      ...(destinationCoordinate ? [destinationCoordinate] : []),
+    ];
+    if (hasQuery) {
+      return {
+        coordinates: uniqueRouteCoordinates(queryCoordinates),
+        fromQuery: true,
+        hasOrigin: Boolean(originCoordinate),
+        hasDestination: Boolean(destinationCoordinate),
+      };
+    }
 
     const dirPath = url.pathname.split("/dir/")[1]?.split("/@")[0] || "";
     const pathCoordinates = dirPath
       .split("/")
       .map(coordinateFromMapsPart)
       .filter((coordinate): coordinate is RouteCoordinate => Boolean(coordinate));
-    return uniqueRouteCoordinates(pathCoordinates);
+    const coordinates = uniqueRouteCoordinates(pathCoordinates);
+    return {
+      coordinates,
+      fromQuery: false,
+      hasOrigin: coordinates.length >= 1,
+      hasDestination: coordinates.length >= 2,
+    };
   } catch {
-    return [];
+    return emptyResult;
   }
 }
 
@@ -1989,15 +2026,26 @@ function routeTravelProfile(mapsUrl: string): RouteTravelProfile {
 }
 
 function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
-  const mapCoordinates = routeCoordinatesFromMapsUrl(leg.mapsUrl || "");
-  if (mapCoordinates.length >= 2) return mapCoordinates;
+  const parsedMapRoute = routeCoordinatesFromMapsUrl(leg.mapsUrl || "");
   const cityCoordinates = [mapLocation(leg.from), mapLocation(leg.to)].filter(
     (coordinate): coordinate is RouteCoordinate => Boolean(coordinate),
   );
-  if (mapCoordinates.length === 1 && cityCoordinates.length === 2) {
+  if (parsedMapRoute.fromQuery && parsedMapRoute.coordinates.length) {
+    return uniqueRouteCoordinates([
+      ...(!parsedMapRoute.hasOrigin && cityCoordinates[0]
+        ? [cityCoordinates[0]]
+        : []),
+      ...parsedMapRoute.coordinates,
+      ...(!parsedMapRoute.hasDestination && cityCoordinates[1]
+        ? [cityCoordinates[1]]
+        : []),
+    ]);
+  }
+  if (parsedMapRoute.coordinates.length >= 2) return parsedMapRoute.coordinates;
+  if (parsedMapRoute.coordinates.length === 1 && cityCoordinates.length === 2) {
     return uniqueRouteCoordinates([
       cityCoordinates[0],
-      mapCoordinates[0],
+      parsedMapRoute.coordinates[0],
       cityCoordinates[1],
     ]);
   }

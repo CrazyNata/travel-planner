@@ -34,6 +34,13 @@ private data class RouteDistancePath(
     val profile: String,
 )
 
+internal data class GoogleRouteCoordinates(
+    val coordinates: List<CityLocation>,
+    val fromQuery: Boolean,
+    val hasOrigin: Boolean,
+    val hasDestination: Boolean,
+)
+
 private val googleCoordinatePattern = Regex(
     "^\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)\\s*$",
 )
@@ -52,24 +59,51 @@ private fun uniqueConsecutiveCoordinates(coordinates: List<CityLocation>): List<
         previous == null || previous.latitude != coordinate.latitude || previous.longitude != coordinate.longitude
     }
 
-internal fun googleRouteCoordinates(mapsUrl: String): List<CityLocation> {
-    if (mapsUrl.isBlank()) return emptyList()
-    val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyList()
-    val queryCoordinates = listOf("origin", "waypoints", "destination")
-        .flatMap { key ->
-            uri.getQueryParameter(key)
-                ?.split('|', ';')
-                .orEmpty()
-        }
+internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
+    val emptyResult = GoogleRouteCoordinates(
+        coordinates = emptyList(),
+        fromQuery = false,
+        hasOrigin = false,
+        hasDestination = false,
+    )
+    if (mapsUrl.isBlank()) return emptyResult
+    val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyResult
+    val origin = uri.getQueryParameter("origin")
+    val waypoints = uri.getQueryParameter("waypoints")
+    val destination = uri.getQueryParameter("destination")
+    val hasQuery = origin != null || waypoints != null || destination != null
+    val originCoordinate = origin?.let(::googleCoordinate)
+    val waypointCoordinates = waypoints
+        ?.split('|', ';')
+        .orEmpty()
         .mapNotNull(::googleCoordinate)
-    if (queryCoordinates.size >= 2) return uniqueConsecutiveCoordinates(queryCoordinates)
+    val destinationCoordinate = destination?.let(::googleCoordinate)
+    val queryCoordinates = buildList {
+        originCoordinate?.let(::add)
+        addAll(waypointCoordinates)
+        destinationCoordinate?.let(::add)
+    }
+    if (hasQuery) {
+        return GoogleRouteCoordinates(
+            coordinates = uniqueConsecutiveCoordinates(queryCoordinates),
+            fromQuery = true,
+            hasOrigin = originCoordinate != null,
+            hasDestination = destinationCoordinate != null,
+        )
+    }
 
     val directionPath = uri.path
         ?.substringAfter("/dir/", "")
         ?.substringBefore("/@", "")
         .orEmpty()
-    return uniqueConsecutiveCoordinates(
+    val coordinates = uniqueConsecutiveCoordinates(
         directionPath.split('/').mapNotNull(::googleCoordinate),
+    )
+    return GoogleRouteCoordinates(
+        coordinates = coordinates,
+        fromQuery = false,
+        hasOrigin = coordinates.size >= 1,
+        hasDestination = coordinates.size >= 2,
     )
 }
 
@@ -135,10 +169,17 @@ private suspend fun routeDistancePath(
     val from = resolveCityLocation(leg.from, savedCoordinates) ?: return null
     val to = resolveCityLocation(leg.to, savedCoordinates) ?: return null
     val resolvedUrl = resolveGoogleRedirect(leg.mapsUrl)
-    val mapCoordinates = googleRouteCoordinates(resolvedUrl)
+    val parsedMapRoute = googleRouteCoordinates(resolvedUrl)
     val coordinates = when {
-        mapCoordinates.size >= 2 -> mapCoordinates
-        mapCoordinates.size == 1 -> uniqueConsecutiveCoordinates(listOf(from, mapCoordinates.first(), to))
+        parsedMapRoute.fromQuery && parsedMapRoute.coordinates.isNotEmpty() -> uniqueConsecutiveCoordinates(
+            buildList {
+                if (!parsedMapRoute.hasOrigin) add(from)
+                addAll(parsedMapRoute.coordinates)
+                if (!parsedMapRoute.hasDestination) add(to)
+            },
+        )
+        parsedMapRoute.coordinates.size >= 2 -> parsedMapRoute.coordinates
+        parsedMapRoute.coordinates.size == 1 -> uniqueConsecutiveCoordinates(listOf(from, parsedMapRoute.coordinates.first(), to))
         else -> listOf(from, to)
     }
     return coordinates.takeIf { it.size >= 2 }?.let {
