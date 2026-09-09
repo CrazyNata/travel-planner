@@ -288,7 +288,7 @@ private suspend fun valhallaRouteDistanceMeters(
     }
     val body = "{\"locations\":$locations,\"costing\":\"${valhallaCosting(profile)}\",\"units\":\"kilometers\"}"
     val endpoints = listOf(
-        "https://ramingo.online/routing/valhalla/route",
+        "https://ramingo.online/trip-route/valhalla/route",
         "https://valhalla1.openstreetmap.de/route",
     )
     for (endpoint in endpoints) {

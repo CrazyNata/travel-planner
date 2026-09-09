@@ -2174,7 +2174,7 @@ function valhallaRouteEndpoint() {
     "travelplanner.muntim.ru",
   ].includes(hostname);
   return isRamingoHost
-    ? `${window.location.origin}/routing/valhalla/route`
+    ? `${window.location.origin}/trip-route/valhalla/route`
     : "https://valhalla1.openstreetmap.de/route";
 }
 
