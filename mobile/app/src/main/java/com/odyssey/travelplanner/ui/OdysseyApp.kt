@@ -238,6 +238,8 @@ import com.odyssey.travelplanner.data.AccommodationCatalogRepository
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.ExchangeRateRepository
+import com.odyssey.travelplanner.data.RouteDistanceSummary
+import com.odyssey.travelplanner.data.loadRouteDistanceSummary
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.CoverPhoto
@@ -512,7 +514,13 @@ internal fun localizedCountWord(
     }
 }
 
-internal fun localizedRouteSummary(tripDays: Int?, cityCount: Int, language: String): String {
+internal fun localizedRouteSummary(
+    tripDays: Int?,
+    cityCount: Int,
+    language: String,
+    distanceKm: Double? = null,
+    distanceIsApproximate: Boolean = false,
+): String {
     val parts = buildList {
         tripDays?.let {
             add(
@@ -522,6 +530,10 @@ internal fun localizedRouteSummary(tripDays: Int?, cityCount: Int, language: Str
         add(
             "$cityCount ${localizedCountWord(cityCount, language, "ГОРОД", "ГОРОДА", "ГОРОДОВ", "CITY", "CITIES", "CIUDAD", "CIUDADES", "STADT", "STÄDTE")}",
         )
+        distanceKm?.takeIf { it.isFinite() && it > 0.0 }?.let {
+            val prefix = if (distanceIsApproximate) "≈ " else ""
+            add("$prefix${String.format(mapLocale(language), "%.0f", it)} ${localized(language, "КМ", "KM", "KM", "KM")}")
+        }
     }
     return parts.joinToString(" · ")
 }
@@ -19518,10 +19530,20 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     var dragOffsetPx by remember { mutableStateOf(0f) }
     var dragInitialOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    var routeDistanceSummary by remember(overview.id) { mutableStateOf<RouteDistanceSummary?>(null) }
 
     val displayedRouteLegs = orderedRouteIds.mapNotNull { id ->
         overview.routeLegs.firstOrNull { it.dayId == id }
     } + overview.routeLegs.filterNot { leg -> orderedRouteIds.contains(leg.dayId) }
+
+    LaunchedEffect(overview.id, overview.routeLegs, overview.cityCoordinates) {
+        routeDistanceSummary = null
+        routeDistanceSummary = loadRouteDistanceSummary(
+            routeLegs = overview.routeLegs,
+            savedCoordinates = overview.cityCoordinates,
+            mapboxAccessToken = BuildConfig.MAPBOX_ACCESS_TOKEN,
+        )
+    }
 
     fun updateRouteDrag(dragAmount: Float) {
         val draggedId = draggedRouteId ?: return
@@ -19618,7 +19640,13 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     ) {
         item {
             Text(
-                localizedRouteSummary(tripDays, cityCount, language),
+                localizedRouteSummary(
+                    tripDays = tripDays,
+                    cityCount = cityCount,
+                    language = language,
+                    distanceKm = routeDistanceSummary?.distanceKm,
+                    distanceIsApproximate = routeDistanceSummary?.isApproximate == true,
+                ),
                 color = primaryColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,

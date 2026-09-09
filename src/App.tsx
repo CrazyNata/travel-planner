@@ -665,6 +665,23 @@ function parseTripDateRange(value: string) {
   return [iso(match[3], startMonth, match[1]), iso(match[6], endMonth, match[4])] as const;
 }
 
+function formatRouteDayBadge(startDate: string | undefined, offset: number) {
+  if (!startDate) return null;
+  const date = new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCDate(date.getUTCDate() + offset);
+  return {
+    day: String(date.getUTCDate()),
+    month: new Intl.DateTimeFormat("ru-RU", {
+      month: "short",
+      timeZone: "UTC",
+    })
+      .format(date)
+      .replace(/\./g, "")
+      .toUpperCase(),
+  };
+}
+
 function normalizeTripDates(dates: string) {
   const match = dates.match(
     /^(\d{4}-\d{2}-\d{2})\s*[–-]\s*(\d{4}-\d{2}-\d{2})$/,
@@ -1819,6 +1836,52 @@ function mapLocation(city: string) {
   return Object.entries(mapLocations).find(([name]) =>
     normalizedCity.includes(name.toLocaleLowerCase()),
   )?.[1];
+}
+
+type RouteCoordinateLeg = [[number, number], [number, number]];
+type RouteTotals = {
+  distance: number;
+  duration: number;
+  approximate?: boolean;
+};
+
+function straightLineDistanceMeters(
+  from: [number, number],
+  to: [number, number],
+) {
+  const earthRadiusMeters = 6_371_008.8;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(to[1] - from[1]);
+  const longitudeDelta = toRadians(to[0] - from[0]);
+  const fromLatitude = toRadians(from[1]);
+  const toLatitude = toRadians(to[1]);
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitude) *
+      Math.cos(toLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fallbackRouteTotals(legs: RouteCoordinateLeg[]): RouteTotals | null {
+  if (!legs.length) return null;
+  return {
+    distance: legs.reduce(
+      (total, [from, to]) => total + straightLineDistanceMeters(from, to),
+      0,
+    ),
+    duration: 0,
+    approximate: true,
+  };
+}
+
+function routeTotalsLabel(routeTotals: RouteTotals | null) {
+  if (!routeTotals) return "";
+  const distance = `${routeTotals.approximate ? "≈ " : ""}${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км`;
+  const duration = routeTotals.duration > 0
+    ? ` · ${Math.round(routeTotals.duration / 3600)} ч`
+    : "";
+  return ` · ${distance}${duration}`;
 }
 
 type BrowserLocationState = {
@@ -6819,6 +6882,7 @@ function GoogleMapsLink({ url }: { url: string }) {
 function DraftRouteCard({
   day,
   index,
+  startDate,
   editing,
   dragDisabled,
   selected,
@@ -6837,6 +6901,7 @@ function DraftRouteCard({
 }: {
   day: DraftDay;
   index: number;
+  startDate?: string;
   editing: boolean;
   dragDisabled: boolean;
   selected: boolean;
@@ -6854,6 +6919,7 @@ function DraftRouteCard({
   onDragEnd: () => void;
 }) {
   const roadLeg = day.roadLeg;
+  const dateBadge = formatRouteDayBadge(startDate, index);
   const routeMapsUrl = roadLeg
     ? roadLeg.mapsUrl || mapsUrl(roadLeg.from, roadLeg.to)
     : "";
@@ -6904,8 +6970,8 @@ function DraftRouteCard({
     >
       <header onClick={onSelect}>
         <div className="draft-day-number">
-          <b>{index + 1}</b>
-          <span>ДЕНЬ</span>
+          <b>{dateBadge?.day ?? index + 1}</b>
+          <span>{dateBadge?.month ?? "ДЕНЬ"}</span>
         </div>
         <div className="draft-route-title">
           <h2>
@@ -6986,6 +7052,7 @@ function DraftRouteCard({
 function RouteTab({
   isDraft = false,
   draftDays = [],
+  startDate,
   editingRoadDay = null,
   onEditingRoadDayChange,
   onAddDraftDay,
@@ -6995,6 +7062,7 @@ function RouteTab({
 }: {
   isDraft?: boolean;
   draftDays?: DraftDay[];
+  startDate?: string;
   editingRoadDay?: number | null;
   onEditingRoadDayChange?: (day: number | null) => void;
   onAddDraftDay?: () => void;
@@ -7006,10 +7074,7 @@ function RouteTab({
   const [selectedRouteDay, setSelectedRouteDay] = useState(0);
   const [draggedDay, setDraggedDay] = useState<number | null>(null);
   const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
-  const [routeTotals, setRouteTotals] = useState<{
-    distance: number;
-    duration: number;
-  } | null>(null);
+  const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
   useEffect(
     () =>
@@ -7018,17 +7083,19 @@ function RouteTab({
   );
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const legs = draftDays
-      .flatMap((day) =>
-        day.roadLeg
-          ? [[mapLocation(day.roadLeg.from), mapLocation(day.roadLeg.to)]]
-          : [],
-      )
+    const routeDaysWithLeg = draftDays.filter((day) => day.roadLeg);
+    const legs = routeDaysWithLeg
+      .map((day) => [mapLocation(day.roadLeg!.from), mapLocation(day.roadLeg!.to)])
       .filter((leg): leg is [[number, number], [number, number]] =>
         Boolean(leg[0] && leg[1]),
       );
-    if (!token || !legs.length) {
+    if (legs.length !== routeDaysWithLeg.length || !legs.length) {
       setRouteTotals(null);
+      return;
+    }
+    const fallbackTotals = fallbackRouteTotals(legs);
+    if (!token) {
+      setRouteTotals(fallbackTotals);
       return;
     }
     let cancelled = false;
@@ -7048,9 +7115,13 @@ function RouteTab({
           (route): route is { distance: number; duration: number } =>
             Boolean(route),
         );
-        if (cancelled || validRoutes.length !== legs.length) return;
+        if (cancelled) return;
+        if (validRoutes.length !== legs.length) {
+          setRouteTotals(fallbackTotals);
+          return;
+        }
         setRouteTotals(
-          validRoutes.reduce<{ distance: number; duration: number }>(
+          validRoutes.reduce<RouteTotals>(
             (total, route) => ({
               distance: total.distance + route.distance,
               duration: total.duration + route.duration,
@@ -7060,7 +7131,7 @@ function RouteTab({
         );
       })
       .catch(() => {
-        if (!cancelled) setRouteTotals(null);
+        if (!cancelled) setRouteTotals(fallbackTotals);
       });
     return () => {
       cancelled = true;
@@ -7083,6 +7154,7 @@ function RouteTab({
             <DraftRouteCard
               day={draftDay}
               index={index}
+              startDate={startDate}
               editing={editingRoadDay === index}
               dragDisabled={editingRoadDay !== null}
               selected={selectedRouteDay === index}
@@ -7129,8 +7201,7 @@ function RouteTab({
             <span>Общий маршрут</span>
             <b>
               {draftDays.length} дней
-              {routeTotals &&
-                ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`}
+              {routeTotalsLabel(routeTotals)}
             </b>
           </footer>
         </aside>
@@ -12106,10 +12177,7 @@ function TripOverview({
   const [activePhoto, setActivePhoto] = useState(0);
   const [expandedPhoto, setExpandedPhoto] = useState<number | null>(null);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
-  const [routeTotals, setRouteTotals] = useState<{
-    distance: number;
-    duration: number;
-  } | null>(null);
+  const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const routeDays = (trip.days || []).filter((day) => day.roadLeg);
   const routeKey = routeDays
     .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}`)
@@ -12121,8 +12189,13 @@ function TripOverview({
       .filter((leg): leg is [[number, number], [number, number]] =>
         Boolean(leg[0] && leg[1]),
       );
-    if (!token || !legs.length) {
+    if (legs.length !== routeDays.length || !legs.length) {
       setRouteTotals(null);
+      return;
+    }
+    const fallbackTotals = fallbackRouteTotals(legs);
+    if (!token) {
+      setRouteTotals(fallbackTotals);
       return;
     }
     let cancelled = false;
@@ -12141,7 +12214,11 @@ function TripOverview({
         const validRoutes = routes.filter(
           (route): route is { distance: number; duration: number } => Boolean(route),
         );
-        if (cancelled || validRoutes.length !== legs.length) return;
+        if (cancelled) return;
+        if (validRoutes.length !== legs.length) {
+          setRouteTotals(fallbackTotals);
+          return;
+        }
         setRouteTotals(
           validRoutes.reduce(
             (total, route) => ({
@@ -12153,17 +12230,13 @@ function TripOverview({
         );
       })
       .catch(() => {
-        if (!cancelled) setRouteTotals(null);
+        if (!cancelled) setRouteTotals(fallbackTotals);
       });
     return () => {
       cancelled = true;
     };
   }, [routeKey]);
-  const routeSummary = `${routeDays.length} дней${
-    routeTotals
-      ? ` · ${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км · ${Math.round(routeTotals.duration / 3600)} ч`
-      : ""
-  }`;
+  const routeSummary = `${routeDays.length} дней${routeTotalsLabel(routeTotals)}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
@@ -14081,6 +14154,7 @@ function Workspace({
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
+  const tripStartDate = trip.startDate || parseTripDateRange(trip.dates)?.[0];
   const firstDraftDay = draftDays[0];
   const useDemoSightContent = trip.title === "Рождественская Италия";
   const savedSightDays =
@@ -14420,6 +14494,7 @@ function Workspace({
           <RouteTab
             isDraft={trip.isDraft}
             draftDays={draftDays}
+            startDate={tripStartDate}
             editingRoadDay={editingRoadDay}
             onEditingRoadDayChange={setEditingRoadDay}
             onAddDraftDay={() =>
