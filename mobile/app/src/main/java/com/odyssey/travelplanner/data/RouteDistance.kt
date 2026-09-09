@@ -247,12 +247,10 @@ internal suspend fun loadRouteDistanceSummary(
     val resolvedPaths = paths.filterNotNull()
     val token = mapboxAccessToken.trim()
 
-    val routeDistances = supervisorScope {
-        resolvedPaths.map { path ->
-            async {
-                routeDistanceMeters(path.coordinates, path.profile, token)
-            }
-        }.awaitAll()
+    // Keep the public routing service within a predictable request rate. A
+    // temporary burst failure must not turn the whole trip into a bad total.
+    val routeDistances = resolvedPaths.map { path ->
+        routeDistanceMeters(path.coordinates, path.profile, token)
     }
     // Never mix straight-line segments into the displayed trip total. The
     // Android screen shows a distance only after every leg has a network

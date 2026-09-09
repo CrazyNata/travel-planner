@@ -1948,6 +1948,7 @@ type RouteTotals = {
 //    complete network calculation is available.
 const routeDistancePolicy = {
   endpointToleranceMeters: 75_000,
+  maxConcurrentRequests: 3,
   maxCoordinatesPerRoute: 25,
   requestTimeoutMs: 8_000,
 } as const;
@@ -2223,26 +2224,39 @@ async function loadRouteTotals(
   paths: RouteDistancePath[],
   token: string,
 ): Promise<RouteTotals | null> {
-  const routes = await Promise.all(
-    paths.map(async ({ coordinates, profile }) => {
-      if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
-      const path = coordinates.map(([longitude, latitude]) =>
-        `${longitude},${latitude}`,
-      ).join(";");
-      // Use the first-party proxy first so the browser is not dependent on
-      // extensions, CORS, or a remote provider being directly reachable.
-      const valhallaRoute = await loadValhallaDistance(coordinates, profile);
-      if (valhallaRoute) return valhallaRoute;
-      if (token.trim()) {
-        const mapboxRoute = await loadRoutedDistance(
-          `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${encodeURIComponent(token)}`,
-        );
-        if (mapboxRoute) return mapboxRoute;
-      }
-      return loadRoutedDistance(
-        `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
+  const loadRoute = async ({ coordinates, profile }: RouteDistancePath) => {
+    if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
+    const path = coordinates.map(([longitude, latitude]) =>
+      `${longitude},${latitude}`,
+    ).join(";");
+    // Use the first-party proxy first so the browser is not dependent on
+    // extensions, CORS, or a remote provider being directly reachable.
+    const valhallaRoute = await loadValhallaDistance(coordinates, profile);
+    if (valhallaRoute) return valhallaRoute;
+    if (token.trim()) {
+      const mapboxRoute = await loadRoutedDistance(
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${encodeURIComponent(token)}`,
       );
-    }),
+      if (mapboxRoute) return mapboxRoute;
+    }
+    return loadRoutedDistance(
+      `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
+    );
+  };
+  const routes: Array<RoutedDistance | null> = Array.from({ length: paths.length }, () => null);
+  let nextPathIndex = 0;
+  const worker = async () => {
+    while (nextPathIndex < paths.length) {
+      const pathIndex = nextPathIndex;
+      nextPathIndex += 1;
+      routes[pathIndex] = await loadRoute(paths[pathIndex]);
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(routeDistancePolicy.maxConcurrentRequests, paths.length) },
+      () => worker(),
+    ),
   );
   // A trip total is meaningful only when every leg was routed on the
   // network. Never silently replace a failed leg with a straight-line sum.
