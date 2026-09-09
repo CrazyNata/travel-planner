@@ -37,8 +37,9 @@ private data class RouteDistancePath(
 internal data class GoogleRouteCoordinates(
     val coordinates: List<CityLocation>,
     val fromQuery: Boolean,
-    val hasOrigin: Boolean,
-    val hasDestination: Boolean,
+    val origin: CityLocation?,
+    val waypoints: List<CityLocation>,
+    val destination: CityLocation?,
 )
 
 private val googleCoordinatePattern = Regex(
@@ -63,8 +64,9 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
     val emptyResult = GoogleRouteCoordinates(
         coordinates = emptyList(),
         fromQuery = false,
-        hasOrigin = false,
-        hasDestination = false,
+        origin = null,
+        waypoints = emptyList(),
+        destination = null,
     )
     if (mapsUrl.isBlank()) return emptyResult
     val uri = runCatching { Uri.parse(mapsUrl) }.getOrNull() ?: return emptyResult
@@ -87,8 +89,9 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
         return GoogleRouteCoordinates(
             coordinates = uniqueConsecutiveCoordinates(queryCoordinates),
             fromQuery = true,
-            hasOrigin = originCoordinate != null,
-            hasDestination = destinationCoordinate != null,
+            origin = originCoordinate,
+            waypoints = waypointCoordinates,
+            destination = destinationCoordinate,
         )
     }
 
@@ -102,8 +105,9 @@ internal fun googleRouteCoordinates(mapsUrl: String): GoogleRouteCoordinates {
     return GoogleRouteCoordinates(
         coordinates = coordinates,
         fromQuery = false,
-        hasOrigin = coordinates.size >= 1,
-        hasDestination = coordinates.size >= 2,
+        origin = coordinates.firstOrNull(),
+        waypoints = coordinates.drop(1).dropLast(1),
+        destination = coordinates.lastOrNull().takeIf { coordinates.size >= 2 },
     )
 }
 
@@ -170,15 +174,23 @@ private suspend fun routeDistancePath(
     val to = resolveCityLocation(leg.to, savedCoordinates) ?: return null
     val resolvedUrl = resolveGoogleRedirect(leg.mapsUrl)
     val parsedMapRoute = googleRouteCoordinates(resolvedUrl)
+    fun endpointMatchesCity(endpoint: CityLocation?, city: CityLocation): Boolean =
+        endpoint != null && straightLineDistanceKm(endpoint, city) <= 75.0
     val coordinates = when {
         parsedMapRoute.fromQuery && parsedMapRoute.coordinates.isNotEmpty() -> uniqueConsecutiveCoordinates(
             buildList {
-                if (!parsedMapRoute.hasOrigin) add(from)
-                addAll(parsedMapRoute.coordinates)
-                if (!parsedMapRoute.hasDestination) add(to)
+                add(if (endpointMatchesCity(parsedMapRoute.origin, from)) parsedMapRoute.origin!! else from)
+                addAll(parsedMapRoute.waypoints)
+                add(if (endpointMatchesCity(parsedMapRoute.destination, to)) parsedMapRoute.destination!! else to)
             },
         )
-        parsedMapRoute.coordinates.size >= 2 -> parsedMapRoute.coordinates
+        parsedMapRoute.coordinates.size >= 2 -> parsedMapRoute.coordinates.mapIndexed { index, coordinate ->
+            when {
+                index == 0 && !endpointMatchesCity(coordinate, from) -> from
+                index == parsedMapRoute.coordinates.lastIndex && !endpointMatchesCity(coordinate, to) -> to
+                else -> coordinate
+            }
+        }
         parsedMapRoute.coordinates.size == 1 -> uniqueConsecutiveCoordinates(listOf(from, parsedMapRoute.coordinates.first(), to))
         else -> listOf(from, to)
     }
@@ -223,14 +235,11 @@ internal suspend fun loadRouteDistanceSummary(
     val resolvedPaths = paths.filterNotNull()
     val fallbackDistanceKm = resolvedPaths.sumOf { pathDistanceKm(it.coordinates) }
     val token = mapboxAccessToken.trim()
-    if (token.isBlank()) {
-        return RouteDistanceSummary(fallbackDistanceKm, isApproximate = true)
-    }
 
     val routeDistances = supervisorScope {
         resolvedPaths.map { path ->
             async {
-                mapboxRouteDistanceMeters(path.coordinates, path.profile, token)
+                routeDistanceMeters(path.coordinates, path.profile, token)
             }
         }.awaitAll()
     }
@@ -249,12 +258,52 @@ internal suspend fun loadRouteDistanceSummary(
 private fun pathDistanceKm(coordinates: List<CityLocation>): Double =
     coordinates.zipWithNext().sumOf { (from, to) -> straightLineDistanceKm(from, to) }
 
+private suspend fun routeDistanceMeters(
+    coordinates: List<CityLocation>,
+    profile: String,
+    mapboxAccessToken: String,
+): Double? = mapboxRouteDistanceMeters(coordinates, profile, mapboxAccessToken)
+    ?: openStreetMapRouteDistanceMeters(coordinates, profile)
+
+private fun openStreetMapRouter(profile: String): String = when (profile) {
+    "walking" -> "routed-foot"
+    "cycling" -> "routed-bike"
+    else -> "routed-car"
+}
+
+private suspend fun openStreetMapRouteDistanceMeters(
+    coordinates: List<CityLocation>,
+    profile: String,
+): Double? = withContext(Dispatchers.IO) {
+    if (coordinates.size > 25) return@withContext null
+    val path = coordinates.joinToString(";") { "${it.longitude},${it.latitude}" }
+    val endpoint = "https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/" +
+        path +
+        "?overview=false"
+    val connection = runCatching { URL(endpoint).openConnection() as HttpURLConnection }.getOrNull()
+        ?: return@withContext null
+    try {
+        connection.connectTimeout = 8_000
+        connection.readTimeout = 8_000
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "RamingoTravelPlanner/0.1 (Android)")
+        if (connection.responseCode !in 200..299) return@withContext null
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        parseRouteDistance(body)
+    } catch (_: Exception) {
+        null
+    } finally {
+        connection.disconnect()
+    }
+}
+
 private suspend fun mapboxRouteDistanceMeters(
     coordinates: List<CityLocation>,
     profile: String,
     accessToken: String,
 ): Double? = withContext(Dispatchers.IO) {
-    if (coordinates.size > 25) return@withContext null
+    if (coordinates.size > 25 || accessToken.isBlank()) return@withContext null
     val encodedToken = URLEncoder.encode(accessToken, StandardCharsets.UTF_8.toString())
     val path = coordinates.joinToString(";") { "${it.longitude},${it.latitude}" }
     val endpoint = "https://api.mapbox.com/directions/v5/mapbox/$profile/" +
@@ -269,20 +318,22 @@ private suspend fun mapboxRouteDistanceMeters(
         connection.setRequestProperty("Accept", "application/json")
         if (connection.responseCode !in 200..299) return@withContext null
         val body = connection.inputStream.bufferedReader().use { it.readText() }
-        runCatching {
-            Json.parseToJsonElement(body)
-                .jsonObject["routes"]
-                ?.jsonArray
-                ?.firstOrNull()
-                ?.jsonObject
-                ?.get("distance")
-                ?.jsonPrimitive
-                ?.doubleOrNull
-                ?.takeIf { it.isFinite() && it >= 0.0 }
-        }.getOrNull()
+        parseRouteDistance(body)
     } catch (_: Exception) {
         null
     } finally {
         connection.disconnect()
     }
 }
+
+private fun parseRouteDistance(body: String): Double? = runCatching {
+    Json.parseToJsonElement(body)
+        .jsonObject["routes"]
+        ?.jsonArray
+        ?.firstOrNull()
+        ?.jsonObject
+        ?.get("distance")
+        ?.jsonPrimitive
+        ?.doubleOrNull
+        ?.takeIf { it.isFinite() && it >= 0.0 }
+}.getOrNull()

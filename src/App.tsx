@@ -1925,8 +1925,9 @@ type RouteTravelProfile = "driving" | "walking" | "cycling";
 type ParsedRouteCoordinates = {
   coordinates: RouteCoordinate[];
   fromQuery: boolean;
-  hasOrigin: boolean;
-  hasDestination: boolean;
+  origin: RouteCoordinate | null;
+  waypoints: RouteCoordinate[];
+  destination: RouteCoordinate | null;
 };
 type RouteDistancePath = {
   coordinates: RouteCoordinate[];
@@ -1966,8 +1967,9 @@ function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
   const emptyResult = {
     coordinates: [],
     fromQuery: false,
-    hasOrigin: false,
-    hasDestination: false,
+    origin: null,
+    waypoints: [],
+    destination: null,
   } satisfies ParsedRouteCoordinates;
   if (!mapsUrl.trim()) return emptyResult;
   try {
@@ -1992,8 +1994,9 @@ function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
       return {
         coordinates: uniqueRouteCoordinates(queryCoordinates),
         fromQuery: true,
-        hasOrigin: Boolean(originCoordinate),
-        hasDestination: Boolean(destinationCoordinate),
+        origin: originCoordinate,
+        waypoints: waypointCoordinates,
+        destination: destinationCoordinate,
       };
     }
 
@@ -2006,8 +2009,9 @@ function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
     return {
       coordinates,
       fromQuery: false,
-      hasOrigin: coordinates.length >= 1,
-      hasDestination: coordinates.length >= 2,
+      origin: coordinates[0] || null,
+      waypoints: coordinates.slice(1, -1),
+      destination: coordinates.length >= 2 ? coordinates.at(-1)! : null,
     };
   } catch {
     return emptyResult;
@@ -2030,18 +2034,37 @@ function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
   const cityCoordinates = [mapLocation(leg.from), mapLocation(leg.to)].filter(
     (coordinate): coordinate is RouteCoordinate => Boolean(coordinate),
   );
+  const cityFrom = cityCoordinates[0];
+  const cityTo = cityCoordinates[1];
+  const endpointMatchesCity = (
+    endpoint: RouteCoordinate | null,
+    city: RouteCoordinate | undefined,
+  ) => Boolean(
+    endpoint &&
+      city &&
+      straightLineDistanceMeters(endpoint, city) <= 75_000,
+  );
   if (parsedMapRoute.fromQuery && parsedMapRoute.coordinates.length) {
     return uniqueRouteCoordinates([
-      ...(!parsedMapRoute.hasOrigin && cityCoordinates[0]
-        ? [cityCoordinates[0]]
-        : []),
-      ...parsedMapRoute.coordinates,
-      ...(!parsedMapRoute.hasDestination && cityCoordinates[1]
-        ? [cityCoordinates[1]]
-        : []),
+      endpointMatchesCity(parsedMapRoute.origin, cityFrom)
+        ? parsedMapRoute.origin!
+        : cityFrom,
+      ...parsedMapRoute.waypoints,
+      endpointMatchesCity(parsedMapRoute.destination, cityTo)
+        ? parsedMapRoute.destination!
+        : cityTo,
     ]);
   }
-  if (parsedMapRoute.coordinates.length >= 2) return parsedMapRoute.coordinates;
+  if (parsedMapRoute.coordinates.length >= 2) {
+    const coordinates = [...parsedMapRoute.coordinates];
+    if (cityFrom && !endpointMatchesCity(coordinates[0], cityFrom)) {
+      coordinates[0] = cityFrom;
+    }
+    if (cityTo && !endpointMatchesCity(coordinates.at(-1) || null, cityTo)) {
+      coordinates[coordinates.length - 1] = cityTo;
+    }
+    return uniqueRouteCoordinates(coordinates);
+  }
   if (parsedMapRoute.coordinates.length === 1 && cityCoordinates.length === 2) {
     return uniqueRouteCoordinates([
       cityCoordinates[0],
@@ -2106,30 +2129,48 @@ function routeDistancePathsFor(days: DraftDay[]) {
     : null;
 }
 
+type RoutedDistance = { distance: number; duration: number };
+
+function openStreetMapRouter(profile: RouteTravelProfile) {
+  if (profile === "walking") return "routed-foot";
+  if (profile === "cycling") return "routed-bike";
+  return "routed-car";
+}
+
+async function loadRoutedDistance(url: string): Promise<RoutedDistance | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = (await response.json()) as {
+      routes?: RoutedDistance[];
+    };
+    return data.routes?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadRouteTotals(
   paths: RouteDistancePath[],
   token: string,
 ): Promise<RouteTotals | null> {
   const fallbackTotals = fallbackRouteTotals(paths);
-  if (!fallbackTotals || !token) return fallbackTotals;
+  if (!fallbackTotals) return null;
   const routes = await Promise.all(
     paths.map(async ({ coordinates, profile }) => {
       if (coordinates.length > 25) return null;
-      try {
-        const path = coordinates.map(([longitude, latitude]) =>
-          `${longitude},${latitude}`,
-        ).join(";");
-        const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${token}`,
+      const path = coordinates.map(([longitude, latitude]) =>
+        `${longitude},${latitude}`,
+      ).join(";");
+      if (token.trim()) {
+        const mapboxRoute = await loadRoutedDistance(
+          `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${encodeURIComponent(token)}`,
         );
-        if (!response.ok) return null;
-        const data = (await response.json()) as {
-          routes?: { distance: number; duration: number }[];
-        };
-        return data.routes?.[0] || null;
-      } catch {
-        return null;
+        if (mapboxRoute) return mapboxRoute;
       }
+      return loadRoutedDistance(
+        `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
+      );
     }),
   );
   if (!routes.some(Boolean)) return fallbackTotals;
