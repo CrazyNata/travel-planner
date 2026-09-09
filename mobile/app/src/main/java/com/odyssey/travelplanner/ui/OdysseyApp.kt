@@ -221,6 +221,8 @@ import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.AuthFailure
 import com.odyssey.travelplanner.data.classifyAuthFailure
 import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.automaticAccommodationBudgetExpense
+import com.odyssey.travelplanner.data.isAutomaticBudgetExpense
 import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SightDay
 import com.odyssey.travelplanner.data.SightCatalogEntry
@@ -14859,7 +14861,7 @@ private fun BudgetContent(
 ) {
     val language = LocalLanguage.current
     val scope = rememberCoroutineScope()
-    val expenses = overview.budgetExpenses
+    val storedExpenses = overview.budgetExpenses
     val categoryStyles = listOf(
         BudgetCategoryStyle("Жильё", "Жильё", Color(0xFF6C5CE7), setOf("жильё", "жилье", "проживание")),
         BudgetCategoryStyle("Транспорт", "Транспорт", Color(0xFFF5A623), setOf("транспорт")),
@@ -14941,6 +14943,10 @@ private fun BudgetContent(
     val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
     val dayCount = budgetTripDayCount(overview.dates)
     val currencyRate = effectiveCurrencyRate(selectedCurrencyCode)
+    val automaticExpenses = overview.accommodations.mapNotNull { accommodation ->
+        automaticAccommodationBudgetExpense(accommodation, ::effectiveCurrencyRate)
+    }
+    val expenses = storedExpenses + automaticExpenses
     fun displayedExpenseAmount(expense: com.odyssey.travelplanner.data.BudgetExpense): Double =
         expense.amountIn(selectedCurrencyCode, currencyRate)
     val total = expenses.sumOf(::displayedExpenseAmount)
@@ -15985,7 +15991,7 @@ private fun BudgetExpenseRow(
                     softWrap = false,
                 )
             }
-            if (editMode) {
+            if (editMode && !isAutomaticBudgetExpense(expense)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     BudgetExpenseActionButton(
                         background = tintedSurfaceColor(),

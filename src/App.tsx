@@ -369,6 +369,53 @@ function normalizeBudgetExpense(expense: BudgetExpense) {
     ? { ...expense, category: inferred }
     : expense;
 }
+
+function parseBudgetNumericAmount(value: string) {
+  const compact = value.trim().replace(/\s+/g, "");
+  if (!compact) return null;
+  const lastComma = compact.lastIndexOf(",");
+  const lastDot = compact.lastIndexOf(".");
+  let normalized = compact.replace(/[^\d,.-]/g, "");
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized = lastComma > lastDot
+      ? normalized.replace(/\./g, "").replace(",", ".")
+      : normalized.replace(/,/g, "");
+  } else {
+    normalized = normalized.replace(",", ".");
+  }
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function budgetCurrencyFromAccommodation(
+  currency: AccommodationCurrency,
+): BudgetCurrency | null {
+  return currency === "EUR" || currency === "RUB" || currency === "CZK"
+    ? currency
+    : null;
+}
+
+function accommodationBudgetExpense(
+  accommodation: SavedAccommodation,
+): BudgetExpense | null {
+  const parsed = parseAccommodationPrice(accommodation.price);
+  const currency = budgetCurrencyFromAccommodation(parsed.currency);
+  const amount = parseBudgetNumericAmount(parsed.amount);
+  if (!currency || amount === null) return null;
+  return {
+    id: `accommodation:${accommodation.id}`,
+    name: accommodation.name.trim() || "Жильё",
+    amount: amount / budgetCurrencies[currency].rate,
+    currency,
+    category: "Жильё",
+    scope: "общий",
+    paidBy: "Общее",
+  };
+}
+
+function isAutomaticBudgetExpense(expense: BudgetExpense) {
+  return expense.id.startsWith("accommodation:");
+}
 type StoredDay = {
   id?: string;
   city?: string;
@@ -10535,12 +10582,16 @@ function Budget({
   const [editing, setEditing] = useState<BudgetExpense | null>(null);
   const [splitting, setSplitting] = useState(false);
   const storedExpenses = trip.budgetExpenses || [];
-  const expenses = storedExpenses.map(normalizeBudgetExpense);
-  const hasAutoCategories = expenses.some(
+  const normalizedStoredExpenses = storedExpenses.map(normalizeBudgetExpense);
+  const automaticExpenses = (trip.accommodations || [])
+    .map(accommodationBudgetExpense)
+    .filter((expense): expense is BudgetExpense => expense !== null);
+  const expenses = [...normalizedStoredExpenses, ...automaticExpenses];
+  const hasAutoCategories = normalizedStoredExpenses.some(
     (expense, index) => expense.category !== storedExpenses[index]?.category,
   );
   useEffect(() => {
-    if (hasAutoCategories) onUpdateTrip({ ...trip, budgetExpenses: expenses });
+    if (hasAutoCategories) onUpdateTrip({ ...trip, budgetExpenses: normalizedStoredExpenses });
   }, [hasAutoCategories]);
   const currency = trip.budgetCurrency || "EUR";
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -10552,9 +10603,9 @@ function Budget({
   };
   const categories = budgetCategories;
   const saveExpense = (expense: BudgetExpense) => {
-    const next = expenses.some((item) => item.id === expense.id)
-      ? expenses.map((item) => item.id === expense.id ? expense : item)
-      : [...expenses, expense];
+    const next = normalizedStoredExpenses.some((item) => item.id === expense.id)
+      ? normalizedStoredExpenses.map((item) => item.id === expense.id ? expense : item)
+      : [...normalizedStoredExpenses, expense];
     onUpdateTrip({ ...trip, budgetExpenses: next });
   };
   const scopeTotal = (scope: BudgetScope) =>
@@ -10662,15 +10713,19 @@ function Budget({
                         {formatAmount(expense.amount)}
                       </td>
                       <td className="budget-table-action">
-                        <button
-                          type="button"
-                          className="budget-expense-edit"
-                          aria-label={`Редактировать трату ${expense.name}`}
-                          title="Редактировать"
-                          onClick={() => setEditing(expense)}
-                        >
-                          ✎
-                        </button>
+                        {isAutomaticBudgetExpense(expense) ? (
+                          <span title="Сумма автоматически взята из жилья">авто</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="budget-expense-edit"
+                            aria-label={`Редактировать трату ${expense.name}`}
+                            title="Редактировать"
+                            onClick={() => setEditing(expense)}
+                          >
+                            ✎
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )),

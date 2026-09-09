@@ -2,8 +2,21 @@ package com.odyssey.travelplanner.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class BudgetExpenseCurrencyTest {
+    private fun accommodation(price: String) = Accommodation(
+        id = "stay-1",
+        city = "Рим",
+        name = "Hotel Test",
+        dates = "12–15 сен",
+        price = price,
+        status = "бронь",
+        details = "",
+        photos = emptyList(),
+        bookingUrl = "",
+    )
+
     private val expense = BudgetExpense(
         id = "expense-1",
         name = "Билеты",
@@ -37,6 +50,32 @@ class BudgetExpenseCurrencyTest {
             195.69471624266146,
             legacyExpense.amountIn("EUR", currentRate = 1.0 / 50.0),
             absoluteTolerance = 0.000_001,
+        )
+    }
+
+    @Test
+    fun accommodationPriceBecomesAutomaticBudgetExpense() {
+        val automatic = automaticAccommodationBudgetExpense(accommodation("€434")) { code ->
+            when (code) {
+                "EUR" -> 1.0 / 100.0
+                else -> 1.0
+            }
+        }
+
+        requireNotNull(automatic)
+        assertEquals("accommodation:stay-1", automatic.id)
+        assertEquals("Жильё", automatic.category)
+        assertEquals(434.0, automatic.amountIn("EUR", 1.0 / 50.0), absoluteTolerance = 0.000_001)
+        assertEquals(true, isAutomaticBudgetExpense(automatic))
+    }
+
+    @Test
+    fun unsupportedAccommodationCurrencyIsNotAddedToBudget() {
+        assertNull(
+            automaticAccommodationBudgetExpense(accommodation("$500")) { 1.0 },
+        )
+        assertNull(
+            automaticAccommodationBudgetExpense(accommodation("500 USD")) { 1.0 },
         )
     }
 }

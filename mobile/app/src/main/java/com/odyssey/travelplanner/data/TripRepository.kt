@@ -138,6 +138,58 @@ data class BudgetExpense(
         return amount * conversionRate
     }
 }
+
+internal const val AutomaticAccommodationBudgetExpensePrefix = "accommodation:"
+
+internal fun isAutomaticBudgetExpense(expense: BudgetExpense): Boolean =
+    expense.id.startsWith(AutomaticAccommodationBudgetExpensePrefix)
+
+private fun parseBudgetNumericAmount(value: String): Double? {
+    val compact = value.trim().replace(Regex("\\s+"), "")
+    if (compact.isBlank()) return null
+    val lastComma = compact.lastIndexOf(',')
+    val lastDot = compact.lastIndexOf('.')
+    var normalized = compact.replace(Regex("[^0-9,.-]"), "")
+    normalized = if (lastComma >= 0 && lastDot >= 0) {
+        if (lastComma > lastDot) normalized.replace(".", "").replace(',', '.')
+        else normalized.replace(",", "")
+    } else {
+        normalized.replace(',', '.')
+    }
+    return normalized.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+}
+
+private fun accommodationBudgetCurrency(value: String): String? {
+    val normalized = value.trim().uppercase(Locale.ROOT)
+    return when {
+        normalized.startsWith("€") || normalized.endsWith("€") || normalized.startsWith("EUR") || normalized.endsWith("EUR") -> "EUR"
+        normalized.startsWith("₽") || normalized.endsWith("₽") || normalized.startsWith("RUB") || normalized.endsWith("RUB") -> "RUB"
+        normalized.startsWith("KČ") || normalized.endsWith("KČ") || normalized.startsWith("CZK") || normalized.endsWith("CZK") -> "CZK"
+        normalized.any { it in setOf('$', '£', '₺', '¥') } ||
+            listOf("USD", "GBP", "PLN", "CHF", "HUF", "TRY", "JPY").any(normalized::contains) -> null
+        else -> "EUR"
+    }
+}
+
+internal fun automaticAccommodationBudgetExpense(
+    accommodation: Accommodation,
+    currencyRate: (String) -> Double,
+): BudgetExpense? {
+    val amount = parseBudgetNumericAmount(accommodation.price) ?: return null
+    val currency = accommodationBudgetCurrency(accommodation.price) ?: return null
+    val rate = currencyRate(currency).takeIf { it.isFinite() && it > 0.0 } ?: return null
+    return BudgetExpense(
+        id = "$AutomaticAccommodationBudgetExpensePrefix${accommodation.id}",
+        name = accommodation.name.trim().ifBlank { "Жильё" },
+        amount = amount / rate,
+        category = "Жильё",
+        scope = "общий",
+        paidBy = "Общее",
+        inputCurrency = currency,
+        inputCurrencyRate = rate,
+    )
+}
+
 data class BudgetGroup(val name: String, val people: Int)
 data class TripMember(val id: String, val name: String, val email: String, val role: String, val initials: String, val tone: String)
 data class Sight(
