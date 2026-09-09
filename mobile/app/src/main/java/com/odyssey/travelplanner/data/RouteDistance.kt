@@ -270,8 +270,8 @@ private suspend fun routeDistanceMeters(
     coordinates: List<CityLocation>,
     profile: String,
     mapboxAccessToken: String,
-): Double? = mapboxRouteDistanceMeters(coordinates, profile, mapboxAccessToken)
-    ?: valhallaRouteDistanceMeters(coordinates, profile)
+): Double? = valhallaRouteDistanceMeters(coordinates, profile)
+    ?: mapboxRouteDistanceMeters(coordinates, profile, mapboxAccessToken)
     ?: openStreetMapRouteDistanceMeters(coordinates, profile)
 
 private fun valhallaCosting(profile: String): String = when (profile) {

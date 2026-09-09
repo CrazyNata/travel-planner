@@ -2229,14 +2229,16 @@ async function loadRouteTotals(
       const path = coordinates.map(([longitude, latitude]) =>
         `${longitude},${latitude}`,
       ).join(";");
+      // Use the first-party proxy first so the browser is not dependent on
+      // extensions, CORS, or a remote provider being directly reachable.
+      const valhallaRoute = await loadValhallaDistance(coordinates, profile);
+      if (valhallaRoute) return valhallaRoute;
       if (token.trim()) {
         const mapboxRoute = await loadRoutedDistance(
           `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${encodeURIComponent(token)}`,
         );
         if (mapboxRoute) return mapboxRoute;
       }
-      const valhallaRoute = await loadValhallaDistance(coordinates, profile);
-      if (valhallaRoute) return valhallaRoute;
       return loadRoutedDistance(
         `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
       );
