@@ -14958,10 +14958,18 @@ private fun BudgetContent(
     val automaticExpenses = overview.accommodations.mapNotNull { accommodation ->
         automaticAccommodationBudgetExpense(accommodation, ::effectiveCurrencyRate)
     }
-    val expenses = storedExpenses + automaticExpenses
+    // Accommodation expenses are derived from the current lodging cards. If
+    // an older build persisted an automatic row, replace it by the fresh
+    // derived value so a changed lodging price cannot leave a stale duplicate.
+    val expenses = storedExpenses.filterNot(::isAutomaticBudgetExpense) + automaticExpenses
     fun displayedExpenseAmount(expense: com.odyssey.travelplanner.data.BudgetExpense): Double =
         expense.amountIn(selectedCurrencyCode, currencyRate)
     val total = expenses.sumOf(::displayedExpenseAmount)
+
+    fun storedExpenseRate(expense: com.odyssey.travelplanner.data.BudgetExpense): Double? =
+        expense.inputCurrencyRate
+            ?.takeIf { it.isFinite() && it > 0.0 }
+            ?.takeIf { expense.inputCurrency.trim().equals(selectedCurrencyCode, ignoreCase = true) }
 
     suspend fun refreshOnlineRates() {
         loadingRates = true
@@ -15213,9 +15221,10 @@ private fun BudgetContent(
             onAdd = {
                 if (hasReliableCurrencyRate) openNewExpense() else ratesMessage = missingCurrencyRateMessage
             },
-            onEdit = { expense ->
-                if (hasReliableCurrencyRate) openEditExpense(expense) else ratesMessage = missingCurrencyRateMessage
-            },
+            // Editing an existing expense is safe without a fresh online
+            // rate: use its saved snapshot when present, otherwise keep the
+            // same deterministic fallback already used to display it.
+            onEdit = ::openEditExpense,
             onDelete = { expense ->
                 if (canEdit) {
                     deleteExpense = expense
@@ -15255,14 +15264,16 @@ private fun BudgetContent(
                 onScopeChange = { scopeName = it },
                 onClose = ::closeExpenseSheet,
                 onSave = {
-                    if (!hasReliableCurrencyRate) {
+                    val savedInputRate = editingExpense?.let { storedExpenseRate(it) ?: currencyRate }
+                        ?: currencyRate.takeIf { hasReliableCurrencyRate }
+                    if (savedInputRate == null) {
                         message = missingCurrencyRateMessage
                     } else {
                         scope.launch {
                             saving = true
                             message = null
                             val value = amountInput.replace(',', '.').toDoubleOrNull() ?: 0.0
-                            val baseValue = value / currencyRate
+                            val baseValue = value / savedInputRate
                             val expenseName = name.trim().ifBlank { category }
                             val input = com.odyssey.travelplanner.data.ExpenseInput(
                                 name = expenseName,
@@ -15272,7 +15283,7 @@ private fun BudgetContent(
                                 paidBy = paidBy,
                                 date = date,
                                 inputCurrency = selectedCurrencyCode,
-                                inputCurrencyRate = currencyRate,
+                                inputCurrencyRate = savedInputRate,
                             )
                             runCatching {
                                 val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())

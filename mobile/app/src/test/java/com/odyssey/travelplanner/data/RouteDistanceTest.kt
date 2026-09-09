@@ -53,4 +53,18 @@ class RouteDistanceTest {
         val resolvedDistance = assertNotNull(distance)
         assertEquals(231.0, resolvedDistance, absoluteTolerance = 2.0)
     }
+
+    @Test
+    fun routePathFallbackAddsOrderedMapSegments() {
+        val distance = straightLinePathDistanceKm(
+            listOf(
+                CityLocation(latitude = 0.0, longitude = 0.0),
+                CityLocation(latitude = 0.0, longitude = 1.0),
+                CityLocation(latitude = 1.0, longitude = 1.0),
+            ),
+        )
+
+        assertNotNull(distance)
+        assertEquals(222.39, distance, absoluteTolerance = 0.2)
+    }
 }

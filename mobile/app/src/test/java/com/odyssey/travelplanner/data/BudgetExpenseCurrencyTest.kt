@@ -70,6 +70,17 @@ class BudgetExpenseCurrencyTest {
     }
 
     @Test
+    fun unmarkedAccommodationPriceDefaultsToEuro() {
+        val automatic = automaticAccommodationBudgetExpense(accommodation("120")) { code ->
+            if (code == "EUR") 1.0 / 100.0 else 1.0
+        }
+
+        requireNotNull(automatic)
+        assertEquals("EUR", automatic.inputCurrency)
+        assertEquals(120.0, automatic.amountIn("EUR", 1.0 / 50.0), absoluteTolerance = 0.000_001)
+    }
+
+    @Test
     fun unsupportedAccommodationCurrencyIsNotAddedToBudget() {
         assertNull(
             automaticAccommodationBudgetExpense(accommodation("$500")) { 1.0 },

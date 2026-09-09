@@ -249,6 +249,14 @@ internal fun straightLineRouteDistanceKm(
     return coordinates.filterNotNull().sumOf { straightLineDistanceKm(it.from, it.to) }
 }
 
+internal fun straightLinePathDistanceKm(coordinates: List<CityLocation>): Double? {
+    if (coordinates.size < 2) return null
+    val distanceKm = coordinates.zipWithNext().sumOf { (from, to) ->
+        straightLineDistanceKm(from, to)
+    }
+    return distanceKm.takeIf { it.isFinite() && it > 0.0 }
+}
+
 internal suspend fun loadRouteDistanceSummary(
     routeLegs: List<RouteLeg>,
     savedCoordinates: Map<String, CityLocation>,
@@ -269,15 +277,19 @@ internal suspend fun loadRouteDistanceSummary(
     val routeDistances = resolvedPaths.map { path ->
         routeDistanceMeters(path.coordinates, path.profile, token)
     }
-    // Never mix straight-line segments into the displayed trip total. The
-    // Android screen shows a distance only after every leg has a network
-    // route; this keeps a temporary provider outage from producing a wrong
-    // number that looks authoritative.
-    if (routeDistances.any { it == null }) return null
-    val distanceKm = routeDistances.filterNotNull().sumOf { it } / 1000.0
+    // A provider outage should not make the route distance disappear. Keep
+    // network distances where available and use the ordered map path as a
+    // transparent approximation for failed legs. The UI prefixes the result
+    // with "≈" so this cannot be mistaken for a routed distance.
+    val distanceKm = resolvedPaths.indices.sumOf { index ->
+        routeDistances[index]?.div(1000.0)
+            ?: straightLinePathDistanceKm(resolvedPaths[index].coordinates)
+            ?: 0.0
+    }
+    if (!distanceKm.isFinite() || distanceKm <= 0.0) return null
     return RouteDistanceSummary(
         distanceKm = distanceKm,
-        isApproximate = false,
+        isApproximate = routeDistances.any { it == null },
     )
 }
 
