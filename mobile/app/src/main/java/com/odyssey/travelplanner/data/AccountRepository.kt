@@ -26,11 +26,14 @@ data class AccountProfile(
     val avatarUrl: String?,
     val notificationsEnabled: Boolean,
     val language: String = "RU",
-    val darkTheme: Boolean = false,
+    val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val tripRemindersEnabled: Boolean = true,
     val cancellationRemindersEnabled: Boolean = true,
     val reminderHour: Int = 9,
-)
+) {
+    val darkTheme: Boolean
+        get() = themePreference == ThemePreference.DARK
+}
 
 class AccountRepository(private val client: SupabaseClient) {
     suspend fun loadProfile(): AccountProfile {
@@ -38,11 +41,18 @@ class AccountRepository(private val client: SupabaseClient) {
         val row = client.from("user_data").select {
             filter { eq("user_id", userId); eq("key", "account_profile") }
         }.decodeList<UserDataRow>().firstOrNull()
+        val storedTheme = row?.value?.get("theme")?.jsonPrimitive?.contentOrNull
+        val themePreference = when {
+            storedTheme != null -> ThemePreference.fromStorage(storedTheme)
+            row?.value?.get("dark_theme")?.jsonPrimitive?.content == "true" -> ThemePreference.DARK
+            row != null -> ThemePreference.LIGHT
+            else -> ThemePreference.SYSTEM
+        }
         return AccountProfile(
             avatarUrl = client.resolveTripPhotoReference(row?.value?.get("avatar_url")?.jsonPrimitive?.contentOrNull),
             notificationsEnabled = row?.value?.get("notifications_enabled")?.jsonPrimitive?.content == "true",
             language = row?.value?.get("language")?.jsonPrimitive?.contentOrNull ?: "RU",
-            darkTheme = row?.value?.get("dark_theme")?.jsonPrimitive?.content == "true",
+            themePreference = themePreference,
             tripRemindersEnabled = row?.value?.get("trip_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             cancellationRemindersEnabled = row?.value?.get("cancellation_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             reminderHour = row?.value?.get("reminder_hour")?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(0, 23) ?: 9,
@@ -57,6 +67,7 @@ class AccountRepository(private val client: SupabaseClient) {
         tripRemindersEnabled: Boolean? = null,
         cancellationRemindersEnabled: Boolean? = null,
         reminderHour: Int? = null,
+        themePreference: ThemePreference? = null,
     ) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
@@ -66,7 +77,15 @@ class AccountRepository(private val client: SupabaseClient) {
         canonicalTripPhotoReference(avatarUrl)?.let { value["avatar_url"] = JsonPrimitive(it) }
         value["notifications_enabled"] = JsonPrimitive(notificationsEnabled)
         language?.let { value["language"] = JsonPrimitive(it) }
-        darkTheme?.let { value["dark_theme"] = JsonPrimitive(it) }
+        themePreference?.let {
+            value["theme"] = JsonPrimitive(it.storageValue)
+            value["dark_theme"] = JsonPrimitive(it == ThemePreference.DARK)
+        } ?: darkTheme?.let {
+            value["dark_theme"] = JsonPrimitive(it)
+            if (value["theme"] == null) {
+                value["theme"] = JsonPrimitive(if (it) ThemePreference.DARK.storageValue else ThemePreference.LIGHT.storageValue)
+            }
+        }
         tripRemindersEnabled?.let { value["trip_reminders_enabled"] = JsonPrimitive(it) }
         cancellationRemindersEnabled?.let { value["cancellation_reminders_enabled"] = JsonPrimitive(it) }
         reminderHour?.coerceIn(0, 23)?.let { value["reminder_hour"] = JsonPrimitive(it) }
@@ -79,9 +98,21 @@ class AccountRepository(private val client: SupabaseClient) {
         ) { onConflict = "user_id,key" }
     }
 
-    suspend fun updateAppearance(language: String, darkTheme: Boolean) {
+    suspend fun updateAppearance(language: String, themePreference: ThemePreference) {
         val profile = loadProfile()
-        updateProfile(profile.avatarUrl, profile.notificationsEnabled, language = language, darkTheme = darkTheme)
+        updateProfile(
+            profile.avatarUrl,
+            profile.notificationsEnabled,
+            language = language,
+            themePreference = themePreference,
+        )
+    }
+
+    suspend fun updateAppearance(language: String, darkTheme: Boolean) {
+        updateAppearance(
+            language,
+            if (darkTheme) ThemePreference.DARK else ThemePreference.LIGHT,
+        )
     }
 
     suspend fun uploadProfilePhoto(bytes: ByteArray): String {

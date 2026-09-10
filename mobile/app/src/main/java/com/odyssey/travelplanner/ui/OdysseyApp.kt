@@ -32,6 +32,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -90,6 +91,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.getValue
@@ -134,6 +137,10 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Feedback
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
@@ -217,6 +224,7 @@ import com.odyssey.travelplanner.data.RememberedAccount
 import com.odyssey.travelplanner.data.AuthRestoreResult
 import com.odyssey.travelplanner.data.AccountRepository
 import com.odyssey.travelplanner.data.AccountProfile
+import com.odyssey.travelplanner.data.ThemePreference
 import com.odyssey.travelplanner.data.AuthSessionRequiredException
 import com.odyssey.travelplanner.data.AuthFailure
 import com.odyssey.travelplanner.data.classifyAuthFailure
@@ -1571,7 +1579,12 @@ fun OdysseyApp(
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
-    var darkTheme by remember { mutableStateOf(false) }
+    var themePreference by remember { mutableStateOf(ThemePreference.SYSTEM) }
+    val darkTheme = when (themePreference) {
+        ThemePreference.SYSTEM -> isSystemInDarkTheme()
+        ThemePreference.LIGHT -> false
+        ThemePreference.DARK -> true
+    }
     var language by remember { mutableStateOf("RU") }
     var languageSelectedBeforeAuth by remember { mutableStateOf<String?>(null) }
     var authReady by remember { mutableStateOf(false) }
@@ -1634,14 +1647,14 @@ fun OdysseyApp(
             }.getOrNull()
             accountProfile = profile
             profile?.let {
-                darkTheme = it.darkTheme
+                themePreference = it.themePreference
                 val languageChosenBeforeAuth = languageSelectedBeforeAuth
                 if (languageChosenBeforeAuth != null) {
                     language = languageChosenBeforeAuth
                     if (normalizeLanguage(it.language) != languageChosenBeforeAuth) {
                         runCatching {
                             AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                .updateAppearance(languageChosenBeforeAuth, it.darkTheme)
+                                .updateAppearance(languageChosenBeforeAuth, it.themePreference)
                         }
                     }
                     languageSelectedBeforeAuth = null
@@ -1783,7 +1796,8 @@ fun OdysseyApp(
                             }
                         },
                         darkTheme = darkTheme,
-                        onThemeToggle = { darkTheme = !darkTheme },
+                        themePreference = themePreference,
+                        onThemeSet = { themePreference = it },
                         language = language,
                         onLanguageChange = ::handleLanguageChange,
                         sessionRestoreVersion = sessionRestoreVersion,
@@ -1808,8 +1822,8 @@ fun OdysseyApp(
                             }
                         },
                         darkTheme = darkTheme,
-                        onThemeToggle = { darkTheme = !darkTheme },
-                        onThemeSet = { darkTheme = it },
+                        themePreference = themePreference,
+                        onThemeSet = { themePreference = it },
                         language = language,
                         onLanguageChange = { language = normalizeLanguage(it) },
                         onNotificationSettingsChanged = { settings ->
@@ -2885,7 +2899,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, onThemeToggle: () -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?, onNotificationSettingsChanged: (NotificationSettingsDraft) -> Unit = {}) {
+private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, onLogout: () -> Unit, darkTheme: Boolean, themePreference: ThemePreference, onThemeSet: (ThemePreference) -> Unit, language: String, onLanguageChange: (String) -> Unit, sessionRestoreVersion: Int, accountProfile: AccountProfile?, onNotificationSettingsChanged: (NotificationSettingsDraft) -> Unit = {}) {
     var filter by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var trips by remember { mutableStateOf<List<TripCard>>(emptyList()) }
@@ -3211,6 +3225,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                 trips = trips,
                 language = language,
                 darkTheme = darkTheme,
+                themePreference = themePreference,
                 notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
                 passwordEditorOpen = passwordEditorOpen,
                 newPassword = newPassword,
@@ -3230,23 +3245,26 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                                 profileAvatarUrl,
                                 notificationsEnabled,
                                 language = code,
-                                darkTheme = darkTheme,
+                                themePreference = themePreference,
                             )
                         }.onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden")) }
                     }
                 },
-                onThemeToggle = {
-                    val nextTheme = !darkTheme
-                    onThemeToggle()
+                onThemeChange = { selectedTheme ->
+                    val previousTheme = themePreference
+                    onThemeSet(selectedTheme)
                     scope.launch {
                         runCatching {
                             AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
                                 profileAvatarUrl,
                                 notificationsEnabled,
                                 language = language,
-                                darkTheme = nextTheme,
+                                themePreference = selectedTheme,
                             )
-                        }.onFailure { accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden")) }
+                        }.onFailure {
+                            onThemeSet(previousTheme)
+                            accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden"))
+                        }
                     }
                 },
                 onPasswordEditorToggle = {
@@ -3298,7 +3316,7 @@ private fun MyTripsScreen(onTripClick: (String) -> Unit, onNewTrip: () -> Unit, 
                         profileAvatarUrl,
                         settings.notificationsEnabled,
                         language = language,
-                        darkTheme = darkTheme,
+                        themePreference = themePreference,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
                         reminderHour = settings.reminderHour,
@@ -3399,8 +3417,8 @@ private fun AccountSettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     darkTheme: Boolean,
-    onThemeToggle: () -> Unit,
-    onThemeSet: (Boolean) -> Unit,
+    themePreference: ThemePreference,
+    onThemeSet: (ThemePreference) -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
     onNotificationSettingsChanged: (NotificationSettingsDraft) -> Unit = {},
@@ -3451,7 +3469,7 @@ private fun AccountSettingsScreen(
             tripRemindersEnabled = profile.tripRemindersEnabled
             cancellationRemindersEnabled = profile.cancellationRemindersEnabled
             reminderHour = profile.reminderHour
-            onThemeSet(profile.darkTheme)
+            onThemeSet(profile.themePreference)
         }
         trips = runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }.getOrDefault(emptyList())
     }
@@ -3484,7 +3502,7 @@ private fun AccountSettingsScreen(
                         profileAvatarUrl,
                         settings.notificationsEnabled,
                         language = language,
-                        darkTheme = darkTheme,
+                        themePreference = themePreference,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
                         reminderHour = settings.reminderHour,
@@ -3511,6 +3529,7 @@ private fun AccountSettingsScreen(
             trips = trips,
             language = language,
             darkTheme = darkTheme,
+            themePreference = themePreference,
             notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
             passwordEditorOpen = passwordEditorOpen,
             newPassword = newPassword,
@@ -3527,25 +3546,26 @@ private fun AccountSettingsScreen(
                             profileAvatarUrl,
                             notificationsEnabled,
                             language = code,
-                            darkTheme = darkTheme,
+                            themePreference = themePreference,
                         )
                     }.onFailure {
                         accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить язык", "Could not save language", "No se pudo guardar el idioma", "Sprache konnte nicht gespeichert werden"))
                     }
                 }
             },
-            onThemeToggle = {
-                val nextTheme = !darkTheme
-                onThemeToggle()
+            onThemeChange = { selectedTheme ->
+                val previousTheme = themePreference
+                onThemeSet(selectedTheme)
                 scope.launch {
                     runCatching {
                         AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateProfile(
                             profileAvatarUrl,
                             notificationsEnabled,
                             language = language,
-                            darkTheme = nextTheme,
+                            themePreference = selectedTheme,
                         )
                     }.onFailure {
+                        onThemeSet(previousTheme)
                         accountMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить тему", "Could not save theme", "No se pudo guardar el tema", "Thema konnte nicht gespeichert werden"))
                     }
                 }
@@ -4112,6 +4132,7 @@ private fun AccountSettingsSheet(
     trips: List<TripCard>,
     language: String,
     darkTheme: Boolean,
+    themePreference: ThemePreference,
     notificationsEnabled: Boolean,
     passwordEditorOpen: Boolean,
     newPassword: String,
@@ -4121,7 +4142,7 @@ private fun AccountSettingsSheet(
     onPhotoPick: () -> Unit,
     onNotificationSettingsOpen: () -> Unit,
     onLanguageChange: (String) -> Unit,
-    onThemeToggle: () -> Unit,
+    onThemeChange: (ThemePreference) -> Unit,
     onPasswordEditorToggle: () -> Unit,
     onNewPasswordChange: (String) -> Unit,
     onRepeatedPasswordChange: (String) -> Unit,
@@ -4130,12 +4151,19 @@ private fun AccountSettingsSheet(
     onSignOut: () -> Unit,
 ) {
     var languagePickerOpen by remember(language) { mutableStateOf(false) }
+    var themePickerOpen by remember(themePreference) { mutableStateOf(false) }
+    var feedbackOpen by remember { mutableStateOf(false) }
     val displayName = profileEmail.substringBefore("@").ifBlank { "Ramingo" }
     val languageName = when (normalizeLanguage(language)) {
         "EN" -> "English"
         "ES" -> "Español"
         "DE" -> "Deutsch"
         else -> "Русский"
+    }
+    val themeName = when (themePreference) {
+        ThemePreference.SYSTEM -> localized("Системная", "System default", "Predeterminada del sistema", "Systemstandard")
+        ThemePreference.LIGHT -> localized("Светлая", "Light", "Claro", "Hell")
+        ThemePreference.DARK -> localized("Тёмная", "Dark", "Oscuro", "Dunkel")
     }
     val cityCount = remember(trips) {
         trips
@@ -4144,6 +4172,7 @@ private fun AccountSettingsSheet(
             .distinctBy(::cityFilterKey)
             .size
     }
+    val context = LocalContext.current
     val sheetBackground = if (darkTheme) OdysseyDarkSurface else Color(0xFFF7F5FF)
     val dividerColor = if (darkTheme) OdysseyDarkBorder else contentBorderColor()
 
@@ -4216,7 +4245,31 @@ private fun AccountSettingsSheet(
                 AccountStat(value = "—", label = localized("км", "km", "km", "km"), modifier = Modifier.weight(1f))
             }
 
-            Text(localized("НАСТРОЙКИ АККАУНТА", "ACCOUNT SETTINGS", "AJUSTES DE LA CUENTA", "KONTOEINSTELLUNGEN"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 20.dp, bottom = 9.dp))
+            Text(localized("ВНЕШНИЙ ВИД", "APPEARANCE", "APARIENCIA", "DARSTELLUNG"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 20.dp, bottom = 9.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(15.dp))
+                    .border(1.dp, dividerColor, RoundedCornerShape(15.dp))
+                    .background(cardSurfaceColor()),
+            ) {
+                AccountMenuItem(
+                    Icons.Outlined.Palette,
+                    localized("Тема", "Theme", "Tema", "Thema"),
+                    trailing = themeName,
+                ) { themePickerOpen = !themePickerOpen }
+                if (themePickerOpen) {
+                    ThemePreferenceSelector(
+                        selected = themePreference,
+                        onSelected = {
+                            themePickerOpen = false
+                            onThemeChange(it)
+                        },
+                    )
+                }
+            }
+
+            Text(localized("НАСТРОЙКИ АККАУНТА", "ACCOUNT SETTINGS", "AJUSTES DE LA CUENTA", "KONTOEINSTELLUNGEN"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -4255,28 +4308,6 @@ private fun AccountSettingsSheet(
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 13.dp)) {
-                    AccountIconTile(Icons.Outlined.DarkMode)
-                    Text(localized("Тёмная тема", "Dark theme", "Tema oscuro", "Dunkles Thema"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                    Box(
-                        modifier = Modifier
-                            .width(40.dp)
-                            .height(24.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (darkTheme) primaryColor() else Color(0xFFE4E1EB))
-                            .clickable(onClick = onThemeToggle),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .align(if (darkTheme) Alignment.CenterEnd else Alignment.CenterStart)
-                                .padding(3.dp)
-                                .size(18.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                                .border(1.dp, if (darkTheme) OdysseyDarkBorder else Color(0xFFD6D2DE), CircleShape),
-                        )
-                    }
-                }
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(
                     Icons.Outlined.NotificationsNone,
@@ -4305,13 +4336,348 @@ private fun AccountSettingsSheet(
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), Color(0xFFE85B56)) { onDeleteAccount() }
             }
+
+            Text(localized("ПОДДЕРЖКА", "SUPPORT", "SOPORTE", "SUPPORT"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(15.dp))
+                    .border(1.dp, dividerColor, RoundedCornerShape(15.dp))
+                    .background(cardSurfaceColor()),
+            ) {
+                AccountMenuItem(
+                    Icons.Outlined.Feedback,
+                    localized("Отправить отзыв", "Send feedback", "Enviar comentarios", "Feedback senden"),
+                ) { feedbackOpen = true }
+                AccountSettingsDivider(dividerColor)
+                AccountMenuItem(
+                    Icons.Outlined.StarBorder,
+                    localized("Оценить Ramingo", "Rate Ramingo", "Valorar Ramingo", "Ramingo bewerten"),
+                ) {
+                    val storePackage = "com.odyssey.travelplanner"
+                    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$storePackage"))
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$storePackage"))
+                    runCatching { context.startActivity(marketIntent) }.onFailure { runCatching { context.startActivity(webIntent) } }
+                }
+            }
+
+            Text(localized("О ПРИЛОЖЕНИИ", "ABOUT", "ACERCA DE", "ÜBER DIE APP"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(15.dp))
+                    .border(1.dp, dividerColor, RoundedCornerShape(15.dp))
+                    .background(cardSurfaceColor()),
+            ) {
+                AccountMenuItem(
+                    Icons.Outlined.Info,
+                    localized("Версия приложения", "App version", "Versión de la aplicación", "App-Version"),
+                    trailing = BuildConfig.VERSION_NAME,
+                )
+            }
             accountMessage?.let {
                 Text(it, color = if (it.contains("Не удалось") || it.contains("не совпадают") || it.contains("минимум")) Color(0xFFE85B56) else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
             }
-            Text(localized("Версия приложения · ${BuildConfig.VERSION_NAME}", "App version · ${BuildConfig.VERSION_NAME}", "Versión de la aplicación · ${BuildConfig.VERSION_NAME}", "App-Version · ${BuildConfig.VERSION_NAME}"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 13.dp))
             TextButton(onClick = onSignOut, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Text(localized("Выйти из аккаунта", "Sign out", "Cerrar sesión", "Abmelden"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
+        }
+    }
+
+    if (feedbackOpen) {
+        FeedbackBottomSheet(
+            darkTheme = darkTheme,
+            onDismiss = { feedbackOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun ThemePreferenceSelector(
+    selected: ThemePreference,
+    onSelected: (ThemePreference) -> Unit,
+) {
+    val options = listOf(
+        ThemePreference.SYSTEM to localized("Системная", "System default", "Predeterminada del sistema", "Systemstandard"),
+        ThemePreference.LIGHT to localized("Светлая", "Light", "Claro", "Hell"),
+        ThemePreference.DARK to localized("Тёмная", "Dark", "Oscuro", "Dunkel"),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 13.dp, end = 13.dp, bottom = 10.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(secondarySurfaceColor())
+            .padding(4.dp),
+    ) {
+        options.forEach { (preference, label) ->
+            val isSelected = selected == preference
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (isSelected) primaryColor() else Color.Transparent)
+                    .clickable { onSelected(preference) }
+                    .heightIn(min = 44.dp)
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
+            ) {
+                Text(
+                    label,
+                    color = if (isSelected) primaryContentColor() else contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isSelected) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = localized("Выбрано", "Selected", "Seleccionado", "Ausgewählt"),
+                        tint = primaryContentColor(),
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FeedbackBottomSheet(
+    darkTheme: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var feedbackType by remember { mutableStateOf("general") }
+    var feedbackText by remember { mutableStateOf("") }
+    var feedbackError by remember { mutableStateOf<String?>(null) }
+    val sheetBackground = if (darkTheme) OdysseyDarkSurface else Color(0xFFF7F5FF)
+    val dividerColor = if (darkTheme) OdysseyDarkBorder else contentBorderColor()
+    val feedbackTypes = listOf(
+        "bug" to localized("Ошибка", "Bug", "Error", "Fehler"),
+        "feature" to localized("Запрос функции", "Feature request", "Nueva función", "Funktionswunsch"),
+        "general" to localized("Общий отзыв", "General feedback", "Comentario general", "Allgemeines Feedback"),
+    )
+    val emptyFeedbackMessage = localized("Напишите сообщение", "Write a message", "Escriba un mensaje", "Schreiben Sie eine Nachricht")
+    val draftOpenedMessage = localized("Почтовый черновик открыт", "Email draft opened", "Borrador de correo abierto", "E-Mail-Entwurf geöffnet")
+    val emailAppErrorMessage = localized("Не удалось открыть почтовое приложение", "Could not open an email app", "No se pudo abrir una aplicación de correo", "E-Mail-App konnte nicht geöffnet werden")
+    val feedbackTypePrefix = localized("Тип отзыва:", "Feedback type:", "Tipo de comentario:", "Feedback-Typ:")
+
+    fun submitFeedback() {
+        val message = feedbackText.trim()
+        if (message.isBlank()) {
+            feedbackError = emptyFeedbackMessage
+            return
+        }
+        feedbackError = null
+        val typeLabel = feedbackTypes.firstOrNull { it.first == feedbackType }?.second.orEmpty()
+        val intent = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:support@ramingo.online")
+            putExtra(Intent.EXTRA_SUBJECT, "Ramingo — $typeLabel")
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "$feedbackTypePrefix $typeLabel\n\n$message",
+            )
+        }
+        runCatching { context.startActivity(intent) }
+            .onSuccess {
+                scope.launch {
+                    snackbarHostState.showSnackbar(draftOpenedMessage)
+                }
+            }
+            .onFailure {
+                scope.launch {
+                    snackbarHostState.showSnackbar(emailAppErrorMessage)
+                }
+            }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = sheetBackground,
+        tonalElevation = 0.dp,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(43.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (darkTheme) OdysseyDarkMuted else Color(0xFF9996A5)),
+            )
+        },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .imePadding(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 78.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            localized("Отправить отзыв", "Send feedback", "Enviar comentarios", "Feedback senden"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 20.sp,
+                        )
+                        Text(
+                            localized("Помогите сделать Ramingo лучше", "Help make Ramingo better", "Ayude a mejorar Ramingo", "Helfen Sie, Ramingo zu verbessern"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W500,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = localized("Закрыть", "Close", "Cerrar", "Schließen"),
+                            tint = secondaryTextColor(),
+                        )
+                    }
+                }
+
+                Text(
+                    localized("Тип отзыва", "Feedback type", "Tipo de comentario", "Feedback-Typ"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 7.dp),
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                ) {
+                    feedbackTypes.forEach { (key, label) ->
+                        val isSelected = feedbackType == key
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (isSelected) primaryColor() else cardSurfaceColor())
+                                .border(1.dp, if (isSelected) primaryColor() else dividerColor, RoundedCornerShape(18.dp))
+                                .clickable { feedbackType = key }
+                                .heightIn(min = 44.dp)
+                                .padding(horizontal = 13.dp, vertical = 9.dp),
+                        ) {
+                            Text(
+                                label,
+                                color = if (isSelected) primaryContentColor() else contentTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W700,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    localized("Сообщение", "Message", "Mensaje", "Nachricht"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 7.dp),
+                )
+                OutlinedTextField(
+                    value = feedbackText,
+                    onValueChange = {
+                        feedbackText = it
+                        feedbackError = null
+                    },
+                    isError = feedbackError != null,
+                    placeholder = {
+                        Text(
+                            localized("Что можно улучшить?", "What could we improve?", "¿Qué podemos mejorar?", "Was können wir verbessern?"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontSize = 13.sp,
+                        )
+                    },
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                    ),
+                    minLines = 5,
+                    maxLines = 7,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = primaryColor(),
+                        unfocusedBorderColor = dividerColor,
+                        errorBorderColor = Color(0xFFE85B56),
+                        focusedContainerColor = cardSurfaceColor(),
+                        unfocusedContainerColor = cardSurfaceColor(),
+                        cursorColor = primaryColor(),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                feedbackError?.let { error ->
+                    Text(
+                        error,
+                        color = Color(0xFFE85B56),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+                Text(
+                    localized("После нажатия откроется почтовое приложение.", "Your email app will open after you tap Send.", "Su aplicación de correo se abrirá al pulsar Enviar.", "Nach dem Tippen auf Senden wird Ihre E-Mail-App geöffnet."),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W500,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Button(
+                    onClick = ::submitFeedback,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primaryColor(),
+                        contentColor = primaryContentColor(),
+                        disabledContainerColor = secondarySurfaceColor(),
+                        disabledContentColor = secondaryTextColor(),
+                    ),
+                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                ) {
+                    Text(
+                        localized("Отправить", "Send", "Enviar", "Senden"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            )
         }
     }
 }
@@ -4388,7 +4754,9 @@ private fun AccountMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVecto
         if (trailing != null) {
             Text(trailing, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.sp, modifier = Modifier.padding(end = 8.dp))
         }
-        Text("›", color = color ?: secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp)
+        if (onClick != null) {
+            Text("›", color = color ?: secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp)
+        }
     }
 }
 

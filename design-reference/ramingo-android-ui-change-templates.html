@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблоны визуальных изменений Android</title>
+  <style>
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_regular.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_semibold.ttf") format("truetype"); font-weight: 600; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_bold.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_extrabold.ttf") format("truetype"); font-weight: 800; }
+
+    :root {
+      --page: #eeecf5;
+      --page-spot: #fbfaff;
+      --phone: #f4f4f7;
+      --surface: #ffffff;
+      --surface-2: #f5f5f8;
+      --text: #141419;
+      --label: #3a3a42;
+      --muted: #8a8a95;
+      --line: #e6e6ec;
+      --primary: #6c5ce7;
+      --primary-soft: #f1eefe;
+      --primary-on: #ffffff;
+      --green: #249d72;
+      --green-soft: #e9f8f1;
+      --danger: #e85b56;
+      --danger-soft: #ffe9e8;
+      --account-bg: #f7f5ff;
+      --shadow: 0 18px 60px rgba(46, 35, 86, .16);
+      --phone-shadow: 0 16px 40px rgba(40, 34, 70, .24);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { color-scheme: light; }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #111116;
+      --page-spot: #202331;
+      --phone: #141416;
+      --surface: #222531;
+      --surface-2: #303443;
+      --text: #f7f8fc;
+      --label: #f7f8fc;
+      --muted: #d9dbe6;
+      --line: #697084;
+      --primary: #a79bff;
+      --primary-soft: #332f50;
+      --primary-on: #18152d;
+      --green: #72d1a6;
+      --green-soft: #203c35;
+      --danger: #ff7b76;
+      --danger-soft: #47282c;
+      --account-bg: #222531;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .34);
+      --phone-shadow: 0 16px 40px rgba(0, 0, 0, .42);
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 0%, var(--page-spot) 0, transparent 31%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--primary) 16%, transparent) 0, transparent 28%),
+        var(--page);
+      font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+      transition: background .2s ease, color .2s ease;
+    }
+
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    .page { width: min(1280px, calc(100% - 36px)); margin: 0 auto; padding: 30px 0 64px; }
+
+    .brand { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 800; }
+    .brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 11px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); box-shadow: 0 8px 18px rgba(108, 92, 231, .27); font-size: 20px; font-weight: 800; }
+
+    .intro { max-width: 820px; margin: 22px auto 20px; text-align: center; }
+    .intro h1 { margin: 0; font-size: clamp(25px, 4vw, 42px); letter-spacing: -.055em; }
+    .intro p { margin: 10px auto 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .notice { max-width: 820px; margin: 0 auto 22px; padding: 12px 15px; border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--line)); border-radius: 14px; color: var(--label); background: color-mix(in srgb, var(--primary-soft) 75%, var(--surface)); font-size: 12px; line-height: 1.5; text-align: center; }
+    .notice b { color: var(--primary); }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; }
+    .toolbar-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .toolbar button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 800; }
+    .toolbar button.active { border-color: color-mix(in srgb, var(--primary) 54%, var(--line)); color: var(--primary-on); background: var(--primary); }
+
+    .gallery { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 18px; align-items: start; }
+    .template { overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); border-radius: 23px; background: color-mix(in srgb, var(--surface) 76%, transparent); box-shadow: var(--shadow); }
+    .template-head { min-height: 112px; padding: 17px 17px 12px; }
+    .tag { display: inline-flex; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--primary) 33%, var(--line)); border-radius: 999px; color: var(--primary); background: var(--primary-soft); font-size: 9px; font-weight: 800; letter-spacing: .035em; }
+    .template-head h2 { margin: 9px 0 0; font-size: 16px; letter-spacing: -.035em; }
+    .template-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.42; }
+    .phone-wrap { display: flex; justify-content: center; padding: 0 13px 18px; }
+    .phone { position: relative; width: min(100%, 310px); height: 650px; overflow: hidden; border: 7px solid #1d1c25; border-radius: 36px; background: var(--phone); box-shadow: var(--phone-shadow); }
+    .phone-status { display: flex; align-items: center; justify-content: space-between; height: 29px; padding: 0 14px; color: var(--muted); background: var(--phone); font-size: 9px; font-weight: 800; }
+    .phone-scroll { height: calc(100% - 29px); overflow: auto; scrollbar-width: none; }
+    .phone-scroll::-webkit-scrollbar { display: none; }
+    .screen { min-height: 100%; padding: 15px 15px 20px; background: var(--phone); }
+    .account-screen { background: var(--account-bg); }
+    .screen.center { display: flex; min-height: 100%; flex-direction: column; align-items: center; justify-content: space-between; padding: 17px 18px 22px; text-align: center; }
+
+    .icon-btn { display: grid; width: 31px; height: 31px; place-items: center; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: var(--surface); font-size: 15px; }
+    .round-btn { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 50%; color: var(--muted); background: var(--surface-2); font-size: 19px; }
+    .primary { width: 100%; padding: 12px 14px; border: 0; border-radius: 13px; color: var(--primary-on); background: var(--primary); font-size: 12px; font-weight: 800; }
+    .secondary { padding: 10px 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--primary); background: var(--surface); font-size: 11px; font-weight: 800; }
+    .screen-top { display: flex; align-items: center; justify-content: space-between; gap: 9px; width: 100%; }
+    .screen-top h3 { margin: 0; font-size: 18px; letter-spacing: -.045em; }
+    .screen-top p { margin: 3px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .eyebrow { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .muted { color: var(--muted); }
+
+    /* Onboarding */
+    .onboarding-logo { display: flex; align-items: center; gap: 8px; align-self: flex-start; color: var(--label); font-size: 15px; font-weight: 800; }
+    .onboarding-logo .mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); font-size: 17px; }
+    .skip { align-self: flex-end; margin-top: -28px; padding: 4px; border: 0; color: var(--muted); background: transparent; font-size: 11px; font-weight: 700; }
+    .onboarding-slide { display: none; width: 100%; flex: 1; flex-direction: column; align-items: center; justify-content: center; }
+    .onboarding-slide.active { display: flex; }
+    .onboarding-art { position: relative; display: grid; width: 190px; height: 190px; place-items: center; margin-bottom: 27px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line)); border-radius: 52px; background: linear-gradient(145deg, var(--primary-soft), var(--surface)); }
+    .onboarding-art:before, .onboarding-art:after { position: absolute; border: 1.5px dashed color-mix(in srgb, var(--primary) 68%, transparent); border-radius: 50%; content: ""; transform: rotate(-14deg); }
+    .onboarding-art:before { inset: 39px 18px 73px 31px; }
+    .onboarding-art:after { inset: 80px 28px 29px 74px; }
+    .tutorial-preview { position: relative; width: 190px; height: 190px; overflow: hidden; margin-bottom: 27px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line)); border-radius: 26px; color: var(--text); background: var(--phone); box-shadow: 0 10px 22px rgba(43, 38, 74, .13); font-size: 8px; text-align: left; }
+    .mini-appbar { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 7px 9px 5px; }
+    .mini-brand-mark { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 7px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); font-size: 11px; font-weight: 800; }
+    .mini-appbar strong { font-size: 11px; font-weight: 800; }
+    .mini-appbar small { display: block; margin-bottom: 1px; color: var(--muted); font-size: 7px; font-weight: 700; }
+    .mini-appbar .mini-title { flex: 1; }
+    .mini-action { margin-left: auto; color: var(--primary); font-size: 14px; font-weight: 800; }
+    .mini-heading { padding: 2px 10px 0; font-size: 18px; font-weight: 800; letter-spacing: -.05em; }
+    .mini-chips { display: flex; gap: 4px; overflow: hidden; padding: 7px 10px 6px; white-space: nowrap; }
+    .mini-chip { padding: 5px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 7px; font-weight: 800; }
+    .mini-chip.active { border-color: var(--primary); color: var(--primary-on); background: var(--primary); }
+    .mini-trip-card { position: relative; height: 78px; margin: 2px 10px 0; padding: 9px; overflow: hidden; border-radius: 14px; color: #fff; background: linear-gradient(135deg, rgba(63, 40, 125, .42), rgba(15, 17, 35, .73)), linear-gradient(135deg, #caa4a7, #6f7ab5 54%, #e8c080); }
+    .mini-trip-card:after { position: absolute; right: -20px; bottom: -20px; width: 100px; height: 62px; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; content: ""; transform: rotate(-16deg); }
+    .mini-trip-card .mini-status { display: inline-flex; padding: 4px 6px; border-radius: 999px; background: rgba(20, 19, 33, .35); font-size: 7px; font-weight: 800; }
+    .mini-trip-card strong { position: absolute; right: 9px; bottom: 20px; left: 9px; font-size: 13px; letter-spacing: -.04em; }
+    .mini-trip-card small { position: absolute; bottom: 8px; left: 9px; color: rgba(255,255,255,.82); font-size: 7px; }
+    .mini-new-trip { display: flex; align-items: center; gap: 7px; margin: 7px 10px 0; padding: 7px; border: 1px dashed color-mix(in srgb, var(--primary) 35%, var(--line)); border-radius: 11px; color: var(--label); background: color-mix(in srgb, var(--primary-soft) 55%, transparent); font-size: 9px; font-weight: 800; }
+    .mini-new-trip b { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 15px; }
+    .mini-photo { position: relative; height: 70px; margin: 1px 9px 0; overflow: hidden; border-radius: 13px; background: linear-gradient(145deg, rgba(17, 31, 77, .02), rgba(15, 17, 35, .78)), linear-gradient(145deg, #5d79b4 0 34%, #cba777 35% 50%, #273e6e 51% 100%); }
+    .mini-photo:before { position: absolute; right: 14px; bottom: -18px; width: 103px; height: 66px; border-radius: 50% 50% 0 0; background: rgba(25, 32, 49, .58); content: ""; transform: rotate(-10deg); }
+    .mini-photo:after { position: absolute; top: 13px; left: 24px; width: 24px; height: 48px; border-radius: 50% 50% 0 0; background: rgba(255,255,255,.45); content: ""; box-shadow: 17px 8px 0 rgba(255,255,255,.22), 31px 1px 0 rgba(255,255,255,.34); }
+    .mini-photo strong { position: absolute; bottom: 7px; left: 9px; z-index: 1; color: #fff; font-size: 15px; }
+    .mini-dots { position: absolute; top: 8px; right: 8px; display: flex; gap: 3px; z-index: 1; }
+    .mini-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.62); }
+    .mini-dots i.active { width: 13px; border-radius: 99px; background: #fff; }
+    .mini-map { position: relative; height: 59px; margin: 7px 9px 0; overflow: hidden; border-radius: 12px; background: #dce9df; }
+    .mini-map:before, .mini-map:after { position: absolute; border: 1px solid rgba(62, 137, 107, .28); border-radius: 50%; content: ""; transform: rotate(-16deg); }
+    .mini-map:before { inset: -17px 35px 20px -18px; } .mini-map:after { inset: 22px -16px -19px 55px; border-color: rgba(78, 111, 189, .3); }
+    .mini-route-line { position: absolute; top: 49%; left: 18%; width: 61%; height: 3px; z-index: 1; border-radius: 99px; background: var(--primary); transform: rotate(-24deg); }
+    .mini-map-pin { position: absolute; display: grid; width: 17px; height: 17px; place-items: center; z-index: 2; border: 2px solid #fff; border-radius: 50%; color: #fff; background: var(--primary); font-size: 7px; font-weight: 800; }
+    .mini-map-pin.one { top: 31px; left: 35px; } .mini-map-pin.two { top: 17px; left: 73px; } .mini-map-pin.three { top: 7px; right: 29px; }
+    .mini-route-meta { display: flex; justify-content: space-between; gap: 7px; padding: 6px 10px; color: var(--muted); font-size: 7px; }
+    .mini-route-meta b { color: var(--text); }
+    .mini-day-tabs { display: flex; gap: 4px; padding: 4px 9px 7px; }
+    .mini-day-tabs span { padding: 5px 7px; border-radius: 8px; color: var(--muted); background: var(--surface-2); font-size: 7px; font-weight: 800; }
+    .mini-day-tabs span.active { color: var(--primary-on); background: var(--primary); }
+    .mini-item { display: flex; align-items: center; gap: 7px; margin: 5px 9px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .mini-item i { display: grid; width: 22px; height: 22px; place-items: center; flex: 0 0 auto; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 11px; font-style: normal; }
+    .mini-item div { min-width: 0; flex: 1; }
+    .mini-item b { display: block; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-item small { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; }
+    .mini-item > span { color: var(--muted); font-size: 14px; }
+    .mini-settings-label { padding: 5px 10px 4px; color: var(--primary); font-size: 7px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .mini-settings { margin: 0 9px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+    .mini-settings-row { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 7px; border-bottom: 1px solid var(--line); }
+    .mini-settings-row:last-child { border-bottom: 0; }
+    .mini-settings-row i { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 10px; font-style: normal; }
+    .mini-settings-row div { min-width: 0; flex: 1; }
+    .mini-settings-row b { display: block; font-size: 8px; } .mini-settings-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; }
+    .mini-settings-row > span { color: var(--muted); font-size: 14px; }
+    .route { position: relative; width: 132px; height: 77px; border-bottom: 3px solid var(--primary); border-radius: 50%; transform: rotate(-20deg); }
+    .route i { position: absolute; display: grid; width: 23px; height: 23px; place-items: center; border: 3px solid var(--surface); border-radius: 50% 50% 50% 0; color: var(--primary-on); background: var(--primary); box-shadow: 0 4px 9px rgba(67, 50, 154, .21); font-size: 9px; font-style: normal; font-weight: 800; transform: rotate(-45deg); }
+    .route i b { transform: rotate(45deg); }
+    .route .one { top: 0; left: 9px; } .route .two { top: 42px; left: 57px; } .route .three { right: 1px; bottom: -11px; }
+    .map-pin { display: grid; width: 68px; height: 68px; place-items: center; border-radius: 24px; color: var(--primary); background: var(--primary-soft); font-size: 33px; }
+    .stack-card { position: absolute; width: 105px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 8px 18px rgba(43, 38, 74, .12); text-align: left; }
+    .stack-card strong { display: block; font-size: 9px; } .stack-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; }
+    .stack-card.one { top: 24px; left: 13px; transform: rotate(-8deg); } .stack-card.two { right: 10px; bottom: 24px; transform: rotate(7deg); }
+    .people { display: flex; align-items: center; justify-content: center; }
+    .people span { display: grid; width: 51px; height: 51px; place-items: center; margin-left: -8px; border: 3px solid var(--surface); border-radius: 50%; color: var(--primary-on); background: var(--primary); font-size: 14px; font-weight: 800; }
+    .people span:first-child { margin-left: 0; background: #9588f0; } .people span:last-child { background: #5d9bc1; }
+    .onboarding-copy h2 { max-width: 260px; margin: 0; font-size: 23px; letter-spacing: -.055em; line-height: 1.14; }
+    .onboarding-copy p { max-width: 250px; margin: 10px auto 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .onboarding-footer { width: 100%; }
+    .dots { display: flex; justify-content: center; gap: 6px; margin: 0 0 15px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 23%, var(--line)); }
+    .dot.active { width: 21px; border-radius: 99px; background: var(--primary); }
+    .onboarding-actions { display: flex; align-items: center; gap: 9px; }
+    .onboarding-actions .primary { flex: 1; }
+    .onboarding-actions .secondary { padding-right: 13px; padding-left: 13px; }
+
+    /* Settings */
+    .account-head { display: flex; align-items: center; gap: 10px; }
+    .avatar { display: grid; width: 48px; height: 48px; place-items: center; flex: 0 0 auto; border-radius: 15px; color: #fff; background: linear-gradient(135deg, var(--primary), #9588f0); font-size: 21px; font-weight: 800; }
+    .account-head h3 { margin: 0; font-size: 17px; letter-spacing: -.04em; }
+    .account-head p { margin: 3px 0 0; color: var(--muted); font-size: 9px; }
+    .close { margin-left: auto; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 15px; }
+    .stat { padding: 9px 4px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); text-align: center; }
+    .stat strong { display: block; color: var(--primary); font-size: 18px; } .stat span { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .section-label { margin: 18px 0 8px; color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .settings-group { overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+    .settings-row { display: flex; align-items: center; gap: 9px; min-height: 51px; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+    .settings-row:last-child { border-bottom: 0; }
+    .row-icon { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 auto; border-radius: 9px; color: var(--primary); background: var(--primary-soft); font-size: 14px; }
+    .row-icon.danger { color: var(--danger); background: var(--danger-soft); }
+    .row-copy { min-width: 0; flex: 1; }
+    .row-copy strong { display: block; font-size: 11px; font-weight: 700; }
+    .row-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; line-height: 1.28; }
+    .trailing { display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--muted); font-size: 9px; white-space: nowrap; }
+    .chevron { color: var(--muted); font-size: 19px; line-height: 1; }
+    .version { margin: 13px 0 0; color: var(--muted); font-size: 9px; text-align: center; }
+    .signout { display: block; margin: 10px auto 0; padding: 5px; border: 0; color: var(--muted); background: transparent; font-size: 10px; font-weight: 700; }
+
+    /* Theme selector and feedback */
+    .dimmed { position: relative; }
+    .dimmed:after { position: absolute; inset: 0; z-index: 2; background: rgba(15, 13, 25, .42); content: ""; pointer-events: none; }
+    .sheet { position: absolute; right: 0; bottom: 0; left: 0; z-index: 3; padding: 15px 15px 18px; border-radius: 24px 24px 0 0; background: var(--surface); box-shadow: 0 -12px 30px rgba(27, 23, 50, .16); }
+    .handle { width: 40px; height: 4px; margin: 0 auto 13px; border-radius: 99px; background: var(--muted); opacity: .72; }
+    .sheet h3 { margin: 0; font-size: 18px; letter-spacing: -.04em; }
+    .sheet p { margin: 4px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .choice { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 7px 8px; border: 1px solid transparent; border-radius: 12px; }
+    .choice.selected { border-color: color-mix(in srgb, var(--primary) 34%, var(--line)); background: var(--primary-soft); }
+    .radio { display: grid; width: 19px; height: 19px; place-items: center; border: 1.5px solid var(--muted); border-radius: 50%; }
+    .choice.selected .radio { border-color: var(--primary); }
+    .choice.selected .radio:after { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); content: ""; }
+    .choice strong { display: block; font-size: 11px; } .choice small { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; }
+    .sheet-actions { display: flex; gap: 8px; margin-top: 12px; } .sheet-actions .primary { flex: 1; } .sheet-actions .secondary { min-width: 86px; }
+    .feedback-field { min-height: 106px; padding: 11px; border: 1px solid var(--line); border-radius: 13px; color: var(--muted); background: var(--surface); font-size: 10px; line-height: 1.45; }
+    .feedback-field.focused { border: 1.5px solid var(--primary); color: var(--muted); }
+    .feedback-helper { margin: 5px 0 0; color: var(--muted); font-size: 8px; }
+    .snackbar { position: absolute; right: 12px; bottom: 12px; left: 12px; z-index: 4; padding: 10px 12px; border-radius: 11px; color: #fff; background: #2c2b34; font-size: 9px; font-weight: 700; box-shadow: 0 8px 18px rgba(0,0,0,.22); }
+
+    .spec { margin: 22px auto 0; padding: 19px 21px; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line)); border-radius: 20px; background: color-mix(in srgb, var(--surface) 78%, transparent); box-shadow: var(--shadow); }
+    .spec h2 { margin: 0; font-size: 18px; letter-spacing: -.035em; }
+    .spec p { margin: 6px 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .spec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .spec-item { padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+    .spec-item strong { display: block; font-size: 11px; } .spec-item span { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .spec-item b { display: inline-block; margin-top: 9px; padding: 4px 7px; border-radius: 999px; color: var(--primary); background: var(--primary-soft); font-size: 8px; }
+
+    @media (max-width: 1160px) { .gallery { grid-template-columns: repeat(2, minmax(275px, 1fr)); } .spec-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 680px) {
+      .page { width: min(100% - 22px, 420px); padding-top: 20px; }
+      .gallery { grid-template-columns: 1fr; gap: 15px; }
+      .template-head { min-height: auto; }
+      .phone { height: 680px; }
+      .spec-grid { grid-template-columns: 1fr; }
+      .intro { margin-top: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark">R</span><span data-en="Ramingo · Android visual templates">Ramingo · макеты Android</span></div>
+    <section class="intro">
+      <h1 data-en="Targeted interface updates">Точечные изменения интерфейса</h1>
+      <p data-en="Preview for the closed-testing brief. These are approval templates, not an Android implementation.">Предпросмотр по ТЗ для closed testing. Это шаблоны для согласования, а не реализация Android-экранов.</p>
+    </section>
+    <div class="notice"><b data-en="Before approval:">До одобрения:</b> <span data-en="Kotlin/Compose files, Supabase data and existing trips are not changed. The templates preserve the current Manrope font, purple tokens, cards, corner radii and Settings bottom-sheet pattern.">Kotlin/Compose-файлы, данные Supabase и существующие поездки не изменяются. В шаблонах сохранены текущие Manrope, фиолетовые токены, карточки, скругления и паттерн Settings bottom sheet.</span></div>
+
+    <div class="toolbar" aria-label="Настройки предпросмотра" data-aria-en="Preview controls" data-aria-es="Controles de vista previa" data-aria-de="Vorschau-Steuerung">
+      <span class="toolbar-label" data-en="Preview mode:">Режим предпросмотра:</span>
+      <button class="theme-button active" data-set-theme="light" data-en="Light">Светлая</button>
+      <button class="theme-button" data-set-theme="dark" data-en="Dark">Тёмная</button>
+      <span class="toolbar-label" style="margin-left: 8px" data-en="Onboarding:">Онбординг:</span>
+      <button class="slide-button active" data-slide="0">1</button>
+      <button class="slide-button" data-slide="1">2</button>
+      <button class="slide-button" data-slide="2">3</button>
+      <button class="slide-button" data-slide="3">4</button>
+      <span class="toolbar-label" style="margin-left: 8px" data-en="Language:">Язык:</span>
+      <button class="language-button active" data-set-language="ru">RU</button>
+      <button class="language-button" data-set-language="en">EN</button>
+      <button class="language-button" data-set-language="es">ES</button>
+      <button class="language-button" data-set-language="de">DE</button>
+    </div>
+
+    <section class="gallery" aria-label="Шаблоны экранов" data-aria-en="Screen templates" data-aria-es="Plantillas de pantallas" data-aria-de="Bildschirmvorlagen">
+      <article class="template">
+        <header class="template-head"><span class="tag" data-en="01 · Onboarding">01 · Онбординг</span><h2 data-en="First launch">Первый запуск</h2><p data-en="Four practical tips: real Ramingo UI fragments and one clear action on every screen.">Четыре подсказки по интерфейсу: реальные фрагменты Ramingo и одно понятное действие на каждом экране.</p></header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <div class="screen center">
+                <div style="width:100%">
+                  <div class="onboarding-logo"><span class="mark">◈</span><span>Ramingo</span></div>
+                  <button class="skip" data-en="Skip">Пропустить</button>
+                </div>
+                <div class="onboarding-slide active" data-onboarding-slide="0">
+                  <div class="tutorial-preview">
+                    <div class="mini-appbar"><span class="mini-brand-mark">◈</span><strong>Ramingo</strong><span class="mini-action">⚙</span></div>
+                    <div class="mini-heading" data-en="My trips">Мои поездки</div>
+                    <div class="mini-chips"><span class="mini-chip active" data-en="All · 2">Все · 2</span><span class="mini-chip" data-en="Upcoming · 2">Предстоящие · 2</span></div>
+                    <div class="mini-trip-card"><span class="mini-status" data-en="Upcoming">Предстоящее</span><strong>Christmas Italy</strong><small data-en="19 Dec 2026 — 3 Jan 2027">19 дек 2026 — 3 янв 2027</small></div>
+                    <div class="mini-new-trip"><b>＋</b><span data-en="New trip">Новая поездка</span></div>
+                  </div>
+                  <div class="onboarding-copy"><h2 data-en="Start with your first trip.">Начните с первой поездки.</h2><p data-en="Tap +, add cities and dates, and Ramingo will create the trip outline.">Нажмите +, укажите города и даты — Ramingo соберёт основу маршрута.</p></div>
+                </div>
+                <div class="onboarding-slide" data-onboarding-slide="1">
+                  <div class="tutorial-preview">
+                    <div class="mini-appbar"><span class="mini-action">☰</span><div class="mini-title"><small>Christmas Italy</small><strong data-en="Overview">Обзор</strong></div><span class="mini-action">✎</span></div>
+                    <div class="mini-photo"><div class="mini-dots"><i class="active"></i><i></i><i></i><i></i><i></i></div><strong>Munich</strong></div>
+                    <div class="mini-map"><span class="mini-route-line"></span><span class="mini-map-pin one">1</span><span class="mini-map-pin two">6</span><span class="mini-map-pin three">10</span></div>
+                    <div class="mini-route-meta"><span data-en="Full route">Общий маршрут</span><b data-en="9 legs · 10 cities">9 переездов · 10 городов</b></div>
+                  </div>
+                  <div class="onboarding-copy"><h2 data-en="See the full route.">Смотрите маршрут целиком.</h2><p data-en="Overview shows the cities, the map and the order of transfers.">В обзоре видны города, карта и порядок переездов.</p></div>
+                </div>
+                <div class="onboarding-slide" data-onboarding-slide="2">
+                  <div class="tutorial-preview">
+                    <div class="mini-appbar"><span class="mini-action">‹</span><div class="mini-title"><small>Christmas Italy</small><strong data-en="Day 1 · Munich">День 1 · Мюнхен</strong></div><span class="mini-action">＋</span></div>
+                    <div class="mini-day-tabs"><span class="active" data-en="Day 1">День 1</span><span data-en="Day 2">День 2</span><span data-en="Day 3">День 3</span></div>
+                    <div class="mini-item"><i>⌂</i><div><b>Hotel Roma</b><small data-en="Stay · check-in 14:00">Жильё · заезд 14:00</small></div><span>›</span></div>
+                    <div class="mini-item"><i>★</i><div><b data-en="Marienplatz">Мариенплац</b><small data-en="Sight · 10:00">Достопримечательность · 10:00</small></div><span>›</span></div>
+                    <div class="mini-item"><i>✎</i><div><b data-en="Add a note">Добавить заметку</b><small data-en="Keep an idea for this day">Сохранить идею для этого дня</small></div><span>＋</span></div>
+                  </div>
+                  <div class="onboarding-copy"><h2 data-en="Add details by day.">Добавляйте детали по дням.</h2><p data-en="Keep sights, stays and notes inside the trip.">Сохраняйте достопримечательности, жильё и заметки внутри поездки.</p></div>
+                </div>
+                <div class="onboarding-slide" data-onboarding-slide="3">
+                  <div class="tutorial-preview">
+                    <div class="mini-appbar"><span class="mini-action">‹</span><div class="mini-title"><small>timur.munykin</small><strong data-en="Settings">Настройки</strong></div><span class="mini-action">×</span></div>
+                    <div class="mini-settings-label" data-en="Appearance">Внешний вид</div>
+                    <div class="mini-settings"><div class="mini-settings-row"><i>◐</i><div><b data-en="Theme">Тема</b><small data-en="System default">Системная</small></div><span>›</span></div><div class="mini-settings-row"><i>◎</i><div><b data-en="Languages">Языки</b><small data-en="Russian">Русский</small></div><span>›</span></div><div class="mini-settings-row"><i>◔</i><div><b data-en="Notifications">Уведомления</b><small data-en="On">Включены</small></div><span>›</span></div></div>
+                    <div class="mini-settings-label" data-en="Support">Поддержка</div>
+                    <div class="mini-settings"><div class="mini-settings-row"><i>?</i><div><b data-en="Show tutorial">Показать обучение</b><small data-en="Open the tips again">Открыть подсказки ещё раз</small></div><span>›</span></div></div>
+                  </div>
+                  <div class="onboarding-copy"><h2 data-en="Make Ramingo yours.">Настройте Ramingo под себя.</h2><p data-en="Open Settings to choose your language, theme and notifications.">Откройте Settings, чтобы выбрать язык, тему и уведомления.</p></div>
+                </div>
+                <div class="onboarding-footer">
+                  <div class="dots"><span class="dot active" data-slide-dot="0"></span><span class="dot" data-slide-dot="1"></span><span class="dot" data-slide-dot="2"></span><span class="dot" data-slide-dot="3"></span></div>
+                  <div class="onboarding-actions"><button class="secondary" id="onboarding-skip">Пропустить</button><button class="primary" id="onboarding-next">Далее</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag" data-en="02 · Settings">02 · Настройки</span><h2 data-en="New Settings rows">Новые пункты в настройках</h2><p data-en="The existing account sheet stays; new rows look like native list items.">Существующий экран аккаунта сохраняется; новые строки выглядят как обычные пункты списка.</p></header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <div class="screen account-screen">
+                <div class="account-head"><div class="avatar">T</div><div><h3>timur.munykin</h3><p data-en="Personal account · Ramingo">Личный кабинет · Ramingo</p></div><button class="round-btn close">×</button></div>
+                <div class="stats"><div class="stat"><strong>2</strong><span data-en="trips">поездки</span></div><div class="stat"><strong>13</strong><span data-en="cities">городов</span></div><div class="stat"><strong>—</strong><span>км</span></div></div>
+
+                <div class="section-label" data-en="Appearance">Внешний вид</div>
+                <div class="settings-group">
+                  <div class="settings-row"><span class="row-icon">◐</span><div class="row-copy"><strong data-en="Theme">Тема</strong><small data-en="System default">Системная</small></div><span class="trailing"><span class="trailing-label" data-en="System default">Системная</span> <span class="chevron">›</span></span></div>
+                </div>
+
+                <div class="section-label" data-en="Account settings">Настройки аккаунта</div>
+                <div class="settings-group">
+                  <div class="settings-row"><span class="row-icon">◎</span><div class="row-copy"><strong data-en="Languages">Языки</strong></div><span class="trailing"><span class="trailing-label" data-en="English">Русский</span> <span class="chevron">›</span></span></div>
+                  <div class="settings-row"><span class="row-icon">◔</span><div class="row-copy"><strong data-en="Notifications">Уведомления</strong></div><span class="trailing"><span class="trailing-label" data-en="On">Вкл.</span> <span class="chevron">›</span></span></div>
+                  <div class="settings-row"><span class="row-icon">▣</span><div class="row-copy"><strong data-en="Change password">Сменить пароль</strong></div><span class="chevron">›</span></div>
+                </div>
+
+                <div class="section-label" data-en="Support">Поддержка</div>
+                <div class="settings-group">
+                  <div class="settings-row"><span class="row-icon">?</span><div class="row-copy"><strong data-en="Show tutorial">Показать обучение</strong><small data-en="Open the onboarding again">Открыть обучение ещё раз</small></div><span class="chevron">›</span></div>
+                  <div class="settings-row"><span class="row-icon">✎</span><div class="row-copy"><strong data-en="Send feedback">Отправить отзыв</strong></div><span class="chevron">›</span></div>
+                  <div class="settings-row"><span class="row-icon">★</span><div class="row-copy"><strong data-en="Rate Ramingo">Оценить Ramingo</strong></div><span class="chevron">›</span></div>
+                </div>
+
+                <div class="section-label" data-en="About">О приложении</div>
+                <div class="settings-group"><div class="settings-row"><span class="row-icon">ⓘ</span><div class="row-copy"><strong data-en="App version">Версия приложения</strong></div><span class="trailing">0.2.39</span></div></div>
+                <p class="version" data-en="Existing Change photo and Delete account rows stay below this content.">Ниже остаются существующие пункты «Сменить фото» и «Удалить аккаунт».</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag" data-en="03 · Theme selector">03 · Выбор темы</span><h2 data-en="Theme selection">Выбор темы</h2><p data-en="Three options in the familiar bottom sheet: System default, Light and Dark.">Три варианта в знакомом bottom sheet: Системная, Светлая и Тёмная.</p></header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <div class="screen account-screen dimmed">
+                <div class="account-head"><div class="avatar">T</div><div><h3>timur.munykin</h3><p data-en="Personal account · Ramingo">Личный кабинет · Ramingo</p></div><button class="round-btn close">×</button></div>
+                <div class="stats"><div class="stat"><strong>2</strong><span data-en="trips">поездки</span></div><div class="stat"><strong>13</strong><span data-en="cities">городов</span></div><div class="stat"><strong>—</strong><span>км</span></div></div>
+                <div class="section-label" data-en="Appearance">Внешний вид</div>
+                <div class="settings-group"><div class="settings-row"><span class="row-icon">◐</span><div class="row-copy"><strong data-en="Theme">Тема</strong><small data-en="System default">Системная</small></div><span class="trailing"><span class="trailing-label" data-en="System default">Системная</span> <span class="chevron">›</span></span></div></div>
+                <div class="section-label" data-en="Account settings">Настройки аккаунта</div>
+                <div class="settings-group"><div class="settings-row"><span class="row-icon">◎</span><div class="row-copy"><strong data-en="Languages">Языки</strong></div><span class="trailing"><span class="trailing-label" data-en="English">Русский</span> <span class="chevron">›</span></span></div><div class="settings-row"><span class="row-icon">◔</span><div class="row-copy"><strong data-en="Notifications">Уведомления</strong></div><span class="trailing"><span class="trailing-label" data-en="On">Вкл.</span> <span class="chevron">›</span></span></div></div>
+                <div class="sheet">
+                  <div class="handle"></div><h3 data-en="Theme">Тема</h3><p data-en="Choose how Ramingo should look on this device.">Выберите, как будет выглядеть Ramingo на этом устройстве.</p>
+                  <div class="choice selected"><span class="radio"></span><div><strong data-en="System default">Системная</strong><small data-en="Follow the device setting">Следовать настройкам устройства</small></div></div>
+                  <div class="choice"><span class="radio"></span><div><strong data-en="Light">Светлая</strong><small data-en="Always use the light appearance">Всегда использовать светлую тему</small></div></div>
+                  <div class="choice"><span class="radio"></span><div><strong data-en="Dark">Тёмная</strong><small data-en="Always use the dark appearance">Всегда использовать тёмную тему</small></div></div>
+                  <div class="sheet-actions"><button class="secondary" data-en="Cancel">Отмена</button><button class="primary" data-en="Apply">Применить</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag" data-en="04 · Feedback">04 · Обратная связь</span><h2 data-en="Send feedback">Отправить отзыв</h2><p data-en="A minimal bottom sheet using existing input/button patterns and a snackbar after sending.">Минимальный bottom sheet с существующими паттернами input/button и snackbar после отправки.</p></header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <div class="screen account-screen dimmed">
+                <div class="account-head"><div class="avatar">T</div><div><h3>timur.munykin</h3><p data-en="Personal account · Ramingo">Личный кабинет · Ramingo</p></div><button class="round-btn close">×</button></div>
+                <div class="stats"><div class="stat"><strong>2</strong><span data-en="trips">поездки</span></div><div class="stat"><strong>13</strong><span data-en="cities">городов</span></div><div class="stat"><strong>—</strong><span>км</span></div></div>
+                <div class="section-label" data-en="Support">Поддержка</div>
+                <div class="settings-group"><div class="settings-row"><span class="row-icon">?</span><div class="row-copy"><strong data-en="Show tutorial">Показать обучение</strong></div><span class="chevron">›</span></div><div class="settings-row"><span class="row-icon">✎</span><div class="row-copy"><strong data-en="Send feedback">Отправить отзыв</strong></div><span class="chevron">›</span></div></div>
+                <div class="sheet">
+                  <div class="handle"></div><h3 data-en="Send feedback">Отправить отзыв</h3><p data-en="Tell us what happened or what would make your trip planning better.">Расскажите, что произошло или что сделает планирование поездок удобнее.</p>
+                  <div class="choice selected"><span class="radio"></span><div><strong data-en="Bug">Ошибка</strong><small data-en="Something does not work as expected">Что-то работает не так, как ожидалось</small></div></div>
+                  <div class="choice"><span class="radio"></span><div><strong data-en="Feature request">Запрос функции</strong><small data-en="Suggest an improvement">Предложите улучшение</small></div></div>
+                  <div class="choice"><span class="radio"></span><div><strong data-en="General feedback">Общий отзыв</strong><small data-en="Share an idea or impression">Поделитесь идеей или впечатлением</small></div></div>
+                  <div class="feedback-field focused" data-en="Describe your feedback…">Опишите ваш отзыв…</div>
+                  <div class="feedback-helper" data-en="Please include enough detail for us to understand the context.">Добавьте подробности, чтобы мы поняли контекст.</div>
+                  <div class="sheet-actions"><button class="secondary" data-en="Cancel">Отмена</button><button class="primary" data-en="Send">Отправить</button></div>
+                </div>
+                <div class="snackbar" data-en="Feedback sent. Thank you!">Отзыв отправлен. Спасибо!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="spec">
+      <h2 data-en="What is proposed for approval">Что именно предлагается согласовать</h2>
+      <p data-en="After approval, these templates can be moved into the existing Compose components. For now this is visual direction only.">После одобрения эти шаблоны можно будет перенести в существующие Compose-компоненты. Пока это только визуальное направление.</p>
+      <div class="spec-grid">
+        <div class="spec-item"><strong data-en="Onboarding">Онбординг</strong><span data-en="4 screens, Skip on every screen, Next on the first three and Get Started on the last.">4 экрана, «Пропустить» на каждом, «Далее» на первых трёх и «Начать» на последнем.</span><b data-en="Pattern: new screen">Паттерн: новый экран</b></div>
+        <div class="spec-item"><strong data-en="Theme">Тема</strong><span data-en="One Theme row in Appearance with a single System default / Light / Dark choice.">Одна строка «Тема» в разделе «Внешний вид» и единый выбор «Системная / Светлая / Тёмная».</span><b data-en="Pattern: bottom sheet">Паттерн: bottom sheet</b></div>
+        <div class="spec-item"><strong data-en="Settings">Настройки</strong><span data-en="Support and About are added as ordinary rows; the current account structure stays.">«Поддержка» и «О приложении» добавляются обычными строками; текущая структура аккаунта сохраняется.</span><b data-en="Pattern: existing rows">Паттерн: существующие строки</b></div>
+        <div class="spec-item"><strong data-en="Feedback">Обратная связь</strong><span data-en="Bug / Feature request / General feedback, a field with focus/error and a snackbar after sending.">Ошибка / Запрос функции / Общий отзыв, поле с focus/error и snackbar после отправки.</span><b data-en="Pattern: existing input">Паттерн: существующее поле</b></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const root = document.documentElement;
+    const themeButtons = [...document.querySelectorAll('[data-set-theme]')];
+    const languageButtons = [...document.querySelectorAll('[data-set-language]')];
+    const slideButtons = [...document.querySelectorAll('[data-slide]')];
+    const slides = [...document.querySelectorAll('[data-onboarding-slide]')];
+    const dots = [...document.querySelectorAll('[data-slide-dot]')];
+    const next = document.querySelector('#onboarding-next');
+    const skip = document.querySelector('#onboarding-skip');
+    let activeLanguage = 'ru';
+    let activeSlide = 0;
+
+    const templateTranslations = {
+      es: {
+        '01 · Onboarding': '01 · Guía inicial',
+        '02 · Settings': '02 · Ajustes',
+        '03 · Theme selector': '03 · Selector de tema',
+        '04 · Feedback': '04 · Comentarios',
+        '19 Dec 2026 — 3 Jan 2027': '19 dic 2026 — 3 ene 2027',
+        '4 screens, Skip on every screen, Next on the first three and Get Started on the last.': 'Cuatro pantallas prácticas: Omitir en cada pantalla, Siguiente en las tres primeras y Empezar en la última.',
+        '9 legs · 10 cities': '9 trayectos · 10 ciudades',
+        'A minimal bottom sheet using existing input/button patterns and a snackbar after sending.': 'Un bottom sheet minimalista con los patrones existentes de campo/botón y un snackbar después del envío.',
+        'About': 'Acerca de',
+        'Account settings': 'Ajustes de la cuenta',
+        'Add a note': 'Añadir una nota',
+        'Add details by day.': 'Añade detalles por día.',
+        'After approval, these templates can be moved into the existing Compose components. For now this is visual direction only.': 'Después de aprobarlas, estas plantillas podrán trasladarse a los componentes Compose existentes. Por ahora son solo una dirección visual.',
+        'All · 2': 'Todos · 2',
+        'Always use the dark appearance': 'Usar siempre el modo oscuro',
+        'Always use the light appearance': 'Usar siempre el modo claro',
+        'App version': 'Versión de la aplicación',
+        'Appearance': 'Apariencia',
+        'Apply': 'Aplicar',
+        'Before approval:': 'Antes de aprobar:',
+        'Bug': 'Error',
+        'Bug / Feature request / General feedback, a field with focus/error and a snackbar after sending.': 'Error / Solicitud de función / Comentario general, un campo con foco/error y un snackbar después del envío.',
+        'Cancel': 'Cancelar',
+        'Change password': 'Cambiar contraseña',
+        'Choose how Ramingo should look on this device.': 'Elige cómo debe verse Ramingo en este dispositivo.',
+        'cities': 'ciudades',
+        'Dark': 'Oscuro',
+        'Day 1': 'Día 1',
+        'Day 1 · Munich': 'Día 1 · Múnich',
+        'Day 2': 'Día 2',
+        'Day 3': 'Día 3',
+        'Describe your feedback…': 'Describe tus comentarios…',
+        'English': 'Inglés',
+        'Existing Change photo and Delete account rows stay below this content.': 'Los elementos existentes «Cambiar foto» y «Eliminar cuenta» permanecen debajo de este contenido.',
+        'Feature request': 'Solicitud de función',
+        'Feedback': 'Comentarios',
+        'Feedback sent. Thank you!': 'Comentario enviado. ¡Gracias!',
+        'First launch': 'Primer inicio',
+        'Follow the device setting': 'Seguir la configuración del dispositivo',
+        'Four practical tips: real Ramingo UI fragments and one clear action on every screen.': 'Cuatro consejos prácticos: fragmentos reales de la interfaz de Ramingo y una acción clara en cada pantalla.',
+        'Full route': 'Ruta completa',
+        'General feedback': 'Comentario general',
+        'Keep an idea for this day': 'Conserva una idea para este día',
+        'Keep sights, stays and notes inside the trip.': 'Guarda lugares, alojamientos y notas dentro del viaje.',
+        'Kotlin/Compose files, Supabase data and existing trips are not changed. The templates preserve the current Manrope font, purple tokens, cards, corner radii and Settings bottom-sheet pattern.': 'Los archivos Kotlin/Compose, los datos de Supabase y los viajes existentes no se modifican. Las plantillas conservan la fuente Manrope, los tonos morados, las tarjetas, los radios y el patrón de bottom sheet de Settings.',
+        'Language:': 'Idioma:',
+        'Languages': 'Idiomas',
+        'Light': 'Claro',
+        'Make Ramingo yours.': 'Personaliza Ramingo.',
+        'Marienplatz': 'Marienplatz',
+        'My trips': 'Mis viajes',
+        'New Settings rows': 'Nuevos elementos de Settings',
+        'New trip': 'Nuevo viaje',
+        'Notifications': 'Notificaciones',
+        'On': 'Activadas',
+        'Onboarding': 'Guía inicial',
+        'Onboarding:': 'Guía inicial:',
+        'One Theme row in Appearance with a single System default / Light / Dark choice.': 'Una fila «Tema» en Apariencia con una única opción entre Predeterminada del sistema / Claro / Oscuro.',
+        'Open Settings to choose your language, theme and notifications.': 'Abre Settings para elegir el idioma, el tema y las notificaciones.',
+        'Open the onboarding again': 'Volver a abrir la guía inicial',
+        'Open the tips again': 'Volver a abrir los consejos',
+        'Overview': 'Resumen',
+        'Overview shows the cities, the map and the order of transfers.': 'El resumen muestra las ciudades, el mapa y el orden de los traslados.',
+        'Pattern: bottom sheet': 'Patrón: bottom sheet',
+        'Pattern: existing input': 'Patrón: campo existente',
+        'Pattern: existing rows': 'Patrón: filas existentes',
+        'Pattern: new screen': 'Patrón: pantalla nueva',
+        'Personal account · Ramingo': 'Cuenta personal · Ramingo',
+        'Please include enough detail for us to understand the context.': 'Incluye suficientes detalles para que podamos entender el contexto.',
+        'Preview for the closed-testing brief. These are approval templates, not an Android implementation.': 'Vista previa del brief de closed testing. Son plantillas para aprobar, no una implementación Android.',
+        'Preview mode:': 'Modo de vista previa:',
+        'Ramingo · Android visual templates': 'Ramingo · plantillas visuales Android',
+        'Rate Ramingo': 'Valorar Ramingo',
+        'Russian': 'Ruso',
+        'See the full route.': 'Consulta toda la ruta.',
+        'Send': 'Enviar',
+        'Send feedback': 'Enviar comentarios',
+        'Settings': 'Ajustes',
+        'Share an idea or impression': 'Comparte una idea o impresión',
+        'Show tutorial': 'Mostrar guía inicial',
+        'Sight · 10:00': 'Lugar de interés · 10:00',
+        'Skip': 'Omitir',
+        'Something does not work as expected': 'Algo no funciona como debería',
+        'Start with your first trip.': 'Empieza con tu primer viaje.',
+        'Stay · check-in 14:00': 'Alojamiento · entrada 14:00',
+        'Suggest an improvement': 'Sugiere una mejora',
+        'Support': 'Soporte',
+        'Support and About are added as ordinary rows; the current account structure stays.': 'Soporte y Acerca de se añaden como filas normales; la estructura actual de la cuenta se conserva.',
+        'System default': 'Predeterminada del sistema',
+        'Tap +, add cities and dates, and Ramingo will create the trip outline.': 'Toca +, añade ciudades y fechas y Ramingo creará la estructura del viaje.',
+        'Targeted interface updates': 'Cambios específicos de la interfaz',
+        'Tell us what happened or what would make your trip planning better.': 'Cuéntanos qué ocurrió o qué haría mejor la planificación de tus viajes.',
+        'The existing account sheet stays; new rows look like native list items.': 'La hoja de cuenta existente se mantiene; las nuevas filas parecen elementos nativos de lista.',
+        'Theme': 'Tema',
+        'Theme selection': 'Selección de tema',
+        'Three options in the familiar bottom sheet: System default, Light and Dark.': 'Tres opciones en el bottom sheet habitual: Predeterminada del sistema, Claro y Oscuro.',
+        'trips': 'viajes',
+        'Upcoming': 'Próximos',
+        'Upcoming · 2': 'Próximos · 2',
+        'What is proposed for approval': 'Qué se propone aprobar',
+      },
+      de: {
+        '01 · Onboarding': '01 · Einführung',
+        '02 · Settings': '02 · Einstellungen',
+        '03 · Theme selector': '03 · Themenauswahl',
+        '04 · Feedback': '04 · Feedback',
+        '19 Dec 2026 — 3 Jan 2027': '19. Dez. 2026 — 3. Jan. 2027',
+        '4 screens, Skip on every screen, Next on the first three and Get Started on the last.': 'Vier praktische Bildschirme: Überspringen auf jedem Bildschirm, Weiter auf den ersten drei und Start auf dem letzten.',
+        '9 legs · 10 cities': '9 Etappen · 10 Städte',
+        'A minimal bottom sheet using existing input/button patterns and a snackbar after sending.': 'Ein minimalistisches Bottom Sheet mit den vorhandenen Feld-/Button-Mustern und einer Snackbar nach dem Senden.',
+        'About': 'Über die App',
+        'Account settings': 'Kontoeinstellungen',
+        'Add a note': 'Notiz hinzufügen',
+        'Add details by day.': 'Details nach Tagen hinzufügen.',
+        'After approval, these templates can be moved into the existing Compose components. For now this is visual direction only.': 'Nach der Freigabe können diese Vorlagen in die bestehenden Compose-Komponenten übernommen werden. Vorerst dienen sie nur als visuelle Richtung.',
+        'All · 2': 'Alle · 2',
+        'Always use the dark appearance': 'Immer das dunkle Erscheinungsbild verwenden',
+        'Always use the light appearance': 'Immer das helle Erscheinungsbild verwenden',
+        'App version': 'App-Version',
+        'Appearance': 'Darstellung',
+        'Apply': 'Anwenden',
+        'Before approval:': 'Vor der Freigabe:',
+        'Bug': 'Fehler',
+        'Bug / Feature request / General feedback, a field with focus/error and a snackbar after sending.': 'Fehler / Funktionswunsch / Allgemeines Feedback, ein Feld mit Fokus-/Fehlerstatus und eine Snackbar nach dem Senden.',
+        'Cancel': 'Abbrechen',
+        'Change password': 'Passwort ändern',
+        'Choose how Ramingo should look on this device.': 'Wähle, wie Ramingo auf diesem Gerät aussehen soll.',
+        'cities': 'Städte',
+        'Dark': 'Dunkel',
+        'Day 1': 'Tag 1',
+        'Day 1 · Munich': 'Tag 1 · München',
+        'Day 2': 'Tag 2',
+        'Day 3': 'Tag 3',
+        'Describe your feedback…': 'Beschreibe dein Feedback…',
+        'English': 'Englisch',
+        'Existing Change photo and Delete account rows stay below this content.': 'Die vorhandenen Einträge „Foto ändern“ und „Konto löschen“ bleiben unter diesem Inhalt.',
+        'Feature request': 'Funktionswunsch',
+        'Feedback': 'Feedback',
+        'Feedback sent. Thank you!': 'Feedback gesendet. Danke!',
+        'First launch': 'Erster Start',
+        'Follow the device setting': 'Geräteeinstellung folgen',
+        'Four practical tips: real Ramingo UI fragments and one clear action on every screen.': 'Vier praktische Tipps: echte Ramingo-Oberflächen und eine klare Aktion auf jedem Bildschirm.',
+        'Full route': 'Gesamte Route',
+        'General feedback': 'Allgemeines Feedback',
+        'Keep an idea for this day': 'Eine Idee für diesen Tag speichern',
+        'Keep sights, stays and notes inside the trip.': 'Sehenswürdigkeiten, Unterkünfte und Notizen in der Reise speichern.',
+        'Kotlin/Compose files, Supabase data and existing trips are not changed. The templates preserve the current Manrope font, purple tokens, cards, corner radii and Settings bottom-sheet pattern.': 'Kotlin/Compose-Dateien, Supabase-Daten und bestehende Reisen werden nicht verändert. Die Vorlagen behalten die Manrope-Schrift, violette Farbtokens, Karten, Rundungen und das Settings-Bottom-Sheet-Muster.',
+        'Language:': 'Sprache:',
+        'Languages': 'Sprachen',
+        'Light': 'Hell',
+        'Make Ramingo yours.': 'Mache Ramingo zu deinem.',
+        'Marienplatz': 'Marienplatz',
+        'My trips': 'Meine Reisen',
+        'New Settings rows': 'Neue Settings-Einträge',
+        'New trip': 'Neue Reise',
+        'Notifications': 'Benachrichtigungen',
+        'On': 'Aktiv',
+        'Onboarding': 'Einführung',
+        'Onboarding:': 'Einführung:',
+        'One Theme row in Appearance with a single System default / Light / Dark choice.': 'Eine Theme-Zeile unter Darstellung mit der Auswahl Systemstandard / Hell / Dunkel.',
+        'Open Settings to choose your language, theme and notifications.': 'Öffne Settings, um Sprache, Thema und Benachrichtigungen auszuwählen.',
+        'Open the onboarding again': 'Einführung erneut öffnen',
+        'Open the tips again': 'Tipps erneut öffnen',
+        'Overview': 'Übersicht',
+        'Overview shows the cities, the map and the order of transfers.': 'Die Übersicht zeigt Städte, Karte und Reihenfolge der Etappen.',
+        'Pattern: bottom sheet': 'Muster: Bottom Sheet',
+        'Pattern: existing input': 'Muster: vorhandenes Eingabefeld',
+        'Pattern: existing rows': 'Muster: vorhandene Zeilen',
+        'Pattern: new screen': 'Muster: neuer Bildschirm',
+        'Personal account · Ramingo': 'Persönliches Konto · Ramingo',
+        'Please include enough detail for us to understand the context.': 'Bitte füge genügend Details hinzu, damit wir den Kontext verstehen.',
+        'Preview for the closed-testing brief. These are approval templates, not an Android implementation.': 'Vorschau für das Closed-Testing-Briefing. Dies sind Freigabevorlagen, keine Android-Implementierung.',
+        'Preview mode:': 'Vorschaumodus:',
+        'Ramingo · Android visual templates': 'Ramingo · visuelle Android-Vorlagen',
+        'Rate Ramingo': 'Ramingo bewerten',
+        'Russian': 'Russisch',
+        'See the full route.': 'Gesamte Route ansehen.',
+        'Send': 'Senden',
+        'Send feedback': 'Feedback senden',
+        'Settings': 'Einstellungen',
+        'Share an idea or impression': 'Teile eine Idee oder einen Eindruck',
+        'Show tutorial': 'Einführung anzeigen',
+        'Sight · 10:00': 'Sehenswürdigkeit · 10:00',
+        'Skip': 'Überspringen',
+        'Something does not work as expected': 'Etwas funktioniert nicht wie erwartet',
+        'Start with your first trip.': 'Starte mit deiner ersten Reise.',
+        'Stay · check-in 14:00': 'Unterkunft · Check-in 14:00',
+        'Suggest an improvement': 'Schlage eine Verbesserung vor',
+        'Support': 'Support',
+        'Support and About are added as ordinary rows; the current account structure stays.': 'Support und Über die App werden als normale Zeilen ergänzt; die aktuelle Kontostruktur bleibt erhalten.',
+        'System default': 'Systemstandard',
+        'Tap +, add cities and dates, and Ramingo will create the trip outline.': 'Tippe auf +, füge Städte und Daten hinzu – Ramingo erstellt die Reisestruktur.',
+        'Targeted interface updates': 'Gezielte Oberflächenänderungen',
+        'Tell us what happened or what would make your trip planning better.': 'Erzähle uns, was passiert ist oder was die Reiseplanung verbessern würde.',
+        'The existing account sheet stays; new rows look like native list items.': 'Das bestehende Kontoblatt bleibt erhalten; neue Zeilen wirken wie native Listeneinträge.',
+        'Theme': 'Thema',
+        'Theme selection': 'Themenauswahl',
+        'Three options in the familiar bottom sheet: System default, Light and Dark.': 'Drei Optionen im vertrauten Bottom Sheet: Systemstandard, Hell und Dunkel.',
+        'trips': 'Reisen',
+        'Upcoming': 'Bevorstehend',
+        'Upcoming · 2': 'Bevorstehend · 2',
+        'What is proposed for approval': 'Was zur Freigabe vorgeschlagen wird',
+      },
+    };
+
+    function setTheme(theme) {
+      root.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+      themeButtons.forEach(button => button.classList.toggle('active', button.dataset.setTheme === theme));
+    }
+
+    function localized(ru, en, es, de) {
+      return ({ ru, en, es, de })[activeLanguage] || ru;
+    }
+
+    function setLanguage(language) {
+      activeLanguage = ['ru', 'en', 'es', 'de'].includes(language) ? language : 'ru';
+      root.dataset.language = activeLanguage;
+      languageButtons.forEach(button => button.classList.toggle('active', button.dataset.setLanguage === activeLanguage));
+      document.querySelectorAll('[data-en]').forEach(element => {
+        if (!element.dataset.ru) element.dataset.ru = element.innerHTML;
+        element.innerHTML = activeLanguage === 'ru'
+          ? element.dataset.ru
+          : activeLanguage === 'en'
+            ? element.dataset.en
+            : (templateTranslations[activeLanguage]?.[element.dataset.en] || element.dataset.en);
+      });
+      document.querySelectorAll('[data-aria-en]').forEach(element => {
+        if (!element.dataset.ariaRu) element.dataset.ariaRu = element.getAttribute('aria-label') || '';
+        const ariaLabel = activeLanguage === 'ru'
+          ? element.dataset.ariaRu
+          : activeLanguage === 'en'
+            ? element.dataset.ariaEn
+            : element.dataset[`aria${activeLanguage[0].toUpperCase()}${activeLanguage.slice(1)}`];
+        if (ariaLabel) element.setAttribute('aria-label', ariaLabel);
+      });
+      setSlide(activeSlide);
+    }
+
+    function setSlide(index) {
+      activeSlide = Math.max(0, Math.min(3, index));
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === activeSlide));
+      dots.forEach((dot, i) => dot.classList.toggle('active', i === activeSlide));
+      slideButtons.forEach(button => button.classList.toggle('active', Number(button.dataset.slide) === activeSlide));
+      next.textContent = activeSlide === 3 ? localized('Начать', 'Get Started', 'Empezar', 'Starten') : localized('Далее', 'Next', 'Siguiente', 'Weiter');
+      skip.textContent = activeSlide === 3 ? localized('Назад', 'Back', 'Atrás', 'Zurück') : localized('Пропустить', 'Skip', 'Omitir', 'Überspringen');
+    }
+
+    themeButtons.forEach(button => button.addEventListener('click', () => setTheme(button.dataset.setTheme)));
+    languageButtons.forEach(button => button.addEventListener('click', () => setLanguage(button.dataset.setLanguage)));
+    slideButtons.forEach(button => button.addEventListener('click', () => setSlide(Number(button.dataset.slide))));
+    next.addEventListener('click', () => setSlide(activeSlide === 3 ? 0 : activeSlide + 1));
+    skip.addEventListener('click', () => setSlide(activeSlide === 3 ? 2 : 3));
+    setTheme('light');
+    setLanguage('ru');
+    setSlide(0);
+  </script>
+</body>
+</html>
