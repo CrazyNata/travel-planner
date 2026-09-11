@@ -12448,6 +12448,24 @@ const canonicalWeatherCity = (value?: string) => {
   return match?.toLocaleLowerCase("ru") || normalized;
 };
 
+type WeatherDailyForecast = {
+  time: string[];
+  temperature_2m_max: (number | null)[];
+  weather_code: (number | null)[];
+};
+
+type WeatherApiResponse = {
+  current: { temperature_2m: number; weather_code: number };
+  daily?: WeatherDailyForecast;
+};
+
+type WeatherSnapshot = {
+  temperature: number;
+  code: number;
+  tripTemperature?: number;
+  tripCode?: number;
+};
+
 function WeatherOverview({
   cities,
   tripDates,
@@ -12464,9 +12482,7 @@ function WeatherOverview({
   brightenPhotos?: boolean;
 }) {
   const [mode, setMode] = useState<"now" | "trip">("now");
-  const [weather, setWeather] = useState<
-    Record<string, { temperature: number; code: number }>
-  >({});
+  const [weather, setWeather] = useState<Record<string, WeatherSnapshot>>({});
   const [failed, setFailed] = useState(false);
   const weatherCities = cities.reduce<
     { name: string; latitude: number; longitude: number }[]
@@ -12482,9 +12498,11 @@ function WeatherOverview({
     });
     return result;
   }, []);
+  const tripForecastDate =
+    tripStartDate || parseTripDateRange(tripDates)?.[0] || "";
   const weatherKey = weatherCities
     .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
-    .join("|");
+    .join("|") + `|trip:${tripForecastDate}`;
   const weatherTripDates = formatWeatherTripDates(
     tripStartDate,
     tripEndDate,
@@ -12492,29 +12510,51 @@ function WeatherOverview({
   );
 
   useEffect(() => {
-    if (!weatherCities.length) return;
+    if (!weatherCities.length) {
+      setWeather({});
+      return;
+    }
     let cancelled = false;
+    setFailed(false);
+    setWeather({});
     const latitude = weatherCities.map((city) => city.latitude).join(",");
     const longitude = weatherCities.map((city) => city.longitude).join(",");
     void fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=celsius`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&temperature_unit=celsius&forecast_days=16&timezone=auto`,
     )
       .then(async (response) => {
         if (!response.ok) throw new Error("Weather request failed");
-        return response.json() as Promise<
-          { current: { temperature_2m: number; weather_code: number } }[]
-        >;
+        return response.json() as Promise<WeatherApiResponse | WeatherApiResponse[]>;
       })
       .then((data) => {
-        const entries = data.map(
-          (item, index) =>
-            [
-              weatherCities[index].name,
+        const forecasts = Array.isArray(data) ? data : [data];
+        const entries = forecasts.reduce<Array<[string, WeatherSnapshot]>>(
+          (result, item, index) => {
+            const city = weatherCities[index];
+            if (!city) return result;
+            const tripIndex = tripForecastDate
+              ? item.daily?.time.indexOf(tripForecastDate) ?? -1
+              : -1;
+            const tripTemperature =
+              tripIndex >= 0
+                ? item.daily?.temperature_2m_max[tripIndex] ?? undefined
+                : undefined;
+            const tripCode =
+              tripIndex >= 0
+                ? item.daily?.weather_code[tripIndex] ?? undefined
+                : undefined;
+            result.push([
+              city.name,
               {
                 temperature: item.current.temperature_2m,
                 code: item.current.weather_code,
+                tripTemperature,
+                tripCode,
               },
-            ] as const,
+            ]);
+            return result;
+          },
+          [],
         );
         if (!cancelled) setWeather(Object.fromEntries(entries));
       })
@@ -12524,7 +12564,11 @@ function WeatherOverview({
     return () => {
       cancelled = true;
     };
-  }, [weatherKey]);
+  }, [weatherKey, tripForecastDate]);
+
+  const hasTripForecast = weatherCities.some(
+    (city) => typeof weather[city.name]?.tripTemperature === "number",
+  );
 
   return (
     <section className="weather-overview">
@@ -12552,7 +12596,7 @@ function WeatherOverview({
           </button>
         </div>
       </header>
-      {mode === "trip" && (
+      {mode === "trip" && !hasTripForecast && (
         <p className="weather-notice">
           Точный прогноз появится примерно за 16 дней до начала поездки.
         </p>
@@ -12597,10 +12641,23 @@ function WeatherOverview({
                 ) : (
                   <p>Обновляем...</p>
                 )
+              ) : current?.tripTemperature !== undefined ? (
+                <>
+                  <b>{Math.round(current.tripTemperature)}°C</b>
+                  <span>
+                    {current.tripCode !== undefined
+                      ? weatherDescription(current.tripCode)
+                      : "Прогноз пока недоступен"}
+                  </span>
+                </>
               ) : (
                 <>
                   <b>{weatherTripDates}</b>
-                  <span>Прогноз появится позже</span>
+                  <span>
+                    {failed
+                      ? "Не удалось обновить прогноз"
+                      : "Прогноз появится позже"}
+                  </span>
                 </>
               )}
             </article>
