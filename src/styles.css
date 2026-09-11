@@ -2239,6 +2239,127 @@ button {
 .weather-card.christmas-weather-photo {
   filter: brightness(1.18) contrast(1.08) saturate(1.08);
 }
+.weather-overview.trip-mode .weather-grid {
+  gap: 10px;
+}
+.weather-overview.trip-mode .weather-card {
+  min-height: 92px;
+  padding: 12px;
+}
+.weather-overview.trip-mode .weather-card h3 {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.weather-overview.trip-mode .weather-card b {
+  margin-bottom: 3px;
+  font-size: 20px;
+}
+.weather-overview.trip-mode .weather-card span,
+.weather-overview.trip-mode .weather-card p {
+  font-size: 10px;
+}
+.weather-trip-days {
+  margin-top: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 17px;
+  background: #fff;
+  padding: 15px 16px 13px;
+  box-shadow: 0 8px 22px rgba(35, 32, 28, 0.06);
+}
+.weather-trip-days > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.weather-trip-days h3 {
+  margin: 0;
+  color: #262239;
+  font-size: 14px;
+}
+.weather-trip-days header p {
+  margin: 3px 0 0;
+  color: #817a72;
+  font-size: 11px;
+}
+.weather-trip-days > header > span {
+  border-radius: 999px;
+  background: #e9f2f8;
+  padding: 6px 9px;
+  color: #3d78a5;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.weather-trip-days-list {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(40px, 1fr)) 48px;
+  gap: 5px;
+}
+.weather-trip-days-list button {
+  display: grid;
+  min-height: 86px;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #f6f7f9;
+  color: #817a72;
+  padding: 7px 4px;
+  font-size: 10px;
+}
+.weather-trip-days-list button b {
+  color: #262239;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.weather-trip-days-list button.active {
+  border-color: #3d78a5;
+  background: #3d78a5;
+  color: rgba(255, 255, 255, 0.82);
+}
+.weather-trip-days-list button.active b { color: #fff; }
+.weather-trip-days-more {
+  display: grid;
+  min-height: 86px;
+  place-items: center;
+  border-radius: 12px;
+  color: #817a72;
+  font-size: 10px;
+  text-align: center;
+}
+.weather-trip-days-more small {
+  display: block;
+  font-size: 10px;
+}
+.weather-trip-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 13px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 11px;
+}
+.weather-trip-selected b,
+.weather-trip-selected strong {
+  display: block;
+  color: #262239;
+}
+.weather-trip-selected b { font-size: 13px; }
+.weather-trip-selected span {
+  display: block;
+  margin-top: 3px;
+  color: #817a72;
+  font-size: 10px;
+}
+.weather-trip-selected strong {
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
 .overview-draft {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 360px;
@@ -7562,6 +7683,36 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background-size: cover;
   color: #fff;
 }
+.app.app-dark .weather-trip-days {
+  border-color: #394158;
+  background: #202536;
+  box-shadow: 0 8px 22px #080a1426;
+}
+.app.app-dark .weather-trip-days h3,
+.app.app-dark .weather-trip-selected b,
+.app.app-dark .weather-trip-selected strong,
+.app.app-dark .weather-trip-days-list button b {
+  color: #edf0f7;
+}
+.app.app-dark .weather-trip-days header p,
+.app.app-dark .weather-trip-selected span,
+.app.app-dark .weather-trip-days-more {
+  color: #98a2b7;
+}
+.app.app-dark .weather-trip-days-list button {
+  background: #2b3143;
+  color: #98a2b7;
+}
+.app.app-dark .weather-trip-days-list button.active {
+  background: #655be1;
+  color: #fff;
+}
+.app.app-dark .weather-trip-days-list button.active b {
+  color: #fff;
+}
+.app.app-dark .weather-trip-selected {
+  border-top-color: #394158;
+}
 .app.app-dark .overview-draft > section,
 .app.app-dark .sights-empty,
 .app.app-dark .walking-planner,
@@ -9526,6 +9677,21 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   }
   .weather-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .weather-trip-days-list {
+    grid-template-columns: repeat(8, minmax(0, 1fr)) 42px;
+    gap: 4px;
+  }
+  .weather-trip-days-list button {
+    min-height: 82px;
+    padding-inline: 2px;
+    font-size: 9px;
+  }
+  .weather-trip-days-list button b {
+    font-size: 15px;
+  }
+  .weather-trip-days-more {
+    min-height: 82px;
   }
   .road-leg-fields {
     grid-template-columns: 1fr;
