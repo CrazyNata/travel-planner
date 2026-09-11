@@ -2026,18 +2026,20 @@ private fun OnboardingTutorialScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 RamingoBrand(modifier = Modifier.weight(1f))
-                TextButton(
-                    enabled = !finishing,
-                    onClick = { exit(OnboardingExitAction.SKIP) },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        localized("Пропустить", "Skip", "Omitir", "Überspringen"),
-                        color = secondaryTextColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W700,
-                        fontSize = 12.sp,
-                    )
+                if (page != RamingoOnboardingPage.FIRST_TRIP) {
+                    TextButton(
+                        enabled = !finishing,
+                        onClick = { exit(OnboardingExitAction.SKIP) },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            localized("Пропустить", "Skip", "Omitir", "Überspringen"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 12.sp,
+                        )
+                    }
                 }
             }
 
@@ -2142,7 +2144,6 @@ private enum class RamingoOnboardingPage {
 }
 
 private data class OnboardingStepCopy(
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val eyebrow: String,
     val title: String,
     val body: String,
@@ -2154,38 +2155,29 @@ private fun OnboardingStepContent(
 ) {
     val copy = when (page) {
         RamingoOnboardingPage.WELCOME -> OnboardingStepCopy(
-            Icons.Outlined.Explore,
-            localized("RAMINGO", "RAMINGO", "RAMINGO", "RAMINGO"),
-            localized("Путешествие начинается здесь", "Your journey starts here", "Su viaje empieza aquí", "Ihre Reise beginnt hier"),
-            localized("Соберите маршрут, места и важные детали поездки в одном понятном пространстве.", "Keep your route, places and travel details together in one clear space.", "Guarde la ruta, los lugares y los detalles del viaje en un solo espacio.", "Bewahren Sie Route, Orte und Reisedetails an einem klaren Ort auf."),
+            localized("01 · ПЛАН", "01 · PLAN", "01 · PLAN", "01 · PLAN"),
+            localized("Планируйте всё в одном месте", "Plan the whole trip in one place", "Planifique todo el viaje en un solo lugar", "Planen Sie die ganze Reise an einem Ort"),
+            localized("Маршрут, места, жильё и заметки — всё внутри одной поездки.", "Routes, places, stays and notes — all inside one trip.", "Rutas, lugares, alojamientos y notas: todo dentro de un viaje.", "Routen, Orte, Unterkünfte und Notizen — alles in einer Reise."),
         )
         RamingoOnboardingPage.PLAN -> OnboardingStepCopy(
-            Icons.Outlined.DirectionsCar,
-            localized("ПЛАНИРУЙТЕ ПО ДНЯМ", "PLAN BY DAY", "PLANIFIQUE POR DÍAS", "NACH TAGEN PLANEN"),
-            localized("Маршрут всегда под рукой", "Your route, day by day", "Su ruta, día a día", "Ihre Route, Tag für Tag"),
-            localized("Добавляйте города и места, следите за переездами и открывайте нужный раздел поездки в любой момент.", "Add cities and places, follow transfers and open the trip section you need at any time.", "Añada ciudades y lugares, siga los traslados y abra la sección que necesite.", "Fügen Sie Städte und Orte hinzu, verfolgen Sie Transfers und öffnen Sie jederzeit den passenden Reisebereich."),
+            localized("02 · МАРШРУТ", "02 · ROUTE", "02 · RUTA", "02 · ROUTE"),
+            localized("Соберите свой маршрут", "Build your route", "Construya su ruta", "Stellen Sie Ihre Route zusammen"),
+            localized("Добавляйте города и места и выстраивайте путь по карте — день за днём.", "Add cities and places and shape the path on the map, day by day.", "Añada ciudades y lugares y trace la ruta en el mapa, día a día.", "Fügen Sie Städte und Orte hinzu und formen Sie den Weg auf der Karte — Tag für Tag."),
         )
         RamingoOnboardingPage.FIRST_TRIP -> OnboardingStepCopy(
-            Icons.Outlined.Add,
-            localized("ВАШ ПЕРВЫЙ ШАГ", "YOUR FIRST STEP", "SU PRIMER PASO", "IHR ERSTER SCHRITT"),
+            localized("03 · СТАРТ", "03 · START", "03 · INICIO", "03 · START"),
             localized("Готовы спланировать поездку?", "Ready to plan your first trip?", "¿Listo para planear su primer viaje?", "Bereit für Ihre erste Reise?"),
-            localized("Создайте поездку сейчас или сначала осмотритесь — приложение ни к чему вас не обязывает.", "Create a trip now or explore first — the app never forces you to do anything.", "Cree un viaje ahora o explore primero: la aplicación no le obliga a nada.", "Erstellen Sie jetzt eine Reise oder entdecken Sie die App zuerst – ohne Zwang."),
+            localized("Создайте первую поездку или сначала осмотритесь — данные и подсказки сохранятся.", "Create your first trip or explore first — your data and hints stay intact.", "Cree su primer viaje o explore primero: sus datos y sugerencias se conservarán.", "Erstellen Sie Ihre erste Reise oder sehen Sie sich zuerst um — Daten und Hinweise bleiben erhalten."),
         )
     }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth().padding(top = 46.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(top = 18.dp, bottom = 6.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(92.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(primaryColor()),
-        ) {
-            Icon(copy.icon, contentDescription = null, tint = primaryContentColor(), modifier = Modifier.size(42.dp))
-        }
         Text(
             text = copy.eyebrow,
             color = primaryColor(),
@@ -2193,75 +2185,181 @@ private fun OnboardingStepContent(
             fontWeight = FontWeight.W800,
             fontSize = 11.sp,
             letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(top = 27.dp),
+            modifier = Modifier.padding(top = 2.dp),
         )
+        OnboardingProductPreview(page = page, modifier = Modifier.padding(top = 12.dp))
         Text(
             text = copy.title,
             color = contentTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W800,
-            fontSize = 27.sp,
-            lineHeight = 31.sp,
+            fontSize = 23.sp,
+            lineHeight = 27.sp,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 9.dp),
+            modifier = Modifier.padding(start = 8.dp, top = 14.dp, end = 8.dp),
         )
         Text(
             text = copy.body,
             color = secondaryTextColor(),
             fontFamily = Manrope,
             fontWeight = FontWeight.W600,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            fontSize = 12.5.sp,
+            lineHeight = 17.sp,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = 14.dp, top = 13.dp, end = 14.dp),
+            modifier = Modifier.padding(start = 12.dp, top = 6.dp, end = 12.dp),
         )
-        OnboardingFeatureCard(page = page)
     }
 }
 
 @Composable
-private fun OnboardingFeatureCard(
+private fun OnboardingProductPreview(
     page: RamingoOnboardingPage,
+    modifier: Modifier = Modifier,
 ) {
-    val rows = when (page) {
-        RamingoOnboardingPage.WELCOME -> listOf(
-            Icons.Outlined.Explore to localized("Одна поездка — все детали", "One trip — every detail", "Un viaje — todos los detalles", "Eine Reise – alle Details"),
-            Icons.Outlined.LocationOn to localized("Города, места и заметки", "Cities, places and notes", "Ciudades, lugares y notas", "Städte, Orte und Notizen"),
-        )
-        RamingoOnboardingPage.PLAN -> listOf(
-            Icons.Outlined.DateRange to localized("Маршрут по дням", "Day-by-day route", "Ruta por días", "Route nach Tagen"),
-            Icons.Outlined.LocationOn to localized("Достопримечательности на карте", "Sights on the map", "Lugares en el mapa", "Orte auf der Karte"),
-        )
-        RamingoOnboardingPage.FIRST_TRIP -> listOf(
-            Icons.Outlined.Add to localized("Создать первую поездку", "Create your first trip", "Cree su primer viaje", "Erste Reise erstellen"),
-            Icons.Outlined.Explore to localized("Или спокойно изучить приложение", "Or explore the app first", "O explore la aplicación primero", "Oder die App zuerst entdecken"),
-        )
-    }
     Column(
-        verticalArrangement = Arrangement.spacedBy(9.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(top = 25.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(cardSurfaceColor())
-            .border(1.dp, contentBorderColor(), RoundedCornerShape(20.dp))
-            .padding(horizontal = 15.dp, vertical = 14.dp),
+            .height(286.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFF0F0F4))
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(22.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        rows.forEach { (icon, label) ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor())) {
-                    Icon(icon, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(18.dp))
-                }
-                Text(
-                    text = label,
-                    color = contentTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W700,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(start = 11.dp),
-                )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(40.dp)) {
+            RamingoBrand(modifier = Modifier.weight(1f))
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Outlined.Settings, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(21.dp))
             }
         }
+        when (page) {
+            RamingoOnboardingPage.WELCOME -> OnboardingHomePreview()
+            RamingoOnboardingPage.PLAN -> OnboardingRoutePreview()
+            RamingoOnboardingPage.FIRST_TRIP -> OnboardingStartPreview()
+        }
+    }
+}
+
+@Composable
+private fun OnboardingHomePreview() {
+    Text(
+        localized("Мои путешествия", "My trips", "Mis viajes", "Meine Reisen"),
+        color = contentTextColor(),
+        fontFamily = Manrope,
+        fontWeight = FontWeight.W800,
+        fontSize = 21.sp,
+        lineHeight = 24.sp,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+        Box(modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(primaryColor()).padding(horizontal = 9.dp, vertical = 5.dp)) {
+            Text(localized("Все · 1", "All · 1", "Todos · 1", "Alle · 1"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp)
+        }
+        Box(modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+            Text(localized("Предстоящие", "Upcoming", "Próximos", "Bevorstehend"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp)
+        }
+    }
+    val targetShape = RoundedCornerShape(17.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(targetShape)
+            .border(2.dp, primaryColor(), targetShape)
+            .background(cardSurfaceColor())
+            .padding(horizontal = 11.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF22B07D)))
+            Text(localized("Предстоящая", "Upcoming", "Próximo", "Bevorstehend"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, modifier = Modifier.padding(start = 5.dp))
+        }
+        Text(localized("Зимняя Италия", "Winter Italy", "Italia de invierno", "Winter in Italien"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, modifier = Modifier.padding(top = 5.dp))
+        Text(localized("19 дек — 3 янв · 10 дней", "Dec 19 — Jan 3 · 10 days", "19 dic — 3 ene · 10 días", "19. Dez. — 3. Jan. · 10 Tage"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(5.dp).background(trackColor(), RoundedCornerShape(4.dp))) {
+            Box(modifier = Modifier.fillMaxWidth(0.42f).fillMaxHeight().background(primaryColor(), RoundedCornerShape(4.dp)))
+        }
+        Text(localized("Рим → Флоренция → Пиза", "Rome → Florence → Pisa", "Roma → Florencia → Pisa", "Rom → Florenz → Pisa"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp, modifier = Modifier.padding(top = 6.dp))
+    }
+    Text(localized("Карточка поездки · маршрут · важные детали", "Trip card · route · key details", "Tarjeta · ruta · detalles clave", "Reisekarte · Route · wichtige Details"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
+}
+
+@Composable
+private fun OnboardingRoutePreview() {
+    Text(localized("ГЛАВНАЯ ПОЕЗДКИ", "TRIP OVERVIEW", "RESUMEN DEL VIAJE", "REISEÜBERSICHT"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, letterSpacing = 0.7.sp, modifier = Modifier.padding(top = 5.dp))
+    Text(localized("Маршрут", "Route", "Ruta", "Route"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, modifier = Modifier.padding(top = 2.dp))
+    OnboardingMapPreview(modifier = Modifier.fillMaxWidth().height(82.dp).padding(top = 7.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 7.dp)) {
+        Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primaryColor()).padding(horizontal = 8.dp, vertical = 5.dp)) {
+            Text(localized("День 1", "Day 1", "Día 1", "Tag 1"), color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp)
+        }
+        Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp)) {
+            Text(localized("День 2", "Day 2", "Día 2", "Tag 2"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp)
+        }
+    }
+    val targetShape = RoundedCornerShape(15.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 7.dp)
+            .clip(targetShape)
+            .border(2.dp, primaryColor(), targetShape)
+            .background(cardSurfaceColor())
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(localized("Рим", "Rome", "Roma", "Rom"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp)
+            Text(localized("Флоренция", "Florence", "Florencia", "Florenz"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(17.dp))
+        Icon(Icons.Outlined.Edit, contentDescription = null, tint = primaryColor(), modifier = Modifier.padding(start = 8.dp).size(17.dp))
+    }
+    Text(localized("Дни и действия маршрута", "Days and route actions", "Días y acciones de la ruta", "Tage und Routenaktionen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
+}
+
+@Composable
+private fun OnboardingMapPreview(modifier: Modifier = Modifier) {
+    val accent = primaryColor()
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(15.dp))
+            .background(if (LocalDarkTheme.current) Color(0xFF293533) else Color(0xFFE2ECE7)),
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val route = Path().apply {
+                moveTo(size.width * 0.13f, size.height * 0.72f)
+                cubicTo(size.width * 0.31f, size.height * 0.08f, size.width * 0.53f, size.height * 0.92f, size.width * 0.68f, size.height * 0.32f)
+                cubicTo(size.width * 0.77f, size.height * 0.08f, size.width * 0.88f, size.height * 0.55f, size.width * 0.93f, size.height * 0.72f)
+            }
+            drawPath(route, accent, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+            listOf(0.13f to 0.72f, 0.68f to 0.32f, 0.93f to 0.72f).forEach { (x, y) ->
+                val point = Offset(size.width * x, size.height * y)
+                drawCircle(Color.White, radius = 8.dp.toPx(), center = point)
+                drawCircle(accent, radius = 5.dp.toPx(), center = point)
+                drawCircle(Color.White, radius = 1.5.dp.toPx(), center = point)
+            }
+        }
+        Text(localized("3 города · 9 дней", "3 cities · 9 days", "3 ciudades · 9 días", "3 Städte · 9 Tage"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomStart).padding(9.dp).clip(RoundedCornerShape(8.dp)).background(cardSurfaceColor().copy(alpha = 0.9f)).padding(horizontal = 7.dp, vertical = 4.dp))
+    }
+}
+
+@Composable
+private fun OnboardingStartPreview() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(top = 8.dp).size(46.dp).clip(RoundedCornerShape(15.dp)).background(tintedSurfaceColor()).border(1.dp, primaryColor().copy(alpha = 0.35f), RoundedCornerShape(15.dp))) {
+            Icon(Icons.Outlined.Add, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(24.dp))
+        }
+        Text(localized("Начните с первой поездки", "Start with your first trip", "Empiece con su primer viaje", "Beginnen Sie mit Ihrer ersten Reise"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 9.dp))
+        Text(localized("Создайте маршрут или сначала осмотритесь.", "Create a route or explore first.", "Cree una ruta o explore primero.", "Erstellen Sie eine Route oder sehen Sie sich zuerst um."), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+        val targetShape = RoundedCornerShape(14.dp)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(targetShape).border(2.dp, primaryColor(), targetShape).background(cardSurfaceColor()).padding(horizontal = 10.dp, vertical = 9.dp)) {
+            Icon(Icons.Outlined.Explore, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(20.dp))
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                Text(localized("Зимняя Италия", "Winter Italy", "Italia de invierno", "Winter in Italien"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                Text(localized("Рим → Флоренция → Пиза", "Rome → Florence → Pisa", "Roma → Florencia → Pisa", "Rom → Florenz → Pisa"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(20.dp))
+        }
+        Text(localized("Два понятных пути: создать или посмотреть", "Two clear paths: create or explore", "Dos caminos claros: crear o explorar", "Zwei klare Wege: erstellen oder entdecken"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
     }
 }
 
@@ -8349,6 +8447,21 @@ private fun SightsContent(
             }
         }
         }
+        if (showAddPlaceHintNow) {
+            item {
+                RamingoContextHint(
+                    index = 2,
+                    title = localized("Добавьте первое место", "Add your first place", "Añada su primer lugar", "Fügen Sie Ihren ersten Ort hinzu"),
+                    body = localized("Откройте редактирование дня, чтобы добавить место из каталога или вручную.", "Open day editing to add a place from the catalog or manually.", "Abra la edición del día para añadir un lugar del catálogo o manualmente.", "Öffnen Sie die Tagesbearbeitung, um einen Ort aus dem Katalog oder manuell hinzuzufügen."),
+                    actionLabel = localized("Добавить место", "Add place", "Añadir lugar", "Ort hinzufügen"),
+                    onAction = {
+                        dismissAddPlaceHint()
+                        editingDay = true
+                    },
+                    onDismiss = ::dismissAddPlaceHint,
+                )
+            }
+        }
         sightActionMessage?.let { message ->
             item {
                 Text(message, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
@@ -8422,19 +8535,6 @@ private fun SightsContent(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(localized("Достопримечательности пока не добавлены", "No sights added yet", "Aún no se han añadido lugares", "Noch keine Orte hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp)
-                    if (showAddPlaceHintNow) {
-                        RamingoContextHint(
-                            index = 2,
-                            title = localized("Добавьте первое место", "Add your first place", "Añada su primer lugar", "Fügen Sie Ihren ersten Ort hinzu"),
-                            body = localized("Откройте редактирование дня, чтобы добавить место из каталога или вручную.", "Open day editing to add a place from the catalog or manually.", "Abra la edición del día para añadir un lugar del catálogo o manualmente.", "Öffnen Sie die Tagesbearbeitung, um einen Ort aus dem Katalog oder manuell hinzuzufügen."),
-                            actionLabel = localized("Добавить место", "Add place", "Añadir lugar", "Ort hinzufügen"),
-                            onAction = {
-                                dismissAddPlaceHint()
-                                editingDay = true
-                            },
-                            onDismiss = ::dismissAddPlaceHint,
-                        )
-                    }
                 }
             }
         } else {
@@ -22533,7 +22633,6 @@ private fun EmptyStateCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (highlighted) Modifier.border(2.dp, primaryColor(), shape) else Modifier)
             .clip(shape)
             .background(cardSurfaceColor())
             .padding(horizontal = 24.dp, vertical = 26.dp),
@@ -22544,8 +22643,15 @@ private fun EmptyStateCard(
         Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 13.dp))
         Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
         if (action != null && onAction != null) {
-            Button(onClick = onAction, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(top = 16.dp)) {
-                Text(action, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+            val actionShape = RoundedCornerShape(14.dp)
+            Box(
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .then(if (highlighted) Modifier.border(2.dp, primaryColor(), actionShape).padding(3.dp) else Modifier),
+            ) {
+                Button(onClick = onAction, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(12.dp)) {
+                    Text(action, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp)
+                }
             }
         }
     }
