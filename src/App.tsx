@@ -12,6 +12,11 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
 import { AccommodationPrototype } from "./AccommodationPrototype";
+import {
+  WebOnboarding,
+  type WebOnboardingExitAction,
+  type WebOnboardingMode,
+} from "./WebOnboarding";
 
 type View =
   | "auth"
@@ -1094,6 +1099,26 @@ async function saveUserData(key: string, value: unknown) {
     { onConflict: "user_id,key" },
   );
   if (error) console.error(`Could not save ${key}.`, error);
+}
+
+async function loadWebOnboardingCompleted(userId: string) {
+  const { data, error } = await supabase
+    .from("user_data")
+    .select("value")
+    .eq("user_id", userId)
+    .eq("key", "web-onboarding")
+    .maybeSingle();
+  if (error) {
+    console.error("Could not load web onboarding state.", error);
+    return null;
+  }
+  const value = data?.value;
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "completed" in value &&
+      (value as { completed?: unknown }).completed === true,
+  );
 }
 
 const tripSaveQueues = new globalThis.Map<string, Promise<void>>();
@@ -6385,7 +6410,7 @@ function AccommodationCityPicker({
 function AccountSettingIcon({
   name,
 }: {
-  name: "language" | "theme" | "password" | "photo" | "delete";
+  name: "language" | "theme" | "password" | "photo" | "tutorial" | "delete";
 }) {
   const paths = {
     language: (
@@ -6406,6 +6431,12 @@ function AccountSettingIcon({
         <rect x="3" y="4" width="18" height="16" rx="2" />
         <circle cx="8.5" cy="9" r="1.5" />
         <path d="m4.5 17 4-4 3 3 2.5-2.5 5.5 5.5" />
+      </>
+    ),
+    tutorial: (
+      <>
+        <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
+        <path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" />
       </>
     ),
     delete: (
@@ -6431,6 +6462,7 @@ function Sidebar({
   cityCount,
   darkTheme = false,
   onDarkThemeChange,
+  onShowTutorial,
 }: {
   view: View;
   go: (view: View) => void;
@@ -6441,6 +6473,7 @@ function Sidebar({
   cityCount: number;
   darkTheme?: boolean;
   onDarkThemeChange?: (value: boolean) => void;
+  onShowTutorial?: () => void;
 }) {
   const [settings, setSettings] = useState(false);
   const [panel, setPanel] = useState<"language" | "photo" | "password" | null>(null);
@@ -6610,6 +6643,21 @@ function Sidebar({
                       <i />
                     </span>
                   </button>
+                  {onShowTutorial && (
+                    <button
+                      className="settings-row"
+                      type="button"
+                      onClick={() => {
+                        closeSettings();
+                        close();
+                        onShowTutorial();
+                      }}
+                    >
+                      <span className="settings-icon"><AccountSettingIcon name="tutorial" /></span>
+                      <b>Показать обучение</b>
+                      <i>›</i>
+                    </button>
+                  )}
                   <button
                     className="settings-row"
                     type="button"
@@ -16160,6 +16208,7 @@ export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([]);
   const [darkTheme, setDarkTheme] = useState(false);
+  const [onboardingMode, setOnboardingMode] = useState<WebOnboardingMode | null>(null);
   const persistDarkTheme = (value: boolean) => {
     setDarkTheme(value);
     void supabase.auth.updateUser({ data: { dark_theme: value } }).then(({ error }) => {
@@ -16190,6 +16239,14 @@ export function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => {
+    let onboardingRequest = 0;
+    const loadOnboarding = async (currentUserId: string) => {
+      if (inviteSetup) return;
+      const request = ++onboardingRequest;
+      const completed = await loadWebOnboardingCompleted(currentUserId);
+      if (request !== onboardingRequest || completed === null) return;
+      setOnboardingMode(completed ? null : "first-run");
+    };
     const setAuthenticatedUser = (
       user: {
         email?: string;
@@ -16303,6 +16360,8 @@ export function App() {
     };
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) {
+        onboardingRequest += 1;
+        setOnboardingMode(null);
         setDarkTheme(false);
         setAuthReady(true);
         setIsAuthenticated(false);
@@ -16316,6 +16375,7 @@ export function App() {
       setAuthReady(true);
       setIsAuthenticated(true);
       setAuthenticatedUser(data.session.user, true);
+      void loadOnboarding(data.session.user.id);
       rememberAccount({
         email: data.session.user.email || "",
         name: data.session.user.user_metadata.full_name || data.session.user.email || "Путешественник",
@@ -16331,10 +16391,13 @@ export function App() {
           setIsAuthenticated(true);
           setAuthenticatedUser(session.user, event === "SIGNED_IN");
           if (event === "SIGNED_IN") {
+            void loadOnboarding(session.user.id);
             void loadUserData(session.user.id);
             void loadSavedTrip();
           }
         } else if (event === "SIGNED_OUT") {
+          onboardingRequest += 1;
+          setOnboardingMode(null);
           setDarkTheme(false);
           setIsAuthenticated(false);
           navigate("/auth", { replace: true });
@@ -16482,6 +16545,18 @@ export function App() {
         if (error) console.error("Could not save the sight.", error);
       });
   };
+  const handleOnboardingExit = (action: WebOnboardingExitAction) => {
+    const mode = onboardingMode;
+    setOnboardingMode(null);
+    if (mode === "first-run") {
+      void saveUserData("web-onboarding", {
+        completed: true,
+        completedAt: new Date().toISOString(),
+      });
+    }
+    if (action === "create") go("create");
+    if (action === "explore") go("trips");
+  };
   if (
     !authReady ||
     (!isAuthenticated &&
@@ -16526,6 +16601,7 @@ export function App() {
         tripCount={drafts.filter((trip) => !isTripDeleted(trip)).length}
         darkTheme={darkTheme}
         onDarkThemeChange={persistDarkTheme}
+        onShowTutorial={() => setOnboardingMode("replay")}
         cityCount={
           new Set(
             drafts.filter((trip) => !isTripDeleted(trip)).flatMap((trip) =>
@@ -16586,6 +16662,13 @@ export function App() {
         {view === "catalog" && <Catalog go={go} />}
         {view === "public" && <PublicRoute go={go} />}
       </div>
+      {onboardingMode && (
+        <WebOnboarding
+          mode={onboardingMode}
+          darkTheme={darkTheme}
+          onExit={handleOnboardingExit}
+        />
+      )}
     </div>
   );
 }
