@@ -667,6 +667,46 @@ function parseTripDateRange(value: string) {
   return [iso(match[3], startMonth, match[1]), iso(match[6], endMonth, match[4])] as const;
 }
 
+function formatWeatherTripDates(
+  start?: string,
+  end?: string,
+  fallback?: string,
+) {
+  const range =
+    start && end
+      ? ([start, end] as const)
+      : fallback
+        ? parseTripDateRange(fallback)
+        : null;
+  if (!range) return fallback?.split("·")[0].trim() || "Даты поездки";
+
+  const formatDate = (value: string) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) return "";
+    const month = [
+      "янв",
+      "фев",
+      "мар",
+      "апр",
+      "май",
+      "июн",
+      "июл",
+      "авг",
+      "сен",
+      "окт",
+      "ноя",
+      "дек",
+    ][date.getUTCMonth()];
+    return `${date.getUTCDate()} ${month}`;
+  };
+
+  const startLabel = formatDate(range[0]);
+  const endLabel = formatDate(range[1]);
+  return startLabel && endLabel
+    ? `${startLabel} - ${endLabel}`
+    : fallback?.split("·")[0].trim() || "Даты поездки";
+}
+
 function isoDateAt(startDate: string | undefined, offset: number) {
   if (!startDate) return "";
   const date = new Date(`${startDate}T00:00:00Z`);
@@ -12411,11 +12451,15 @@ const canonicalWeatherCity = (value?: string) => {
 function WeatherOverview({
   cities,
   tripDates,
+  tripStartDate,
+  tripEndDate,
   coverPhotos,
   brightenPhotos = false,
 }: {
   cities: string[];
   tripDates: string;
+  tripStartDate?: string;
+  tripEndDate?: string;
   coverPhotos: CoverPhoto[];
   brightenPhotos?: boolean;
 }) {
@@ -12441,6 +12485,11 @@ function WeatherOverview({
   const weatherKey = weatherCities
     .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
     .join("|");
+  const weatherTripDates = formatWeatherTripDates(
+    tripStartDate,
+    tripEndDate,
+    tripDates,
+  );
 
   useEffect(() => {
     if (!weatherCities.length) return;
@@ -12550,7 +12599,7 @@ function WeatherOverview({
                 )
               ) : (
                 <>
-                  <b>19 дек - 3 янв</b>
+                  <b>{weatherTripDates}</b>
                   <span>Прогноз появится позже</span>
                 </>
               )}
@@ -12818,6 +12867,8 @@ function TripOverview({
         <WeatherOverview
           cities={weatherCities}
           tripDates={trip.dates}
+          tripStartDate={trip.startDate}
+          tripEndDate={trip.endDate}
           coverPhotos={coverPhotos}
           brightenPhotos={trip.title === "Рождественская Италия"}
         />
@@ -12984,6 +13035,8 @@ function TripOverview({
           <WeatherOverview
             cities={weatherCities}
             tripDates={trip.dates}
+            tripStartDate={trip.startDate}
+            tripEndDate={trip.endDate}
             coverPhotos={coverPhotos}
             brightenPhotos={trip.title === "Рождественская Италия"}
           />
