@@ -33,6 +33,8 @@ data class AccountProfile(
     val onboardingCompleted: Boolean = false,
     val createTripHintSeen: Boolean = false,
     val addPlaceHintSeen: Boolean = false,
+    /** True when the account_profile row already existed before this read. */
+    val hasStoredProfile: Boolean = false,
 ) {
     val darkTheme: Boolean
         get() = themePreference == ThemePreference.DARK
@@ -62,6 +64,7 @@ class AccountRepository(private val client: SupabaseClient) {
             onboardingCompleted = row?.value?.get("onboarding_completed")?.jsonPrimitive?.content == "true",
             createTripHintSeen = row?.value?.get("create_trip_hint_seen")?.jsonPrimitive?.content == "true",
             addPlaceHintSeen = row?.value?.get("add_place_hint_seen")?.jsonPrimitive?.content == "true",
+            hasStoredProfile = row != null,
         )
     }
 

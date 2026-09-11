@@ -1642,19 +1642,43 @@ fun OdysseyApp(
             rememberedAccounts = SupabaseProvider.loadRememberedAccounts()
         } else {
             rememberedAccounts = emptyList()
-            val profile = runCatching {
-                AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile()
-            }.getOrNull()
-            accountProfile = profile
-            profile?.let {
+            val client = SupabaseProvider.clientForCurrentAuthFlow()
+            val repository = AccountRepository(client)
+            val profile = runCatching { repository.loadProfile() }.getOrNull()
+            // Older accounts may have trips but no account_profile row. Read
+            // that server-side signal before deciding whether this is a new
+            // user; this avoids showing onboarding after an app upgrade.
+            val existingTrips = if (profile?.hasStoredProfile == true) {
+                emptyList()
+            } else {
+                runCatching { SupabaseTripRepository(client).loadTrips() }.getOrNull()
+            }
+            val profileReady = profile != null && (profile.hasStoredProfile || existingTrips != null)
+            val migratedProfile = profile?.let { loadedProfile ->
+                if (shouldMigrateExistingUserOnboarding(
+                        hasStoredAccountProfile = loadedProfile.hasStoredProfile,
+                        hasAnyTrip = existingTrips?.isNotEmpty() == true,
+                    ) && !loadedProfile.onboardingCompleted
+                ) {
+                    runCatching { repository.updateOnboardingState(onboardingCompleted = true) }
+                    loadedProfile.copy(onboardingCompleted = true, hasStoredProfile = true)
+                } else {
+                    loadedProfile
+                }
+            }
+            // If the migration probe failed, keep the profile unavailable so
+            // an existing user is never incorrectly sent into first-run
+            // onboarding. The regular Home screen can still render and retry
+            // its own trip request.
+            accountProfile = if (profileReady) migratedProfile else null
+            migratedProfile?.let {
                 themePreference = it.themePreference
                 val languageChosenBeforeAuth = languageSelectedBeforeAuth
                 if (languageChosenBeforeAuth != null) {
                     language = languageChosenBeforeAuth
                     if (normalizeLanguage(it.language) != languageChosenBeforeAuth) {
                         runCatching {
-                            AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                .updateAppearance(languageChosenBeforeAuth, it.themePreference)
+                            repository.updateAppearance(languageChosenBeforeAuth, it.themePreference)
                         }
                     }
                     languageSelectedBeforeAuth = null
@@ -1701,7 +1725,7 @@ fun OdysseyApp(
         } else if (
             hasSession &&
             accountProfile != null &&
-            !accountProfile!!.onboardingCompleted &&
+            shouldShowFirstRunOnboarding(accountProfile!!.onboardingCompleted) &&
             currentRoute == "trips"
         ) {
             navController.navigate("onboarding/first") {
@@ -1736,7 +1760,7 @@ fun OdysseyApp(
 
     LaunchedEffect(authReady, hasSession, accountProfile?.onboardingCompleted, currentRoute, currentTripId, pendingTripId, pendingPasswordReset) {
         if (!authReady || !hasSession || currentRoute == null || accountProfile == null) return@LaunchedEffect
-        if (!accountProfile!!.onboardingCompleted && currentRoute != "onboarding/{mode}") return@LaunchedEffect
+        if (shouldShowFirstRunOnboarding(accountProfile!!.onboardingCompleted)) return@LaunchedEffect
         when {
             pendingPasswordReset && currentRoute != "reset-password" -> {
                 navController.navigate("reset-password")
@@ -1797,22 +1821,37 @@ fun OdysseyApp(
                     )
                 }
                 composable("onboarding/{mode}") { entry ->
+                    val mode = if (entry.arguments?.getString("mode") == "replay") {
+                        OnboardingMode.REPLAY
+                    } else {
+                        OnboardingMode.FIRST_RUN
+                    }
                     OnboardingTutorialScreen(
-                        replay = entry.arguments?.getString("mode") == "replay",
-                        onFinished = { replay ->
-                            if (replay) {
+                        mode = mode,
+                        onExit = { action ->
+                            if (mode == OnboardingMode.REPLAY) {
                                 navController.popBackStack()
                             } else {
-                                accountProfile = accountProfile?.copy(onboardingCompleted = true)
-                                navController.navigate("trips") {
-                                    popUpTo("onboarding/{mode}") { inclusive = true }
-                                    launchSingleTop = true
-                                }
+                                accountProfile = (accountProfile ?: AccountProfile(null, false)).copy(
+                                    onboardingCompleted = true,
+                                )
                                 authScope.launch {
                                     runCatching {
                                         AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
                                             .updateOnboardingState(onboardingCompleted = true)
                                     }
+                                }
+                                val destination = onboardingDestination(
+                                    action = action,
+                                    pendingTripId = pendingTripId,
+                                    pendingPasswordReset = pendingPasswordReset,
+                                )
+                                if (pendingPasswordReset || !pendingTripId.isNullOrBlank()) {
+                                    onPendingDeepLinkHandled()
+                                }
+                                navController.navigate(destination) {
+                                    popUpTo("onboarding/{mode}") { inclusive = true }
+                                    launchSingleTop = true
                                 }
                             }
                         },
@@ -1933,257 +1972,294 @@ fun OdysseyApp(
     }
 }
 
-private enum class RamingoTutorialPage {
-    HOME,
-    OVERVIEW,
-    ROUTE,
-    SIGHTS,
-    LODGING,
-    SETTINGS,
-}
-
-private data class RamingoTutorialTarget(
-    val topFraction: Float,
-    val heightFraction: Float,
-)
-
 @Composable
 private fun OnboardingTutorialScreen(
-    replay: Boolean,
-    onFinished: (Boolean) -> Unit,
+    mode: OnboardingMode,
+    onExit: (OnboardingExitAction) -> Unit,
 ) {
-    val language = LocalLanguage.current
     val darkTheme = LocalDarkTheme.current
-    val demoOverview = remember { tutorialDemoOverview() }
-    var pageIndex by remember { mutableStateOf(0) }
-    var previewTripId by remember { mutableStateOf<String?>(null) }
-    var previewOverview by remember { mutableStateOf<TripOverview?>(null) }
+    var currentOnboardingPage by remember { mutableStateOf(0) }
+    var finishing by remember { mutableStateOf(false) }
+    val page = RamingoOnboardingPage.entries[normalizeOnboardingPage(currentOnboardingPage)]
 
-    LaunchedEffect(Unit) {
-        val activeTrip = runCatching {
-            SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                .loadTrips()
-                .firstOrNull { it.deletedAt.isNullOrBlank() }
-        }.getOrNull()
-        previewTripId = activeTrip?.id
-        previewOverview = activeTrip?.id?.let { id ->
-            runCatching {
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTripOverview(id)
-            }.getOrNull()
-        }
-    }
-
-    val pages = RamingoTutorialPage.entries
-    val page = pages[pageIndex.coerceIn(0, pages.lastIndex)]
-    val previewProfile = remember {
-        AccountProfile(
-            avatarUrl = null,
-            notificationsEnabled = false,
-            onboardingCompleted = false,
-            createTripHintSeen = true,
-            addPlaceHintSeen = true,
-        )
+    fun exit(action: OnboardingExitAction) {
+        if (finishing) return
+        finishing = true
+        onExit(action)
     }
 
     BackHandler {
-        if (pageIndex > 0) {
-            pageIndex -= 1
+        if (finishing) return@BackHandler
+        if (currentOnboardingPage > 0) {
+            currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage - 1)
         } else {
-            onFinished(replay)
+            exit(OnboardingExitAction.SKIP)
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (page) {
-            RamingoTutorialPage.HOME -> {
-                MyTripsScreen(
-                    onTripClick = {},
-                    onNewTrip = {},
-                    onLogout = {},
-                    darkTheme = darkTheme,
-                    themePreference = if (darkTheme) ThemePreference.DARK else ThemePreference.LIGHT,
-                    onThemeSet = {},
-                    language = language,
-                    onLanguageChange = {},
-                    sessionRestoreVersion = 0,
-                    accountProfile = previewProfile,
-                    onShowTutorial = {},
-                    onCreateTripHintSeen = {},
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(currentOnboardingPage, finishing) {
+                var dragDistance = 0f
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { _, dragAmount -> dragDistance += dragAmount },
+                    onDragEnd = {
+                        if (!finishing && kotlin.math.abs(dragDistance) >= 48f) {
+                            currentOnboardingPage = normalizeOnboardingPage(
+                                currentOnboardingPage + if (dragDistance < 0f) 1 else -1,
+                            )
+                        }
+                        dragDistance = 0f
+                    },
+                    onDragCancel = { dragDistance = 0f },
                 )
-            }
-
-            RamingoTutorialPage.OVERVIEW,
-            RamingoTutorialPage.ROUTE,
-            RamingoTutorialPage.SIGHTS,
-            RamingoTutorialPage.LODGING
-            -> {
-                val tab = when (page) {
-                    RamingoTutorialPage.OVERVIEW -> "overview"
-                    RamingoTutorialPage.ROUTE -> "route"
-                    RamingoTutorialPage.SIGHTS -> "sights"
-                    else -> "accommodation"
-                }
-                val realOverview = previewOverview
-                if (previewTripId != null && realOverview != null) {
-                    TripOverviewScreen(
-                        tripId = previewTripId!!,
-                        onBack = {},
-                        onSettings = {},
-                        notificationsEnabled = false,
-                        initialTab = tab,
-                    )
-                } else {
-                    TutorialTripPreview(page = page, overview = demoOverview)
-                }
-            }
-
-            RamingoTutorialPage.SETTINGS -> TutorialSettingsPreview()
-        }
-
-        RamingoTutorialOverlay(
-            page = page,
-            pageIndex = pageIndex,
-            pageCount = pages.size,
-            replay = replay,
-            onBack = { pageIndex = (pageIndex - 1).coerceAtLeast(0) },
-            onNext = {
-                if (pageIndex == pages.lastIndex) {
-                    onFinished(replay)
-                } else {
-                    pageIndex += 1
-                }
             },
-            onSkip = { onFinished(replay) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (darkTheme) OdysseyDarkBackground else OdysseyBackground)
+                .padding(WindowInsets.statusBars.asPaddingValues())
+                .navigationBarsPadding()
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                RamingoBrand(modifier = Modifier.weight(1f))
+                TextButton(
+                    enabled = !finishing,
+                    onClick = { exit(OnboardingExitAction.SKIP) },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        localized("Пропустить", "Skip", "Omitir", "Überspringen"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+
+            OnboardingStepContent(page = page)
+
+            Spacer(Modifier.weight(1f))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                repeat(onboardingPageCount) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(if (index == currentOnboardingPage) 9.dp else 7.dp)
+                            .clip(CircleShape)
+                            .background(if (index == currentOnboardingPage) primaryColor() else contentBorderColor()),
+                    )
+                }
+            }
+
+            if (page == RamingoOnboardingPage.FIRST_TRIP && mode == OnboardingMode.FIRST_RUN) {
+                Button(
+                    enabled = !finishing,
+                    onClick = { exit(OnboardingExitAction.CREATE_FIRST_TRIP) },
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                ) {
+                    Text(
+                        localized("Создать первую поездку", "Create my first trip", "Crear mi primer viaje", "Meine erste Reise erstellen"),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 14.sp,
+                    )
+                }
+                OutlinedButton(
+                    enabled = !finishing,
+                    onClick = { exit(OnboardingExitAction.EXPLORE) },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    Text(
+                        localized("Сначала осмотреться", "Explore first", "Explorar primero", "Erst entdecken"),
+                        color = primaryColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 14.sp,
+                    )
+                }
+            } else {
+                Button(
+                    enabled = !finishing,
+                    onClick = {
+                        if (currentOnboardingPage == onboardingPageCount - 1) {
+                            exit(OnboardingExitAction.EXPLORE)
+                        } else {
+                            currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage + 1)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                ) {
+                    Text(
+                        if (page == RamingoOnboardingPage.FIRST_TRIP) {
+                            localized("Вернуться в приложение", "Back to app", "Volver a la aplicación", "Zurück zur App")
+                        } else {
+                            localized("Далее", "Next", "Siguiente", "Weiter")
+                        },
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+            if (currentOnboardingPage > 0) {
+                TextButton(
+                    enabled = !finishing,
+                    onClick = { currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage - 1) },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Text(
+                        localized("Назад", "Back", "Atrás", "Zurück"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 12.sp,
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(36.dp))
+            }
+        }
+    }
+}
+
+private enum class RamingoOnboardingPage {
+    WELCOME,
+    PLAN,
+    FIRST_TRIP,
+}
+
+private data class OnboardingStepCopy(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val eyebrow: String,
+    val title: String,
+    val body: String,
+)
+
+@Composable
+private fun OnboardingStepContent(
+    page: RamingoOnboardingPage,
+) {
+    val copy = when (page) {
+        RamingoOnboardingPage.WELCOME -> OnboardingStepCopy(
+            Icons.Outlined.Explore,
+            localized("RAMINGO", "RAMINGO", "RAMINGO", "RAMINGO"),
+            localized("Путешествие начинается здесь", "Your journey starts here", "Su viaje empieza aquí", "Ihre Reise beginnt hier"),
+            localized("Соберите маршрут, места и важные детали поездки в одном понятном пространстве.", "Keep your route, places and travel details together in one clear space.", "Guarde la ruta, los lugares y los detalles del viaje en un solo espacio.", "Bewahren Sie Route, Orte und Reisedetails an einem klaren Ort auf."),
         )
+        RamingoOnboardingPage.PLAN -> OnboardingStepCopy(
+            Icons.Outlined.DirectionsCar,
+            localized("ПЛАНИРУЙТЕ ПО ДНЯМ", "PLAN BY DAY", "PLANIFIQUE POR DÍAS", "NACH TAGEN PLANEN"),
+            localized("Маршрут всегда под рукой", "Your route, day by day", "Su ruta, día a día", "Ihre Route, Tag für Tag"),
+            localized("Добавляйте города и места, следите за переездами и открывайте нужный раздел поездки в любой момент.", "Add cities and places, follow transfers and open the trip section you need at any time.", "Añada ciudades y lugares, siga los traslados y abra la sección que necesite.", "Fügen Sie Städte und Orte hinzu, verfolgen Sie Transfers und öffnen Sie jederzeit den passenden Reisebereich."),
+        )
+        RamingoOnboardingPage.FIRST_TRIP -> OnboardingStepCopy(
+            Icons.Outlined.Add,
+            localized("ВАШ ПЕРВЫЙ ШАГ", "YOUR FIRST STEP", "SU PRIMER PASO", "IHR ERSTER SCHRITT"),
+            localized("Готовы спланировать поездку?", "Ready to plan your first trip?", "¿Listo para planear su primer viaje?", "Bereit für Ihre erste Reise?"),
+            localized("Создайте поездку сейчас или сначала осмотритесь — приложение ни к чему вас не обязывает.", "Create a trip now or explore first — the app never forces you to do anything.", "Cree un viaje ahora o explore primero: la aplicación no le obliga a nada.", "Erstellen Sie jetzt eine Reise oder entdecken Sie die App zuerst – ohne Zwang."),
+        )
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth().padding(top = 46.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(92.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(primaryColor()),
+        ) {
+            Icon(copy.icon, contentDescription = null, tint = primaryContentColor(), modifier = Modifier.size(42.dp))
+        }
+        Text(
+            text = copy.eyebrow,
+            color = primaryColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 11.sp,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(top = 27.dp),
+        )
+        Text(
+            text = copy.title,
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 27.sp,
+            lineHeight = 31.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 9.dp),
+        )
+        Text(
+            text = copy.body,
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = 14.dp, top = 13.dp, end = 14.dp),
+        )
+        OnboardingFeatureCard(page = page)
     }
 }
 
 @Composable
-private fun RamingoTutorialOverlay(
-    page: RamingoTutorialPage,
-    pageIndex: Int,
-    pageCount: Int,
-    replay: Boolean,
-    onBack: () -> Unit,
-    onNext: () -> Unit,
-    onSkip: () -> Unit,
+private fun OnboardingFeatureCard(
+    page: RamingoOnboardingPage,
 ) {
-    val step = pageIndex + 1
-    val target = when (page) {
-        RamingoTutorialPage.HOME -> RamingoTutorialTarget(0.34f, 0.31f)
-        RamingoTutorialPage.OVERVIEW -> RamingoTutorialTarget(0.20f, 0.37f)
-        RamingoTutorialPage.ROUTE -> RamingoTutorialTarget(0.13f, 0.42f)
-        RamingoTutorialPage.SIGHTS -> RamingoTutorialTarget(0.13f, 0.43f)
-        RamingoTutorialPage.LODGING -> RamingoTutorialTarget(0.11f, 0.47f)
-        RamingoTutorialPage.SETTINGS -> RamingoTutorialTarget(0.47f, 0.18f)
-    }
-    val title = when (page) {
-        RamingoTutorialPage.HOME -> localized("Главная: начните с поездки", "Home: start with a trip", "Inicio: empiece con un viaje", "Home: mit einer Reise beginnen")
-        RamingoTutorialPage.OVERVIEW -> localized("Главная поездки — ваш обзор", "Trip overview at a glance", "Resumen del viaje de un vistazo", "Reiseübersicht auf einen Blick")
-        RamingoTutorialPage.ROUTE -> localized("Маршрут по дням", "Route by day", "Ruta por días", "Route nach Tagen")
-        RamingoTutorialPage.SIGHTS -> localized("Места на выбранный день", "Places for the selected day", "Lugares del día elegido", "Orte für den gewählten Tag")
-        RamingoTutorialPage.LODGING -> localized("Жильё и бронирования", "Lodging and bookings", "Alojamiento y reservas", "Unterkünfte und Buchungen")
-        RamingoTutorialPage.SETTINGS -> localized("Профиль и настройки", "Profile and settings", "Perfil y ajustes", "Profil und Einstellungen")
-    }
-    val body = when (page) {
-        RamingoTutorialPage.HOME -> localized("Здесь собраны ваши поездки. Откройте карточку или создайте первую поездку.", "Your trips live here. Open a trip card or create your first one.", "Aquí están sus viajes. Abra una tarjeta o cree el primero.", "Hier liegen Ihre Reisen. Öffnen Sie eine Karte oder erstellen Sie die erste.")
-        RamingoTutorialPage.OVERVIEW -> localized("На главной поездки видны маршрут, карта и погода — основные данные путешествия в одном месте.", "The trip overview keeps the route, map and weather together.", "El resumen reúne la ruta, el mapa y el tiempo.", "Die Reiseübersicht bündelt Route, Karte und Wetter.")
-        RamingoTutorialPage.ROUTE -> localized("Следите за переездами между городами, редактируйте день, копируйте ссылку и меняйте порядок карточек.", "Track city transfers, edit a day, copy its link and reorder the cards.", "Siga los traslados, edite un día, copie su enlace y cambie el orden.", "Verfolgen Sie Transfers, bearbeiten Sie Tage, kopieren Sie Links und sortieren Sie Karten.")
-        RamingoTutorialPage.SIGHTS -> localized("Выберите день, посмотрите места на карте и добавьте достопримечательность из каталога или вручную.", "Choose a day, see places on the map and add a sight from the catalog or manually.", "Elija un día, vea los lugares en el mapa y añada uno del catálogo o manualmente.", "Wählen Sie einen Tag, sehen Sie Orte auf der Karte und fügen Sie einen aus dem Katalog oder manuell hinzu.")
-        RamingoTutorialPage.LODGING -> localized("Храните даты, цену и ссылку на бронирование рядом с поездкой; данные можно изменить позже.", "Keep dates, price and the booking link with the trip and edit them later.", "Guarde fechas, precio y enlace de reserva junto al viaje y edítelos después.", "Bewahren Sie Daten, Preis und Buchungslink bei der Reise auf und bearbeiten Sie sie später.")
-        RamingoTutorialPage.SETTINGS -> localized("Здесь меняются язык и тема. Пункт «Показать обучение» всегда откроет tutorial заново.", "Change language and theme here. “Show tutorial” always opens this guide again.", "Cambie aquí el idioma y el tema. «Mostrar tutorial» vuelve a abrir esta guía.", "Ändern Sie hier Sprache und Thema. „Tutorial anzeigen“ öffnet diese Anleitung erneut.")
-    }
-    val targetLabel = when (page) {
-        RamingoTutorialPage.HOME -> localized("карточка поездки или кнопка создания", "the trip card or create button", "la tarjeta o el botón de crear", "Reisekarte oder Erstellen-Schaltfläche")
-        RamingoTutorialPage.OVERVIEW -> localized("карта и погодные карточки", "the map and weather cards", "el mapa y las tarjetas del tiempo", "Karte und Wetterkarten")
-        RamingoTutorialPage.ROUTE -> localized("карточка дня и действия справа", "the day card and its actions", "la tarjeta del día y sus acciones", "Tageskarte und Aktionen")
-        RamingoTutorialPage.SIGHTS -> localized("выбор дня, карта и список мест", "day picker, map and places list", "selector de día, mapa y lista", "Tagesauswahl, Karte und Ortsliste")
-        RamingoTutorialPage.LODGING -> localized("карточка жилья и «Добавить жильё»", "the lodging card and “Add lodging”", "la tarjeta y «Añadir alojamiento»", "Unterkunftskarte und „Unterkunft hinzufügen“")
-        RamingoTutorialPage.SETTINGS -> localized("язык, тема и «Показать обучение»", "language, theme and “Show tutorial”", "idioma, tema y «Mostrar tutorial»", "Sprache, Thema und „Tutorial anzeigen“")
-    }
-
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().zIndex(20f)) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0x660F0F19))
-                .clickable {},
+    val rows = when (page) {
+        RamingoOnboardingPage.WELCOME -> listOf(
+            Icons.Outlined.Explore to localized("Одна поездка — все детали", "One trip — every detail", "Un viaje — todos los detalles", "Eine Reise – alle Details"),
+            Icons.Outlined.LocationOn to localized("Города, места и заметки", "Cities, places and notes", "Ciudades, lugares y notas", "Städte, Orte und Notizen"),
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 26.dp)
-                .offset(y = maxHeight * target.topFraction)
-                .fillMaxWidth()
-                .height(maxHeight * target.heightFraction)
-                .border(2.dp, primaryColor(), RoundedCornerShape(20.dp))
-                .shadow(12.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = primaryColor().copy(alpha = 0.55f), spotColor = primaryColor().copy(alpha = 0.55f)),
+        RamingoOnboardingPage.PLAN -> listOf(
+            Icons.Outlined.DateRange to localized("Маршрут по дням", "Day-by-day route", "Ruta por días", "Route nach Tagen"),
+            Icons.Outlined.LocationOn to localized("Достопримечательности на карте", "Sights on the map", "Lugares en el mapa", "Orte auf der Karte"),
         )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 9.dp)
-                .navigationBarsPadding()
-                .shadow(18.dp, RoundedCornerShape(22.dp), clip = false, ambientColor = Color(0x330F0F19), spotColor = Color(0x330F0F19))
-                .clip(RoundedCornerShape(22.dp))
-                .background(cardSurfaceColor())
-                .border(1.5.dp, primaryColor().copy(alpha = 0.42f), RoundedCornerShape(22.dp))
-                .padding(start = 18.dp, top = 15.dp, end = 14.dp, bottom = 13.dp),
-        ) {
+        RamingoOnboardingPage.FIRST_TRIP -> listOf(
+            Icons.Outlined.Add to localized("Создать первую поездку", "Create your first trip", "Cree su primer viaje", "Erste Reise erstellen"),
+            Icons.Outlined.Explore to localized("Или спокойно изучить приложение", "Or explore the app first", "O explore la aplicación primero", "Oder die App zuerst entdecken"),
+        )
+    }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 25.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), RoundedCornerShape(20.dp))
+            .padding(horizontal = 15.dp, vertical = 14.dp),
+    ) {
+        rows.forEach { (icon, label) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(primaryColor()),
-                ) {
-                    Text("$step", color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor())) {
+                    Icon(icon, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(18.dp))
                 }
                 Text(
-                    localized("ОБУЧЕНИЕ · $step/$pageCount", "GUIDE · $step/$pageCount", "GUÍA · $step/$pageCount", "ANLEITUNG · $step/$pageCount"),
-                    color = primaryColor(),
+                    text = label,
+                    color = contentTextColor(),
                     fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 10.sp,
-                    letterSpacing = 0.7.sp,
-                    modifier = Modifier.padding(start = 9.dp).weight(1f),
+                    fontWeight = FontWeight.W700,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 11.dp),
                 )
-                TextButton(onClick = onSkip, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                    Text(localized("Пропустить", "Skip", "Omitir", "Überspringen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp)
-                }
-            }
-            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 10.dp))
-            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.5.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
-            Text(
-                text = localized("Подсветка: $targetLabel", "Highlighted: $targetLabel", "Destacado: $targetLabel", "Hervorgehoben: $targetLabel"),
-                color = primaryColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W700,
-                fontSize = 10.5.sp,
-                lineHeight = 14.sp,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 9.dp)) {
-                TextButton(
-                    enabled = pageIndex > 0,
-                    onClick = onBack,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                ) {
-                    Text(localized("Назад", "Back", "Atrás", "Zurück"), color = if (pageIndex > 0) secondaryTextColor() else secondaryTextColor().copy(alpha = 0.4f), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
-                }
-                Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = onNext,
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 17.dp, vertical = 9.dp),
-                ) {
-                    Text(
-                        if (pageIndex == pageCount - 1) localized("Готово", "Done", "Listo", "Fertig") else localized("Далее", "Next", "Siguiente", "Weiter"),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 12.5.sp,
-                    )
-                }
             }
         }
     }
@@ -2235,254 +2311,6 @@ private fun RamingoContextHint(
             Text("→  $actionLabel", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.5.sp)
         }
     }
-}
-
-@Composable
-private fun TutorialTripPreview(page: RamingoTutorialPage, overview: TripOverview) {
-    val language = LocalLanguage.current
-    val weather = remember {
-        overview.cities.associateWith { city -> WeatherSnapshot("12°C", "Ясно", "10°C", "Облачно") }
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (LocalDarkTheme.current) OdysseyDarkBackground else OdysseyBackground)
-            .padding(WindowInsets.statusBars.asPaddingValues()),
-    ) {
-        TutorialTripHeader(overview.title, page)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            when (page) {
-                RamingoTutorialPage.OVERVIEW -> {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(cardSurfaceColor()).padding(16.dp),
-                    ) {
-                        Text(localizedTripStatus(overview.status), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
-                        Text(localizedTripTitle(overview.title), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp, modifier = Modifier.padding(top = 5.dp))
-                        Text(localizedTripDateText(overview.dates, language), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
-                    }
-                    OverviewMapCard(overview.routeLegs, overview.cities, overview.cityCoordinates, mapHeight = 190.dp)
-                    OverviewWeatherBlock(overview.cities, emptyList(), weather, weatherLoading = false, tripDatesWeather = false) {}
-                }
-
-                RamingoTutorialPage.ROUTE -> {
-                    Text(localizedRouteSummary(16, overview.cities.size, language, distanceKm = null, distanceIsApproximate = false), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
-                    overview.routeLegs.forEachIndexed { index, leg ->
-                        RouteLegCard(leg = leg, dayIndex = index, tripDates = overview.dates, canEdit = true, onEdit = {})
-                    }
-                }
-
-                RamingoTutorialPage.SIGHTS -> {
-                    TutorialSightDaySelector(overview.cities.firstOrNull().orEmpty())
-                    val points = overview.sights.mapNotNull { sight ->
-                        if (sight.longitude != null && sight.latitude != null) Point.fromLngLat(sight.longitude, sight.latitude) else null
-                    }
-                    OverviewMapCard(overview.routeLegs, listOf(overview.cities.firstOrNull().orEmpty()), overview.cityCoordinates, mapHeight = 190.dp, routePoints = points, markerPoints = points)
-                    overview.sights.forEach { sight ->
-                        SightCard(sight = sight, selected = false, onSelect = {}, onOpenPhoto = {}, canEdit = true, onEdit = {})
-                    }
-                    TutorialAddAction(localized("＋  Добавить место", "＋  Add place", "＋  Añadir lugar", "＋  Ort hinzufügen"))
-                }
-
-                RamingoTutorialPage.LODGING -> {
-                    overview.accommodations.forEach { accommodation ->
-                        AccommodationCard(accommodation = accommodation, canEdit = true, onEdit = {})
-                    }
-                    TutorialAddAction(localized("＋  Добавить жильё", "＋  Add lodging", "＋  Añadir alojamiento", "＋  Unterkunft hinzufügen"))
-                }
-
-                else -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun TutorialTripHeader(title: String, page: RamingoTutorialPage) {
-    val pageTitle = when (page) {
-        RamingoTutorialPage.OVERVIEW -> localized("Главная", "Overview", "Inicio", "Übersicht")
-        RamingoTutorialPage.ROUTE -> localized("Маршрут", "Route", "Ruta", "Route")
-        RamingoTutorialPage.SIGHTS -> localized("Достопримечательности", "Sights", "Lugares", "Sehenswürdigkeiten")
-        RamingoTutorialPage.LODGING -> localized("Жильё", "Lodging", "Alojamiento", "Unterkunft")
-        else -> ""
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 16.dp)) {
-        Icon(Icons.Outlined.Menu, contentDescription = null, tint = contentTextColor(), modifier = Modifier.size(24.dp))
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-            Text(localizedTripTitle(title), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp, maxLines = 1)
-            Text(pageTitle, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1)
-        }
-        Spacer(Modifier.size(24.dp))
-    }
-}
-
-@Composable
-private fun TutorialSightDaySelector(city: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(68.dp)
-            .clip(RoundedCornerShape(17.dp))
-            .background(cardSurfaceColor())
-            .border(1.dp, contentBorderColor(), RoundedCornerShape(17.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(primaryColor())) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("1", color = primaryContentColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, lineHeight = 17.sp)
-                Text(localized("ДЕНЬ", "DAY", "DÍA", "TAG"), color = primaryContentColor().copy(alpha = 0.82f), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 7.sp)
-            }
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(localized("ВЫБЕРИТЕ ДЕНЬ", "SELECT DAY", "ELIGE UN DÍA", "TAG WÄHLEN"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 0.7.sp)
-            Text(localizedCityName(city), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp, modifier = Modifier.padding(top = 1.dp))
-        }
-        OdysseyChevronDown(17.dp, primaryColor())
-    }
-}
-
-@Composable
-private fun TutorialAddAction(label: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(55.dp)
-            .clip(RoundedCornerShape(17.dp))
-            .background(tintedSurfaceColor())
-            .border(1.5.dp, primaryColor().copy(alpha = 0.52f), RoundedCornerShape(17.dp)),
-    ) {
-        Text(label, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun TutorialSettingsPreview() {
-    val divider = contentBorderColor()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (LocalDarkTheme.current) OdysseyDarkBackground else OdysseyBackground)
-            .padding(WindowInsets.statusBars.asPaddingValues())
-            .verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, top = 10.dp, end = 24.dp, bottom = 30.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(localized("Настройки", "Settings", "Ajustes", "Einstellungen"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, modifier = Modifier.weight(1f))
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(34.dp).clip(CircleShape).background(secondarySurfaceColor())) {
-                Icon(Icons.Filled.Close, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(18.dp))
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(54.dp).clip(RoundedCornerShape(17.dp)).background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF9588F0))))) {
-                Text("R", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 23.sp)
-            }
-            Column(modifier = Modifier.padding(start = 12.dp)) {
-                Text("Ramingo", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp)
-                Text(localized("Личный кабинет · Ramingo", "Personal account · Ramingo", "Cuenta personal · Ramingo", "Persönliches Konto · Ramingo"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
-            }
-        }
-        Text(localized("ВНЕШНИЙ ВИД", "APPEARANCE", "APARIENCIA", "DARSTELLUNG"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 21.dp, bottom = 9.dp))
-        Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).border(1.dp, divider, RoundedCornerShape(15.dp)).background(cardSurfaceColor())) {
-            AccountMenuItem(Icons.Outlined.Palette, localized("Тема", "Theme", "Tema", "Thema"), trailing = localized("Системная", "System default", "Predeterminada del sistema", "Systemstandard"))
-            AccountSettingsDivider(divider)
-            AccountMenuItem(Icons.Outlined.Language, localized("Языки", "Languages", "Idiomas", "Sprachen"), trailing = localized("Русский", "English", "Español", "Deutsch"))
-        }
-        Text(localized("НАСТРОЙКИ АККАУНТА", "ACCOUNT SETTINGS", "AJUSTES DE LA CUENTA", "KONTOEINSTELLUNGEN"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
-        Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).border(1.dp, divider, RoundedCornerShape(15.dp)).background(cardSurfaceColor())) {
-            AccountMenuItem(Icons.Outlined.NotificationsNone, localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"), trailing = localized("Выключены", "Off", "Desactivadas", "Aus"))
-            AccountSettingsDivider(divider)
-            AccountMenuItem(Icons.Outlined.Lock, localized("Сменить пароль", "Change password", "Cambiar contraseña", "Passwort ändern"))
-        }
-        Text(localized("ПОДДЕРЖКА", "SUPPORT", "SOPORTE", "SUPPORT"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
-        Box(modifier = Modifier.fillMaxWidth().border(2.dp, primaryColor(), RoundedCornerShape(15.dp)).clip(RoundedCornerShape(15.dp)).background(cardSurfaceColor())) {
-            AccountMenuItem(Icons.Outlined.Info, localized("Показать обучение", "Show tutorial", "Mostrar tutorial", "Tutorial anzeigen"), trailing = localized("Открыть снова", "Open again", "Abrir de nuevo", "Erneut öffnen"))
-        }
-        Text(localized("О ПРИЛОЖЕНИИ", "ABOUT", "ACERCA DE", "ÜBER DIE APP"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
-        Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).border(1.dp, divider, RoundedCornerShape(15.dp)).background(cardSurfaceColor())) {
-            AccountMenuItem(Icons.Outlined.Info, localized("Версия приложения", "App version", "Versión de la aplicación", "App-Version"), trailing = BuildConfig.VERSION_NAME)
-        }
-    }
-}
-
-private fun tutorialDemoOverview(): TripOverview {
-    val cities = listOf("Рим", "Флоренция", "Пиза")
-    val coordinates = mapOf(
-        "Рим" to CityLocation(41.9028, 12.4964),
-        "Флоренция" to CityLocation(43.7696, 11.2558),
-        "Пиза" to CityLocation(43.7228, 10.4017),
-    )
-    val routeLegs = listOf(
-        com.odyssey.travelplanner.data.RouteLeg(
-            dayId = "tutorial-day-1",
-            from = "Рим",
-            to = "Флоренция",
-            date = "2026-12-22",
-            checkIn = "15:00",
-            checkOut = "",
-            notes = "",
-            mapsUrl = "",
-            dayNumber = 1,
-        ),
-        com.odyssey.travelplanner.data.RouteLeg(
-            dayId = "tutorial-day-2",
-            from = "Флоренция",
-            to = "Пиза",
-            date = "2026-12-24",
-            checkIn = "15:00",
-            checkOut = "",
-            notes = "",
-            mapsUrl = "",
-            dayNumber = 2,
-        ),
-    )
-    val sights = listOf(
-        Sight("tutorial-sight-1", "Колизей", "Рим", "", category = "достопримечательность", done = false, walkDay = 1, walkOrder = 0, description = "Главное место первого дня", longitude = 12.4924, latitude = 41.8902, rating = 4.8, ratingCount = 1200),
-        Sight("tutorial-sight-2", "Площадь Навона", "Рим", "", category = "площадь", done = false, walkDay = 1, walkOrder = 1, description = "Прогулка по историческому центру", longitude = 12.4731, latitude = 41.8992, rating = 4.7, ratingCount = 860),
-    )
-    val accommodation = Accommodation(
-        id = "tutorial-accommodation-1",
-        city = "Рим",
-        name = "Отель в центре",
-        dates = "19–22 Dec",
-        price = "€120",
-        status = "забронировано",
-        details = "Via Roma 1",
-        photos = emptyList(),
-        bookingUrl = "https://ramingo.online",
-    )
-    return TripOverview(
-        id = "tutorial-preview",
-        title = "Зимняя Италия",
-        dates = "19 Dec 2026 – 3 Jan 2027",
-        status = "Предстоящая",
-        coverPhotos = emptyList(),
-        overviewMapPoints = cities,
-        overviewWeatherCities = cities,
-        overviewBlocks = listOf("map", "weather"),
-        routeLegs = routeLegs,
-        accommodations = listOf(accommodation),
-        budgetCurrency = "EUR",
-        budgetExpenses = emptyList(),
-        budgetGroups = emptyList(),
-        members = emptyList(),
-        sights = sights,
-        sightDays = listOf(SightDay("tutorial-sights-day-1", "Рим")),
-        restaurants = emptyList(),
-        cities = cities,
-        cityCoordinates = coordinates,
-        routeDayCount = 3,
-        currentUserRole = "Владелец",
-        canEdit = true,
-    )
 }
 
 @Composable
@@ -3636,7 +3464,35 @@ private fun MyTripsScreen(
         "deleted" -> deletedTrips
         else -> activeTrips
     }
-    val showCreateTripHint = !loading && !loadFailed && visibleTrips.isEmpty() && accountProfile?.createTripHintSeen != true
+    var createTripHintVisible by remember { mutableStateOf(false) }
+    var createTripHintMarked by remember { mutableStateOf(false) }
+    val createTripHintEligible = !loading &&
+        !loadFailed &&
+        filter == "all" &&
+        shouldShowCreateTripHint(
+            onboardingCompleted = accountProfile?.onboardingCompleted == true,
+            hasAnyTrip = trips.isNotEmpty(),
+            createTripHintSeen = accountProfile?.createTripHintSeen == true,
+        )
+    LaunchedEffect(createTripHintEligible) {
+        if (createTripHintEligible && !createTripHintMarked) {
+            createTripHintMarked = true
+            createTripHintVisible = true
+            // A hint is considered seen as soon as it is rendered. Keeping a
+            // local visibility bit lets the current hint remain on screen
+            // after the remote profile flag is updated.
+            onCreateTripHintSeen()
+        }
+    }
+    val showCreateTripHint = createTripHintVisible &&
+        !loading &&
+        !loadFailed &&
+        filter == "all" &&
+        trips.isEmpty()
+    fun dismissCreateTripHint() {
+        createTripHintVisible = false
+        onCreateTripHintSeen()
+    }
     fun tripCountLabel(count: Int): String = if (loading) "…" else count.toString()
     val filters = buildList {
         add("all" to localized("Все · ${tripCountLabel(activeTrips.size)}", "All · ${tripCountLabel(activeTrips.size)}", "Todos · ${tripCountLabel(activeTrips.size)}", "Alle · ${tripCountLabel(activeTrips.size)}"))
@@ -3783,7 +3639,7 @@ private fun MyTripsScreen(
                             action = localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"),
                             highlighted = showCreateTripHint,
                             onAction = {
-                                if (showCreateTripHint) onCreateTripHintSeen()
+                                if (showCreateTripHint) dismissCreateTripHint()
                                 onNewTrip()
                             },
                         )
@@ -3794,10 +3650,10 @@ private fun MyTripsScreen(
                                 body = localized("Здесь появится вся ваша поездка: маршрут, места и жильё.", "Your full trip will live here: route, places and lodging.", "Aquí vivirá todo su viaje: ruta, lugares y alojamiento.", "Hier entsteht Ihre ganze Reise: Route, Orte und Unterkunft."),
                                 actionLabel = localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"),
                                 onAction = {
-                                    onCreateTripHintSeen()
+                                    dismissCreateTripHint()
                                     onNewTrip()
                                 },
-                                onDismiss = onCreateTripHintSeen,
+                                onDismiss = ::dismissCreateTripHint,
                             )
                         }
                     }
@@ -8184,6 +8040,28 @@ private fun SightsContent(
     var editingSight by remember { mutableStateOf<com.odyssey.travelplanner.data.Sight?>(null) }
     var fullScreenSight by remember { mutableStateOf<com.odyssey.travelplanner.data.Sight?>(null) }
     var editingDay by remember { mutableStateOf(false) }
+    var addPlaceHintVisible by remember(tripId) { mutableStateOf(false) }
+    var addPlaceHintMarked by remember(tripId) { mutableStateOf(false) }
+    val addPlaceHintEligible = canEdit && shouldShowAddPlaceHint(
+        onboardingCompleted = showAddPlaceHint,
+        hasTrip = tripId.isNotBlank(),
+        hasPlaces = overview.sights.isNotEmpty(),
+        addPlaceHintSeen = false,
+    )
+    LaunchedEffect(addPlaceHintEligible) {
+        if (addPlaceHintEligible && !addPlaceHintMarked) {
+            addPlaceHintMarked = true
+            addPlaceHintVisible = true
+            // Mark the hint as seen after its first render while keeping the
+            // current hint visible even when the parent profile is updated.
+            onAddPlaceHintSeen()
+        }
+    }
+    val showAddPlaceHintNow = addPlaceHintVisible && canEdit && overview.sights.isEmpty()
+    fun dismissAddPlaceHint() {
+        addPlaceHintVisible = false
+        onAddPlaceHintSeen()
+    }
     val missingSightDescriptionKey = remember(sights) {
         sights
             .filter { isPlaceholderSightDescription(it.description) }
@@ -8544,17 +8422,17 @@ private fun SightsContent(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(localized("Достопримечательности пока не добавлены", "No sights added yet", "Aún no se han añadido lugares", "Noch keine Orte hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp)
-                    if (showAddPlaceHint && canEdit) {
+                    if (showAddPlaceHintNow) {
                         RamingoContextHint(
                             index = 2,
                             title = localized("Добавьте первое место", "Add your first place", "Añada su primer lugar", "Fügen Sie Ihren ersten Ort hinzu"),
                             body = localized("Откройте редактирование дня, чтобы добавить место из каталога или вручную.", "Open day editing to add a place from the catalog or manually.", "Abra la edición del día para añadir un lugar del catálogo o manualmente.", "Öffnen Sie die Tagesbearbeitung, um einen Ort aus dem Katalog oder manuell hinzuzufügen."),
                             actionLabel = localized("Добавить место", "Add place", "Añadir lugar", "Ort hinzufügen"),
                             onAction = {
-                                onAddPlaceHintSeen()
+                                dismissAddPlaceHint()
                                 editingDay = true
                             },
-                            onDismiss = onAddPlaceHintSeen,
+                            onDismiss = ::dismissAddPlaceHint,
                         )
                     }
                 }
