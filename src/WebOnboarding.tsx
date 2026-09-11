@@ -7,23 +7,31 @@ type OnboardingPage = {
   eyebrow: string;
   title: string;
   body: string;
+  action: string;
+  actionDetails: string;
 };
 
 const onboardingPages: OnboardingPage[] = [
   {
-    eyebrow: "01 · ГЛАВНАЯ",
-    title: "Всё по поездке — на виду",
-    body: "На главной собрана основная информация: маршрут, города и важные детали путешествия.",
+    eyebrow: "01 · НАЧАЛО",
+    title: "Создайте поездку за минуту",
+    body: "На главной собрана основная информация о поездках, а новая поездка начинается с одной кнопки.",
+    action: "Нажмите «Новое путешествие»",
+    actionDetails: "Кнопка находится слева в меню. Затем заполните название, направление и даты поездки.",
   },
   {
     eyebrow: "02 · ПЛАН",
     title: "Соберите маршрут по дням",
     body: "Редактируйте переезды, добавляйте места и храните жильё в связанных разделах поездки.",
+    action: "Откройте «Маршрут»",
+    actionDetails: "Выберите день, добавьте переезд или место и переходите к следующему дню по боковой шкале.",
   },
   {
     eyebrow: "03 · НАСТРОЙКИ",
     title: "Ramingo подстроится под вас",
     body: "Язык, тема и повторное обучение всегда доступны в профиле. Готовы начать?",
+    action: "Нажмите ⚙ в профиле → «Показать обучение»",
+    actionDetails: "Профиль находится внизу левого меню. Здесь можно вернуться к подсказкам в любой момент.",
   },
 ];
 
@@ -57,7 +65,7 @@ function PreviewHome() {
       </article>
       <div className="web-onboarding-home-focus">
         <span>1</span>
-        <div><b>Обзор поездки</b><small>Маршрут, города и прогресс — на одном экране</small></div>
+        <div><b>Начните здесь</b><small>Нажмите «Новое путешествие» в левом меню</small></div>
       </div>
       <div className="web-onboarding-home-map"><PreviewMap /></div>
       <div className="web-onboarding-weather-row">
@@ -303,9 +311,17 @@ export function WebOnboarding({
             <p className="web-onboarding-eyebrow">{copy.eyebrow}</p>
             <h1 id="web-onboarding-title">{copy.title}</h1>
             <p id="web-onboarding-body">{copy.body}</p>
+            <div className="web-onboarding-action-card">
+              <span className="web-onboarding-action-index">{String(page + 1).padStart(2, "0")}</span>
+              <div>
+                <small>Что нажать</small>
+                <strong>{copy.action}</strong>
+                <p>{copy.actionDetails}</p>
+              </div>
+            </div>
             <div className="web-onboarding-help">
               <span>✦</span>
-              <small>{mode === "replay" ? "Можно вернуться в приложение в любой момент" : "Короткое знакомство — без лишних экранов"}</small>
+              <small>{mode === "replay" ? "Можно вернуться к этим подсказкам в любой момент" : "После этого переходите к следующему шагу"}</small>
             </div>
           </div>
           <OnboardingPreview page={page} />

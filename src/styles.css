@@ -7565,6 +7565,71 @@ body.ramingo-onboarding-open {
   }
 }
 
+.web-onboarding-action-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 24px;
+  border: 1px solid #dcd4ff;
+  border-radius: 15px;
+  background: #f7f4ff;
+  padding: 13px;
+}
+
+.web-onboarding-action-index {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.web-onboarding-action-card > div {
+  min-width: 0;
+}
+
+.web-onboarding-action-card small {
+  display: block;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.web-onboarding-action-card strong {
+  display: block;
+  margin-top: 5px;
+  color: #39334d;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.web-onboarding-action-card p {
+  margin: 5px 0 0;
+  color: #777089;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.web-onboarding-backdrop.dark .web-onboarding-action-card {
+  border-color: #4c4b83;
+  background: #303052;
+}
+
+.web-onboarding-backdrop.dark .web-onboarding-action-card strong {
+  color: #f1efff;
+}
+
+.web-onboarding-backdrop.dark .web-onboarding-action-card p {
+  color: #c0bdd6;
+}
+
 .pets-page { max-width: 1120px; margin: 0 auto; padding: 10px 0 72px; }
 .pets-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
 .pets-heading h1 { margin: 0; font: 600 34px/1.1 Unbounded, sans-serif; letter-spacing: -.055em; }
