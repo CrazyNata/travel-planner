@@ -2283,7 +2283,7 @@ button {
   color: #817a72;
   font-size: 11px;
 }
-.weather-trip-days > header > span {
+.weather-trip-days-actions > span {
   border-radius: 999px;
   background: #e9f2f8;
   padding: 6px 9px;
@@ -2291,6 +2291,27 @@ button {
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+.weather-trip-days-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.weather-trip-days-back {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f6f7f9;
+  color: #3d78a5;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.weather-trip-days-back:hover {
+  background: #e9f2f8;
 }
 .weather-trip-days-list {
   display: grid;
@@ -2325,10 +2346,18 @@ button {
   display: grid;
   min-height: 86px;
   place-items: center;
+  border: 0;
+  background: transparent;
   border-radius: 12px;
   color: #817a72;
+  cursor: pointer;
+  font: inherit;
   font-size: 10px;
   text-align: center;
+}
+.weather-trip-days-more:hover {
+  background: #f6f7f9;
+  color: #3d78a5;
 }
 .weather-trip-days-more small {
   display: block;
@@ -7698,6 +7727,15 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .app.app-dark .weather-trip-selected span,
 .app.app-dark .weather-trip-days-more {
   color: #98a2b7;
+}
+.app.app-dark .weather-trip-days-back {
+  background: #2b3143;
+  color: #b8b3ff;
+}
+.app.app-dark .weather-trip-days-back:hover,
+.app.app-dark .weather-trip-days-more:hover {
+  background: #383463;
+  color: #e5e2ff;
 }
 .app.app-dark .weather-trip-days-list button {
   background: #2b3143;

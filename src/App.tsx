@@ -736,6 +736,7 @@ const weatherLongMonths = [
   "ноября",
   "декабря",
 ];
+const WEATHER_DAYS_PAGE_SIZE = 8;
 
 function formatWeatherOverviewDate(value: string, longMonth = false) {
   const date = new Date(`${value}T00:00:00Z`);
@@ -12566,6 +12567,19 @@ function WeatherOverview({
     weatherTripEndDate,
   );
   const [selectedTripDate, setSelectedTripDate] = useState(tripForecastDate);
+  const [visibleTripDateStart, setVisibleTripDateStart] = useState(0);
+  const visibleTripDates = weatherDateOptions.slice(
+    visibleTripDateStart,
+    visibleTripDateStart + WEATHER_DAYS_PAGE_SIZE,
+  );
+  const nextTripDateStart = Math.min(
+    visibleTripDateStart + WEATHER_DAYS_PAGE_SIZE,
+    weatherDateOptions.length,
+  );
+  const previousTripDateStart = Math.max(
+    visibleTripDateStart - WEATHER_DAYS_PAGE_SIZE,
+    0,
+  );
   const weatherKey = weatherCities
     .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
     .join("|") + `|trip:${tripForecastDate}`;
@@ -12579,7 +12593,19 @@ function WeatherOverview({
 
   useEffect(() => {
     setSelectedTripDate(tripForecastDate);
-  }, [tripForecastDate]);
+    setVisibleTripDateStart(0);
+  }, [tripForecastDate, weatherTripStartDate, weatherTripEndDate]);
+
+  const selectTripDate = (date: string) => {
+    setSelectedTripDate(date);
+    const selectedIndex = weatherDateOptions.indexOf(date);
+    if (selectedIndex >= 0) {
+      setVisibleTripDateStart(
+        Math.floor(selectedIndex / WEATHER_DAYS_PAGE_SIZE) *
+          WEATHER_DAYS_PAGE_SIZE,
+      );
+    }
+  };
 
   useEffect(() => {
     if (!weatherCities.length) {
@@ -12747,12 +12773,30 @@ function WeatherOverview({
           <header>
             <div>
               <h3 id="weather-trip-days-title">Каждый день поездки</h3>
-              <p>Выделен первый день</p>
+              <p>
+                {selectedTripDate === tripForecastDate
+                  ? "Выделен первый день"
+                  : "Выделен выбранный день"}
+              </p>
             </div>
-            <span>{weatherDateOptions.length} дней</span>
+            <div className="weather-trip-days-actions">
+              {visibleTripDateStart > 0 && (
+                <button
+                  type="button"
+                  className="weather-trip-days-back"
+                  aria-label="Показать предыдущие даты"
+                  onClick={() =>
+                    selectTripDate(weatherDateOptions[previousTripDateStart])
+                  }
+                >
+                  ←
+                </button>
+              )}
+              <span>{weatherDateOptions.length} дней</span>
+            </div>
           </header>
           <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
-            {weatherDateOptions.slice(0, 8).map((date) => {
+            {visibleTripDates.map((date) => {
               const primaryForecast = primaryWeatherCity
                 ? weather[primaryWeatherCity.name]?.tripDays?.[date]
                 : undefined;
@@ -12762,7 +12806,7 @@ function WeatherOverview({
                   type="button"
                   className={selectedTripDate === date ? "active" : ""}
                   aria-pressed={selectedTripDate === date}
-                  onClick={() => setSelectedTripDate(date)}
+                  onClick={() => selectTripDate(date)}
                 >
                   <span>{formatWeatherOverviewDate(date)}</span>
                   <b>
@@ -12773,11 +12817,18 @@ function WeatherOverview({
                 </button>
               );
             })}
-            {weatherDateOptions.length > 8 && (
-              <span className="weather-trip-days-more">
-                +{weatherDateOptions.length - 8}
+            {nextTripDateStart < weatherDateOptions.length && (
+              <button
+                type="button"
+                className="weather-trip-days-more"
+                aria-label="Показать следующие даты"
+                onClick={() =>
+                  selectTripDate(weatherDateOptions[nextTripDateStart])
+                }
+              >
+                +{weatherDateOptions.length - nextTripDateStart}
                 <small>дней</small>
-              </span>
+              </button>
             )}
           </div>
           <div className="weather-trip-selected">
