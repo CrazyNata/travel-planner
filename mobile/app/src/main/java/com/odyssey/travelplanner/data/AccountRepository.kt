@@ -30,6 +30,9 @@ data class AccountProfile(
     val tripRemindersEnabled: Boolean = true,
     val cancellationRemindersEnabled: Boolean = true,
     val reminderHour: Int = 9,
+    val onboardingCompleted: Boolean = false,
+    val createTripHintSeen: Boolean = false,
+    val addPlaceHintSeen: Boolean = false,
 ) {
     val darkTheme: Boolean
         get() = themePreference == ThemePreference.DARK
@@ -56,6 +59,9 @@ class AccountRepository(private val client: SupabaseClient) {
             tripRemindersEnabled = row?.value?.get("trip_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             cancellationRemindersEnabled = row?.value?.get("cancellation_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             reminderHour = row?.value?.get("reminder_hour")?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(0, 23) ?: 9,
+            onboardingCompleted = row?.value?.get("onboarding_completed")?.jsonPrimitive?.content == "true",
+            createTripHintSeen = row?.value?.get("create_trip_hint_seen")?.jsonPrimitive?.content == "true",
+            addPlaceHintSeen = row?.value?.get("add_place_hint_seen")?.jsonPrimitive?.content == "true",
         )
     }
 
@@ -68,6 +74,9 @@ class AccountRepository(private val client: SupabaseClient) {
         cancellationRemindersEnabled: Boolean? = null,
         reminderHour: Int? = null,
         themePreference: ThemePreference? = null,
+        onboardingCompleted: Boolean? = null,
+        createTripHintSeen: Boolean? = null,
+        addPlaceHintSeen: Boolean? = null,
     ) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
@@ -89,6 +98,9 @@ class AccountRepository(private val client: SupabaseClient) {
         tripRemindersEnabled?.let { value["trip_reminders_enabled"] = JsonPrimitive(it) }
         cancellationRemindersEnabled?.let { value["cancellation_reminders_enabled"] = JsonPrimitive(it) }
         reminderHour?.coerceIn(0, 23)?.let { value["reminder_hour"] = JsonPrimitive(it) }
+        onboardingCompleted?.let { value["onboarding_completed"] = JsonPrimitive(it) }
+        createTripHintSeen?.let { value["create_trip_hint_seen"] = JsonPrimitive(it) }
+        addPlaceHintSeen?.let { value["add_place_hint_seen"] = JsonPrimitive(it) }
         client.from("user_data").upsert(
             UserDataRow(
                 userId = userId,
@@ -112,6 +124,26 @@ class AccountRepository(private val client: SupabaseClient) {
         updateAppearance(
             language,
             if (darkTheme) ThemePreference.DARK else ThemePreference.LIGHT,
+        )
+    }
+
+    suspend fun updateOnboardingState(
+        onboardingCompleted: Boolean? = null,
+        createTripHintSeen: Boolean? = null,
+        addPlaceHintSeen: Boolean? = null,
+    ) {
+        val profile = loadProfile()
+        updateProfile(
+            avatarUrl = profile.avatarUrl,
+            notificationsEnabled = profile.notificationsEnabled,
+            language = profile.language,
+            themePreference = profile.themePreference,
+            tripRemindersEnabled = profile.tripRemindersEnabled,
+            cancellationRemindersEnabled = profile.cancellationRemindersEnabled,
+            reminderHour = profile.reminderHour,
+            onboardingCompleted = onboardingCompleted,
+            createTripHintSeen = createTripHintSeen,
+            addPlaceHintSeen = addPlaceHintSeen,
         )
     }
 

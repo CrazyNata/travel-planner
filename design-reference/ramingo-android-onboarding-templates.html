@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=ramingo-android-onboarding-template.html">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблоны онбординга Android</title>
+  <style>
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_regular.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_semibold.ttf") format("truetype"); font-weight: 600; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_bold.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_extrabold.ttf") format("truetype"); font-weight: 800; }
+
+    :root {
+      --page: #eeecf5;
+      --page-spot: #fbfaff;
+      --phone: #f4f4f7;
+      --surface: #ffffff;
+      --surface-2: #f5f5f8;
+      --text: #141419;
+      --label: #3a3a42;
+      --muted: #8a8a95;
+      --line: #e6e6ec;
+      --primary: #6c5ce7;
+      --primary-soft: #f1eefe;
+      --primary-on: #ffffff;
+      --green: #249d72;
+      --green-soft: #e9f8f1;
+      --danger: #e85b56;
+      --account-bg: #f7f5ff;
+      --shadow: 0 18px 60px rgba(46, 35, 86, .16);
+      --phone-shadow: 0 16px 40px rgba(40, 34, 70, .24);
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #111116;
+      --page-spot: #202331;
+      --phone: #141416;
+      --surface: #222531;
+      --surface-2: #303443;
+      --text: #f7f8fc;
+      --label: #f7f8fc;
+      --muted: #d9dbe6;
+      --line: #697084;
+      --primary: #a79bff;
+      --primary-soft: #332f50;
+      --primary-on: #18152d;
+      --green: #72d1a6;
+      --green-soft: #203c35;
+      --danger: #ff7b76;
+      --account-bg: #222531;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .34);
+      --phone-shadow: 0 16px 40px rgba(0, 0, 0, .42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 0%, var(--page-spot) 0, transparent 31%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--primary) 16%, transparent) 0, transparent 28%),
+        var(--page);
+      font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+      transition: background .2s ease, color .2s ease;
+    }
+
+    button { color: inherit; cursor: pointer; font: inherit; }
+
+    .page { width: min(1320px, calc(100% - 36px)); margin: 0 auto; padding: 30px 0 64px; }
+    .brand { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 13px; font-weight: 800; }
+    .brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 11px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); box-shadow: 0 8px 18px rgba(108, 92, 231, .27); font-size: 20px; font-weight: 800; }
+    .intro { max-width: 830px; margin: 22px auto 20px; text-align: center; }
+    .intro h1 { margin: 0; font-size: clamp(25px, 4vw, 42px); letter-spacing: -.055em; }
+    .intro p { margin: 10px auto 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .notice { max-width: 860px; margin: 0 auto 22px; padding: 12px 15px; border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--line)); border-radius: 14px; color: var(--label); background: color-mix(in srgb, var(--primary-soft) 75%, var(--surface)); font-size: 12px; line-height: 1.5; text-align: center; }
+    .notice b { color: var(--primary); }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 18px; }
+    .toolbar-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .toolbar-separator { width: 1px; height: 22px; margin: 0 5px; background: var(--line); }
+    .toolbar button { min-height: 34px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 800; }
+    .toolbar button.active { border-color: color-mix(in srgb, var(--primary) 54%, var(--line)); color: var(--primary-on); background: var(--primary); }
+
+    .flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 1080px; margin: 0 auto 24px; }
+    .flow-step { position: relative; min-height: 76px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 15px; background: color-mix(in srgb, var(--surface) 82%, transparent); }
+    .flow-step:not(:last-child)::after { position: absolute; top: 36px; right: -12px; width: 16px; height: 1px; background: color-mix(in srgb, var(--primary) 45%, var(--line)); content: ""; }
+    .flow-step b { display: block; color: var(--primary); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+    .flow-step strong { display: block; margin-top: 5px; font-size: 12px; }
+    .flow-step small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+
+    .gallery { display: grid; grid-template-columns: minmax(330px, 1.25fr) repeat(3, minmax(245px, 1fr)); gap: 18px; align-items: start; }
+    .template { overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); border-radius: 23px; background: color-mix(in srgb, var(--surface) 76%, transparent); box-shadow: var(--shadow); }
+    .template-head { min-height: 118px; padding: 17px 17px 12px; }
+    .tag { display: inline-flex; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--primary) 33%, var(--line)); border-radius: 999px; color: var(--primary); background: var(--primary-soft); font-size: 9px; font-weight: 800; letter-spacing: .035em; }
+    .template-head h2 { margin: 9px 0 0; font-size: 16px; letter-spacing: -.035em; }
+    .template-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.42; }
+    .phone-wrap { display: flex; justify-content: center; padding: 0 13px 18px; }
+    .phone { position: relative; width: min(100%, 310px); height: 680px; overflow: hidden; border: 7px solid #1d1c25; border-radius: 36px; background: var(--phone); box-shadow: var(--phone-shadow); }
+    .phone-status { display: flex; align-items: center; justify-content: space-between; height: 29px; padding: 0 14px; color: var(--muted); background: var(--phone); font-size: 9px; font-weight: 800; }
+    .phone-scroll { height: calc(100% - 29px); overflow: auto; scrollbar-width: none; }
+    .phone-scroll::-webkit-scrollbar { display: none; }
+    .phone-scroll.no-scroll { overflow: hidden; }
+    .screen { min-height: 100%; padding: 15px 15px 20px; background: var(--phone); }
+    .screen-top { display: flex; align-items: center; justify-content: space-between; gap: 9px; width: 100%; }
+    .app-brand { display: flex; align-items: center; gap: 8px; color: var(--label); font-size: 15px; font-weight: 800; }
+    .app-brand .mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); font-size: 17px; }
+    .top-link { padding: 6px 2px; border: 0; color: var(--muted); background: transparent; font-size: 10px; font-weight: 800; }
+    .top-icon { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 10px; color: var(--muted); background: var(--surface-2); font-size: 19px; }
+    .top-spacer { width: 32px; height: 32px; }
+    .primary { width: 100%; min-height: 45px; padding: 11px 14px; border: 0; border-radius: 13px; color: var(--primary-on); background: var(--primary); font-size: 12px; font-weight: 800; }
+    .secondary { min-height: 40px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--primary); background: var(--surface); font-size: 11px; font-weight: 800; }
+    .text-action { padding: 9px; border: 0; color: var(--primary); background: transparent; font-size: 11px; font-weight: 800; }
+    .muted { color: var(--muted); }
+
+    /* Shared Ramingo UI fragments used inside the onboarding screens. */
+    .welcome-slide { display: none; min-height: 100%; flex-direction: column; padding: 13px 15px 14px; background: var(--phone); }
+    .welcome-slide.active { display: flex; }
+    .ob-top { display: flex; align-items: center; justify-content: space-between; min-height: 34px; }
+    .ob-top-title { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .ob-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; justify-content: flex-start; padding: 9px 0 9px; }
+    .ob-visual { display: grid; height: 218px; min-height: 218px; place-items: center; margin-bottom: 15px; padding: 10px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 23%, var(--line)); border-radius: 25px; background: radial-gradient(circle at 84% 10%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 35%), linear-gradient(145deg, var(--primary-soft), var(--surface)); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 11%, transparent); }
+    .ob-visual > .mock-home { transform: scale(.96); }
+    .ob-visual > .mock-map-ui { transform: scale(.93); }
+    .ob-visual > .mock-trip-ui { transform: scale(.9); }
+    .welcome-slide[data-slide-panel="2"] .ob-visual { height: 211px; min-height: 211px; }
+    .welcome-slide[data-slide-panel="2"] .mock-trip-ui { width: 111%; transform: scale(.86); transform-origin: center top; }
+    .ob-copy { text-align: center; }
+    .ob-copy h3 { max-width: 252px; margin: 0 auto; font-size: 22px; letter-spacing: -.055em; line-height: 1.12; }
+    .ob-copy p { max-width: 245px; margin: 7px auto 0; color: var(--muted); font-size: 10.5px; line-height: 1.48; }
+    .ob-footer { width: 100%; flex: 0 0 auto; }
+    .dots { display: flex; justify-content: center; gap: 6px; margin: 0 0 10px; }
+    .dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--primary) 23%, var(--line)); }
+    .dot.active { width: 21px; border-radius: 99px; background: var(--primary); }
+    .ob-actions { display: flex; align-items: center; gap: 8px; }
+    .ob-actions .primary { flex: 1; }
+    .ob-actions .secondary { flex: 0 0 auto; }
+    .ob-actions.single { display: block; }
+    .ob-actions.single .text-action { display: block; width: 100%; margin-top: 0; padding-top: 7px; padding-bottom: 3px; }
+
+    /* Visual polish pass: turn each preview into a clear product moment. */
+    .welcome-slide { position: relative; overflow: hidden; background: radial-gradient(circle at 108% 13%, color-mix(in srgb, var(--primary) 18%, transparent) 0 13%, transparent 34%), linear-gradient(180deg, var(--phone) 0%, color-mix(in srgb, var(--primary-soft) 20%, var(--phone)) 100%); }
+    .welcome-slide::before { position: absolute; top: 184px; left: -112px; width: 390px; height: 284px; border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent); border-radius: 50%; content: ""; opacity: .68; transform: rotate(-18deg); pointer-events: none; }
+    .welcome-slide::after { position: absolute; right: -48px; bottom: 66px; width: 122px; height: 122px; border-radius: 42%; background: color-mix(in srgb, var(--primary-soft) 64%, transparent); content: ""; opacity: .7; transform: rotate(18deg); pointer-events: none; }
+    .welcome-slide > * { position: relative; z-index: 1; }
+    .ob-top { min-height: 38px; }
+    .ob-top-title { display: inline-flex; align-items: center; gap: 5px; color: var(--label); font-size: 9px; letter-spacing: .05em; }
+    .ob-top-title::before { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 6px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); content: "R"; font-size: 10px; font-weight: 800; letter-spacing: 0; }
+    .ob-content { padding-top: 12px; }
+    .ob-visual { position: relative; isolation: isolate; height: 242px; min-height: 242px; margin: 5px -1px 18px; padding: 14px; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line)); border-radius: 29px; background: linear-gradient(145deg, color-mix(in srgb, var(--primary-soft) 86%, var(--surface)), var(--surface)); box-shadow: 0 16px 30px color-mix(in srgb, var(--primary) 14%, transparent); }
+    .ob-visual::before { position: absolute; top: 9px; left: 14px; width: 4px; height: 4px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 68%, var(--line)); box-shadow: 9px 0 0 color-mix(in srgb, var(--primary) 35%, var(--line)), 18px 0 0 color-mix(in srgb, var(--primary) 18%, var(--line)); content: ""; }
+    .ob-visual::after { position: absolute; right: -18px; bottom: -26px; width: 118px; height: 78px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 11%, transparent); content: ""; transform: rotate(-15deg); pointer-events: none; }
+    .ob-visual > div { position: relative; z-index: 1; }
+    .welcome-slide[data-slide-panel="0"] .ob-visual { background: linear-gradient(145deg, #f0edff 0%, color-mix(in srgb, var(--primary-soft) 58%, var(--surface)) 54%, var(--surface) 100%); }
+    .welcome-slide[data-slide-panel="1"] .ob-visual { height: 248px; min-height: 248px; background: linear-gradient(145deg, #eceaff 0%, color-mix(in srgb, var(--primary-soft) 46%, var(--surface)) 58%, var(--surface) 100%); }
+    .welcome-slide[data-slide-panel="1"] .ob-visual > .mock-map-ui { transform: scale(.86); }
+    .welcome-slide[data-slide-panel="2"] .ob-visual { height: 246px; min-height: 246px; background: linear-gradient(145deg, #f1edff 0%, color-mix(in srgb, var(--primary-soft) 48%, var(--surface)) 60%, var(--surface) 100%); }
+    .welcome-slide[data-slide-panel="2"] .ob-visual > .mock-trip-ui { transform: scale(.87); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="0"] .ob-visual { background: linear-gradient(145deg, #332f50 0%, color-mix(in srgb, var(--primary-soft) 62%, var(--surface)) 54%, var(--surface) 100%); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="1"] .ob-visual { background: linear-gradient(145deg, #302f4e 0%, color-mix(in srgb, var(--primary-soft) 55%, var(--surface)) 58%, var(--surface) 100%); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="2"] .ob-visual { background: linear-gradient(145deg, #332f50 0%, color-mix(in srgb, var(--primary-soft) 55%, var(--surface)) 60%, var(--surface) 100%); }
+    .ob-visual > .mock-home { width: 100%; padding: 13px 10px 10px; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line)); border-radius: 20px; background: color-mix(in srgb, var(--surface) 90%, var(--primary-soft)); box-shadow: 0 11px 23px rgba(59, 45, 121, .14); transform: none; }
+    .ob-visual > .mock-map-ui { width: 112%; padding: 10px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line)); border-radius: 20px; background: color-mix(in srgb, var(--surface) 92%, var(--primary-soft)); box-shadow: 0 11px 23px rgba(59, 45, 121, .12); transform: scale(.88); transform-origin: center top; }
+    .ob-visual > .mock-trip-ui { width: 111%; padding: 10px; border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line)); border-radius: 20px; background: color-mix(in srgb, var(--surface) 92%, var(--primary-soft)); box-shadow: 0 11px 23px rgba(59, 45, 121, .12); transform: scale(.9); transform-origin: center top; }
+    .ob-visual .mock-home .mock-heading { padding-top: 0; }
+    .ob-visual .mock-trip-card { height: 76px; background: linear-gradient(135deg, rgba(44, 29, 102, .36), rgba(14, 16, 34, .8)), linear-gradient(135deg, #8b77d4, #5d679f 55%, #dfa873); }
+    .ob-visual .mock-new-trip { margin-top: 6px; }
+    .ob-visual .mock-map { height: 100px; }
+    .ob-visual .mock-leg-list { gap: 4px; margin-top: 6px; }
+    .ob-visual .mock-leg { padding: 6px; }
+    .ob-visual .mock-leg b { width: 20px; height: 20px; }
+    .ob-visual .trip-cover { height: 72px; }
+    .ob-visual .place-row { margin-top: 4px; padding: 5px; }
+    .ob-visual .place-row i { width: 20px; height: 20px; }
+    .dots { margin-bottom: 11px; }
+    .dot.active { box-shadow: 0 4px 10px color-mix(in srgb, var(--primary) 30%, transparent); }
+    .ob-actions .primary { box-shadow: 0 8px 17px color-mix(in srgb, var(--primary) 25%, transparent); }
+
+    .mock-home { width: 100%; padding: 1px 0; color: var(--text); font-size: 8px; text-align: left; }
+    .mock-appbar { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+    .mock-mark { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 7px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); font-size: 11px; font-weight: 800; }
+    .mock-appbar strong { font-size: 10px; font-weight: 800; }
+    .mock-appbar small { display: block; margin-bottom: 1px; color: var(--muted); font-size: 6px; font-weight: 700; }
+    .mock-appbar .grow { flex: 1; }
+    .mock-settings { color: var(--primary); font-size: 14px; font-weight: 800; }
+    .mock-heading { padding: 10px 1px 4px; font-size: 17px; font-weight: 800; letter-spacing: -.05em; }
+    .mock-chips { display: flex; gap: 4px; overflow: hidden; padding: 5px 0 7px; white-space: nowrap; }
+    .mock-chip { padding: 5px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 7px; font-weight: 800; }
+    .mock-chip.active { border-color: var(--primary); color: var(--primary-on); background: var(--primary); }
+    .mock-trip-card { position: relative; height: 82px; overflow: hidden; padding: 8px; border-radius: 14px; color: #fff; background: linear-gradient(135deg, rgba(63, 40, 125, .43), rgba(15, 17, 35, .75)), linear-gradient(135deg, #caa4a7, #6f7ab5 54%, #e8c080); }
+    .mock-trip-card::after { position: absolute; right: -20px; bottom: -20px; width: 110px; height: 64px; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; content: ""; transform: rotate(-16deg); }
+    .mock-trip-card .status { display: inline-flex; padding: 4px 6px; border-radius: 999px; background: rgba(20, 19, 33, .35); font-size: 6px; font-weight: 800; }
+    .mock-trip-card strong { position: absolute; right: 8px; bottom: 20px; left: 8px; font-size: 13px; letter-spacing: -.04em; }
+    .mock-trip-card small { position: absolute; bottom: 8px; left: 8px; color: rgba(255,255,255,.82); font-size: 7px; }
+    .mock-route { display: flex; align-items: center; gap: 4px; margin-top: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+    .mock-route span { color: var(--label); font-size: 7px; font-weight: 800; }
+    .mock-route i { color: var(--primary); font-size: 10px; font-style: normal; }
+    .mock-new-trip { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 7px; border: 1px dashed color-mix(in srgb, var(--primary) 37%, var(--line)); border-radius: 11px; color: var(--label); background: color-mix(in srgb, var(--primary-soft) 55%, transparent); font-size: 8px; font-weight: 800; }
+    .mock-new-trip b { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 15px; }
+    .mock-new-trip i { margin-left: auto; color: var(--muted); font-size: 14px; font-style: normal; }
+
+    .mock-map-ui { width: 100%; color: var(--text); font-size: 8px; text-align: left; }
+    .mock-map-heading { display: flex; align-items: center; gap: 6px; padding: 1px 0 7px; }
+    .mock-map-heading b { font-size: 12px; }
+    .mock-map-heading small { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; }
+    .mock-map-heading .grow { flex: 1; }
+    .mock-map { position: relative; height: 105px; overflow: hidden; border-radius: 14px; background-color: #dce9df; background-image: linear-gradient(30deg, transparent 47%, rgba(84, 125, 109, .19) 48% 49%, transparent 50%), linear-gradient(112deg, transparent 44%, rgba(79, 122, 178, .22) 45% 46%, transparent 47%), repeating-linear-gradient(163deg, transparent 0 18px, rgba(113, 136, 119, .17) 19px 20px, transparent 21px 38px); }
+    html[data-theme="dark"] .mock-map { background-color: #27332f; background-image: linear-gradient(30deg, transparent 47%, rgba(148, 202, 170, .18) 48% 49%, transparent 50%), linear-gradient(112deg, transparent 44%, rgba(125, 157, 214, .22) 45% 46%, transparent 47%), repeating-linear-gradient(163deg, transparent 0 18px, rgba(170, 184, 163, .12) 19px 20px, transparent 21px 38px); }
+    .map-road { position: absolute; height: 1px; background: rgba(255, 255, 255, .72); transform-origin: left center; }
+    .map-road.a { top: 26px; left: -8px; width: 180px; transform: rotate(16deg); }
+    .map-road.b { top: 83px; left: 54px; width: 150px; transform: rotate(-31deg); }
+    .map-road.c { top: 40px; left: 122px; width: 110px; transform: rotate(64deg); }
+    .map-route { position: absolute; top: 55px; left: 23px; width: 214px; height: 31px; border-bottom: 3px solid var(--primary); border-radius: 0 0 50% 50%; transform: rotate(-11deg); }
+    .map-pin { position: absolute; display: grid; width: 23px; height: 23px; place-items: center; z-index: 1; border: 2px solid #fff; border-radius: 50% 50% 50% 0; color: var(--primary-on); background: var(--primary); box-shadow: 0 3px 7px rgba(67, 50, 154, .25); font-size: 8px; font-weight: 800; transform: rotate(-45deg); }
+    .map-pin span { transform: rotate(45deg); }
+    .map-pin.one { top: 65px; left: 33px; } .map-pin.two { top: 44px; left: 113px; } .map-pin.three { top: 30px; right: 27px; }
+    .mock-leg-list { display: grid; gap: 5px; margin-top: 7px; }
+    .mock-leg { display: flex; align-items: center; gap: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .mock-leg b { display: grid; width: 22px; height: 22px; place-items: center; flex: 0 0 auto; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 8px; }
+    .mock-leg div { min-width: 0; flex: 1; }
+    .mock-leg strong { display: block; font-size: 8px; }
+    .mock-leg small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; }
+    .mock-leg > span { color: var(--muted); font-size: 13px; }
+
+    .mock-trip-ui { width: 100%; color: var(--text); font-size: 8px; text-align: left; }
+    .mock-trip-top { display: flex; align-items: center; gap: 7px; min-height: 27px; }
+    .mock-trip-top b { font-size: 13px; }
+    .mock-trip-top .grow { flex: 1; }
+    .mock-trip-top small { color: var(--muted); font-size: 7px; }
+    .trip-cover { position: relative; height: 76px; overflow: hidden; margin-top: 6px; padding: 9px; border-radius: 13px; color: #fff; background: linear-gradient(135deg, rgba(40, 25, 101, .38), rgba(15, 17, 35, .78)), linear-gradient(145deg, #536ea9 0 38%, #bd896f 39% 56%, #24345f 57% 100%); }
+    .trip-cover::before { position: absolute; top: 17px; left: 24px; width: 28px; height: 52px; border-radius: 50% 50% 0 0; background: rgba(255,255,255,.42); content: ""; box-shadow: 20px 8px 0 rgba(255,255,255,.2), 37px 1px 0 rgba(255,255,255,.31); }
+    .trip-cover::after { position: absolute; top: -28px; right: 24px; width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 218, 153, .86) 0 18%, rgba(255, 218, 153, .23) 19% 48%, transparent 50%); content: ""; }
+    .trip-cover strong { position: absolute; right: 9px; bottom: 21px; left: 9px; font-size: 14px; }
+    .trip-cover small { position: absolute; bottom: 8px; left: 9px; color: rgba(255,255,255,.82); font-size: 7px; }
+    .day-tabs { display: flex; gap: 4px; padding: 7px 0; }
+    .day-tabs span { padding: 5px 7px; border-radius: 8px; color: var(--muted); background: var(--surface-2); font-size: 7px; font-weight: 800; }
+    .day-tabs span.active { color: var(--primary-on); background: var(--primary); }
+    .place-row { display: flex; align-items: center; gap: 7px; margin-top: 5px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .place-row i { display: grid; width: 22px; height: 22px; place-items: center; flex: 0 0 auto; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 11px; font-style: normal; }
+    .place-row div { min-width: 0; flex: 1; }
+    .place-row strong { display: block; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+    .place-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; }
+    .place-row > span { color: var(--muted); font-size: 13px; }
+
+    /* Contextual hints. */
+    .home-screen, .trip-screen, .settings-screen { position: relative; min-height: 100%; overflow: hidden; padding: 15px 15px 22px; background: linear-gradient(180deg, var(--phone) 0%, color-mix(in srgb, var(--primary-soft) 13%, var(--phone)) 100%); }
+    .home-screen::before, .trip-screen::before { position: absolute; top: 155px; left: -60px; width: 325px; height: 245px; border: 1px solid color-mix(in srgb, var(--primary) 13%, transparent); border-radius: 50%; content: ""; opacity: .72; transform: rotate(-17deg); pointer-events: none; }
+    .home-screen > *, .trip-screen > * { position: relative; z-index: 1; }
+    .home-screen .mock-heading { padding-top: 14px; }
+    .empty-state { position: relative; display: flex; flex-direction: column; align-items: center; padding: 25px 5px 10px; text-align: center; }
+    .empty-icon { display: grid; width: 54px; height: 54px; place-items: center; border-radius: 18px; color: var(--primary); background: var(--primary-soft); font-size: 28px; }
+    .empty-state h3 { margin: 13px 0 0; font-size: 14px; letter-spacing: -.035em; }
+    .empty-state p { max-width: 215px; margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.48; }
+    .hint-target { position: relative; z-index: 2; width: 100%; margin-top: 18px; }
+    .hint-target .primary { min-height: 48px; }
+    .spotlight-ring { position: absolute; inset: -5px; border: 1.5px solid var(--primary); border-radius: 16px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 17%, transparent), 0 8px 18px color-mix(in srgb, var(--primary) 15%, transparent); pointer-events: none; }
+    .coach-mark { position: relative; z-index: 3; width: 100%; margin-top: 14px; padding: 11px 12px 11px 14px; border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line)); border-left: 3px solid var(--primary); border-radius: 14px; color: var(--label); background: color-mix(in srgb, var(--surface) 88%, var(--primary-soft)); box-shadow: 0 10px 25px rgba(43, 38, 74, .13); text-align: left; }
+    .coach-mark::before { position: absolute; top: -7px; left: 50%; width: 12px; height: 12px; border-top: 1px solid color-mix(in srgb, var(--primary) 43%, var(--line)); border-left: 1px solid color-mix(in srgb, var(--primary) 43%, var(--line)); background: var(--surface); content: ""; transform: translateX(-50%) rotate(45deg); }
+    .coach-mark b { display: block; font-size: 10px; }
+    .coach-mark small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.35; }
+    .coach-close { position: absolute; top: 5px; right: 6px; width: 23px; height: 23px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: 15px; }
+
+    .trip-screen .mock-map { height: 82px; margin-top: 8px; }
+    .trip-empty { position: relative; display: flex; flex-direction: column; align-items: center; padding: 12px 3px 0; text-align: center; }
+    .trip-empty h3 { margin: 13px 0 0; font-size: 14px; letter-spacing: -.035em; }
+    .trip-empty p { max-width: 215px; margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.48; }
+    .add-place-target { position: relative; z-index: 2; width: 100%; margin-top: 15px; }
+    .add-place-target .secondary { width: 100%; min-height: 45px; }
+    .add-place-target .spotlight-ring { border-radius: 14px; }
+    .coach-mark.compact { margin-top: 14px; }
+
+    /* Settings entry point for reopening the walkthrough. */
+    .settings-screen { background: var(--account-bg); }
+    .settings-head { display: flex; align-items: center; gap: 9px; }
+    .settings-head .back { color: var(--muted); font-size: 20px; }
+    .settings-head h3 { margin: 0; font-size: 18px; letter-spacing: -.045em; }
+    .settings-head .close { margin-left: auto; color: var(--muted); font-size: 18px; }
+    .account-card { display: flex; align-items: center; gap: 9px; margin-top: 17px; padding: 11px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+    .avatar { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 13px; color: #fff; background: linear-gradient(135deg, var(--primary), #9588f0); font-size: 17px; font-weight: 800; }
+    .account-card strong { display: block; font-size: 11px; }
+    .account-card small { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; }
+    .settings-label { margin: 16px 0 7px; color: var(--primary); font-size: 8px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .settings-group { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .settings-row { display: flex; align-items: center; gap: 8px; min-height: 43px; padding: 7px 9px; border-bottom: 1px solid var(--line); }
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row.highlight { background: color-mix(in srgb, var(--primary-soft) 58%, var(--surface)); }
+    .row-icon { display: grid; width: 24px; height: 24px; place-items: center; flex: 0 0 auto; border-radius: 8px; color: var(--primary); background: var(--primary-soft); font-size: 11px; font-style: normal; }
+    .row-copy { min-width: 0; flex: 1; }
+    .row-copy strong { display: block; font-size: 9px; }
+    .row-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; line-height: 1.3; }
+    .chevron { color: var(--muted); font-size: 15px; }
+    .settings-note { margin-top: 13px; padding: 10px; border: 1px dashed color-mix(in srgb, var(--primary) 35%, var(--line)); border-radius: 12px; color: var(--muted); background: color-mix(in srgb, var(--primary-soft) 45%, transparent); font-size: 8px; line-height: 1.45; }
+
+    /* Contextual hints: make the guided action feel intentional, not accidental. */
+    .home-screen, .trip-screen { isolation: isolate; background: radial-gradient(circle at 50% 36%, color-mix(in srgb, var(--primary-soft) 62%, transparent) 0 13%, transparent 35%), linear-gradient(180deg, var(--phone) 0%, color-mix(in srgb, var(--primary-soft) 18%, var(--phone)) 100%); }
+    .home-screen::after, .trip-screen::after { position: absolute; top: 195px; left: 50%; width: 184px; height: 184px; border: 1px dashed color-mix(in srgb, var(--primary) 18%, transparent); border-radius: 50%; content: ""; opacity: .55; transform: translateX(-50%) rotate(22deg); pointer-events: none; }
+    .home-screen .empty-state { margin-top: 10px; padding: 27px 9px 13px; border: 1px solid color-mix(in srgb, var(--primary) 19%, var(--line)); border-radius: 27px; background: color-mix(in srgb, var(--surface) 58%, var(--primary-soft)); box-shadow: 0 14px 28px color-mix(in srgb, var(--primary) 10%, transparent); }
+    .home-screen .empty-state::before { position: absolute; top: 21px; left: 20px; width: 58px; height: 32px; border-top: 1px solid color-mix(in srgb, var(--primary) 22%, transparent); border-radius: 50%; content: ""; opacity: .8; transform: rotate(-22deg); pointer-events: none; }
+    .home-screen .empty-icon, .trip-screen .empty-icon { border: 1px solid color-mix(in srgb, var(--primary) 23%, var(--line)); background: linear-gradient(145deg, var(--surface), var(--primary-soft)); box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 16%, transparent); }
+    .home-screen .hint-target .primary { min-height: 50px; box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 26%, transparent); }
+    .coach-mark { margin-top: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 95%, var(--primary-soft)), color-mix(in srgb, var(--primary-soft) 54%, var(--surface))); box-shadow: 0 13px 27px color-mix(in srgb, var(--primary) 15%, transparent); }
+    .coach-mark b { padding-left: 25px; }
+    .coach-step { position: absolute; top: 10px; left: 13px; display: grid; width: 16px; height: 16px; place-items: center; border-radius: 6px; color: var(--primary-on); background: var(--primary); font-size: 8px; font-weight: 800; }
+    .trip-screen .trip-cover { border: 1px solid rgba(255,255,255,.22); box-shadow: 0 10px 20px rgba(32, 31, 68, .17); }
+    .trip-screen .mock-map { border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent); box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 10%, transparent); }
+    .trip-screen .trip-empty { margin-top: 12px; padding: 15px 8px 0; border-top: 1px solid color-mix(in srgb, var(--primary) 12%, transparent); }
+    .trip-screen .add-place-target .secondary { background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--primary-soft) 44%, var(--surface))); box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 13%, transparent); }
+    .trip-screen .coach-mark { margin-top: 16px; }
+
+    /* Direction B: a more editorial onboarding composition with one visual hero per screen. */
+    .welcome-slide { padding: 0 15px 14px; background: linear-gradient(180deg, var(--phone) 0%, color-mix(in srgb, var(--primary-soft) 24%, var(--phone)) 100%); }
+    .welcome-slide::before { top: 238px; left: -150px; width: 455px; height: 330px; opacity: .52; }
+    .welcome-slide::after { right: -62px; bottom: 74px; width: 148px; height: 148px; opacity: .48; }
+    .ob-top { min-height: 47px; padding-top: 10px; }
+    .ob-content { margin: 0 -15px; padding: 0; }
+    .ob-visual { width: calc(100% + 30px); height: 252px; min-height: 252px; margin: 0 0 21px; padding: 18px 17px 16px; border: 0; border-radius: 0 0 35px 35px; background: linear-gradient(145deg, color-mix(in srgb, var(--primary-soft) 93%, var(--surface)), var(--surface)); box-shadow: 0 17px 33px color-mix(in srgb, var(--primary) 15%, transparent); }
+    .ob-visual::before { top: 11px; left: 19px; width: 5px; height: 5px; box-shadow: 10px 0 0 color-mix(in srgb, var(--primary) 38%, var(--line)), 20px 0 0 color-mix(in srgb, var(--primary) 20%, var(--line)); }
+    .ob-visual::after { right: -24px; bottom: -32px; width: 150px; height: 95px; opacity: .72; }
+    .welcome-slide[data-slide-panel="0"] .ob-visual { height: 252px; min-height: 252px; background: linear-gradient(145deg, #e9e5ff 0%, #f4f1ff 59%, var(--surface) 100%); }
+    .welcome-slide[data-slide-panel="1"] .ob-visual { height: 252px; min-height: 252px; background: linear-gradient(145deg, #e9efff 0%, #f3f5ff 59%, var(--surface) 100%); }
+    .welcome-slide[data-slide-panel="2"] .ob-visual { height: 252px; min-height: 252px; background: linear-gradient(145deg, #eee7ff 0%, #f7f3ff 59%, var(--surface) 100%); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="0"] .ob-visual { background: linear-gradient(145deg, #302b4c 0%, #27283a 59%, var(--surface) 100%); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="1"] .ob-visual { background: linear-gradient(145deg, #292f49 0%, #252938 59%, var(--surface) 100%); }
+    html[data-theme="dark"] .welcome-slide[data-slide-panel="2"] .ob-visual { background: linear-gradient(145deg, #322b4e 0%, #28283b 59%, var(--surface) 100%); }
+    .ob-visual > .mock-home { width: 100%; padding: 14px 11px 10px; border-radius: 23px; box-shadow: 0 17px 29px rgba(52, 39, 113, .18); transform: translateY(3px) rotate(-.7deg); }
+    .ob-visual > .mock-map-ui { width: 111%; padding: 11px; border-radius: 23px; box-shadow: 0 17px 29px rgba(52, 39, 113, .16); transform: scale(.86) translateY(3px) rotate(.65deg); }
+    .ob-visual > .mock-trip-ui { width: 111%; padding: 11px; border-radius: 23px; box-shadow: 0 17px 29px rgba(52, 39, 113, .16); transform: scale(.87) translateY(3px) rotate(-.55deg); }
+    .ob-copy { padding: 0 5px; }
+    .ob-copy::before { display: block; width: 31px; height: 3px; margin: 0 auto 11px; border-radius: 99px; background: var(--primary); box-shadow: 0 4px 10px color-mix(in srgb, var(--primary) 24%, transparent); content: ""; }
+    .ob-copy h3 { max-width: 264px; font-size: 23px; line-height: 1.1; }
+    .ob-copy p { max-width: 252px; margin-top: 8px; font-size: 10.8px; }
+    .ob-footer { padding-top: 2px; }
+    .ob-actions .primary, .ob-actions .secondary { min-height: 49px; border-radius: 16px; }
+    .ob-actions .primary { box-shadow: 0 11px 22px color-mix(in srgb, var(--primary) 28%, transparent); }
+    .ob-actions.single .text-action { padding-top: 8px; }
+
+    .home-screen, .trip-screen { background: radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--primary-soft) 74%, transparent) 0 14%, transparent 36%), linear-gradient(180deg, var(--phone) 0%, color-mix(in srgb, var(--primary-soft) 24%, var(--phone)) 100%); }
+    .home-screen .empty-state { margin-top: 14px; padding: 30px 10px 15px; border-radius: 31px; background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 74%, var(--primary-soft)), color-mix(in srgb, var(--primary-soft) 35%, var(--surface))); box-shadow: 0 17px 31px color-mix(in srgb, var(--primary) 13%, transparent); }
+    .home-screen .empty-state::before { top: 17px; left: 24px; width: 74px; height: 41px; border-top: 1px solid color-mix(in srgb, var(--primary) 25%, transparent); border-radius: 50%; transform: rotate(-25deg); }
+    .home-screen .empty-state::after { position: absolute; right: 21px; bottom: 33px; width: 42px; height: 21px; border-top: 1px solid color-mix(in srgb, var(--primary) 20%, transparent); border-radius: 50%; content: ""; opacity: .75; transform: rotate(18deg); pointer-events: none; }
+    .home-screen .empty-icon, .trip-screen .empty-icon { width: 62px; height: 62px; border-radius: 21px; background: linear-gradient(145deg, var(--surface), var(--primary-soft)); box-shadow: 0 10px 21px color-mix(in srgb, var(--primary) 19%, transparent); }
+    .home-screen .hint-target .primary { min-height: 51px; border-radius: 16px; }
+    .coach-mark { margin-top: 17px; padding: 13px 13px 13px 16px; border-left-width: 4px; border-radius: 17px; }
+    .trip-screen .trip-cover { height: 82px; border-radius: 16px; }
+    .trip-screen .mock-map { height: 88px; margin-top: 9px; border-radius: 16px; }
+    .trip-screen .trip-empty { margin-top: 15px; padding: 17px 9px 13px; border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line)); border-radius: 29px; background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 70%, var(--primary-soft)), color-mix(in srgb, var(--primary-soft) 30%, var(--surface))); box-shadow: 0 13px 27px color-mix(in srgb, var(--primary) 10%, transparent); }
+    .trip-screen .trip-empty h3 { margin-top: 11px; }
+    .trip-screen .trip-empty .empty-icon { width: 58px; height: 58px; }
+    .trip-screen .add-place-target .secondary { min-height: 47px; border-radius: 15px; }
+    .trip-screen .coach-mark { margin-top: 13px; }
+    .settings-screen { background: linear-gradient(180deg, var(--account-bg), color-mix(in srgb, var(--primary-soft) 28%, var(--account-bg))); }
+    .settings-row.highlight { position: relative; background: linear-gradient(90deg, color-mix(in srgb, var(--primary-soft) 78%, var(--surface)), var(--surface)); }
+    .settings-row.highlight::before { position: absolute; top: 8px; bottom: 8px; left: 0; width: 3px; border-radius: 0 4px 4px 0; background: var(--primary); content: ""; }
+
+    .template-foot { min-height: 58px; padding: 0 17px 17px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .template-foot b { color: var(--label); }
+    .status-bar { max-width: 1080px; margin: 18px auto 0; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--green) 30%, var(--line)); border-radius: 13px; color: var(--label); background: color-mix(in srgb, var(--green-soft) 65%, var(--surface)); font-size: 11px; text-align: center; }
+    .status-bar strong { color: var(--green); }
+
+    .spec { max-width: 1080px; margin: 22px auto 0; padding: 18px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 20px; background: color-mix(in srgb, var(--surface) 72%, transparent); }
+    .spec h2 { margin: 0; font-size: 18px; letter-spacing: -.04em; }
+    .spec > p { margin: 6px 0 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .spec-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .spec-item { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .spec-item strong { display: block; color: var(--primary); font-size: 11px; }
+    .spec-item span { display: block; margin-top: 5px; color: var(--label); font-size: 10px; line-height: 1.45; }
+    .spec-item b { display: block; margin-top: 7px; color: var(--muted); font-size: 9px; }
+
+    @media (max-width: 1130px) {
+      .gallery { grid-template-columns: repeat(2, minmax(260px, 1fr)); }
+      .gallery .template:first-child { grid-column: span 2; }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 22px, 520px); padding-top: 20px; }
+      .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow-step:not(:last-child)::after { display: none; }
+      .gallery { grid-template-columns: 1fr; }
+      .gallery .template:first-child { grid-column: auto; }
+      .spec-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark">R</span><span>Ramingo</span></div>
+
+    <section class="intro">
+      <h1 data-copy="page_title">Онбординг: сначала ценность, потом подсказки</h1>
+      <p data-copy="page_subtitle">Три коротких экрана на первом запуске и две контекстные подсказки внутри настоящего интерфейса Ramingo. Это визуальные шаблоны для согласования, не Android-реализация.</p>
+    </section>
+
+    <div class="notice"><b data-copy="before_approval">До одобрения:</b> <span data-copy="notice_body">Kotlin/Compose, Supabase, существующие поездки и основные пользовательские потоки не изменяются. Визуал использует текущие Manrope, палитру, карточки, радиусы и паттерны Ramingo.</span></div>
+
+    <div class="toolbar" aria-label="Настройки предпросмотра">
+      <span class="toolbar-label" data-copy="preview_mode">Режим предпросмотра:</span>
+      <button type="button" data-theme="system" data-copy="system">Системная</button>
+      <button type="button" data-theme="light" data-copy="light">Светлая</button>
+      <button type="button" data-theme="dark" data-copy="dark">Тёмная</button>
+      <span class="toolbar-separator" aria-hidden="true"></span>
+      <span class="toolbar-label" data-copy="language_label">Язык:</span>
+      <button type="button" data-language="ru">RU</button>
+      <button type="button" data-language="en">EN</button>
+      <button type="button" data-language="es">ES</button>
+      <button type="button" data-language="de">DE</button>
+    </div>
+
+    <section class="flow" aria-label="Сценарий онбординга">
+      <div class="flow-step">
+        <b data-copy="flow_one_label">1 · Welcome</b>
+        <strong data-copy="flow_one_title">Три экрана</strong>
+        <small data-copy="flow_one_body">Plan → Build → Start</small>
+      </div>
+      <div class="flow-step">
+        <b data-copy="flow_two_label">2 · Choice</b>
+        <strong data-copy="flow_two_title">Действие пользователя</strong>
+        <small data-copy="flow_two_body">Создать поездку или осмотреться</small>
+      </div>
+      <div class="flow-step">
+        <b data-copy="flow_three_label">3 · Context</b>
+        <strong data-copy="flow_three_title">Одна подсказка за раз</strong>
+        <small data-copy="flow_three_body">Только в момент первого действия</small>
+      </div>
+      <div class="flow-step">
+        <b data-copy="flow_four_label">4 · Return</b>
+        <strong data-copy="flow_four_title">Повторный просмотр</strong>
+        <small data-copy="flow_four_body">Из Settings, без сброса данных</small>
+      </div>
+    </section>
+
+    <section class="gallery" aria-label="Шаблоны экранов онбординга">
+      <article class="template">
+        <header class="template-head">
+          <span class="tag" data-copy="tag_welcome">01 · Welcome onboarding</span>
+          <h2 data-copy="welcome_title">Три экрана первого запуска</h2>
+          <p data-copy="welcome_desc">Swipe, Back, Next и Skip. Визуальная часть — реальные фрагменты Ramingo, а не стоковая иллюстрация.</p>
+        </header>
+        <div class="phone-wrap">
+          <div class="phone" id="walkthrough-phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll no-scroll">
+              <section class="welcome-slide active" data-slide-panel="0">
+                <div class="ob-top">
+                  <div class="app-brand"><span class="mark">R</span><span>Ramingo</span></div>
+                  <button class="top-link" type="button" data-onboarding-action="skip" data-copy="skip">Пропустить</button>
+                </div>
+                <div class="ob-content">
+                  <div class="ob-visual">
+                    <div class="mock-home" aria-hidden="true">
+                      <div class="mock-heading" data-copy="my_trips">Мои путешествия</div>
+                      <div class="mock-chips"><span class="mock-chip active" data-copy="all_two">Все · 2</span><span class="mock-chip" data-copy="upcoming_two">Предстоящие · 2</span></div>
+                      <div class="mock-trip-card"><span class="status" data-copy="upcoming">Предстоящее</span><strong data-copy="winter_italy">Зимняя Италия</strong><small data-copy="winter_dates">19 дек — 3 янв · 10 дней</small></div>
+                      <div class="mock-route"><span data-copy="rome">Рим</span><i>→</i><span data-copy="florence">Флоренция</span><i>→</i><span data-copy="pisa">Пиза</span></div>
+                      <div class="mock-new-trip"><b>+</b><span data-copy="create_trip">Создать путешествие</span><i>›</i></div>
+                    </div>
+                  </div>
+                  <div class="ob-copy">
+                    <h3 data-copy="screen_one_title">Планируй всю поездку в одном месте</h3>
+                    <p data-copy="screen_one_body">Маршрут, места, жильё и заметки — всё внутри одной поездки.</p>
+                  </div>
+                </div>
+                <div class="ob-footer">
+                  <div class="dots" aria-label="Страница 1 из 3">
+                    <button class="dot active" type="button" data-slide="0" data-copy-aria="screen_one" aria-label="Экран 1"></button><button class="dot" type="button" data-slide="1" data-copy-aria="screen_two" aria-label="Экран 2"></button><button class="dot" type="button" data-slide="2" data-copy-aria="screen_three" aria-label="Экран 3"></button>
+                  </div>
+                  <div class="ob-actions"><button class="secondary" type="button" data-onboarding-action="skip" data-copy="skip">Пропустить</button><button class="primary" type="button" data-next-slide data-copy="next">Далее</button></div>
+                </div>
+              </section>
+
+              <section class="welcome-slide" data-slide-panel="1">
+                <div class="ob-top">
+                  <button class="top-icon" type="button" data-prev-slide data-copy-aria="back" aria-label="Назад">‹</button><span class="ob-top-title">Ramingo</span>
+                  <button class="top-link" type="button" data-onboarding-action="skip" data-copy="skip">Пропустить</button>
+                </div>
+                <div class="ob-content">
+                  <div class="ob-visual">
+                    <div class="mock-map-ui" aria-hidden="true">
+                      <div class="mock-map-heading"><span class="mock-mark">R</span><div><small data-copy="route_overview">Обзор поездки</small><b data-copy="route_title">Зимняя Италия</b></div><span class="grow"></span><span class="mock-settings">⌁</span></div>
+                      <div class="mock-map"><span class="map-road a"></span><span class="map-road b"></span><span class="map-road c"></span><span class="map-route"></span><span class="map-pin one"><span>1</span></span><span class="map-pin two"><span>2</span></span><span class="map-pin three"><span>3</span></span></div>
+                      <div class="mock-leg-list"><div class="mock-leg"><b>1</b><div><strong data-copy="rome">Рим</strong><small data-copy="day_one_places">День 1 · 4 места</small></div><span>›</span></div><div class="mock-leg"><b>2</b><div><strong data-copy="florence">Флоренция</strong><small data-copy="day_two_places">День 2 · 3 места</small></div><span>›</span></div><div class="mock-leg"><b>3</b><div><strong data-copy="pisa">Пиза</strong><small data-copy="day_six_places">День 6 · маршрут</small></div><span>›</span></div></div>
+                    </div>
+                  </div>
+                  <div class="ob-copy">
+                    <h3 data-copy="screen_two_title">Собери свой маршрут</h3>
+                    <p data-copy="screen_two_body">Добавляй города и места и располагай поездку по дням.</p>
+                  </div>
+                </div>
+                <div class="ob-footer">
+                  <div class="dots" aria-label="Страница 2 из 3">
+                    <button class="dot" type="button" data-slide="0" data-copy-aria="screen_one" aria-label="Экран 1"></button><button class="dot active" type="button" data-slide="1" data-copy-aria="screen_two" aria-label="Экран 2"></button><button class="dot" type="button" data-slide="2" data-copy-aria="screen_three" aria-label="Экран 3"></button>
+                  </div>
+                  <div class="ob-actions"><button class="secondary" type="button" data-prev-slide data-copy="back">Назад</button><button class="primary" type="button" data-next-slide data-copy="next">Далее</button></div>
+                </div>
+              </section>
+
+              <section class="welcome-slide" data-slide-panel="2">
+                <div class="ob-top">
+                  <button class="top-icon" type="button" data-prev-slide data-copy-aria="back" aria-label="Назад">‹</button><span class="ob-top-title">Ramingo</span><span class="top-spacer"></span>
+                </div>
+                <div class="ob-content">
+                  <div class="ob-visual">
+                    <div class="mock-trip-ui" aria-hidden="true">
+                      <div class="mock-trip-top"><span class="mock-mark">R</span><div><small data-copy="trip_screen">Поездка</small><b data-copy="winter_italy">Зимняя Италия</b></div><span class="grow"></span><small>⋮</small></div>
+                      <div class="trip-cover"><strong data-copy="trip_preview">Твоя будущая поездка</strong><small data-copy="winter_dates">19 дек — 3 янв · 10 дней</small></div>
+                      <div class="day-tabs"><span class="active" data-copy="day_one">День 1</span><span data-copy="day_two">День 2</span><span data-copy="day_three">День 3</span></div>
+                      <div class="place-row"><i>⌖</i><div><strong data-copy="colosseum">Колизей</strong><small data-copy="sight_time">Достопримечательность · 10:00</small></div><span>›</span></div>
+                      <div class="place-row"><i>⌂</i><div><strong data-copy="stay">Отель в центре</strong><small data-copy="check_in">Размещение · заезд 14:00</small></div><span>›</span></div>
+                      <div class="place-row"><i>✎</i><div><strong data-copy="note">Заметка на день</strong><small data-copy="note_body">Добавь идею для этого дня</small></div><span>›</span></div>
+                    </div>
+                  </div>
+                  <div class="ob-copy">
+                    <h3 data-copy="screen_three_title">Готовы к следующему путешествию?</h3>
+                    <p data-copy="screen_three_body">Создайте первую поездку и начните планировать.</p>
+                  </div>
+                </div>
+                <div class="ob-footer">
+                  <div class="dots" aria-label="Страница 3 из 3">
+                    <button class="dot" type="button" data-slide="0" data-copy-aria="screen_one" aria-label="Экран 1"></button><button class="dot" type="button" data-slide="1" data-copy-aria="screen_two" aria-label="Экран 2"></button><button class="dot active" type="button" data-slide="2" data-copy-aria="screen_three" aria-label="Экран 3"></button>
+                  </div>
+                  <div class="ob-actions single"><button class="primary" type="button" data-action="create" data-copy="create_first_trip">Создать первую поездку</button><button class="text-action" type="button" data-action="explore" data-copy="explore_first">Сначала посмотреть</button></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="template-foot"><b data-copy="template_pattern">Паттерн:</b> <span data-copy="template_pattern_body">один welcome-flow, три экрана, без длинного tutorial.</span></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head">
+          <span class="tag" data-copy="tag_create_hint">02 · Contextual hint</span>
+          <h2 data-copy="create_hint_title">Подсказка «Создать поездку»</h2>
+          <p data-copy="create_hint_desc">Показывается после Explore first на Home без поездок и не блокирует навигацию.</p>
+        </header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <section class="home-screen">
+                <div class="screen-top"><div class="app-brand"><span class="mark">R</span><span>Ramingo</span></div><span class="mock-settings">⚙</span></div>
+                <div class="mock-heading" data-copy="my_trips">Мои путешествия</div>
+                <div class="mock-chips"><span class="mock-chip active" data-copy="all_zero">Все · 0</span><span class="mock-chip" data-copy="upcoming_zero">Предстоящие · 0</span></div>
+                <div class="empty-state">
+                  <div class="empty-icon" aria-hidden="true">✦</div>
+                  <h3 data-copy="empty_trips_title">Здесь появятся ваши путешествия</h3>
+                  <p data-copy="empty_trips_body">Создайте первую поездку с нуля или выберите готовый маршрут.</p>
+                  <div class="hint-target"><button class="primary" type="button" data-hint-action="create" data-copy="create_trip">Создать путешествие</button><span class="spotlight-ring" aria-hidden="true"></span></div>
+                  <div class="coach-mark"><button class="coach-close" type="button" data-hint-action="create-close" data-copy-aria="close" aria-label="Закрыть">×</button><span class="coach-step" aria-hidden="true">1</span><b data-copy="create_hint_text">Начните с создания первой поездки</b><small data-copy="shown_once">Показывается один раз после первого входа.</small></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="template-foot"><b data-copy="flag_label">Флаг:</b> <span data-copy="create_flag">createTripHintSeen после нажатия или закрытия.</span></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head">
+          <span class="tag" data-copy="tag_add_hint">03 · Contextual hint</span>
+          <h2 data-copy="add_hint_title">Подсказка «Добавить место»</h2>
+          <p data-copy="add_hint_desc">Появляется уже внутри первой поездки — только если мест ещё нет.</p>
+        </header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <section class="trip-screen">
+                <div class="mock-trip-top"><span class="top-icon">‹</span><div><small data-copy="overview">Обзор</small><b data-copy="winter_italy">Зимняя Италия</b></div><span class="grow"></span><span class="mock-settings">⋮</span></div>
+                <div class="trip-cover"><strong data-copy="trip_preview">Твоя будущая поездка</strong><small data-copy="winter_dates">19 дек — 3 янв · 10 дней</small></div>
+                <div class="mock-map"><span class="map-road a"></span><span class="map-road b"></span><span class="map-route"></span><span class="map-pin one"><span>1</span></span><span class="map-pin two"><span>2</span></span></div>
+                <div class="day-tabs"><span class="active" data-copy="day_one">День 1</span><span data-copy="day_two">День 2</span></div>
+                <div class="trip-empty">
+                  <div class="empty-icon" aria-hidden="true">⌖</div>
+                  <h3 data-copy="empty_places_title">Добавьте первое место</h3>
+                  <p data-copy="empty_places_body">Соберите список городов и мест, которые хотите посетить.</p>
+                  <div class="add-place-target"><button class="secondary" type="button" data-hint-action="add" data-copy="add_place">Добавить место</button><span class="spotlight-ring" aria-hidden="true"></span></div>
+                  <div class="coach-mark compact"><button class="coach-close" type="button" data-hint-action="add-close" data-copy-aria="close" aria-label="Закрыть">×</button><span class="coach-step" aria-hidden="true">2</span><b data-copy="add_hint_text">Добавьте первое место</b><small data-copy="add_hint_body">Добавьте города и места, которые хотите посетить.</small></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="template-foot"><b data-copy="flag_label">Флаг:</b> <span data-copy="add_flag">addPlaceHintSeen после взаимодействия; до этого подсказка не появляется.</span></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head">
+          <span class="tag" data-copy="tag_settings">04 · Settings entry point</span>
+          <h2 data-copy="settings_tutorial_title">Повторно открыть онбординг</h2>
+          <p data-copy="settings_tutorial_desc">Обычная строка Settings. Данные и флаги контекстных подсказок не сбрасываются.</p>
+        </header>
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-status"><span>9:41</span><span>◔ ◉ ▰</span></div>
+            <div class="phone-scroll">
+              <section class="settings-screen">
+                <div class="settings-head"><span class="back">‹</span><h3 data-copy="settings">Настройки</h3><span class="close">×</span></div>
+                <div class="account-card"><span class="avatar">T</span><div><strong>timur.munykin</strong><small data-copy="personal_account">Личный аккаунт · Ramingo</small></div></div>
+                <div class="settings-label" data-copy="appearance">Внешний вид</div>
+                <div class="settings-group">
+                  <div class="settings-row"><span class="row-icon">◐</span><div class="row-copy"><strong data-copy="theme">Тема</strong><small data-copy="system">Системная</small></div><span class="chevron">›</span></div>
+                  <div class="settings-row"><span class="row-icon">◎</span><div class="row-copy"><strong data-copy="language">Язык</strong><small data-copy="russian">Русский</small></div><span class="chevron">›</span></div>
+                </div>
+                <div class="settings-label" data-copy="support">Поддержка</div>
+                <div class="settings-group">
+                  <button class="settings-row highlight" type="button" data-open-tutorial><span class="row-icon">?</span><span class="row-copy"><strong data-copy="show_tutorial">Показать обучение</strong><small data-copy="open_again">Открыть три экрана ещё раз</small></span><span class="chevron">›</span></button>
+                  <div class="settings-row"><span class="row-icon">✎</span><div class="row-copy"><strong data-copy="send_feedback">Отправить отзыв</strong></div><span class="chevron">›</span></div>
+                </div>
+                <div class="settings-label" data-copy="about">О приложении</div>
+                <div class="settings-group"><div class="settings-row"><span class="row-icon">ⓘ</span><div class="row-copy"><strong data-copy="app_version">Версия приложения</strong></div><span class="chevron">0.2.39</span></div></div>
+                <div class="settings-note" data-copy="settings_note">Повторный просмотр возвращает в приложение после последнего экрана. Пользовательские данные, onboardingCompleted и флаги подсказок остаются без изменений.</div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="template-foot"><b data-copy="entry_point_label">Вход:</b> <span data-copy="settings_entry">Settings → Показать обучение. Это не делает пользователя новым.</span></div>
+      </article>
+    </section>
+
+    <div class="status-bar" role="status" aria-live="polite"><strong data-copy="preview_status_label">Действие предпросмотра:</strong> <span id="action-status" data-copy="preview_ready">выберите Next, Skip или CTA внутри первого телефона.</span></div>
+
+    <section class="spec">
+      <h2 data-copy="spec_title">Что именно предлагается согласовать</h2>
+      <p data-copy="spec_subtitle">Шаблон оставляет основной интерфейс Ramingo прежним: добавляются только три welcome-экрана, две ненавязчивые подсказки и точка повторного входа из Settings.</p>
+      <div class="spec-grid">
+        <div class="spec-item"><strong data-copy="spec_state_title">Состояния</strong><span data-copy="spec_state_body">onboardingCompleted, createTripHintSeen и addPlaceHintSeen. Системные настройки и данные поездок не затрагиваются.</span><b data-copy="spec_state_note">Новая библиотека для boolean-флагов не нужна.</b></div>
+        <div class="spec-item"><strong data-copy="spec_context_title">Контекст</strong><span data-copy="spec_context_body">Подсказка появляется только после выполненного предыдущего действия: Home → создание поездки → первая поездка → добавление места.</span><b data-copy="spec_context_note">Не больше одной подсказки одновременно.</b></div>
+        <div class="spec-item"><strong data-copy="spec_visual_title">Визуал</strong><span data-copy="spec_visual_body">Карточка поездки, маршрут, карта, дни и Settings собраны из существующих Ramingo-паттернов.</span><b data-copy="spec_visual_note">Без stock-фото и generic travel-иллюстраций.</b></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const copy = {
+      ru: {
+        page_title: "Онбординг: сначала ценность, потом подсказки",
+        page_subtitle: "Три коротких экрана на первом запуске и две контекстные подсказки внутри настоящего интерфейса Ramingo. Это визуальные шаблоны для согласования, не Android-реализация.",
+        before_approval: "До одобрения:",
+        notice_body: "Kotlin/Compose, Supabase, существующие поездки и основные пользовательские потоки не изменяются. Визуал использует текущие Manrope, палитру, карточки, радиусы и паттерны Ramingo.",
+        preview_mode: "Режим предпросмотра:",
+        system: "Системная",
+        light: "Светлая",
+        dark: "Тёмная",
+        language_label: "Язык:",
+        flow_one_label: "1 · Welcome",
+        flow_one_title: "Три экрана",
+        flow_one_body: "Plan → Build → Start",
+        flow_two_label: "2 · Choice",
+        flow_two_title: "Действие пользователя",
+        flow_two_body: "Создать поездку или осмотреться",
+        flow_three_label: "3 · Context",
+        flow_three_title: "Одна подсказка за раз",
+        flow_three_body: "Только в момент первого действия",
+        flow_four_label: "4 · Return",
+        flow_four_title: "Повторный просмотр",
+        flow_four_body: "Из Settings, без сброса данных",
+        tag_welcome: "01 · Welcome onboarding",
+        welcome_title: "Три экрана первого запуска",
+        welcome_desc: "Swipe, Back, Next и Skip. Визуальная часть — реальные фрагменты Ramingo, а не стоковая иллюстрация.",
+        tag_create_hint: "02 · Contextual hint",
+        create_hint_title: "Подсказка «Создать поездку»",
+        create_hint_desc: "Показывается после Explore first на Home без поездок и не блокирует навигацию.",
+        tag_add_hint: "03 · Contextual hint",
+        add_hint_title: "Подсказка «Добавить место»",
+        add_hint_desc: "Появляется уже внутри первой поездки — только если мест ещё нет.",
+        tag_settings: "04 · Settings entry point",
+        settings_tutorial_title: "Повторно открыть онбординг",
+        settings_tutorial_desc: "Обычная строка Settings. Данные и флаги контекстных подсказок не сбрасываются.",
+        template_pattern: "Паттерн:",
+        template_pattern_body: "один welcome-flow, три экрана, без длинного tutorial.",
+        flag_label: "Флаг:",
+        create_flag: "createTripHintSeen после нажатия или закрытия.",
+        add_flag: "addPlaceHintSeen после взаимодействия; до этого подсказка не появляется.",
+        entry_point_label: "Вход:",
+        settings_entry: "Settings → Показать обучение. Это не делает пользователя новым.",
+        hello: "Планирование без хаоса",
+        my_trips: "Мои путешествия",
+        all_two: "Все · 2",
+        upcoming_two: "Предстоящие · 2",
+        all_zero: "Все · 0",
+        upcoming_zero: "Предстоящие · 0",
+        upcoming: "Предстоящее",
+        winter_italy: "Зимняя Италия",
+        winter_dates: "19 дек — 3 янв · 10 дней",
+        create_trip: "Создать путешествие",
+        route_overview: "Обзор поездки",
+        route_title: "Зимняя Италия",
+        rome: "Рим",
+        florence: "Флоренция",
+        pisa: "Пиза",
+        day_one_places: "День 1 · 4 места",
+        day_two_places: "День 2 · 3 места",
+        day_six_places: "День 6 · маршрут",
+        trip_screen: "Поездка",
+        trip_preview: "Твоя будущая поездка",
+        day_one: "День 1",
+        day_two: "День 2",
+        day_three: "День 3",
+        colosseum: "Колизей",
+        sight_time: "Достопримечательность · 10:00",
+        stay: "Отель в центре",
+        check_in: "Размещение · заезд 14:00",
+        note: "Заметка на день",
+        note_body: "Добавь идею для этого дня",
+        screen_one_title: "Планируй всю поездку в одном месте",
+        screen_one_body: "Маршрут, места, жильё и заметки — всё внутри одной поездки.",
+        screen_two_title: "Собери свой маршрут",
+        screen_two_body: "Добавляй города и места и располагай поездку по дням.",
+        screen_three_title: "Готовы к следующему путешествию?",
+        screen_three_body: "Создайте первую поездку и начните планировать.",
+        next: "Далее",
+        back: "Назад",
+        close: "Закрыть",
+        screen_one: "Экран 1",
+        screen_two: "Экран 2",
+        screen_three: "Экран 3",
+        skip: "Пропустить",
+        create_first_trip: "Создать первую поездку",
+        explore_first: "Сначала посмотреть",
+        empty_trips_title: "Здесь появятся ваши путешествия",
+        empty_trips_body: "Создайте первую поездку с нуля или выберите готовый маршрут.",
+        create_hint_text: "Начните с создания первой поездки",
+        shown_once: "Показывается один раз после первого входа.",
+        overview: "Обзор",
+        empty_places_title: "Добавьте первое место",
+        empty_places_body: "Соберите список городов и мест, которые хотите посетить.",
+        add_place: "Добавить место",
+        add_hint_text: "Добавьте первое место",
+        add_hint_body: "Добавьте города и места, которые хотите посетить.",
+        settings: "Настройки",
+        personal_account: "Личный аккаунт · Ramingo",
+        appearance: "Внешний вид",
+        theme: "Тема",
+        language: "Язык",
+        russian: "Русский",
+        support: "Поддержка",
+        show_tutorial: "Показать обучение",
+        open_again: "Открыть три экрана ещё раз",
+        send_feedback: "Отправить отзыв",
+        about: "О приложении",
+        app_version: "Версия приложения",
+        settings_note: "Повторный просмотр возвращает в приложение после последнего экрана. Пользовательские данные, onboardingCompleted и флаги подсказок остаются без изменений.",
+        preview_status_label: "Действие предпросмотра:",
+        preview_ready: "выберите Next, Skip или CTA внутри первого телефона.",
+        status_create: "Create my first trip → открыть существующий flow создания поездки.",
+        status_explore: "Explore first → открыть Home; если поездок нет, показать подсказку Create trip.",
+        status_skip: "Skip → завершить welcome onboarding и открыть Home.",
+        status_reopen: "Show tutorial → снова открыть три welcome-экрана, не сбрасывая данные.",
+        status_hint_create: "Подсказка Create trip отмечена как просмотренная после действия.",
+        status_hint_add: "Подсказка Add place отмечена как просмотренная после действия.",
+        spec_title: "Что именно предлагается согласовать",
+        spec_subtitle: "Шаблон оставляет основной интерфейс Ramingo прежним: добавляются только три welcome-экрана, две ненавязчивые подсказки и точка повторного входа из Settings.",
+        spec_state_title: "Состояния",
+        spec_state_body: "onboardingCompleted, createTripHintSeen и addPlaceHintSeen. Системные настройки и данные поездок не затрагиваются.",
+        spec_state_note: "Новая библиотека для boolean-флагов не нужна.",
+        spec_context_title: "Контекст",
+        spec_context_body: "Подсказка появляется только после выполненного предыдущего действия: Home → создание поездки → первая поездка → добавление места.",
+        spec_context_note: "Не больше одной подсказки одновременно.",
+        spec_visual_title: "Визуал",
+        spec_visual_body: "Карточка поездки, маршрут, карта, дни и Settings собраны из существующих Ramingo-паттернов.",
+        spec_visual_note: "Без stock-фото и generic travel-иллюстраций."
+      },
+      en: {
+        page_title: "Onboarding: value first, tips second",
+        page_subtitle: "Three short first-launch screens and two contextual hints inside the real Ramingo interface. These are approval templates, not an Android implementation.",
+        before_approval: "Before approval:",
+        notice_body: "Kotlin/Compose, Supabase, existing trips and primary user flows stay unchanged. The visual uses the current Manrope, palette, cards, radii and Ramingo patterns.",
+        preview_mode: "Preview mode:",
+        system: "System default",
+        light: "Light",
+        dark: "Dark",
+        language_label: "Language:",
+        flow_one_label: "1 · Welcome",
+        flow_one_title: "Three screens",
+        flow_one_body: "Plan → Build → Start",
+        flow_two_label: "2 · Choice",
+        flow_two_title: "User action",
+        flow_two_body: "Create a trip or explore",
+        flow_three_label: "3 · Context",
+        flow_three_title: "One hint at a time",
+        flow_three_body: "Only at the first relevant action",
+        flow_four_label: "4 · Return",
+        flow_four_title: "View again",
+        flow_four_body: "From Settings, without data reset",
+        tag_welcome: "01 · Welcome onboarding",
+        welcome_title: "Three first-launch screens",
+        welcome_desc: "Swipe, Back, Next and Skip. The visual uses real Ramingo fragments instead of a stock illustration.",
+        tag_create_hint: "02 · Contextual hint",
+        create_hint_title: "Create trip hint",
+        create_hint_desc: "Shown after Explore first on an empty Home and never blocks navigation.",
+        tag_add_hint: "03 · Contextual hint",
+        add_hint_title: "Add place hint",
+        add_hint_desc: "Appears inside the first trip only when no places have been added yet.",
+        tag_settings: "04 · Settings entry point",
+        settings_tutorial_title: "Open onboarding again",
+        settings_tutorial_desc: "A normal Settings row. User data and contextual hint flags stay intact.",
+        template_pattern: "Pattern:",
+        template_pattern_body: "one welcome flow, three screens, no long tutorial.",
+        flag_label: "Flag:",
+        create_flag: "createTripHintSeen after the action or close.",
+        add_flag: "addPlaceHintSeen after interaction; no hint before that.",
+        entry_point_label: "Entry:",
+        settings_entry: "Settings → Show tutorial. This does not make the user new.",
+        hello: "Planning without the mess",
+        my_trips: "My trips",
+        all_two: "All · 2",
+        upcoming_two: "Upcoming · 2",
+        all_zero: "All · 0",
+        upcoming_zero: "Upcoming · 0",
+        upcoming: "Upcoming",
+        winter_italy: "Winter Italy",
+        winter_dates: "19 Dec — 3 Jan · 10 days",
+        create_trip: "Create trip",
+        route_overview: "Trip overview",
+        route_title: "Winter Italy",
+        rome: "Rome",
+        florence: "Florence",
+        pisa: "Pisa",
+        day_one_places: "Day 1 · 4 places",
+        day_two_places: "Day 2 · 3 places",
+        day_six_places: "Day 6 · route",
+        trip_screen: "Trip",
+        trip_preview: "Your future trip",
+        day_one: "Day 1",
+        day_two: "Day 2",
+        day_three: "Day 3",
+        colosseum: "Colosseum",
+        sight_time: "Sight · 10:00",
+        stay: "City-center stay",
+        check_in: "Accommodation · check-in 14:00",
+        note: "Day note",
+        note_body: "Keep an idea for this day",
+        screen_one_title: "Plan your whole trip in one place",
+        screen_one_body: "Keep your route, places, accommodation and notes inside one trip.",
+        screen_two_title: "Build your itinerary",
+        screen_two_body: "Add cities and places and organize the trip day by day.",
+        screen_three_title: "Ready for your next trip?",
+        screen_three_body: "Create your first trip and start planning.",
+        next: "Next",
+        back: "Back",
+        close: "Close",
+        screen_one: "Screen 1",
+        screen_two: "Screen 2",
+        screen_three: "Screen 3",
+        skip: "Skip",
+        create_first_trip: "Create my first trip",
+        explore_first: "Explore first",
+        empty_trips_title: "Your trips will appear here",
+        empty_trips_body: "Create your first trip from scratch or choose a ready route.",
+        create_hint_text: "Start by creating your first trip",
+        shown_once: "Shown once after the first visit.",
+        overview: "Overview",
+        empty_places_title: "Add your first place",
+        empty_places_body: "Add cities and places you want to visit.",
+        add_place: "Add place",
+        add_hint_text: "Add your first place",
+        add_hint_body: "Add cities and places you want to visit.",
+        settings: "Settings",
+        personal_account: "Personal account · Ramingo",
+        appearance: "Appearance",
+        theme: "Theme",
+        language: "Language",
+        russian: "Russian",
+        support: "Support",
+        show_tutorial: "Show tutorial",
+        open_again: "Open the three screens again",
+        send_feedback: "Send feedback",
+        about: "About",
+        app_version: "App version",
+        settings_note: "Reopening returns to the app after the last screen. User data, onboardingCompleted and hint flags remain unchanged.",
+        preview_status_label: "Preview action:",
+        preview_ready: "choose Next, Skip or a CTA inside the first phone.",
+        status_create: "Create my first trip → open the existing new-trip flow.",
+        status_explore: "Explore first → open Home; if there are no trips, show the Create trip hint.",
+        status_skip: "Skip → complete welcome onboarding and open Home.",
+        status_reopen: "Show tutorial → open the three welcome screens again without resetting data.",
+        status_hint_create: "Create trip hint is marked seen after the action.",
+        status_hint_add: "Add place hint is marked seen after the action.",
+        spec_title: "What is proposed for approval",
+        spec_subtitle: "The main Ramingo interface stays as it is: only three welcome screens, two quiet hints and a Settings re-entry point are added.",
+        spec_state_title: "State",
+        spec_state_body: "onboardingCompleted, createTripHintSeen and addPlaceHintSeen. System settings and trip data are untouched.",
+        spec_state_note: "No new library is needed for these booleans.",
+        spec_context_title: "Context",
+        spec_context_body: "A hint appears only after the previous action: Home → create trip → first trip → add a place.",
+        spec_context_note: "Never more than one hint at a time.",
+        spec_visual_title: "Visual",
+        spec_visual_body: "Trip card, route, map, days and Settings use existing Ramingo patterns.",
+        spec_visual_note: "No stock photos or generic travel illustrations."
+      },
+      es: {
+        page_title: "Guía inicial: primero el valor, después los consejos",
+        page_subtitle: "Tres pantallas breves al abrir por primera vez y dos consejos contextuales dentro de la interfaz real de Ramingo. Son plantillas para aprobar, no una implementación Android.",
+        before_approval: "Antes de aprobar:",
+        notice_body: "Kotlin/Compose, Supabase, viajes existentes y flujos principales no cambian. El diseño usa la fuente Manrope, la paleta, las tarjetas, los radios y los patrones actuales de Ramingo.",
+        preview_mode: "Modo de vista previa:",
+        system: "Predeterminada del sistema",
+        light: "Claro",
+        dark: "Oscuro",
+        language_label: "Idioma:",
+        flow_one_label: "1 · Welcome",
+        flow_one_title: "Tres pantallas",
+        flow_one_body: "Plan → Build → Start",
+        flow_two_label: "2 · Choice",
+        flow_two_title: "Acción del usuario",
+        flow_two_body: "Crear un viaje o explorar",
+        flow_three_label: "3 · Context",
+        flow_three_title: "Un consejo cada vez",
+        flow_three_body: "Solo en la primera acción relevante",
+        flow_four_label: "4 · Return",
+        flow_four_title: "Volver a verlo",
+        flow_four_body: "Desde Settings, sin borrar datos",
+        tag_welcome: "01 · Welcome onboarding",
+        welcome_title: "Tres pantallas del primer inicio",
+        welcome_desc: "Swipe, Back, Next y Skip. El diseño usa fragmentos reales de Ramingo, no una ilustración de stock.",
+        tag_create_hint: "02 · Contextual hint",
+        create_hint_title: "Consejo «Crear viaje»",
+        create_hint_desc: "Aparece tras Explore first en un Home vacío y nunca bloquea la navegación.",
+        tag_add_hint: "03 · Contextual hint",
+        add_hint_title: "Consejo «Añadir lugar»",
+        add_hint_desc: "Aparece dentro del primer viaje solo si todavía no hay lugares.",
+        tag_settings: "04 · Settings entry point",
+        settings_tutorial_title: "Volver a abrir la guía inicial",
+        settings_tutorial_desc: "Una fila normal de Settings. Los datos y los flags de consejos permanecen intactos.",
+        template_pattern: "Patrón:",
+        template_pattern_body: "un flujo de bienvenida, tres pantallas y ningún tutorial largo.",
+        flag_label: "Flag:",
+        create_flag: "createTripHintSeen después de pulsar o cerrar.",
+        add_flag: "addPlaceHintSeen después de interactuar; antes no aparece.",
+        entry_point_label: "Entrada:",
+        settings_entry: "Settings → Mostrar guía inicial. No convierte al usuario en nuevo.",
+        hello: "Planificación sin caos",
+        my_trips: "Mis viajes",
+        all_two: "Todos · 2",
+        upcoming_two: "Próximos · 2",
+        all_zero: "Todos · 0",
+        upcoming_zero: "Próximos · 0",
+        upcoming: "Próximo",
+        winter_italy: "Italia de invierno",
+        winter_dates: "19 dic — 3 ene · 10 días",
+        create_trip: "Crear viaje",
+        route_overview: "Resumen del viaje",
+        route_title: "Italia de invierno",
+        rome: "Roma",
+        florence: "Florencia",
+        pisa: "Pisa",
+        day_one_places: "Día 1 · 4 lugares",
+        day_two_places: "Día 2 · 3 lugares",
+        day_six_places: "Día 6 · ruta",
+        trip_screen: "Viaje",
+        trip_preview: "Tu futuro viaje",
+        day_one: "Día 1",
+        day_two: "Día 2",
+        day_three: "Día 3",
+        colosseum: "Coliseo",
+        sight_time: "Lugar de interés · 10:00",
+        stay: "Alojamiento céntrico",
+        check_in: "Alojamiento · entrada 14:00",
+        note: "Nota del día",
+        note_body: "Guarda una idea para este día",
+        screen_one_title: "Planifica todo el viaje en un solo lugar",
+        screen_one_body: "Guarda la ruta, los lugares, el alojamiento y las notas dentro de un viaje.",
+        screen_two_title: "Construye tu itinerario",
+        screen_two_body: "Añade ciudades y lugares y organiza el viaje por días.",
+        screen_three_title: "¿Listo para tu próximo viaje?",
+        screen_three_body: "Crea tu primer viaje y empieza a planificar.",
+        next: "Siguiente",
+        back: "Atrás",
+        close: "Cerrar",
+        screen_one: "Pantalla 1",
+        screen_two: "Pantalla 2",
+        screen_three: "Pantalla 3",
+        skip: "Omitir",
+        create_first_trip: "Crear mi primer viaje",
+        explore_first: "Explorar primero",
+        empty_trips_title: "Aquí aparecerán tus viajes",
+        empty_trips_body: "Crea tu primer viaje desde cero o elige una ruta preparada.",
+        create_hint_text: "Empieza creando tu primer viaje",
+        shown_once: "Se muestra una vez después de la primera visita.",
+        overview: "Resumen",
+        empty_places_title: "Añade tu primer lugar",
+        empty_places_body: "Añade ciudades y lugares que quieras visitar.",
+        add_place: "Añadir lugar",
+        add_hint_text: "Añade tu primer lugar",
+        add_hint_body: "Añade ciudades y lugares que quieras visitar.",
+        settings: "Ajustes",
+        personal_account: "Cuenta personal · Ramingo",
+        appearance: "Apariencia",
+        theme: "Tema",
+        language: "Idioma",
+        russian: "Ruso",
+        support: "Soporte",
+        show_tutorial: "Mostrar guía inicial",
+        open_again: "Abrir de nuevo las tres pantallas",
+        send_feedback: "Enviar comentarios",
+        about: "Acerca de",
+        app_version: "Versión de la aplicación",
+        settings_note: "Al volver a abrirla se regresa a la app después de la última pantalla. Los datos, onboardingCompleted y los flags permanecen sin cambios.",
+        preview_status_label: "Acción de vista previa:",
+        preview_ready: "elige Next, Skip o una CTA dentro del primer teléfono.",
+        status_create: "Create my first trip → abrir el flujo existente de nueva viaje.",
+        status_explore: "Explore first → abrir Home; si no hay viajes, mostrar el consejo Create trip.",
+        status_skip: "Skip → terminar la guía inicial y abrir Home.",
+        status_reopen: "Show tutorial → abrir otra vez las tres pantallas sin borrar datos.",
+        status_hint_create: "El consejo Create trip queda visto después de la acción.",
+        status_hint_add: "El consejo Add place queda visto después de la acción.",
+        spec_title: "Qué se propone aprobar",
+        spec_subtitle: "La interfaz principal de Ramingo se mantiene: solo se añaden tres pantallas de bienvenida, dos consejos discretos y una entrada desde Settings.",
+        spec_state_title: "Estado",
+        spec_state_body: "onboardingCompleted, createTripHintSeen y addPlaceHintSeen. Los ajustes del sistema y los viajes no se tocan.",
+        spec_state_note: "No hace falta una biblioteca nueva para estos booleanos.",
+        spec_context_title: "Contexto",
+        spec_context_body: "El consejo aparece solo después de la acción anterior: Home → crear viaje → primer viaje → añadir lugar.",
+        spec_context_note: "Nunca más de un consejo a la vez.",
+        spec_visual_title: "Visual",
+        spec_visual_body: "Tarjeta de viaje, ruta, mapa, días y Settings usan patrones existentes de Ramingo.",
+        spec_visual_note: "Sin fotos de stock ni ilustraciones de viajes genéricas."
+      },
+      de: {
+        page_title: "Einführung: zuerst der Nutzen, dann die Tipps",
+        page_subtitle: "Drei kurze Bildschirme beim ersten Start und zwei kontextbezogene Tipps innerhalb der echten Ramingo-Oberfläche. Dies sind Freigabevorlagen, keine Android-Implementierung.",
+        before_approval: "Vor der Freigabe:",
+        notice_body: "Kotlin/Compose, Supabase, bestehende Reisen und Hauptabläufe bleiben unverändert. Das Design nutzt die aktuelle Manrope-Schrift, Palette, Karten, Rundungen und Ramingo-Muster.",
+        preview_mode: "Vorschaumodus:",
+        system: "Systemstandard",
+        light: "Hell",
+        dark: "Dunkel",
+        language_label: "Sprache:",
+        flow_one_label: "1 · Welcome",
+        flow_one_title: "Drei Bildschirme",
+        flow_one_body: "Plan → Build → Start",
+        flow_two_label: "2 · Choice",
+        flow_two_title: "Aktion des Nutzers",
+        flow_two_body: "Reise erstellen oder erkunden",
+        flow_three_label: "3 · Context",
+        flow_three_title: "Ein Tipp nach dem anderen",
+        flow_three_body: "Nur bei der ersten passenden Aktion",
+        flow_four_label: "4 · Return",
+        flow_four_title: "Erneut ansehen",
+        flow_four_body: "Aus Settings, ohne Daten zurückzusetzen",
+        tag_welcome: "01 · Welcome onboarding",
+        welcome_title: "Drei Bildschirme beim ersten Start",
+        welcome_desc: "Swipe, Back, Next und Skip. Die Visualisierung nutzt echte Ramingo-Fragmente statt einer Stock-Illustration.",
+        tag_create_hint: "02 · Contextual hint",
+        create_hint_title: "Tipp „Reise erstellen“",
+        create_hint_desc: "Nach Explore first auf einem leeren Home sichtbar und niemals blockierend.",
+        tag_add_hint: "03 · Contextual hint",
+        add_hint_title: "Tipp „Ort hinzufügen“",
+        add_hint_desc: "Erscheint in der ersten Reise nur, wenn noch keine Orte hinzugefügt wurden.",
+        tag_settings: "04 · Settings entry point",
+        settings_tutorial_title: "Einführung erneut öffnen",
+        settings_tutorial_desc: "Eine normale Settings-Zeile. Daten und Tipp-Flags bleiben erhalten.",
+        template_pattern: "Muster:",
+        template_pattern_body: "ein Welcome-Flow, drei Bildschirme, kein langes Tutorial.",
+        flag_label: "Flag:",
+        create_flag: "createTripHintSeen nach Aktion oder Schließen.",
+        add_flag: "addPlaceHintSeen nach Interaktion; vorher kein Tipp.",
+        entry_point_label: "Einstieg:",
+        settings_entry: "Settings → Einführung anzeigen. Der Nutzer wird dadurch nicht neu.",
+        hello: "Planung ohne Chaos",
+        my_trips: "Meine Reisen",
+        all_two: "Alle · 2",
+        upcoming_two: "Bevorstehend · 2",
+        all_zero: "Alle · 0",
+        upcoming_zero: "Bevorstehend · 0",
+        upcoming: "Bevorstehend",
+        winter_italy: "Winter in Italien",
+        winter_dates: "19. Dez. — 3. Jan. · 10 Tage",
+        create_trip: "Reise erstellen",
+        route_overview: "Reiseübersicht",
+        route_title: "Winter in Italien",
+        rome: "Rom",
+        florence: "Florenz",
+        pisa: "Pisa",
+        day_one_places: "Tag 1 · 4 Orte",
+        day_two_places: "Tag 2 · 3 Orte",
+        day_six_places: "Tag 6 · Route",
+        trip_screen: "Reise",
+        trip_preview: "Deine zukünftige Reise",
+        day_one: "Tag 1",
+        day_two: "Tag 2",
+        day_three: "Tag 3",
+        colosseum: "Kolosseum",
+        sight_time: "Sehenswürdigkeit · 10:00",
+        stay: "Unterkunft im Zentrum",
+        check_in: "Unterkunft · Check-in 14:00",
+        note: "Tagesnotiz",
+        note_body: "Eine Idee für diesen Tag speichern",
+        screen_one_title: "Plane deine ganze Reise an einem Ort",
+        screen_one_body: "Route, Orte, Unterkunft und Notizen bleiben in einer Reise zusammen.",
+        screen_two_title: "Baue deine Reiseroute",
+        screen_two_body: "Füge Städte und Orte hinzu und ordne die Reise nach Tagen.",
+        screen_three_title: "Bereit für die nächste Reise?",
+        screen_three_body: "Erstelle deine erste Reise und beginne mit der Planung.",
+        next: "Weiter",
+        back: "Zurück",
+        close: "Schließen",
+        screen_one: "Bildschirm 1",
+        screen_two: "Bildschirm 2",
+        screen_three: "Bildschirm 3",
+        skip: "Überspringen",
+        create_first_trip: "Meine erste Reise erstellen",
+        explore_first: "Zuerst erkunden",
+        empty_trips_title: "Hier erscheinen deine Reisen",
+        empty_trips_body: "Erstelle deine erste Reise oder wähle eine fertige Route.",
+        create_hint_text: "Beginne mit deiner ersten Reise",
+        shown_once: "Wird nach dem ersten Besuch einmal angezeigt.",
+        overview: "Übersicht",
+        empty_places_title: "Ersten Ort hinzufügen",
+        empty_places_body: "Füge Städte und Orte hinzu, die du besuchen möchtest.",
+        add_place: "Ort hinzufügen",
+        add_hint_text: "Füge deinen ersten Ort hinzu",
+        add_hint_body: "Füge Städte und Orte hinzu, die du besuchen möchtest.",
+        settings: "Einstellungen",
+        personal_account: "Persönliches Konto · Ramingo",
+        appearance: "Darstellung",
+        theme: "Thema",
+        language: "Sprache",
+        russian: "Russisch",
+        support: "Support",
+        show_tutorial: "Einführung anzeigen",
+        open_again: "Die drei Bildschirme erneut öffnen",
+        send_feedback: "Feedback senden",
+        about: "Über die App",
+        app_version: "App-Version",
+        settings_note: "Nach dem erneuten Öffnen kehrt man nach dem letzten Bildschirm zur App zurück. Daten, onboardingCompleted und Tipp-Flags bleiben unverändert.",
+        preview_status_label: "Vorschauaktion:",
+        preview_ready: "Wähle Next, Skip oder eine CTA im ersten Telefon.",
+        status_create: "Create my first trip → den bestehenden Flow für eine neue Reise öffnen.",
+        status_explore: "Explore first → Home öffnen; bei null Reisen den Tipp Create trip zeigen.",
+        status_skip: "Skip → Einführung beenden und Home öffnen.",
+        status_reopen: "Show tutorial → die drei Willkommensbildschirme erneut öffnen, ohne Daten zurückzusetzen.",
+        status_hint_create: "Der Tipp Create trip wird nach der Aktion als gesehen markiert.",
+        status_hint_add: "Der Tipp Add place wird nach der Aktion als gesehen markiert.",
+        spec_title: "Was zur Freigabe vorgeschlagen wird",
+        spec_subtitle: "Die Hauptoberfläche von Ramingo bleibt unverändert: ergänzt werden nur drei Willkommensbildschirme, zwei dezente Tipps und ein Wiedereinstieg über Settings.",
+        spec_state_title: "Status",
+        spec_state_body: "onboardingCompleted, createTripHintSeen und addPlaceHintSeen. Systemeinstellungen und Reisedaten bleiben unberührt.",
+        spec_state_note: "Keine neue Bibliothek für diese Boolean-Werte nötig.",
+        spec_context_title: "Kontext",
+        spec_context_body: "Ein Tipp erscheint erst nach der vorherigen Aktion: Home → Reise erstellen → erste Reise → Ort hinzufügen.",
+        spec_context_note: "Nie mehr als ein Tipp gleichzeitig.",
+        spec_visual_title: "Visual",
+        spec_visual_body: "Reisekarte, Route, Karte, Tage und Settings nutzen vorhandene Ramingo-Muster.",
+        spec_visual_note: "Keine Stock-Fotos oder generischen Reiseillustrationen."
+      }
+    };
+
+    const root = document.documentElement;
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const themeButtons = [...document.querySelectorAll("[data-theme]")];
+    const languageButtons = [...document.querySelectorAll("[data-language]")];
+    const slidePanels = [...document.querySelectorAll("[data-slide-panel]")];
+    const slideButtons = [...document.querySelectorAll("[data-slide]")];
+    const status = document.querySelector("#action-status");
+    let activeLanguage = "ru";
+    let activeSlide = 0;
+    let chosenTheme = "system";
+
+    function t(key) {
+      return copy[activeLanguage][key] || copy.ru[key] || key;
+    }
+
+    function renderCopy() {
+      document.documentElement.lang = activeLanguage;
+      document.querySelectorAll("[data-copy]").forEach((node) => {
+        node.textContent = t(node.dataset.copy);
+      });
+      document.querySelectorAll("[data-copy-aria]").forEach((node) => {
+        node.setAttribute("aria-label", t(node.dataset.copyAria));
+      });
+    }
+
+    function applyTheme() {
+      const effective = chosenTheme === "system" ? (systemTheme.matches ? "dark" : "light") : chosenTheme;
+      root.dataset.theme = effective;
+      themeButtons.forEach((button) => button.classList.toggle("active", button.dataset.theme === chosenTheme));
+    }
+
+    function setLanguage(language) {
+      activeLanguage = copy[language] ? language : "ru";
+      languageButtons.forEach((button) => button.classList.toggle("active", button.dataset.language === activeLanguage));
+      renderCopy();
+      renderSlide(activeSlide);
+    }
+
+    function renderSlide(index) {
+      activeSlide = Math.max(0, Math.min(2, index));
+      slidePanels.forEach((panel) => panel.classList.toggle("active", Number(panel.dataset.slidePanel) === activeSlide));
+      slideButtons.forEach((button) => button.classList.toggle("active", Number(button.dataset.slide) === activeSlide));
+    }
+
+    function setStatus(key) {
+      status.textContent = t(key);
+    }
+
+    themeButtons.forEach((button) => button.addEventListener("click", () => {
+      chosenTheme = button.dataset.theme;
+      applyTheme();
+    }));
+    languageButtons.forEach((button) => button.addEventListener("click", () => setLanguage(button.dataset.language)));
+    slideButtons.forEach((button) => button.addEventListener("click", () => renderSlide(Number(button.dataset.slide))));
+    document.querySelectorAll("[data-next-slide]").forEach((button) => button.addEventListener("click", () => renderSlide(activeSlide === 2 ? 0 : activeSlide + 1)));
+    document.querySelectorAll("[data-prev-slide]").forEach((button) => button.addEventListener("click", () => renderSlide(Math.max(0, activeSlide - 1))));
+    document.querySelectorAll("[data-onboarding-action='skip']").forEach((button) => button.addEventListener("click", () => {
+      setStatus("status_skip");
+      renderSlide(0);
+    }));
+    document.querySelectorAll("[data-action='create']").forEach((button) => button.addEventListener("click", () => setStatus("status_create")));
+    document.querySelectorAll("[data-action='explore']").forEach((button) => button.addEventListener("click", () => setStatus("status_explore")));
+    document.querySelectorAll("[data-hint-action='create']").forEach((button) => button.addEventListener("click", () => setStatus("status_hint_create")));
+    document.querySelectorAll("[data-hint-action='create-close']").forEach((button) => button.addEventListener("click", () => setStatus("status_hint_create")));
+    document.querySelectorAll("[data-hint-action='add']").forEach((button) => button.addEventListener("click", () => setStatus("status_hint_add")));
+    document.querySelectorAll("[data-hint-action='add-close']").forEach((button) => button.addEventListener("click", () => setStatus("status_hint_add")));
+    document.querySelector("[data-open-tutorial]").addEventListener("click", () => {
+      setStatus("status_reopen");
+      renderSlide(0);
+    });
+
+    const walkthroughPhone = document.querySelector("#walkthrough-phone");
+    let pointerStart = null;
+    walkthroughPhone.addEventListener("pointerdown", (event) => { pointerStart = event.clientX; });
+    walkthroughPhone.addEventListener("pointerup", (event) => {
+      if (pointerStart === null) return;
+      const distance = event.clientX - pointerStart;
+      pointerStart = null;
+      if (Math.abs(distance) < 45) return;
+      renderSlide(distance < 0 ? Math.min(2, activeSlide + 1) : Math.max(0, activeSlide - 1));
+    });
+
+    systemTheme.addEventListener("change", () => {
+      if (chosenTheme === "system") applyTheme();
+    });
+
+    applyTheme();
+    setLanguage("ru");
+    renderSlide(0);
+  </script>
+</body>
+</html>

@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблон onboarding Android</title>
+  <style>
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_regular.ttf") format("truetype"); font-weight: 400; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_semibold.ttf") format("truetype"); font-weight: 600; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_bold.ttf") format("truetype"); font-weight: 700; }
+    @font-face { font-family: Manrope; src: url("../mobile/app/src/main/res/font/manrope_extrabold.ttf") format("truetype"); font-weight: 800; }
+
+    :root {
+      --page: #f0eff6;
+      --page-glow: #fbfaff;
+      --phone: #f4f4f7;
+      --surface: #ffffff;
+      --surface-2: #f1f0f6;
+      --text: #141419;
+      --muted: #898894;
+      --line: #e4e3ea;
+      --primary: #6c5ce7;
+      --primary-soft: #f0edff;
+      --primary-on: #ffffff;
+      --green: #249d72;
+      --green-soft: #e9f8f1;
+      --danger: #e85b56;
+      --shadow: 0 22px 65px rgba(49, 42, 91, .15);
+      --phone-shadow: 0 22px 48px rgba(33, 28, 65, .28);
+    }
+
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #111116;
+      --page-glow: #242434;
+      --phone: #17171e;
+      --surface: #242630;
+      --surface-2: #30323f;
+      --text: #f6f5fb;
+      --muted: #bcbac9;
+      --line: #4a4b5b;
+      --primary: #a79bff;
+      --primary-soft: #353051;
+      --primary-on: #17142b;
+      --green: #70d0a5;
+      --green-soft: #203d35;
+      --danger: #ff817b;
+      --shadow: 0 22px 65px rgba(0, 0, 0, .35);
+      --phone-shadow: 0 22px 48px rgba(0, 0, 0, .5);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(circle at 7% 0, var(--page-glow), transparent 31rem), var(--page);
+      font-family: Manrope, Inter, ui-sans-serif, system-ui, sans-serif;
+      transition: background .2s ease, color .2s ease;
+    }
+    button { color: inherit; cursor: pointer; font: inherit; }
+    button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+    .page { width: min(1160px, calc(100% - 40px)); margin: 0 auto; padding: 27px 0 60px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; font-weight: 800; }
+    .brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 11px; background: linear-gradient(135deg, #4c39b8, #9588f0); box-shadow: 0 8px 18px rgba(108, 92, 231, .27); }
+    .brand-mark img { width: 24px; height: 24px; }
+    .brand-sub { margin-left: 3px; color: var(--muted); font-size: 10px; font-weight: 600; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 9px; }
+    .control-label { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .segmented { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+    .segmented button { min-width: 31px; min-height: 27px; padding: 0 7px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: 9px; font-weight: 800; }
+    .segmented button.active { color: var(--primary-on); background: var(--primary); }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .46fr); gap: 32px; align-items: end; padding: 52px 0 25px; }
+    .eyebrow, .section-kicker { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1, h2, h3, p { margin: 0; }
+    .hero h1 { max-width: 720px; margin-top: 10px; font-size: clamp(35px, 6vw, 67px); letter-spacing: -.075em; line-height: .98; }
+    .hero-copy { max-width: 360px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .notice { grid-column: 1 / -1; padding: 13px 16px; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line)); border-radius: 16px; color: var(--muted); background: color-mix(in srgb, var(--primary-soft) 70%, var(--surface)); font-size: 11px; line-height: 1.5; }
+    .notice strong { color: var(--primary); }
+
+    .showcase { display: grid; grid-template-columns: minmax(250px, .72fr) minmax(470px, 1.28fr); gap: 18px; align-items: stretch; }
+    .steps-panel, .preview-panel, .context-card, .rules { overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 78%, transparent); border-radius: 27px; background: color-mix(in srgb, var(--surface) 87%, transparent); box-shadow: var(--shadow); }
+    .steps-panel { display: flex; min-height: 780px; flex-direction: column; padding: 24px; background: linear-gradient(160deg, color-mix(in srgb, var(--primary-soft) 77%, var(--surface)), var(--surface) 60%); }
+    .panel-meta { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+    .steps-panel h2 { max-width: 280px; margin-top: 13px; font-size: 29px; letter-spacing: -.065em; line-height: 1.03; }
+    .steps-panel > p { max-width: 280px; margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .step-list { display: grid; gap: 7px; margin-top: 28px; }
+    .step-button { position: relative; display: grid; grid-template-columns: 34px 1fr 15px; gap: 10px; align-items: center; width: 100%; padding: 12px 11px; border: 1px solid transparent; border-radius: 16px; color: var(--muted); background: transparent; text-align: left; }
+    .step-button:hover, .step-button.active { border-color: color-mix(in srgb, var(--primary) 28%, var(--line)); color: var(--text); background: color-mix(in srgb, var(--surface) 72%, transparent); }
+    .step-button.active::before { position: absolute; top: 12px; bottom: 12px; left: -1px; width: 3px; border-radius: 0 5px 5px 0; background: var(--primary); content: ""; }
+    .step-number { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 10px; color: var(--primary); background: var(--primary-soft); font-size: 10px; font-weight: 800; }
+    .step-button.active .step-number { color: var(--primary-on); background: var(--primary); }
+    .step-text strong { display: block; font-size: 11px; }
+    .step-text span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.3; }
+    .step-arrow { color: var(--primary); font-size: 16px; }
+    .logic-note { margin-top: auto; padding: 13px 14px; border-radius: 15px; color: var(--muted); background: color-mix(in srgb, var(--primary-soft) 65%, var(--surface)); font-size: 10px; line-height: 1.45; }
+    .logic-note strong { display: block; margin-bottom: 4px; color: var(--primary); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    .desktop-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 17px; }
+    .action { min-height: 35px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--primary); background: var(--surface); font-size: 10px; font-weight: 800; }
+    .action.primary { border-color: var(--primary); color: var(--primary-on); background: var(--primary); }
+    .action.ghost { color: var(--muted); background: transparent; }
+    .action:disabled { cursor: default; opacity: .4; }
+
+    .preview-panel { position: relative; display: grid; grid-template-columns: minmax(190px, .62fr) minmax(260px, .9fr); gap: 20px; min-height: 780px; padding: 27px; background: radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 24%), radial-gradient(circle at 7% 92%, color-mix(in srgb, var(--primary) 17%, transparent), transparent 30%), var(--surface); }
+    .preview-copy { align-self: end; padding-bottom: 18px; }
+    .preview-copy .scene-number { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+    .preview-copy h2 { max-width: 245px; margin-top: 9px; font-size: 28px; letter-spacing: -.065em; line-height: 1.03; }
+    .preview-copy p { max-width: 245px; margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .preview-copy .target-line { display: flex; align-items: center; gap: 7px; margin-top: 22px; color: var(--text); font-size: 10px; font-weight: 800; }
+    .target-line::before { width: 24px; height: 3px; border-radius: 99px; background: var(--primary); box-shadow: 0 4px 10px color-mix(in srgb, var(--primary) 27%, transparent); content: ""; }
+    .phone { position: relative; z-index: 2; width: min(100%, 344px); height: 700px; justify-self: center; overflow: hidden; border: 7px solid #1d1c25; border-radius: 40px; background: var(--phone); box-shadow: var(--phone-shadow); }
+    .phone::before { position: absolute; top: 7px; left: 50%; z-index: 8; width: 88px; height: 19px; border-radius: 0 0 14px 14px; background: #1d1c25; content: ""; transform: translateX(-50%); }
+    .phone-status { position: relative; z-index: 7; display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 15px; color: var(--muted); background: var(--phone); font-size: 9px; font-weight: 800; }
+    #phone-content { position: relative; height: calc(100% - 30px); overflow: hidden; }
+
+    /* The following are deliberately small versions of the existing Android UI: same colors, cards, typography, spacing and menu pattern. */
+    .app-screen { position: relative; height: 100%; overflow: hidden; padding: 0 15px 14px; color: var(--text); background: var(--phone); font-size: 8px; }
+    .appbar { display: flex; align-items: center; justify-content: space-between; min-height: 49px; gap: 8px; }
+    .app-brand { display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 14px; font-weight: 800; }
+    .app-brand img { width: 27px; height: 27px; border-radius: 9px; }
+    .app-icon { display: grid; width: 29px; height: 29px; place-items: center; border: 0; border-radius: 9px; color: var(--primary); background: var(--surface-2); font-size: 15px; }
+    .tripbar { display: flex; align-items: center; justify-content: space-between; min-height: 50px; }
+    .tripbar .back, .tripbar .more { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; color: var(--muted); background: var(--surface-2); font-size: 17px; }
+    .tripbar .trip-name { text-align: center; }
+    .tripbar strong { display: block; font-size: 10px; }
+    .tripbar span { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; }
+    .screen-title { margin: 12px 0 8px; font-size: 24px; font-weight: 800; letter-spacing: -.06em; }
+    .filters, .day-picker { display: flex; gap: 5px; overflow: hidden; }
+    .chip { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 7px; font-weight: 800; white-space: nowrap; }
+    .chip.active { border-color: var(--primary); color: var(--primary-on); background: var(--primary); }
+    .trip-card { position: relative; height: 116px; overflow: hidden; margin-top: 11px; padding: 10px; border-radius: 17px; color: #fff; background: linear-gradient(135deg, rgba(42, 27, 99, .45), rgba(13, 15, 32, .82)), linear-gradient(135deg, #b78eaa, #646da7 56%, #e8bf83); }
+    .trip-card::after { position: absolute; right: -20px; bottom: -22px; width: 145px; height: 75px; border: 1px solid rgba(255,255,255,.36); border-radius: 50%; content: ""; transform: rotate(-15deg); }
+    .trip-badge { display: inline-flex; padding: 4px 6px; border-radius: 999px; background: rgba(19, 17, 31, .36); font-size: 6px; font-weight: 800; }
+    .trip-card strong { position: absolute; right: 10px; bottom: 28px; left: 10px; font-size: 16px; letter-spacing: -.04em; }
+    .trip-card small { position: absolute; bottom: 10px; left: 10px; color: rgba(255,255,255,.78); font-size: 7px; }
+    .route-chip { display: flex; align-items: center; gap: 5px; margin-top: 8px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: var(--surface); font-size: 8px; font-weight: 800; }
+    .route-chip::before { color: var(--primary); content: "⌁"; font-size: 13px; }
+    .new-trip { display: flex; align-items: center; gap: 7px; margin-top: 9px; padding: 9px; border: 1px dashed color-mix(in srgb, var(--primary) 43%, var(--line)); border-radius: 12px; color: var(--text); background: color-mix(in srgb, var(--primary-soft) 66%, transparent); font-size: 8px; font-weight: 800; }
+    .new-trip b { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 16px; }
+    .new-trip span { margin-left: auto; color: var(--muted); font-size: 15px; }
+    .section-label { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 7px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .map-card { position: relative; height: 160px; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: #dce9df; }
+    html[data-theme="dark"] .map-card { background: #28342f; }
+    .map-card::before { position: absolute; inset: 0; background: repeating-linear-gradient(163deg, transparent 0 23px, rgba(108, 136, 119, .18) 24px 25px, transparent 26px 48px), linear-gradient(30deg, transparent 47%, rgba(76, 121, 104, .23) 48% 49%, transparent 50%); content: ""; }
+    .map-card::after { position: absolute; top: 84px; left: 21px; width: 238px; height: 34px; border-bottom: 3px solid var(--primary); border-radius: 0 0 50% 50%; content: ""; transform: rotate(-13deg); }
+    .pin { position: absolute; z-index: 1; display: grid; width: 24px; height: 24px; place-items: center; border: 2px solid #fff; border-radius: 50% 50% 50% 0; color: var(--primary-on); background: var(--primary); box-shadow: 0 4px 8px rgba(64, 48, 151, .28); font-size: 8px; font-weight: 800; transform: rotate(-45deg); }
+    .pin b { transform: rotate(45deg); }
+    .pin.one { top: 105px; left: 24px; } .pin.two { top: 74px; left: 119px; } .pin.three { top: 42px; right: 24px; }
+    .weather-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    .weather { padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .weather strong { display: block; font-size: 9px; }
+    .weather span { display: block; margin-top: 4px; color: var(--muted); font-size: 7px; }
+    .summary { padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .summary strong { display: block; font-size: 17px; letter-spacing: -.04em; }
+    .summary span { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
+    .route-list, .place-list, .stay-list { display: grid; gap: 7px; }
+    .route-item, .place-item, .stay-item { position: relative; display: grid; grid-template-columns: 25px 1fr auto; gap: 8px; align-items: center; padding: 9px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .route-number, .place-icon, .stay-icon { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 8px; color: var(--primary); background: var(--primary-soft); font-size: 10px; font-weight: 800; }
+    .route-item strong, .place-item strong, .stay-item strong { display: block; font-size: 9px; }
+    .route-item small, .place-item small, .stay-item small { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; }
+    .item-actions { display: flex; gap: 4px; color: var(--muted); font-size: 12px; }
+    .item-actions span { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid var(--line); border-radius: 7px; }
+    .day-card { padding: 9px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .day-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+    .day-card-head strong { font-size: 10px; }
+    .day-card-head span { color: var(--primary); font-size: 11px; }
+    .day-route { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 8px; font-weight: 800; }
+    .day-route i { color: var(--primary); font-style: normal; font-size: 12px; }
+    .day-selector { display: flex; align-items: center; gap: 8px; margin: 9px 0; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .day-selector .day { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 11px; color: var(--primary-on); background: var(--primary); font-size: 15px; font-weight: 800; }
+    .day-selector strong { display: block; font-size: 10px; }
+    .day-selector small { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; }
+    .day-selector b { margin-left: auto; color: var(--primary); font-size: 16px; }
+    .place-item { grid-template-columns: 28px 1fr auto; }
+    .place-item .place-icon { width: 26px; height: 26px; }
+    .primary-action { display: flex; align-items: center; justify-content: center; min-height: 38px; margin-top: 8px; border-radius: 12px; color: var(--primary-on); background: var(--primary); font-size: 9px; font-weight: 800; }
+    .stay-item { grid-template-columns: 34px 1fr auto; }
+    .stay-icon { width: 33px; height: 33px; font-size: 15px; }
+    .stay-price { color: var(--text); font-size: 10px; font-weight: 800; text-align: right; }
+    .stay-price small { color: var(--green); }
+    .link-action { margin-top: 8px; color: var(--primary); font-size: 8px; font-weight: 800; }
+
+    .scrim { position: absolute; z-index: 4; inset: 0; background: rgba(15, 15, 25, .48); pointer-events: none; }
+    .focus { position: absolute; z-index: 5; border: 2px solid var(--primary); border-radius: 16px; background: rgba(255, 255, 255, .08); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent), 0 0 20px color-mix(in srgb, var(--primary) 38%, transparent); pointer-events: none; }
+    .focus::after { position: absolute; top: -9px; left: 13px; padding: 4px 6px; border-radius: 7px; color: var(--primary-on); background: var(--primary); content: "важное"; font-size: 6px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .focus-home { top: 121px; right: 13px; left: 13px; height: 159px; }
+    .focus-overview { top: 157px; right: 13px; left: 13px; height: 239px; }
+    .focus-route { top: 106px; right: 13px; left: 13px; height: 114px; }
+    .focus-sights { top: 312px; right: 13px; left: 13px; height: 41px; }
+    .focus-lodging { top: 119px; right: 13px; left: 13px; height: 169px; }
+    .focus-settings { top: 405px; right: 20px; left: 20px; height: 45px; }
+    .coach { position: absolute; z-index: 6; right: 11px; bottom: 10px; left: 11px; padding: 11px 12px 10px; border: 1px solid color-mix(in srgb, var(--primary) 54%, var(--line)); border-radius: 17px; color: var(--text); background: color-mix(in srgb, var(--surface) 96%, var(--primary-soft)); box-shadow: 0 12px 27px rgba(22, 17, 58, .24); }
+    .coach-head { display: flex; align-items: center; gap: 6px; }
+    .coach-number { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 7px; color: var(--primary-on); background: var(--primary); font-size: 9px; font-weight: 800; }
+    .coach-meta { flex: 1; color: var(--primary); font-size: 7px; font-weight: 800; letter-spacing: .08em; }
+    .coach-skip { border: 0; padding: 2px; color: var(--muted); background: transparent; font-size: 7px; font-weight: 800; }
+    .coach strong { display: block; margin-top: 8px; font-size: 12px; line-height: 1.16; }
+    .coach p { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+    .coach small { display: block; margin-top: 6px; color: var(--primary); font-size: 7px; font-weight: 800; line-height: 1.3; }
+    .settings-underlay { position: absolute; inset: 0; padding: 0 15px; background: var(--phone); }
+    .settings-sheet { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; max-height: 83%; padding: 11px 15px 16px; border-radius: 23px 23px 0 0; background: var(--surface); box-shadow: 0 -12px 32px rgba(24, 18, 58, .22); }
+    .sheet-handle { width: 35px; height: 4px; margin: 0 auto 13px; border-radius: 999px; background: var(--muted); opacity: .55; }
+    .settings-title { display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 800; }
+    .profile { display: flex; align-items: center; gap: 8px; margin-top: 13px; }
+    .avatar { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #4c39b8, #9588f0); font-size: 16px; font-weight: 800; }
+    .profile strong { display: block; font-size: 11px; }
+    .profile small { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; }
+    .settings-label { margin: 13px 0 6px; color: var(--primary); font-size: 7px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .settings-list { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .settings-row { display: flex; align-items: center; gap: 7px; min-height: 35px; padding: 6px 8px; border: 0; color: var(--text); background: transparent; text-align: left; }
+    .settings-row + .settings-row { border-top: 1px solid var(--line); }
+    .settings-row.highlight { outline: 2px solid var(--primary); outline-offset: -2px; background: color-mix(in srgb, var(--primary-soft) 58%, var(--surface)); }
+    .settings-icon { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; color: var(--primary); background: var(--primary-soft); font-size: 11px; }
+    .settings-row span:nth-child(2) { flex: 1; }
+    .settings-row strong { display: block; font-size: 8px; }
+    .settings-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; }
+    .settings-row > span:last-child { color: var(--muted); font-size: 14px; }
+
+    .context-section, .rules-section { padding-top: 70px; }
+    .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 25px; margin-bottom: 16px; }
+    .section-heading h2, .rules-section h2 { max-width: 570px; margin-top: 9px; font-size: 32px; letter-spacing: -.065em; line-height: 1.02; }
+    .section-heading > p { max-width: 310px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .context-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .context-card { padding: 17px; }
+    .context-card .tag { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+    .context-card h3 { margin-top: 8px; font-size: 16px; letter-spacing: -.04em; }
+    .context-card > p { min-height: 48px; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .mini-phone { position: relative; height: 270px; margin-top: 14px; overflow: hidden; border: 5px solid #1d1c25; border-radius: 24px; background: var(--phone); }
+    .mini-phone::before { position: absolute; top: 4px; left: 50%; z-index: 4; width: 52px; height: 10px; border-radius: 0 0 8px 8px; background: #1d1c25; content: ""; transform: translateX(-50%); }
+    .mini-screen { height: 100%; padding: 15px 9px 9px; color: var(--text); background: var(--phone); font-size: 7px; }
+    .mini-status { display: flex; justify-content: space-between; color: var(--muted); font-size: 6px; }
+    .mini-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 10px; font-weight: 800; }
+    .mini-title { margin-top: 15px; font-size: 20px; font-weight: 800; letter-spacing: -.06em; }
+    .mini-empty { margin-top: 18px; padding: 15px 8px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); text-align: center; }
+    .mini-empty b { display: grid; width: 28px; height: 28px; place-items: center; margin: 0 auto 7px; border-radius: 9px; color: var(--primary); background: var(--primary-soft); font-size: 17px; }
+    .mini-empty strong { display: block; font-size: 9px; }
+    .mini-empty p { margin-top: 4px; color: var(--muted); font-size: 6px; line-height: 1.35; }
+    .mini-target { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 8px; padding: 7px; border: 2px solid var(--primary); border-radius: 9px; color: var(--primary); background: var(--primary-soft); font-size: 7px; font-weight: 800; }
+    .mini-target span { font-size: 12px; }
+    .mini-coach { position: absolute; right: 7px; bottom: 7px; left: 7px; padding: 8px; border: 1px solid var(--primary); border-radius: 10px; background: color-mix(in srgb, var(--surface) 95%, var(--primary-soft)); box-shadow: 0 7px 15px rgba(20, 17, 54, .22); }
+    .mini-coach strong { display: block; font-size: 7px; }
+    .mini-coach small { display: block; margin-top: 3px; color: var(--muted); font-size: 6px; line-height: 1.3; }
+    .mini-settings-row { margin-top: 70px; padding: 8px; border: 2px solid var(--primary); border-radius: 10px; background: var(--primary-soft); }
+    .mini-settings-row strong { display: block; font-size: 8px; }
+    .mini-settings-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 6px; }
+    .context-action { width: 100%; margin-top: 12px; }
+    .rules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 8px; }
+    .rule { min-height: 110px; padding: 15px; border-right: 1px solid var(--line); }
+    .rule:last-child { border-right: 0; }
+    .rule-number { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+    .rule p { margin-top: 13px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .rule strong { color: var(--text); }
+    footer { padding-top: 27px; color: var(--muted); font-size: 10px; text-align: center; }
+    .toast { position: fixed; right: 18px; bottom: 18px; z-index: 20; max-width: 330px; padding: 11px 14px; border: 1px solid var(--primary); border-radius: 12px; color: var(--primary-on); background: var(--primary); box-shadow: 0 12px 25px rgba(59, 45, 121, .25); font-size: 11px; font-weight: 700; opacity: 0; transform: translateY(10px); transition: opacity .18s ease, transform .18s ease; pointer-events: none; }
+    .toast.visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 900px) {
+      .hero, .showcase { grid-template-columns: 1fr; }
+      .steps-panel { min-height: auto; }
+      .step-list { grid-template-columns: repeat(3, 1fr); }
+      .step-button { grid-template-columns: 31px 1fr; }
+      .step-arrow { display: none; }
+      .logic-note { margin-top: 20px; }
+      .preview-panel { min-height: 740px; }
+      .preview-copy { align-self: center; }
+      .context-grid { grid-template-columns: 1fr; }
+      .context-card { display: grid; grid-template-columns: minmax(160px, .55fr) minmax(220px, 1fr); gap: 0 14px; }
+      .context-card .tag, .context-card h3, .context-card > p { grid-column: 1; }
+      .context-card .mini-phone { grid-column: 2; grid-row: 1 / span 4; margin-top: 0; }
+      .context-action { grid-column: 1; }
+    }
+    @media (max-width: 560px) {
+      .page { width: min(100% - 26px, 420px); }
+      .topbar, .hero { display: block; }
+      .brand-sub { display: none; }
+      .controls { justify-content: flex-start; margin-top: 13px; }
+      .hero { padding-top: 38px; }
+      .hero-copy { margin-top: 17px; }
+      .notice { margin-top: 19px; }
+      .step-list { grid-template-columns: 1fr; }
+      .step-button { grid-template-columns: 34px 1fr 15px; }
+      .step-arrow { display: block; }
+      .preview-panel { display: block; padding: 19px; }
+      .preview-copy { margin-bottom: 20px; text-align: center; }
+      .preview-copy h2, .preview-copy p { margin-right: auto; margin-left: auto; }
+      .preview-copy .target-line { justify-content: center; }
+      .phone { width: min(100%, 344px); }
+      .section-heading { display: block; }
+      .section-heading > p { margin-top: 12px; }
+      .context-card { display: block; }
+      .context-card .mini-phone { margin-top: 14px; }
+      .rules { grid-template-columns: 1fr 1fr; }
+      .rule:nth-child(2) { border-right: 0; }
+      .rule:nth-child(n+3) { border-top: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"><img src="assets/ramingo-mark.png" alt=""></span><span>Ramingo</span><span class="brand-sub">Android · шаблон согласования</span></div>
+      <div class="controls">
+        <span class="control-label">Язык</span>
+        <div class="segmented" aria-label="Язык"><button type="button" data-language="ru" class="active">RU</button><button type="button" data-language="en">EN</button><button type="button" data-language="es">ES</button><button type="button" data-language="de">DE</button></div>
+        <span class="control-label">Тема</span>
+        <div class="segmented" aria-label="Тема"><button type="button" data-theme="light" class="active">☼</button><button type="button" data-theme="dark">☾</button></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow" data-copy="kicker">ONBOARDING / ПЕРВЫЙ ЗАПУСК</div>
+          <h1 data-copy="title">Обучение по реальным экранам Ramingo</h1>
+        </div>
+        <p class="hero-copy" data-copy="intro">Шаблон показывает короткое знакомство и дальнейшие coach marks поверх интерфейса приложения. Здесь нет рекламных слайдов: каждый шаг объясняет конкретную страницу и действие.</p>
+        <div class="notice"><strong data-copy="noticeStrong">Синхронизировано с Android-flow:</strong> <span data-copy="notice">6 страниц, реальные карточки, подсветка одного элемента, «Назад / Далее / Пропустить» и повторный запуск из Settings.</span></div>
+      </section>
+
+      <section class="showcase" id="walkthrough">
+        <aside class="steps-panel">
+          <div class="panel-meta"><span data-copy="flowLabel">TUTORIAL FLOW</span><output id="step-output">01 / 06</output></div>
+          <h2 data-copy="flowTitle">Шесть страниц, чтобы начать планировать</h2>
+          <p data-copy="flowBody">Выберите страницу слева или используйте кнопки. В телефоне сохраняются текущие Ramingo-паттерны: Manrope, фиолетовый акцент, карточки, карта и Settings bottom sheet.</p>
+          <div class="step-list" id="step-list" role="tablist" aria-label="Страницы onboarding"></div>
+          <div class="logic-note"><strong data-copy="logicLabel">ЛОГИКА</strong><span id="logic-text"></span></div>
+          <div class="desktop-actions"><button class="action" id="prev" type="button" data-action="prev" data-copy="back">Назад</button><button class="action primary" id="next" type="button" data-action="next" data-copy="next">Далее</button><button class="action ghost" type="button" data-action="skip" data-copy="skip">Пропустить</button></div>
+        </aside>
+
+        <div class="preview-panel">
+          <div class="preview-copy"><div class="scene-number" id="preview-kicker"></div><h2 id="preview-title"></h2><p id="preview-body"></p><div class="target-line" id="preview-target"></div></div>
+          <div class="phone" aria-label="Предпросмотр onboarding Ramingo">
+            <div class="phone-status"><span>9:41</span><span>● 5G&nbsp;&nbsp;▰ 87%</span></div>
+            <div id="phone-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="context-section">
+        <div class="section-heading"><div><div class="section-kicker" data-copy="contextKicker">ПОСЛЕ ONBOARDING / CONTEXTUAL HINTS</div><h2 data-copy="contextTitle">Подсказки остаются внутри продукта</h2></div><p data-copy="contextBody">После короткого tutorial Ramingo не показывает его автоматически. Подсказка появляется только там, где у пользователя есть следующий понятный шаг.</p></div>
+        <div class="context-grid">
+          <article class="context-card"><div class="tag">HOME / 01</div><h3 data-copy="homeHintTitle">Начните с создания первой поездки</h3><p data-copy="homeHintBody">Показывается на пустой Главной один раз; действие открывает существующий экран создания поездки.</p><div class="mini-phone"><div class="mini-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="mini-bar"><span>Ramingo</span><span>⚙</span></div><div class="mini-title" data-copy="myTrips">Мои путешествия</div><div class="mini-empty"><b>✦</b><strong data-copy="emptyTitle">Здесь появятся ваши путешествия</strong><p data-copy="emptyBody">Создайте первую поездку с нуля или выберите готовый маршрут.</p><button class="mini-target" type="button" data-action="hint"><span>＋ <span data-copy="createTrip">Создать путешествие</span></span><span>›</span></button></div><div class="mini-coach"><strong data-copy="homeHintTitle">Начните с создания первой поездки</strong><small data-copy="hintAction">Открыть создание поездки</small></div></div></div><button class="action context-action" type="button" data-action="hint"><span data-copy="createTrip">Создать путешествие</span> →</button></article>
+          <article class="context-card"><div class="tag">SIGHTS / 02</div><h3 data-copy="placeHintTitle">Добавьте первое место</h3><p data-copy="placeHintBody">Появляется в поездке без достопримечательностей и ведёт в уже существующее редактирование дня.</p><div class="mini-phone"><div class="mini-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="mini-bar"><span>‹ &nbsp;Достопримечательности</span><span>⋮</span></div><div class="day-selector"><span class="day">1</span><span><strong>Рим</strong><small data-copy="selectDay">ВЫБЕРИТЕ ДЕНЬ</small></span></div><div class="mini-empty"><b>⌖</b><strong data-copy="noPlaces">Достопримечательности пока не добавлены</strong><p data-copy="placeHintBody">Откройте редактирование дня, чтобы добавить место из каталога или вручную.</p><button class="mini-target" type="button" data-action="hint"><span>＋ <span data-copy="addPlace">Добавить место</span></span><span>›</span></button></div><div class="mini-coach"><strong data-copy="placeHintTitle">Добавьте первое место</strong><small data-copy="hintAction">Открыть редактирование дня</small></div></div></div><button class="action context-action" type="button" data-action="hint"><span data-copy="addPlace">Добавить место</span> →</button></article>
+          <article class="context-card"><div class="tag">SETTINGS / REPLAY</div><h3 data-copy="settingsHintTitle">Повторный запуск без сброса данных</h3><p data-copy="settingsHintBody">Пункт «Показать обучение» всегда открывает tutorial заново и не меняет поездки или флаги подсказок.</p><div class="mini-phone"><div class="mini-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="mini-bar"><span data-copy="settings">Настройки</span><span>×</span></div><div class="mini-settings-row"><strong data-copy="showTutorial">Показать обучение</strong><small data-copy="openAgain">Открыть tutorial ещё раз</small></div><div class="mini-settings-row" style="margin-top:8px;border-color:var(--line);background:var(--surface)"><strong data-copy="languageRow">Язык</strong><small>Русский</small></div></div></div><button class="action context-action" type="button" data-action="replay"><span data-copy="showTutorial">Показать обучение</span> →</button></article>
+        </div>
+      </section>
+
+      <section class="rules-section"><div class="section-kicker" data-copy="rulesKicker">BEHAVIOUR / APPROVAL</div><h2 data-copy="rulesTitle">Поведение шаблона</h2><div class="rules"><div class="rule"><span class="rule-number">01</span><p data-copy="ruleOne">После авторизации первый запуск открывает <strong>короткий tutorial</strong>, а не отдельный рекламный экран.</p></div><div class="rule"><span class="rule-number">02</span><p data-copy="ruleTwo">Каждая страница показывает <strong>реальный UI</strong>, одну подсветку и короткое объяснение действия.</p></div><div class="rule"><span class="rule-number">03</span><p data-copy="ruleThree">После завершения onboarding автоматически не повторяется; contextual hints отмечаются отдельно.</p></div><div class="rule"><span class="rule-number">04</span><p data-copy="ruleFour">Settings → «Показать обучение» запускает flow снова и <strong>не сбрасывает данные</strong>.</p></div></div></section>
+    </main>
+    <footer data-copy="footer">Визуальный шаблон согласования · собран из текущих UI-паттернов Ramingo · без изменений данных Supabase</footer>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const copy = {
+      ru: {
+        kicker: "ONBOARDING / ПЕРВЫЙ ЗАПУСК", title: "Обучение по реальным экранам Ramingo", intro: "Шаблон показывает короткое знакомство и дальнейшие coach marks поверх интерфейса приложения. Здесь нет рекламных слайдов: каждый шаг объясняет конкретную страницу и действие.", noticeStrong: "Синхронизировано с Android-flow:", notice: "6 страниц, реальные карточки, подсветка одного элемента, «Назад / Далее / Пропустить» и повторный запуск из Settings.", flowLabel: "TUTORIAL FLOW", flowTitle: "Шесть страниц, чтобы начать планировать", flowBody: "Выберите страницу слева или используйте кнопки. В телефоне сохраняются текущие Ramingo-паттерны: Manrope, фиолетовый акцент, карточки, карта и Settings bottom sheet.", logicLabel: "ЛОГИКА", contextKicker: "ПОСЛЕ ONBOARDING / CONTEXTUAL HINTS", contextTitle: "Подсказки остаются внутри продукта", contextBody: "После короткого tutorial Ramingo не показывает его автоматически. Подсказка появляется только там, где у пользователя есть следующий понятный шаг.", rulesKicker: "BEHAVIOUR / APPROVAL", rulesTitle: "Поведение шаблона", footer: "Визуальный шаблон согласования · собран из текущих UI-паттернов Ramingo · без изменений данных Supabase", back: "Назад", next: "Далее", skip: "Пропустить", done: "Готово", myTrips: "Мои путешествия", all: "Все · 1", upcoming: "Предстоящие", winterItaly: "Зимняя Италия", dates: "19 дек 2026 — 3 янв 2027", routeCities: "Рим → Флоренция → Пиза", createTrip: "Создать путешествие", overview: "Главная", route: "Маршрут", sights: "Достопримечательности", lodging: "Жильё", settings: "Настройки", routeSummary: "3 дня · 3 города", map: "ОБЩИЙ МАРШРУТ", weather: "ПОГОДА", clear: "Ясно", selectDay: "ВЫБЕРИТЕ ДЕНЬ", dayOne: "День 1", dayTwo: "День 2", rome: "Рим", florence: "Флоренция", pisa: "Пиза", edit: "✎", copyAction: "⧉", places: "Места на день", colosseum: "Колизей", navona: "Площадь Навона", addPlace: "Добавить место", noPlaces: "Достопримечательности пока не добавлены", hotel: "Отель в центре", booked: "забронировано", lodgingDates: "19–22 дек · €120", openLink: "Открыть ссылку", addLodging: "Добавить жильё", appearance: "ВНЕШНИЙ ВИД", accountSettings: "НАСТРОЙКИ АККАУНТА", support: "ПОДДЕРЖКА", about: "О ПРИЛОЖЕНИИ", themeRow: "Тема", languageRow: "Язык", notifications: "Уведомления", showTutorial: "Показать обучение", openAgain: "Открыть tutorial ещё раз", version: "Версия приложения", emptyTitle: "Здесь появятся ваши путешествия", emptyBody: "Создайте первую поездку с нуля или выберите готовый маршрут.", homeHintTitle: "Начните с создания первой поездки", homeHintBody: "Показывается на пустой Главной один раз; действие открывает существующий экран создания поездки.", placeHintTitle: "Добавьте первое место", placeHintBody: "Откройте редактирование дня, чтобы добавить место из каталога или вручную.", settingsHintTitle: "Повторный запуск без сброса данных", settingsHintBody: "Пункт «Показать обучение» всегда открывает tutorial заново и не меняет поездки или флаги подсказок.", hintAction: "Открыть следующий шаг", pages: [{ kicker: "HOME / 01", nav: "Главная", title: "Начните с поездки", body: "На Главной собраны карточки ваших поездок и кнопка создания новой. Здесь пользователь понимает, куда возвращаться за общим обзором.", target: "карточка поездки и «Создать путешествие»", logic: "Первый шаг знакомит с Home и оставляет понятный CTA для первой поездки." }, { kicker: "TRIP / 02", nav: "Главная поездки", title: "Обзор всей поездки", body: "Внутри поездки на одной странице видны маршрут, города, карта и погодные блоки.", target: "карта и погодные карточки", logic: "Overview объясняет структуру поездки до перехода к отдельным разделам." }, { kicker: "ROUTE / 03", nav: "Маршрут", title: "Маршрут по дням", body: "Здесь хранятся переезды между городами. Карточки дня можно редактировать, копировать и переставлять.", target: "карточка дня и действия справа", logic: "Пользователь видит, где управлять последовательностью путешествия." }, { kicker: "SIGHTS / 04", nav: "Достопримечательности", title: "Места на выбранный день", body: "Выберите день, свяжите список с картой и добавьте место из каталога или вручную.", target: "карточка «Добавить место»", logic: "Шаг показывает связь дня, карты, списка и существующего add-flow." }, { kicker: "LODGING / 05", nav: "Жильё", title: "Брони и детали проживания", body: "Храните даты, цену и ссылку на бронирование рядом с поездкой; карточку можно изменить позже.", target: "карточка жилья и «Добавить жильё»", logic: "Жильё объясняется как часть поездки, а не отдельный сервис." }, { kicker: "SETTINGS / 06", nav: "Профиль / настройки", title: "Настройте Ramingo под себя", body: "В профиле меняются язык, тема и уведомления. Отсюда же tutorial можно открыть повторно.", target: "язык, тема и «Показать обучение»", logic: "Последний шаг закрепляет место повторного запуска без сброса данных." }] },
+      en: {
+        kicker: "ONBOARDING / FIRST RUN", title: "Learn Ramingo through real screens", intro: "This template shows a short introduction and contextual coach marks over the product UI. There are no marketing slides: every step explains a real page and action.", noticeStrong: "Synced with Android flow:", notice: "6 pages, real cards, one highlighted element, Back / Next / Skip and replay from Settings.", flowLabel: "TUTORIAL FLOW", flowTitle: "Six pages to start planning", flowBody: "Choose a page or use the controls. The phone keeps Ramingo’s current patterns: Manrope, purple accent, cards, map and Settings bottom sheet.", logicLabel: "LOGIC", contextKicker: "AFTER ONBOARDING / CONTEXTUAL HINTS", contextTitle: "Hints stay inside the product", contextBody: "After the short tutorial Ramingo does not show it automatically. A hint appears only where the next action is clear.", rulesKicker: "BEHAVIOUR / APPROVAL", rulesTitle: "Template behaviour", footer: "Approval template · built from current Ramingo UI patterns · no Supabase data changes", back: "Back", next: "Next", skip: "Skip", done: "Done", myTrips: "My trips", all: "All · 1", upcoming: "Upcoming", winterItaly: "Winter Italy", dates: "Dec 19, 2026 — Jan 3, 2027", routeCities: "Rome → Florence → Pisa", createTrip: "Create trip", overview: "Overview", route: "Route", sights: "Sights", lodging: "Lodging", settings: "Settings", routeSummary: "3 days · 3 cities", map: "TRIP MAP", weather: "WEATHER", clear: "Clear", selectDay: "SELECT DAY", dayOne: "Day 1", dayTwo: "Day 2", rome: "Rome", florence: "Florence", pisa: "Pisa", edit: "✎", copyAction: "⧉", places: "Places for the day", colosseum: "Colosseum", navona: "Piazza Navona", addPlace: "Add place", noPlaces: "No sights added yet", hotel: "Central hotel", booked: "booked", lodgingDates: "Dec 19–22 · €120", openLink: "Open link", addLodging: "Add lodging", appearance: "APPEARANCE", accountSettings: "ACCOUNT SETTINGS", support: "SUPPORT", about: "ABOUT", themeRow: "Theme", languageRow: "Language", notifications: "Notifications", showTutorial: "Show tutorial", openAgain: "Open tutorial again", version: "App version", emptyTitle: "Your trips will appear here", emptyBody: "Create a trip from scratch or choose a ready route.", homeHintTitle: "Start by creating your first trip", homeHintBody: "Shown once on the empty Home; the action opens the existing trip creation screen.", placeHintTitle: "Add your first place", placeHintBody: "Open day editing to add a place from the catalog or manually.", settingsHintTitle: "Replay without resetting data", settingsHintBody: "Show tutorial always opens the guide again without changing trips or hint flags.", hintAction: "Open the next action", pages: [{ kicker: "HOME / 01", nav: "Home", title: "Start with a trip", body: "Home holds your trip cards and the create action. The user sees where to return for the overall view.", target: "trip card and Create trip", logic: "The first step introduces Home and leaves a clear CTA for the first trip." }, { kicker: "TRIP / 02", nav: "Trip overview", title: "See the whole trip", body: "Inside a trip, the route, cities, map and weather blocks stay together on one page.", target: "map and weather cards", logic: "Overview explains the trip structure before separate sections." }, { kicker: "ROUTE / 03", nav: "Route", title: "Route by day", body: "Transfers between cities live here. Day cards can be edited, copied and reordered.", target: "day card and actions", logic: "The user sees where to manage the sequence of the trip." }, { kicker: "SIGHTS / 04", nav: "Sights", title: "Places for a selected day", body: "Choose a day, connect the list to the map and add a place from the catalog or manually.", target: "Add place card", logic: "This shows the day, map, list and existing add flow together." }, { kicker: "LODGING / 05", nav: "Lodging", title: "Stays and booking details", body: "Keep dates, price and the booking link with the trip; edit the card later.", target: "lodging card and Add lodging", logic: "Lodging is explained as part of the trip, not a separate service." }, { kicker: "SETTINGS / 06", nav: "Profile / settings", title: "Make Ramingo yours", body: "Change language, theme and notifications here. The tutorial can also be replayed here.", target: "language, theme and Show tutorial", logic: "The last step anchors replay without resetting data." }] },
+      es: {},
+      de: {}
+    };
+
+    // ES and DE keep the same layout preview while using the English copy as a compact fallback.
+    copy.es = copy.en;
+    copy.de = copy.en;
+    let language = "ru";
+    let theme = "light";
+    let index = 0;
+    let toastTimer;
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const data = () => copy[language] || copy.en;
+    const fallback = {
+      ru: {
+        highlighted: "ПОДСВЕТКА",
+        ruleOne: "После авторизации первый запуск открывает короткий tutorial, а не рекламный экран.",
+        ruleTwo: "Каждая страница показывает реальный UI, одну подсветку и короткое объяснение действия.",
+        ruleThree: "После завершения onboarding он автоматически не повторяется; contextual hints отмечаются отдельно.",
+        ruleFour: "Settings → «Показать обучение» запускает flow снова и не сбрасывает данные."
+      },
+      en: {
+        highlighted: "HIGHLIGHTED",
+        ruleOne: "After sign-in, the first launch opens a short tutorial instead of a marketing screen.",
+        ruleTwo: "Every page shows real UI, one highlight and one short explanation.",
+        ruleThree: "After completion the onboarding does not appear automatically; contextual hints are tracked separately.",
+        ruleFour: "Settings → Show tutorial reopens the flow without resetting data."
+      }
+    };
+    const t = (key) => data()[key] || copy.en[key] || (fallback[language] || fallback.en)[key] || key;
+    const logo = () => '<img src="assets/ramingo-mark.png" alt="">';
+
+    function coach(step) {
+      return '<div class="scrim"></div><div class="focus focus-' + step.key + '"></div><div class="coach"><div class="coach-head"><span class="coach-number">' + (index + 1) + '</span><span class="coach-meta">' + step.kicker + ' · ' + (index + 1) + '/6</span><button class="coach-skip" type="button" data-action="skip">' + t("skip") + '</button></div><strong>' + step.title + '</strong><p>' + step.body + '</p><small>' + t("highlighted") + ': ' + step.target + '</small></div>';
+    }
+
+    function renderHome(step) {
+      return '<div class="app-screen home-screen"><div class="appbar"><div class="app-brand">' + logo() + '<span>Ramingo</span></div><span class="app-icon">⚙</span></div><div class="screen-title">' + t("myTrips") + '</div><div class="filters"><span class="chip active">' + t("all") + '</span><span class="chip">' + t("upcoming") + '</span><span class="chip">' + (language === "ru" ? "Черновики" : "Drafts") + '</span></div><div class="trip-card"><span class="trip-badge">' + t("upcoming") + '</span><strong>' + t("winterItaly") + '</strong><small>' + t("dates") + '</small></div><div class="route-chip">' + t("routeCities") + '</div><div class="new-trip"><b>＋</b><span style="margin-left:0">' + t("createTrip") + '</span><span>›</span></div>' + coach(step) + '</div>';
+    }
+
+    function renderOverview(step) {
+      return '<div class="app-screen overview-screen"><div class="tripbar"><span class="back">☰</span><span class="trip-name"><strong>' + t("winterItaly") + '</strong><span>' + t("overview") + '</span></span><span class="more">⋮</span></div><div class="summary"><strong>' + t("winterItaly") + '</strong><span>' + t("dates") + ' · ' + t("routeSummary") + '</span></div><div class="section-label"><span>' + t("map") + '</span><span>⌁</span></div><div class="map-card"><span class="pin one"><b>1</b></span><span class="pin two"><b>2</b></span><span class="pin three"><b>3</b></span></div><div class="section-label"><span>' + t("weather") + '</span><span>°C</span></div><div class="weather-row"><div class="weather"><strong>' + t("rome") + '</strong><span>12° · ' + t("clear") + '</span></div><div class="weather"><strong>' + t("florence") + '</strong><span>10° · ' + t("clear") + '</span></div><div class="weather"><strong>' + t("pisa") + '</strong><span>11° · ' + t("clear") + '</span></div></div>' + coach(step) + '</div>';
+    }
+
+    function renderRoute(step) {
+      return '<div class="app-screen route-screen"><div class="tripbar"><span class="back">☰</span><span class="trip-name"><strong>' + t("winterItaly") + '</strong><span>' + t("route") + '</span></span><span class="more">⋮</span></div><div class="section-label"><span>' + t("route") + '</span><span>' + t("routeSummary") + '</span></div><div class="route-list"><div class="day-card"><div class="day-card-head"><strong>' + t("dayOne") + ' · ' + t("rome") + '</strong><span>' + t("edit") + ' &nbsp; ' + t("copyAction") + '</span></div><div class="day-route"><span>' + t("rome") + '</span><i>→</i><span>' + t("florence") + '</span></div><small style="display:block;margin-top:6px;color:var(--muted);font-size:7px">19 дек · 15:00 · переезд</small></div><div class="day-card"><div class="day-card-head"><strong>' + t("dayTwo") + ' · ' + t("florence") + '</strong><span>' + t("edit") + ' &nbsp; ' + t("copyAction") + '</span></div><div class="day-route"><span>' + t("florence") + '</span><i>→</i><span>' + t("pisa") + '</span></div></div></div>' + coach(step) + '</div>';
+    }
+
+    function renderSights(step) {
+      return '<div class="app-screen sights-screen"><div class="tripbar"><span class="back">☰</span><span class="trip-name"><strong>' + t("winterItaly") + '</strong><span>' + t("sights") + '</span></span><span class="more">⋮</span></div><div class="day-selector"><span class="day">1</span><span><strong>' + t("rome") + '</strong><small>' + t("selectDay") + '</small></span><b>⌄</b></div><div class="map-card" style="height:142px"><span class="pin one"><b>1</b></span><span class="pin two"><b>2</b></span></div><div class="section-label"><span>' + t("places") + '</span><span>2</span></div><div class="place-list"><div class="place-item"><span class="place-icon">⌖</span><span><strong>' + t("colosseum") + '</strong><small>10:00 · ' + t("rome") + '</small></span><span class="item-actions">✎</span></div><div class="place-item"><span class="place-icon">⌖</span><span><strong>' + t("navona") + '</strong><small>14:00 · ' + t("rome") + '</small></span><span class="item-actions">✎</span></div></div><div class="primary-action">＋ &nbsp;' + t("addPlace") + '</div>' + coach(step) + '</div>';
+    }
+
+    function renderLodging(step) {
+      return '<div class="app-screen lodging-screen"><div class="tripbar"><span class="back">☰</span><span class="trip-name"><strong>' + t("winterItaly") + '</strong><span>' + t("lodging") + '</span></span><span class="more">⋮</span></div><div class="section-label"><span>' + t("lodging") + '</span><span>1</span></div><div class="stay-list"><div class="stay-item"><span class="stay-icon">⌂</span><span><strong>' + t("hotel") + '</strong><small>' + t("rome") + ' · ' + t("lodgingDates") + '</small><small style="color:var(--green)">' + t("booked") + '</small></span><span class="stay-price">€120<small> · EUR</small></span><span class="link-action" style="grid-column:2 / -1">' + t("openLink") + ' &nbsp; · &nbsp; ' + t("edit") + '</span></div></div><div class="primary-action">＋ &nbsp;' + t("addLodging") + '</div>' + coach(step) + '</div>';
+    }
+
+    function renderSettings(step) {
+      return '<div class="app-screen settings-screen"><div class="settings-underlay"><div class="appbar"><div class="app-brand">' + logo() + '<span>Ramingo</span></div><span class="app-icon">⚙</span></div><div class="screen-title">' + t("myTrips") + '</div><div class="trip-card" style="height:90px"></div></div><div class="scrim"></div><div class="settings-sheet"><div class="sheet-handle"></div><div class="settings-title"><span>' + t("settings") + '</span><span>×</span></div><div class="profile"><span class="avatar">R</span><span><strong>Ramingo</strong><small>Personal account · Ramingo</small></span></div><div class="settings-label">' + t("appearance") + '</div><div class="settings-list"><div class="settings-row"><span class="settings-icon">◐</span><span><strong>' + t("themeRow") + '</strong><small>System default</small></span><span>›</span></div><div class="settings-row"><span class="settings-icon">◎</span><span><strong>' + t("languageRow") + '</strong><small>' + (language === "ru" ? "Русский" : "English") + '</small></span><span>›</span></div></div><div class="settings-label">' + t("support") + '</div><div class="settings-list"><div class="settings-row highlight"><span class="settings-icon">?</span><span><strong>' + t("showTutorial") + '</strong><small>' + t("openAgain") + '</small></span><span>›</span></div><div class="settings-row"><span class="settings-icon">✎</span><span><strong>' + (language === "ru" ? "Отправить отзыв" : "Send feedback") + '</strong><small>Ramingo</small></span><span>›</span></div></div><div class="settings-label">' + t("about") + '</div><div class="settings-list"><div class="settings-row"><span class="settings-icon">ⓘ</span><span><strong>' + t("version") + '</strong><small>0.2.39</small></span><span>›</span></div></div></div>' + coach(step) + '</div>';
+    }
+
+    function renderPhone() {
+      const step = data().pages[index];
+      const renderers = { home: renderHome, overview: renderOverview, route: renderRoute, sights: renderSights, lodging: renderLodging, settings: renderSettings };
+      $("#phone-content").innerHTML = renderers[step.key](step);
+      $("#preview-kicker").textContent = step.kicker;
+      $("#preview-title").textContent = step.title;
+      $("#preview-body").textContent = step.body;
+      $("#preview-target").textContent = step.target;
+      $("#logic-text").textContent = step.logic;
+      $("#step-output").textContent = String(index + 1).padStart(2, "0") + " / 06";
+      $("#prev").disabled = index === 0;
+      $("#next").textContent = index === data().pages.length - 1 ? t("done") : t("next");
+      $$(".step-button").forEach((button, buttonIndex) => {
+        const active = buttonIndex === index;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+    }
+
+    function renderSteps() {
+      $("#step-list").innerHTML = data().pages.map((step, stepIndex) => '<button class="step-button' + (stepIndex === index ? ' active' : '') + '" type="button" role="tab" aria-selected="' + (stepIndex === index) + '" data-step="' + stepIndex + '"><span class="step-number">0' + (stepIndex + 1) + '</span><span class="step-text"><strong>' + step.nav + '</strong><span>' + step.title + '</span></span><span class="step-arrow">→</span></button>').join("");
+    }
+
+    function renderCopy() {
+      $$('[data-copy]').forEach((element) => {
+        const key = element.dataset.copy;
+        if (t(key)) element.textContent = t(key);
+      });
+    }
+
+    function setLanguage(nextLanguage) {
+      language = nextLanguage;
+      document.documentElement.lang = language;
+      $$('[data-language]').forEach((button) => button.classList.toggle('active', button.dataset.language === language));
+      renderCopy();
+      renderSteps();
+      renderPhone();
+    }
+
+    function setTheme(nextTheme) {
+      theme = nextTheme;
+      document.documentElement.dataset.theme = theme;
+      $$('[data-theme]').forEach((button) => button.classList.toggle('active', button.dataset.theme === theme));
+    }
+
+    function showToast(message) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("visible"), 2800);
+    }
+
+    function handleAction(action) {
+      if (action === "prev") index = Math.max(0, index - 1);
+      if (action === "next") {
+        if (index === data().pages.length - 1) showToast(language === "ru" ? "Tutorial завершён: данные и подсказки сохраняются." : "Tutorial complete: data and hints stay saved.");
+        else index += 1;
+      }
+      if (action === "skip") showToast(language === "ru" ? "Onboarding пропущен → пользователь попадает в приложение." : "Onboarding skipped → the user enters the app.");
+      if (action === "hint") showToast(language === "ru" ? "Подсказка показана внутри нужного экрана." : "The hint appears inside the relevant screen.");
+      if (action === "replay") { index = 0; document.querySelector('#walkthrough').scrollIntoView({ behavior: "smooth", block: "start" }); showToast(language === "ru" ? "Tutorial открыт снова без сброса данных." : "Tutorial replayed without resetting data."); }
+      renderSteps();
+      renderPhone();
+    }
+
+    document.addEventListener("click", (event) => {
+      const stepButton = event.target.closest("[data-step]");
+      if (stepButton) { index = Number(stepButton.dataset.step); renderSteps(); renderPhone(); return; }
+      const languageButton = event.target.closest("[data-language]");
+      if (languageButton) { setLanguage(languageButton.dataset.language); return; }
+      const themeButton = event.target.closest("[data-theme]");
+      if (themeButton) { setTheme(themeButton.dataset.theme); return; }
+      const actionButton = event.target.closest("[data-action]");
+      if (actionButton) handleAction(actionButton.dataset.action);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") handleAction("next");
+      if (event.key === "ArrowLeft") handleAction("prev");
+    });
+
+    copy.ru.pages.forEach((step, stepIndex) => step.key = ["home", "overview", "route", "sights", "lodging", "settings"][stepIndex]);
+    copy.en.pages.forEach((step, stepIndex) => step.key = ["home", "overview", "route", "sights", "lodging", "settings"][stepIndex]);
+    copy.es.pages = copy.en.pages;
+    copy.de.pages = copy.en.pages;
+    renderCopy();
+    renderSteps();
+    renderPhone();
+  </script>
+</body>
+</html>
