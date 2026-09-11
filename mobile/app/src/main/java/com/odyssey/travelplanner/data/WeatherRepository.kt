@@ -21,6 +21,13 @@ data class WeatherSnapshot(
     val tripTemperature: String? = null,
     val tripCondition: String? = null,
     val tripIsEstimate: Boolean = false,
+    val tripDays: Map<String, WeatherDaySnapshot> = emptyMap(),
+)
+
+data class WeatherDaySnapshot(
+    val temperature: String? = null,
+    val condition: String? = null,
+    val isEstimate: Boolean = false,
 )
 
 @Serializable
@@ -101,6 +108,7 @@ class WeatherRepository {
                         val weather: OpenMeteoResponse = http.get(
                             "https://api.open-meteo.com/v1/forecast?latitude=${coordinates.first}&longitude=${coordinates.second}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&forecast_days=16&timezone=auto",
                         ).body()
+                        val tripDays = weather.daily.toTripDays().toMutableMap()
                         var tripWeather = targetDate?.let { tripWeatherAt(weather.daily, it) }
                         if (tripWeather == null && targetDate?.isBefore(LocalDate.now()) == true) {
                             tripWeather = loadArchivedTripWeather(coordinates, targetDate)
@@ -108,12 +116,21 @@ class WeatherRepository {
                         if (tripWeather == null && targetDate?.isAfter(LocalDate.now().plusDays(15)) == true) {
                             tripWeather = loadClimateTripWeather(coordinates, targetDate)
                         }
+                        if (targetDate != null && tripWeather != null) {
+                            tripDays[targetDate.toString()] = WeatherDaySnapshot(
+                                temperature = tripWeather.temperature,
+                                condition = tripWeather.condition,
+                                isEstimate = tripWeather.isEstimate,
+                            )
+                        }
+                        val firstTripDay = targetDate?.let { tripDays[it.toString()] }
                         city to WeatherSnapshot(
                             temperature = "${weather.current.temperature_2m.toInt()}°C",
                             condition = conditionFor(weather.current.weather_code),
-                            tripTemperature = tripWeather?.temperature,
-                            tripCondition = tripWeather?.condition,
-                            tripIsEstimate = tripWeather?.isEstimate == true,
+                            tripTemperature = firstTripDay?.temperature,
+                            tripCondition = firstTripDay?.condition,
+                            tripIsEstimate = firstTripDay?.isEstimate == true,
+                            tripDays = tripDays,
                         )
                     }.getOrNull()
                 }
@@ -195,6 +212,19 @@ private fun tripWeatherAt(daily: OpenMeteoDaily?, targetDate: LocalDate): TripDa
     val temperature = daily.temperature_2m_max.getOrNull(index)?.let { "${it.toInt()}°C" }
     val condition = daily.weather_code.getOrNull(index)?.let(::conditionFor)
     return if (temperature == null && condition == null) null else TripDayWeather(temperature, condition)
+}
+
+private fun OpenMeteoDaily?.toTripDays(): Map<String, WeatherDaySnapshot> {
+    val daily = this ?: return emptyMap()
+    return daily.time.mapIndexedNotNull { index, date ->
+        val temperature = daily.temperature_2m_max.getOrNull(index)?.let { "${it.toInt()}°C" }
+        val condition = daily.weather_code.getOrNull(index)?.let(::conditionFor)
+        if (temperature == null && condition == null) {
+            null
+        } else {
+            date to WeatherDaySnapshot(temperature = temperature, condition = condition)
+        }
+    }.toMap()
 }
 
 private fun climateWeatherAt(daily: OpenMeteoDaily?, targetDate: LocalDate): TripDayWeather? {

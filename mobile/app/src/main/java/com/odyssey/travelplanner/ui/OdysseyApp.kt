@@ -5508,6 +5508,54 @@ private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
     return start to humanDates.getOrElse(1) { start }
 }
 
+internal fun weatherTripDates(value: String, maxDays: Int = 366): List<LocalDate> {
+    val (start, end) = parseTripDateRange(value) ?: return emptyList()
+    val dayCount = ChronoUnit.DAYS.between(start, end).toInt()
+    if (dayCount < 0) return emptyList()
+    val visibleDays = (dayCount + 1).coerceAtMost(maxDays.coerceAtLeast(1))
+    return (0 until visibleDays).map { offset -> start.plusDays(offset.toLong()) }
+}
+
+private fun weatherShortMonth(date: LocalDate, language: String): String = when (normalizeLanguage(language)) {
+    "EN" -> listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[date.monthValue - 1]
+    "ES" -> listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")[date.monthValue - 1]
+    "DE" -> listOf("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")[date.monthValue - 1]
+    else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")[date.monthValue - 1]
+}
+
+private fun weatherLongMonth(date: LocalDate, language: String): String = when (normalizeLanguage(language)) {
+    "EN" -> listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")[date.monthValue - 1]
+    "ES" -> listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")[date.monthValue - 1]
+    "DE" -> listOf("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")[date.monthValue - 1]
+    else -> listOf("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")[date.monthValue - 1]
+}
+
+private fun weatherDateLabel(date: LocalDate, language: String): String = when (normalizeLanguage(language)) {
+    "EN" -> "${weatherLongMonth(date, language)} ${date.dayOfMonth}"
+    "ES" -> "${date.dayOfMonth} de ${weatherLongMonth(date, language)}"
+    "DE" -> "${date.dayOfMonth}. ${weatherLongMonth(date, language)}"
+    else -> "${date.dayOfMonth} ${weatherLongMonth(date, language)}"
+}
+
+private fun weatherDateModeSubtitle(date: LocalDate?, tripDatesWeather: Boolean, language: String): String {
+    if (!tripDatesWeather) {
+        return localized(
+            language,
+            "Текущая погода для городов маршрута",
+            "Current weather for route cities",
+            "Tiempo actual para las ciudades de la ruta",
+            "Aktuelles Wetter für die Städte der Route",
+        )
+    }
+    val dateLabel = date?.let { weatherDateLabel(it, language) }
+    return when (normalizeLanguage(language)) {
+        "EN" -> dateLabel?.let { "Weather for $it" } ?: "Weather for the trip dates"
+        "ES" -> dateLabel?.let { "Tiempo del $it" } ?: "Tiempo para las fechas del viaje"
+        "DE" -> dateLabel?.let { "Wetter am $it" } ?: "Wetter für die Reisedaten"
+        else -> dateLabel?.let { "Погода на $it" } ?: "Погода на даты поездки"
+    }
+}
+
 private fun calendarForTripDate(date: LocalDate): Calendar = Calendar.getInstance().apply {
     set(date.year, date.monthValue - 1, date.dayOfMonth, 0, 0, 0)
     set(Calendar.MILLISECOND, 0)
@@ -21632,50 +21680,15 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
         }
         item { OverviewMapCard(overview.routeLegs, routeCities, cityCoordinates = overview.cityCoordinates) }
         item {
-            Text(
-                text = localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"),
-                color = contentTextColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(top = 2.dp),
+            OverviewWeatherBlock(
+                weatherCities = weatherCities,
+                photos = photos,
+                weather = weather,
+                weatherLoading = false,
+                tripDates = overview.dates,
+                tripDatesWeather = tripDatesWeather,
+                onTripDatesWeatherChange = { tripDatesWeather = it },
             )
-        }
-        item {
-            Row(
-                modifier = Modifier.background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFEEEEF2), RoundedCornerShape(12.dp)).padding(4.dp),
-            ) {
-                Text(
-                    text = localized("Сейчас", "Now", "Ahora", "Jetzt"),
-                    color = if (!tripDatesWeather) contentTextColor() else secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W700,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .background(if (!tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp))
-                        .clickable { tripDatesWeather = false }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-                Text(
-                    text = localized("На даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"),
-                    color = if (tripDatesWeather) contentTextColor() else secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W700,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .background(if (tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp))
-                        .clickable { tripDatesWeather = true }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
-        }
-        item {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-            ) {
-                weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], false, tripDatesWeather) }
-            }
         }
     }
 }
@@ -21897,7 +21910,15 @@ private fun OverviewContent(
                     when (block) {
                         "photo" -> OverviewPhotoBlock(photos, photoIndex, { photoIndex = (photoIndex - 1 + photos.size) % photos.size }, { photoIndex = (photoIndex + 1) % photos.size })
                         "map" -> OverviewMapCard(overview.routeLegs, defaultMapCities, cityCoordinates = overview.cityCoordinates)
-                        "weather" -> OverviewWeatherBlock(weatherCities, photos, weather, weatherLoading, tripDatesWeather) { tripDatesWeather = it }
+                        "weather" -> OverviewWeatherBlock(
+                            weatherCities = weatherCities,
+                            photos = photos,
+                            weather = weather,
+                            weatherLoading = weatherLoading,
+                            tripDates = overview.dates,
+                            tripDatesWeather = tripDatesWeather,
+                            onTripDatesWeatherChange = { tripDatesWeather = it },
+                        )
                     }
                 }
             }
@@ -22009,15 +22030,291 @@ private fun OverviewPhotoBlock(photos: List<CoverPhoto>, photoIndex: Int, onPrev
 }
 
 @Composable
-private fun OverviewWeatherBlock(weatherCities: List<String>, photos: List<CoverPhoto>, weather: Map<String, WeatherSnapshot>, weatherLoading: Boolean, tripDatesWeather: Boolean, onTripDatesWeatherChange: (Boolean) -> Unit) {
-    Text(localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 20.sp, modifier = Modifier.padding(top = 2.dp))
-    Row(modifier = Modifier.background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFEEEEF2), RoundedCornerShape(12.dp)).padding(4.dp)) {
-        Text(localized("Сейчас", "Now", "Ahora", "Jetzt"), color = if (!tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (!tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(false) }.padding(horizontal = 14.dp, vertical = 8.dp))
-        Text(localized("На даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"), color = if (tripDatesWeather) contentTextColor() else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 13.sp, modifier = Modifier.background(if (tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp)).clickable { onTripDatesWeatherChange(true) }.padding(horizontal = 14.dp, vertical = 8.dp))
+private fun OverviewWeatherBlock(
+    weatherCities: List<String>,
+    photos: List<CoverPhoto>,
+    weather: Map<String, WeatherSnapshot>,
+    weatherLoading: Boolean,
+    tripDates: String,
+    tripDatesWeather: Boolean,
+    onTripDatesWeatherChange: (Boolean) -> Unit,
+) {
+    val language = LocalLanguage.current
+    val tripDateOptions = remember(tripDates) { weatherTripDates(tripDates) }
+    var selectedTripDate by remember(tripDates) { mutableStateOf(tripDateOptions.firstOrNull()) }
+    val selectedDateKey = selectedTripDate?.toString()
+    val selectedForecastAvailable = selectedDateKey?.let { dateKey ->
+        weatherCities.any { city ->
+            weather[city]?.tripDays?.get(dateKey)?.let { day ->
+                day.temperature != null || day.condition != null
+            } == true
+        }
+    } == true
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            localized("Погода по маршруту", "Weather along the route", "Tiempo en la ruta", "Wetter entlang der Route"),
+            color = contentTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W800,
+            fontSize = 20.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Text(
+            weatherDateModeSubtitle(selectedTripDate, tripDatesWeather, language),
+            color = secondaryTextColor(),
+            fontFamily = Manrope,
+            fontWeight = FontWeight.W600,
+            fontSize = 12.sp,
+        )
+        Row(
+            modifier = Modifier
+                .background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFEEEEF2), RoundedCornerShape(12.dp))
+                .padding(4.dp),
+        ) {
+            Text(
+                localized("Сейчас", "Now", "Ahora", "Jetzt"),
+                color = if (!tripDatesWeather) contentTextColor() else secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .background(if (!tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp))
+                    .clickable { onTripDatesWeatherChange(false) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+            Text(
+                localized("На даты поездки", "Trip dates", "Fechas del viaje", "Reisedaten"),
+                color = if (tripDatesWeather) contentTextColor() else secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .background(if (tripDatesWeather) cardSurfaceColor() else Color.Transparent, RoundedCornerShape(9.dp))
+                    .clickable { onTripDatesWeatherChange(true) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+        if (tripDatesWeather && selectedTripDate != null && !weatherLoading && !selectedForecastAvailable) {
+            Text(
+                localized(
+                    "Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.",
+                    "A precise forecast for the selected date will appear about 16 days before the trip.",
+                    "El pronóstico exacto para la fecha seleccionada aparecerá aproximadamente 16 días antes del viaje.",
+                    "Eine genaue Vorhersage für das ausgewählte Datum erscheint etwa 16 Tage vor der Reise.",
+                ),
+                color = primaryColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(tintedSurfaceColor())
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            weatherCities.forEach { city ->
+                WeatherPlaceholder(
+                    city = city,
+                    photo = coverPhotoForCity(photos, city),
+                    weather = weather[city],
+                    weatherLoading = weatherLoading,
+                    tripDatesWeather = tripDatesWeather,
+                    tripDate = if (tripDatesWeather) selectedDateKey else null,
+                )
+            }
+        }
+        if (tripDatesWeather && tripDateOptions.isNotEmpty()) {
+            WeatherTripDayPanel(
+                dates = tripDateOptions,
+                selectedDate = selectedTripDate ?: tripDateOptions.first(),
+                primaryCity = weatherCities.firstOrNull(),
+                weather = weather,
+                language = language,
+                onDateSelected = { selectedTripDate = it },
+            )
+        }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)) {
-        weatherCities.forEach { city -> WeatherPlaceholder(city, coverPhotoForCity(photos, city), weather[city], weatherLoading, tripDatesWeather) }
+}
+
+@Composable
+private fun WeatherTripDayPanel(
+    dates: List<LocalDate>,
+    selectedDate: LocalDate,
+    primaryCity: String?,
+    weather: Map<String, WeatherSnapshot>,
+    language: String,
+    onDateSelected: (LocalDate) -> Unit,
+) {
+    val shape = RoundedCornerShape(17.dp)
+    val selectedBackground = if (LocalDarkTheme.current) Color(0xFF5148B4) else Color(0xFFDCE9F3)
+    val selectedText = if (LocalDarkTheme.current) Color.White else Color(0xFF315C7C)
+    val visibleDates = dates.take(8)
+    val hiddenCount = (dates.size - visibleDates.size).coerceAtLeast(0)
+    val selectedWeather = primaryCity?.let { city -> weather[city]?.tripDays?.get(selectedDate.toString()) }
+    val selectedConditionValue = selectedWeather?.condition
+    val selectedCondition = if (selectedConditionValue == null) {
+        null
+    } else {
+        localizedWeatherCondition(selectedConditionValue)
     }
+    val cityLabel = if (primaryCity == null) {
+        localized("Города маршрута", "Route cities", "Ciudades de la ruta", "Städte der Route")
+    } else {
+        localizedCityName(primaryCity)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(cardSurfaceColor())
+            .border(1.dp, contentBorderColor(), shape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("Каждый день поездки", "Every trip day", "Cada día del viaje", "Jeder Reisetag"),
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 15.sp,
+                )
+                Text(
+                    localized("Выбранный день", "Selected day", "Día seleccionado", "Ausgewählter Tag"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Text(
+                "${dates.size} ${localizedCountWord(dates.size, language, "день", "дня", "дней", "day", "days", "día", "días", "Tag", "Tage")}",
+                color = primaryColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(tintedSurfaceColor())
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            visibleDates.forEach { date ->
+                val dayWeather = primaryCity?.let { city -> weather[city]?.tripDays?.get(date.toString()) }
+                val selected = date == selectedDate
+                val dateDescription = buildString {
+                    append(weatherDateLabel(date, language))
+                    append(": ")
+                    append(dayWeather?.temperature ?: localized("прогноз пока недоступен", "forecast unavailable", "pronóstico no disponible", "Vorhersage nicht verfügbar"))
+                }
+                Column(
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .width(66.dp)
+                        .height(70.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(if (selected) selectedBackground else secondarySurfaceColor())
+                        .border(if (selected) 1.dp else 0.dp, if (selected) primaryColor() else Color.Transparent, RoundedCornerShape(13.dp))
+                        .semantics {
+                            contentDescription = dateDescription
+                            role = Role.Button
+                        }
+                        .clickable { onDateSelected(date) }
+                        .padding(horizontal = 9.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        date.dayOfMonth.toString(),
+                        color = if (selected) selectedText else contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        weatherShortMonth(date, language),
+                        color = if (selected) selectedText.copy(alpha = 0.78f) else secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 10.sp,
+                    )
+                    Text(
+                        weatherDayTemperature(dayWeather?.temperature, dayWeather?.isEstimate == true),
+                        color = if (selected) selectedText else primaryColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+            if (hiddenCount > 0) {
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(70.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(secondarySurfaceColor())
+                        .padding(horizontal = 8.dp),
+                ) {
+                    Text("+$hiddenCount", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+                    Text(localized("дней", "days", "días", "Tage"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp)
+                }
+            }
+        }
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(contentBorderColor()))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "${weatherDateLabel(selectedDate, language)} · $cityLabel",
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    selectedCondition?.let {
+                        "$it · ${localized("хороший день для прогулки", "a good day for a walk", "buen día para pasear", "ein guter Tag für einen Spaziergang")}"
+                    } ?: localized("Прогноз появится позже", "Forecast will appear later", "El pronóstico aparecerá más tarde", "Die Vorhersage erscheint später"),
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+            Text(
+                weatherDayTemperature(selectedWeather?.temperature, selectedWeather?.isEstimate == true),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 27.sp,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+    }
+}
+
+private fun weatherDayTemperature(value: String?, isEstimate: Boolean): String {
+    val normalized = value?.removeSuffix("°C")?.removeSuffix("°") ?: return "—"
+    return "${if (isEstimate) "≈ " else ""}$normalized°"
 }
 
 @Composable
@@ -22411,14 +22708,30 @@ private fun WeatherPlaceholder(
     weather: WeatherSnapshot?,
     weatherLoading: Boolean,
     tripDatesWeather: Boolean,
+    tripDate: String? = null,
 ) {
-    val temperature = weather?.temperature?.removeSuffix("°C")?.toIntOrNull()
-    val displayedTemperature = if (tripDatesWeather) weather?.tripTemperature else weather?.temperature
+    val selectedTripDay = tripDate?.let { weather?.tripDays?.get(it) }
+    val displayedTemperature = if (tripDatesWeather) {
+        selectedTripDay?.temperature
+            ?: if (tripDate == null) weather?.tripTemperature else null
+    } else {
+        weather?.temperature
+    }
     val displayedCondition = if (tripDatesWeather) {
-        weather?.tripCondition?.let { localizedWeatherCondition(it) }
-            ?: localized("Прогноз пока недоступен", "Forecast unavailable", "Pronóstico no disponible", "Vorhersage nicht verfügbar")
+        selectedTripDay?.condition?.let { localizedWeatherCondition(it) }
+            ?: if (tripDate == null) {
+                weather?.tripCondition?.let { localizedWeatherCondition(it) }
+            } else {
+                null
+            }
+            ?: localized("Прогноз появится позже", "Forecast will appear later", "El pronóstico aparecerá más tarde", "Die Vorhersage erscheint später")
     } else {
         weather?.condition?.let { localizedWeatherCondition(it) }
+    }
+    val displayedIsEstimate = if (tripDate != null) {
+        selectedTripDay?.isEstimate == true
+    } else {
+        weather?.tripIsEstimate == true
     }
     Box(
         modifier = Modifier.width(120.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
@@ -22441,10 +22754,10 @@ private fun WeatherPlaceholder(
             modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
         )
         Column(modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            val temperatureText = if (tripDatesWeather && weather?.tripIsEstimate == true) {
-                displayedTemperature?.let { "≈ $it" } ?: "…"
+            val temperatureText = if (tripDatesWeather && displayedIsEstimate) {
+                displayedTemperature?.let { "≈ $it" } ?: "—"
             } else {
-                displayedTemperature ?: "…"
+                displayedTemperature ?: if (tripDatesWeather) "—" else "…"
             }
             if (weatherLoading && weather == null) {
                 CircularProgressIndicator(

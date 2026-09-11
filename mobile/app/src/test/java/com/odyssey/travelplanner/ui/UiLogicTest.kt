@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import java.time.LocalDate
 
 class UiLogicTest {
     @Test
@@ -81,5 +82,25 @@ class UiLogicTest {
     fun overviewBlockNormalizationUsesDefaultsForLegacyTrips() {
         assertEquals(listOf("photo", "map"), normalizedOverviewBlocks(listOf("photo", "map")))
         assertEquals(listOf("photo", "map", "weather"), normalizedOverviewBlocks(emptyList()))
+    }
+
+    @Test
+    fun weatherTripDatesIncludesBothEndsOfTheTrip() {
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 9, 25),
+                LocalDate.of(2026, 9, 26),
+                LocalDate.of(2026, 9, 27),
+            ),
+            weatherTripDates("2026-09-25 – 2026-09-27"),
+        )
+    }
+
+    @Test
+    fun weatherTripDatesCapsVeryLongRanges() {
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 25), LocalDate.of(2026, 9, 26)),
+            weatherTripDates("2026-09-25 – 2027-09-25", maxDays = 2),
+        )
     }
 }
