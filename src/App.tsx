@@ -707,6 +707,59 @@ function formatWeatherTripDates(
     : fallback?.split("·")[0].trim() || "Даты поездки";
 }
 
+const weatherShortMonths = [
+  "янв",
+  "фев",
+  "мар",
+  "апр",
+  "май",
+  "июн",
+  "июл",
+  "авг",
+  "сен",
+  "окт",
+  "ноя",
+  "дек",
+];
+
+const weatherLongMonths = [
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
+];
+const WEATHER_DAYS_PAGE_SIZE = 8;
+
+function formatWeatherOverviewDate(value: string, longMonth = false) {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  const months = longMonth ? weatherLongMonths : weatherShortMonths;
+  return `${date.getUTCDate()} ${months[date.getUTCMonth()]}`;
+}
+
+function buildWeatherOverviewDates(start?: string, end?: string) {
+  const first = new Date(`${start || ""}T00:00:00Z`);
+  const last = new Date(`${end || ""}T00:00:00Z`);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || first > last) {
+    return [];
+  }
+  const dates: string[] = [];
+  const cursor = new Date(first);
+  while (cursor <= last && dates.length < 31) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 function isoDateAt(startDate: string | undefined, offset: number) {
   if (!startDate) return "";
   const date = new Date(`${startDate}T00:00:00Z`);
@@ -12454,6 +12507,11 @@ type WeatherDailyForecast = {
   weather_code: (number | null)[];
 };
 
+type WeatherDaySnapshot = {
+  temperature?: number;
+  code?: number;
+};
+
 type WeatherApiResponse = {
   current: { temperature_2m: number; weather_code: number };
   daily?: WeatherDailyForecast;
@@ -12464,6 +12522,7 @@ type WeatherSnapshot = {
   code: number;
   tripTemperature?: number;
   tripCode?: number;
+  tripDays: Record<string, WeatherDaySnapshot>;
 };
 
 function WeatherOverview({
@@ -12500,6 +12559,27 @@ function WeatherOverview({
   }, []);
   const tripForecastDate =
     tripStartDate || parseTripDateRange(tripDates)?.[0] || "";
+  const parsedTripDates = parseTripDateRange(tripDates);
+  const weatherTripStartDate = tripStartDate || parsedTripDates?.[0];
+  const weatherTripEndDate = tripEndDate || parsedTripDates?.[1];
+  const weatherDateOptions = buildWeatherOverviewDates(
+    weatherTripStartDate,
+    weatherTripEndDate,
+  );
+  const [selectedTripDate, setSelectedTripDate] = useState(tripForecastDate);
+  const [visibleTripDateStart, setVisibleTripDateStart] = useState(0);
+  const visibleTripDates = weatherDateOptions.slice(
+    visibleTripDateStart,
+    visibleTripDateStart + WEATHER_DAYS_PAGE_SIZE,
+  );
+  const nextTripDateStart = Math.min(
+    visibleTripDateStart + WEATHER_DAYS_PAGE_SIZE,
+    weatherDateOptions.length,
+  );
+  const previousTripDateStart = Math.max(
+    visibleTripDateStart - WEATHER_DAYS_PAGE_SIZE,
+    0,
+  );
   const weatherKey = weatherCities
     .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
     .join("|") + `|trip:${tripForecastDate}`;
@@ -12508,6 +12588,24 @@ function WeatherOverview({
     tripEndDate,
     tripDates,
   );
+  const selectedTripDateLabel =
+    formatWeatherOverviewDate(selectedTripDate, true) || weatherTripDates;
+
+  useEffect(() => {
+    setSelectedTripDate(tripForecastDate);
+    setVisibleTripDateStart(0);
+  }, [tripForecastDate, weatherTripStartDate, weatherTripEndDate]);
+
+  const selectTripDate = (date: string) => {
+    setSelectedTripDate(date);
+    const selectedIndex = weatherDateOptions.indexOf(date);
+    if (selectedIndex >= 0) {
+      setVisibleTripDateStart(
+        Math.floor(selectedIndex / WEATHER_DAYS_PAGE_SIZE) *
+          WEATHER_DAYS_PAGE_SIZE,
+      );
+    }
+  };
 
   useEffect(() => {
     if (!weatherCities.length) {
@@ -12532,24 +12630,23 @@ function WeatherOverview({
           (result, item, index) => {
             const city = weatherCities[index];
             if (!city) return result;
-            const tripIndex = tripForecastDate
-              ? item.daily?.time.indexOf(tripForecastDate) ?? -1
-              : -1;
-            const tripTemperature =
-              tripIndex >= 0
-                ? item.daily?.temperature_2m_max[tripIndex] ?? undefined
-                : undefined;
-            const tripCode =
-              tripIndex >= 0
-                ? item.daily?.weather_code[tripIndex] ?? undefined
-                : undefined;
+            const tripDays: Record<string, WeatherDaySnapshot> = {};
+            item.daily?.time.forEach((date, dailyIndex) => {
+              tripDays[date] = {
+                temperature:
+                  item.daily?.temperature_2m_max[dailyIndex] ?? undefined,
+                code: item.daily?.weather_code[dailyIndex] ?? undefined,
+              };
+            });
+            const firstTripDay = tripDays[tripForecastDate];
             result.push([
               city.name,
               {
                 temperature: item.current.temperature_2m,
                 code: item.current.weather_code,
-                tripTemperature,
-                tripCode,
+                tripTemperature: firstTripDay?.temperature,
+                tripCode: firstTripDay?.code,
+                tripDays,
               },
             ]);
             return result;
@@ -12566,19 +12663,25 @@ function WeatherOverview({
     };
   }, [weatherKey, tripForecastDate]);
 
-  const hasTripForecast = weatherCities.some(
-    (city) => typeof weather[city.name]?.tripTemperature === "number",
+  const hasSelectedTripForecast = weatherCities.length > 0 && weatherCities.every(
+    (city) =>
+      typeof weather[city.name]?.tripDays?.[selectedTripDate]?.temperature ===
+      "number",
   );
+  const primaryWeatherCity = weatherCities[0];
+  const selectedPrimaryForecast = primaryWeatherCity
+    ? weather[primaryWeatherCity.name]?.tripDays?.[selectedTripDate]
+    : undefined;
 
   return (
-    <section className="weather-overview">
+    <section className={`weather-overview${mode === "trip" ? " trip-mode" : ""}`}>
       <header className="overview-section-head weather-heading">
         <div>
           <h2>Погода по маршруту</h2>
           <p>
             {mode === "now"
               ? "Текущая погода в городах поездки"
-              : tripDates}
+              : `Погода на ${selectedTripDateLabel}`}
           </p>
         </div>
         <div className="weather-switch" role="group" aria-label="Период погоды">
@@ -12596,14 +12699,15 @@ function WeatherOverview({
           </button>
         </div>
       </header>
-      {mode === "trip" && !hasTripForecast && (
+      {mode === "trip" && !hasSelectedTripForecast && (
         <p className="weather-notice">
-          Точный прогноз появится примерно за 16 дней до начала поездки.
+          Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.
         </p>
       )}
       <div className="weather-grid">
         {weatherCities.map((city) => {
           const current = weather[city.name];
+          const selectedForecast = current?.tripDays?.[selectedTripDate];
           const cityIndex = weatherCities.findIndex(
             (weatherCity) => weatherCity.name === city.name,
           );
@@ -12641,18 +12745,18 @@ function WeatherOverview({
                 ) : (
                   <p>Обновляем...</p>
                 )
-              ) : current?.tripTemperature !== undefined ? (
+              ) : selectedForecast?.temperature !== undefined ? (
                 <>
-                  <b>{Math.round(current.tripTemperature)}°C</b>
+                  <b>{Math.round(selectedForecast.temperature)}°C</b>
                   <span>
-                    {current.tripCode !== undefined
-                      ? weatherDescription(current.tripCode)
+                    {selectedForecast.code !== undefined
+                      ? weatherDescription(selectedForecast.code)
                       : "Прогноз пока недоступен"}
                   </span>
                 </>
               ) : (
                 <>
-                  <b>{weatherTripDates}</b>
+                  <b>{selectedTripDateLabel}</b>
                   <span>
                     {failed
                       ? "Не удалось обновить прогноз"
@@ -12664,6 +12768,92 @@ function WeatherOverview({
           );
         })}
       </div>
+      {mode === "trip" && weatherDateOptions.length > 0 && (
+        <section className="weather-trip-days" aria-labelledby="weather-trip-days-title">
+          <header>
+            <div>
+              <h3 id="weather-trip-days-title">Каждый день поездки</h3>
+              <p>
+                {selectedTripDate === tripForecastDate
+                  ? "Выделен первый день"
+                  : "Выделен выбранный день"}
+              </p>
+            </div>
+            <div className="weather-trip-days-actions">
+              {visibleTripDateStart > 0 && (
+                <button
+                  type="button"
+                  className="weather-trip-days-back"
+                  aria-label="Показать предыдущие даты"
+                  onClick={() =>
+                    selectTripDate(weatherDateOptions[previousTripDateStart])
+                  }
+                >
+                  ←
+                </button>
+              )}
+              <span>{weatherDateOptions.length} дней</span>
+            </div>
+          </header>
+          <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
+            {visibleTripDates.map((date) => {
+              const primaryForecast = primaryWeatherCity
+                ? weather[primaryWeatherCity.name]?.tripDays?.[date]
+                : undefined;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  className={selectedTripDate === date ? "active" : ""}
+                  aria-pressed={selectedTripDate === date}
+                  onClick={() => selectTripDate(date)}
+                >
+                  <span>{formatWeatherOverviewDate(date)}</span>
+                  <b>
+                    {primaryForecast?.temperature !== undefined
+                      ? `${Math.round(primaryForecast.temperature)}°`
+                      : "—"}
+                  </b>
+                </button>
+              );
+            })}
+            {nextTripDateStart < weatherDateOptions.length && (
+              <button
+                type="button"
+                className="weather-trip-days-more"
+                aria-label="Показать следующие даты"
+                onClick={() =>
+                  selectTripDate(weatherDateOptions[nextTripDateStart])
+                }
+              >
+                +{weatherDateOptions.length - nextTripDateStart}
+                <small>дней</small>
+              </button>
+            )}
+          </div>
+          <div className="weather-trip-selected">
+            <div>
+              <b>
+                {selectedTripDateLabel}
+                {primaryWeatherCity ? ` · ${primaryWeatherCity.name}` : ""}
+              </b>
+              <span>
+                {selectedPrimaryForecast?.code !== undefined
+                  ? weatherDescription(selectedPrimaryForecast.code)
+                  : "Прогноз появится позже"}
+                {selectedPrimaryForecast?.code !== undefined
+                  ? " · хороший день для прогулки"
+                  : ""}
+              </span>
+            </div>
+            <strong>
+              {selectedPrimaryForecast?.temperature !== undefined
+                ? `${Math.round(selectedPrimaryForecast.temperature)}°`
+                : "—"}
+            </strong>
+          </div>
+        </section>
+      )}
     </section>
   );
 }
