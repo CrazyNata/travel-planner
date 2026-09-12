@@ -9147,10 +9147,14 @@ function Restaurants({
 }) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
   const restaurantCities = mergeTripCities(
-    parseTripCities(trip.cities),
-    (trip.days || []).flatMap((day) =>
-      day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
-    ),
+    trip.overviewMapPoints?.length
+      ? trip.overviewMapPoints
+      : parseTripCities(trip.cities),
+    trip.overviewMapPoints?.length
+      ? []
+      : (trip.days || []).flatMap((day) =>
+        day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
+      ),
   );
   return (
     <div className="restaurants-with-add">
