@@ -6034,12 +6034,14 @@ function DatePicker({
   onChange,
   name,
   className,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   name?: string;
   className?: string;
+  placeholder?: string;
 }) {
   const parsedSelected = value ? new Date(`${value}T12:00:00`) : null;
   // Existing trips may contain a display-only date range. Treat an invalid
@@ -6111,7 +6113,7 @@ function DatePicker({
         month: "long",
         year: "numeric",
       }).format(selected)
-    : "Выберите дату";
+    : placeholder || "Выберите дату";
   const today = new Date();
   const isSameDay = (first: Date | null, second: Date) =>
     Boolean(
@@ -8770,10 +8772,13 @@ function RestaurantForm({
               <span aria-hidden="true">◷</span>
             </div>
             <div className="restaurant-reservation-grid">
-              <label>
-                Дата брони
-                <input type="date" value={reservationDate} onChange={(event) => setReservationDate(event.target.value)} />
-              </label>
+              <DatePicker
+                label="Дата брони"
+                value={reservationDate}
+                onChange={setReservationDate}
+                placeholder="дд.мм.гггг"
+                className="restaurant-reservation-date-picker"
+              />
               <label>
                 Время брони
                 <input type="time" value={reservationTime} onChange={(event) => setReservationTime(event.target.value)} />
@@ -8925,10 +8930,13 @@ function RestaurantEditor({
               <span aria-hidden="true">◷</span>
             </div>
             <div className="restaurant-reservation-grid">
-              <label>
-                Дата брони
-                <input type="date" value={reservationDate} onChange={(event) => setReservationDate(event.target.value)} />
-              </label>
+              <DatePicker
+                label="Дата брони"
+                value={reservationDate}
+                onChange={setReservationDate}
+                placeholder="дд.мм.гггг"
+                className="restaurant-reservation-date-picker"
+              />
               <label>
                 Время брони
                 <input type="time" value={reservationTime} onChange={(event) => setReservationTime(event.target.value)} />
