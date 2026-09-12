@@ -10870,8 +10870,28 @@ body.ramingo-onboarding-open {
     grid-template-columns: repeat(2, 1fr);
   }
   .weather-trip-days-list {
-    grid-template-columns: repeat(8, minmax(0, 1fr)) 42px;
-    gap: 4px;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 1px 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .weather-trip-days-list::-webkit-scrollbar {
+    display: none;
+  }
+  .weather-trip-days-list button.weather-trip-date {
+    flex: 0 0 68px;
+    width: 68px;
+    scroll-snap-align: start;
+  }
+  .weather-trip-days-list .weather-trip-days-more {
+    flex: 0 0 58px;
+    width: 58px;
+    scroll-snap-align: start;
   }
   .weather-trip-days-list button {
     height: 82px;
