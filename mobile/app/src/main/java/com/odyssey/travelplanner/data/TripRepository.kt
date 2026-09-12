@@ -314,7 +314,10 @@ data class Restaurant(
     val price: String,
     val note: String,
     val link: String,
+    /** Legacy free-form date value kept for backwards compatibility. */
     val date: String = "",
+    val reservationDate: String = "",
+    val reservationTime: String = "",
     val priority: Boolean = false,
 )
 data class PetPlace(
@@ -402,7 +405,10 @@ data class RestaurantInput(
     val note: String = "",
     val price: String = "",
     val link: String = "",
+    /** Legacy free-form date value kept for older callers and stored records. */
     val date: String = "",
+    val reservationDate: String = "",
+    val reservationTime: String = "",
     val priority: Boolean = false,
 )
 
@@ -927,11 +933,13 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             val restaurant = item.jsonObject
             val name = restaurant["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             fun restaurantText(key: String) = restaurant[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val restaurantStatus = normalizeRestaurantStatus(restaurantText("status"))
+            val legacyDate = restaurantText("date")
             Restaurant(
                 id = restaurantText("id").ifBlank { name },
                 name = name,
                 city = restaurantText("city"),
-                status = normalizeRestaurantStatus(restaurantText("status")),
+                status = restaurantStatus,
                 photos = restaurantPhotoReferences(restaurant),
                 rating = firstJsonDouble(restaurant, "googleRating", "rating", "userRating", "score"),
                 reviews = listOf("googleReviews", "reviews", "ratingCount", "reviewCount", "userRatingCount")
@@ -944,7 +952,17 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                     .ifBlank { restaurantText("mapsUrl") }
                     .ifBlank { restaurantText("googleMapsUrl") }
                     .ifBlank { restaurantText("url") },
-                date = restaurantText("date").ifBlank { restaurantText("dateTime") },
+                date = legacyDate.ifBlank { restaurantText("dateTime") },
+                reservationDate = restaurantText("reservationDate")
+                    .ifBlank { if (restaurantStatus == "бронь") legacyDate else "" },
+                reservationTime = restaurantText("reservationTime")
+                    .ifBlank {
+                        if (restaurantStatus == "бронь") {
+                            Regex("\\b\\d{1,2}:\\d{2}\\b").find(legacyDate)?.value.orEmpty()
+                        } else {
+                            ""
+                        }
+                    },
                 priority = restaurant["priority"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
         }
@@ -2319,15 +2337,20 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val current = client.from("trips").select().decodeList<TripRow>().firstOrNull { it.id == tripId }
             ?: error("Путешествие не найдено")
         val restaurantId = UUID.randomUUID().toString()
+        val normalizedStatus = normalizeRestaurantStatus(input.status)
         val item = buildJsonObject {
             put("id", restaurantId)
             put("name", input.name.trim())
             put("city", input.city.trim())
-            put("status", normalizeRestaurantStatus(input.status))
+            put("status", normalizedStatus)
             put("note", input.note.trim())
             put("price", input.price.trim())
             put("link", input.link.trim())
-            put("date", input.date.trim())
+            input.date.trim().takeIf(String::isNotBlank)?.let { put("date", it) }
+            if (normalizedStatus == "бронь") {
+                input.reservationDate.trim().takeIf(String::isNotBlank)?.let { put("reservationDate", it) }
+                input.reservationTime.trim().takeIf(String::isNotBlank)?.let { put("reservationTime", it) }
+            }
             put("priority", input.priority)
             put("photos", buildJsonArray { })
         }
@@ -2338,15 +2361,33 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
     override suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput) {
         require(input.name.isNotBlank()) { "Укажите название ресторана" }
         val current = loadTripRow(tripId)
+        val normalizedStatus = normalizeRestaurantStatus(input.status)
         val payload = TripPayloadCodec.updateArrayItem(current.payload, "restaurants", restaurantId) { restaurant ->
             JsonObject(restaurant.toMutableMap().apply {
                 put("name", kotlinx.serialization.json.JsonPrimitive(input.name.trim()))
                 put("city", kotlinx.serialization.json.JsonPrimitive(input.city.trim()))
-                put("status", kotlinx.serialization.json.JsonPrimitive(normalizeRestaurantStatus(input.status)))
+                put("status", kotlinx.serialization.json.JsonPrimitive(normalizedStatus))
                 put("note", kotlinx.serialization.json.JsonPrimitive(input.note.trim()))
                 put("price", kotlinx.serialization.json.JsonPrimitive(input.price.trim()))
                 put("link", kotlinx.serialization.json.JsonPrimitive(input.link.trim()))
-                put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
+                if (input.date.trim().isNotBlank()) {
+                    put("date", kotlinx.serialization.json.JsonPrimitive(input.date.trim()))
+                }
+                if (normalizedStatus == "бронь") {
+                    if (input.reservationDate.trim().isNotBlank()) {
+                        put("reservationDate", kotlinx.serialization.json.JsonPrimitive(input.reservationDate.trim()))
+                    } else {
+                        remove("reservationDate")
+                    }
+                    if (input.reservationTime.trim().isNotBlank()) {
+                        put("reservationTime", kotlinx.serialization.json.JsonPrimitive(input.reservationTime.trim()))
+                    } else {
+                        remove("reservationTime")
+                    }
+                } else {
+                    remove("reservationDate")
+                    remove("reservationTime")
+                }
                 put("priority", kotlinx.serialization.json.JsonPrimitive(input.priority))
             })
         }

@@ -5403,6 +5403,8 @@ private fun AccountSettingsDivider(color: Color) {
 
 @Composable
 private fun AccountToggle(checked: Boolean, label: String, onClick: () -> Unit) {
+    val enabledDescription = localized("Включено", "On", "Activado", "Aktiv")
+    val disabledDescription = localized("Выключено", "Off", "Desactivado", "Aus")
     Box(
         modifier = Modifier
             .width(40.dp)
@@ -5412,11 +5414,7 @@ private fun AccountToggle(checked: Boolean, label: String, onClick: () -> Unit) 
             .semantics {
                 contentDescription = label
                 role = Role.Switch
-                stateDescription = if (checked) {
-                    localized("Включено", "On", "Activado", "Aktiv")
-                } else {
-                    localized("Выключено", "Off", "Desactivado", "Aus")
-                }
+                stateDescription = if (checked) enabledDescription else disabledDescription
             }
             .clickable(onClick = onClick),
     ) {
@@ -11908,7 +11906,8 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var name by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var cuisine by remember { mutableStateOf("") }
-    var dateTime by remember { mutableStateOf("") }
+    var reservationDate by remember { mutableStateOf("") }
+    var reservationTime by remember { mutableStateOf("") }
     var restaurantDatePickerOpen by remember { mutableStateOf(false) }
     var address by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("хочу") }
@@ -11986,7 +11985,8 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
         name = ""
         city = ""
         cuisine = ""
-        dateTime = ""
+        reservationDate = ""
+        reservationTime = ""
         restaurantDatePickerOpen = false
         address = ""
         status = "хочу"
@@ -12380,7 +12380,8 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 name = name,
                 city = city,
                 cuisine = cuisine,
-                dateTime = dateTime,
+                reservationDate = reservationDate,
+                reservationTime = reservationTime,
                 price = price,
                 address = address,
                 status = status,
@@ -12397,8 +12398,14 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 onDatePickerOpen = {
                     restaurantDatePickerOpen = true
                 },
+                onTimePickerOpen = {
+                    showRestaurantTimePicker(context, reservationTime) { selectedTime ->
+                        reservationTime = selectedTime
+                    }
+                },
                 onCuisineChange = { cuisine = it },
-                onDateTimeChange = { dateTime = it },
+                onReservationDateChange = { reservationDate = it },
+                onReservationTimeChange = { reservationTime = it },
                 onPriceChange = { price = it },
                 onAddressChange = { address = it },
                 onStatusChange = { status = it },
@@ -12428,7 +12435,8 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                                     note = cuisine,
                                     price = price,
                                     link = address,
-                                    date = dateTime,
+                                    reservationDate = reservationDate,
+                                    reservationTime = reservationTime,
                                     priority = priority,
                                 ),
                                 tripId,
@@ -12459,10 +12467,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     }
     if (canEdit && adding && restaurantDatePickerOpen) {
         AccommodationCalendarDialog(
-            initialValue = dateTime,
+            initialValue = reservationDate,
             onDismiss = { restaurantDatePickerOpen = false },
             onConfirm = { selectedDate ->
-                dateTime = selectedDate
+                reservationDate = selectedDate
                 restaurantDatePickerOpen = false
             },
         )
@@ -13044,7 +13052,8 @@ private fun RestaurantAddSheet(
     name: String,
     city: String,
     cuisine: String,
-    dateTime: String,
+    reservationDate: String,
+    reservationTime: String,
     price: String,
     address: String,
     status: String,
@@ -13056,8 +13065,10 @@ private fun RestaurantAddSheet(
     onCityChange: (String) -> Unit,
     onCityPickerOpen: () -> Unit,
     onDatePickerOpen: () -> Unit,
+    onTimePickerOpen: () -> Unit,
     onCuisineChange: (String) -> Unit,
-    onDateTimeChange: (String) -> Unit,
+    onReservationDateChange: (String) -> Unit,
+    onReservationTimeChange: (String) -> Unit,
     onPriceChange: (String) -> Unit,
     onAddressChange: (String) -> Unit,
     onStatusChange: (String) -> Unit,
@@ -13067,6 +13078,7 @@ private fun RestaurantAddSheet(
     onClose: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val language = LocalLanguage.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val scale = maxWidth.value / 368f
         fun d(value: Float) = (value * scale).dp
@@ -13091,6 +13103,10 @@ private fun RestaurantAddSheet(
         val scrollState = rememberScrollState()
         val photoScrollState = rememberScrollState()
         var fullScreenPhotoIndex by remember(photoUris) { mutableStateOf<Int?>(null) }
+        val hasReservationFields = status == "бронь"
+        val messageTop = if (hasReservationFields) 991f else 834f
+        val actionTop = if (hasReservationFields) 1015f else 855f
+        val sheetContentHeight = if (hasReservationFields) 1085f else 926f
 
         Box(
             modifier = Modifier
@@ -13098,7 +13114,7 @@ private fun RestaurantAddSheet(
                 .height(d(704f))
                 .verticalScroll(scrollState),
         ) {
-            Box(Modifier.fillMaxWidth().height(d(926f))) {
+            Box(Modifier.fillMaxWidth().height(d(sheetContentHeight))) {
                 Box(
                     modifier = Modifier
                         .offset(x = d(156.5f), y = d(12f))
@@ -13349,21 +13365,10 @@ private fun RestaurantAddSheet(
                     horizontalArrangement = Arrangement.spacedBy(d(12f)),
                     modifier = Modifier.offset(x = d(16f), y = d(532f)).width(d(321f)),
                 ) {
-                    RestaurantAddField(
-                        label = localized("Дата и время", "Date and time", "Fecha y hora", "Datum und Uhrzeit"),
-                        value = dateTime,
-                        placeholder = localized("Выберите дату", "Choose date", "Elija una fecha", "Datum auswählen"),
-                        scale = scale,
-                        trailingChevron = true,
-                        readOnly = true,
-                        onClick = onDatePickerOpen,
-                        modifier = Modifier.width(d(154.5f)),
-                        onValueChange = { onDateTimeChange(it) },
-                    )
                     RestaurantAddPriceField(
                         selected = price,
                         scale = scale,
-                        modifier = Modifier.width(d(154.5f)),
+                        modifier = Modifier.width(d(321f)),
                         onSelect = onPriceChange,
                     )
                 }
@@ -13399,6 +13404,66 @@ private fun RestaurantAddSheet(
                     modifier = Modifier.offset(x = d(16f), y = d(793f)),
                 )
 
+                if (hasReservationFields) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = d(16f), y = d(833f))
+                            .width(d(336f))
+                            .height(d(150f))
+                            .clip(RoundedCornerShape(d(14f)))
+                            .background(tintedSurfaceColor())
+                            .border(d(1f), primaryColor().copy(alpha = 0.35f), RoundedCornerShape(d(14f))),
+                    ) {
+                        Text(
+                            text = localized("Дата и время брони", "Reservation date and time", "Fecha y hora de la reserva", "Reservierungsdatum und -zeit"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = s(13f),
+                            lineHeight = s(18f),
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            modifier = Modifier.offset(x = d(12f), y = d(10f)),
+                        )
+                        Text(
+                            text = localized("Укажите, на когда сделана бронь", "Choose when the reservation is for", "Indique cuándo es la reserva", "Geben Sie den Reservierungstermin an"),
+                            color = secondaryTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = s(10.5f),
+                            lineHeight = s(14f),
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                            modifier = Modifier.offset(x = d(12f), y = d(29f)),
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(d(10f)),
+                            modifier = Modifier.offset(x = d(12f), y = d(51f)).width(d(312f)),
+                        ) {
+                            RestaurantAddField(
+                                label = localized("Дата брони", "Reservation date", "Fecha de reserva", "Reservierungsdatum"),
+                                value = formatRestaurantReservationDate(reservationDate, language),
+                                placeholder = localized("дд.мм.гггг", "dd.mm.yyyy", "dd.mm.aaaa", "tt.mm.jjjj"),
+                                scale = scale,
+                                trailingIcon = Icons.Outlined.DateRange,
+                                readOnly = true,
+                                modifier = Modifier.width(d(151f)),
+                                onClick = onDatePickerOpen,
+                                onValueChange = onReservationDateChange,
+                            )
+                            RestaurantAddField(
+                                label = localized("Время брони", "Reservation time", "Hora de la reserva", "Reservierungszeit"),
+                                value = reservationTime,
+                                placeholder = "--:--",
+                                scale = scale,
+                                trailingIcon = Icons.Outlined.AccessTime,
+                                readOnly = true,
+                                modifier = Modifier.width(d(151f)),
+                                onClick = onTimePickerOpen,
+                                onValueChange = onReservationTimeChange,
+                            )
+                        }
+                    }
+                }
+
                 if (message != null) {
                     Text(
                         text = message,
@@ -13408,13 +13473,13 @@ private fun RestaurantAddSheet(
                         fontSize = s(11f),
                         lineHeight = s(15f),
                         style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                        modifier = Modifier.offset(x = d(16f), y = d(834f)).width(d(336f)),
+                        modifier = Modifier.offset(x = d(16f), y = d(messageTop)).width(d(336f)),
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .offset(x = d(16f), y = d(855f))
+                        .offset(x = d(16f), y = d(actionTop))
                         .width(d(135.3f))
                         .height(d(53f))
                         .clip(RoundedCornerShape(d(15f)))
@@ -13435,7 +13500,7 @@ private fun RestaurantAddSheet(
                 }
                 Box(
                     modifier = Modifier
-                        .offset(x = d(162.3f), y = d(855f))
+                        .offset(x = d(162.3f), y = d(actionTop))
                         .width(d(174.7f))
                         .height(d(53f))
                         .shadow(d(8f), RoundedCornerShape(d(15f)), clip = false, ambientColor = Color(0x4D6C5CE7), spotColor = Color(0x4D6C5CE7))
@@ -13477,6 +13542,7 @@ private fun RestaurantAddField(
     scale: Float,
     modifier: Modifier = Modifier,
     trailingChevron: Boolean = false,
+    trailingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     readOnly: Boolean = false,
     onClick: (() -> Unit)? = null,
     valueWeight: FontWeight = FontWeight.W600,
@@ -13528,7 +13594,7 @@ private fun RestaurantAddField(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(start = d(15f), end = if (trailingChevron) d(34f) else d(15f)),
+                            .padding(start = d(15f), end = if (trailingChevron || trailingIcon != null) d(34f) else d(15f)),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         if (value.isBlank()) {
@@ -13558,6 +13624,17 @@ private fun RestaurantAddField(
                     contentAlignment = Alignment.CenterEnd,
                 ) {
                     OdysseyChevronDown(d(16f), secondaryTextColor())
+                }
+            } else {
+                trailingIcon?.let { icon ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(end = d(12f)),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Icon(icon, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(d(16f)))
+                    }
                 }
             }
         }
@@ -13671,10 +13748,14 @@ private fun RestaurantEditSheet(
     onSaved: () -> Unit,
 ) {
     val language = LocalLanguage.current
+    val context = LocalContext.current
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var city by remember(restaurant.id) { mutableStateOf(restaurant.city) }
     var cuisine by remember(restaurant.id) { mutableStateOf(restaurant.note) }
-    var dateTime by remember(restaurant.id) { mutableStateOf(restaurant.date) }
+    var reservationDate by remember(restaurant.id) {
+        mutableStateOf(restaurant.reservationDate.ifBlank { if (restaurant.status == "бронь") restaurant.date else "" })
+    }
+    var reservationTime by remember(restaurant.id) { mutableStateOf(restaurant.reservationTime) }
     var price by remember(restaurant.id) { mutableStateOf(restaurant.price) }
     var address by remember(restaurant.id) { mutableStateOf(restaurant.link) }
     var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
@@ -13692,6 +13773,11 @@ private fun RestaurantEditSheet(
         fun d(value: Float) = (value * scale).dp
         fun s(value: Float) = (value * scale).sp
         val busy = saving || deleting
+        val hasReservationFields = status == "бронь"
+        val photoTop = if (hasReservationFields) 770f else 610f
+        val actionTop = if (hasReservationFields) 863f else 703f
+        val messageTop = if (hasReservationFields) 925f else 765f
+        val contentHeight = if (hasReservationFields) 990f else 830f
 
         Box(
             modifier = Modifier
@@ -13699,7 +13785,7 @@ private fun RestaurantEditSheet(
                 .height(d(704f))
                 .verticalScroll(rememberScrollState()),
         ) {
-            Box(Modifier.fillMaxWidth().height(d(830f))) {
+            Box(Modifier.fillMaxWidth().height(d(contentHeight))) {
             Box(
                 modifier = Modifier
                     .offset(x = d(164f), y = d(12f))
@@ -13785,21 +13871,10 @@ private fun RestaurantEditSheet(
                     .offset(x = d(16f), y = d(304f))
                     .width(d(336f)),
             ) {
-                RestaurantAddField(
-                    label = localized("Дата и время", "Date and time", "Fecha y hora", "Datum und Uhrzeit"),
-                    value = dateTime,
-                    placeholder = localized("Выберите дату", "Choose date", "Elija fecha", "Datum auswählen"),
-                    scale = scale,
-                    trailingChevron = true,
-                    readOnly = true,
-                    modifier = Modifier.width(d(162f)),
-                    onClick = { datePickerOpen = true },
-                    onValueChange = { dateTime = it },
-                )
                 RestaurantAddPriceField(
                     selected = price,
                     scale = scale,
-                    modifier = Modifier.width(d(162f)),
+                    modifier = Modifier.width(d(336f)),
                     onSelect = { price = it },
                 )
             }
@@ -13868,6 +13943,65 @@ private fun RestaurantEditSheet(
                 onClick = { priority = !priority },
                 modifier = Modifier.offset(x = d(16f), y = d(563f)),
             )
+            if (hasReservationFields) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(610f))
+                        .width(d(336f))
+                        .height(d(150f))
+                        .clip(RoundedCornerShape(d(14f)))
+                        .background(tintedSurfaceColor())
+                        .border(d(1f), primaryColor().copy(alpha = 0.35f), RoundedCornerShape(d(14f))),
+                ) {
+                    Text(
+                        text = localized("Дата и время брони", "Reservation date and time", "Fecha y hora de la reserva", "Reservierungsdatum und -zeit"),
+                        color = contentTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = s(13f),
+                        lineHeight = s(18f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        modifier = Modifier.offset(x = d(12f), y = d(10f)),
+                    )
+                    Text(
+                        text = localized("Укажите, на когда сделана бронь", "Choose when the reservation is for", "Indique cuándo es la reserva", "Geben Sie den Reservierungstermin an"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = s(10.5f),
+                        lineHeight = s(14f),
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        modifier = Modifier.offset(x = d(12f), y = d(29f)),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(d(10f)),
+                        modifier = Modifier.offset(x = d(12f), y = d(51f)).width(d(312f)),
+                    ) {
+                        RestaurantAddField(
+                            label = localized("Дата брони", "Reservation date", "Fecha de reserva", "Reservierungsdatum"),
+                            value = formatRestaurantReservationDate(reservationDate, language),
+                            placeholder = localized("дд.мм.гггг", "dd.mm.yyyy", "dd.mm.aaaa", "tt.mm.jjjj"),
+                            scale = scale,
+                            trailingIcon = Icons.Outlined.DateRange,
+                            readOnly = true,
+                            modifier = Modifier.width(d(151f)),
+                            onClick = { datePickerOpen = true },
+                            onValueChange = { reservationDate = it },
+                        )
+                        RestaurantAddField(
+                            label = localized("Время брони", "Reservation time", "Hora de la reserva", "Reservierungszeit"),
+                            value = reservationTime,
+                            placeholder = "--:--",
+                            scale = scale,
+                            trailingIcon = Icons.Outlined.AccessTime,
+                            readOnly = true,
+                            modifier = Modifier.width(d(151f)),
+                            onClick = { showRestaurantTimePicker(context, reservationTime) { reservationTime = it } },
+                            onValueChange = { reservationTime = it },
+                        )
+                    }
+                }
+            }
             RestaurantAddField(
                 label = localized("\u0424\u043e\u0442\u043e", "Photos", "Fotos", "Fotos"),
                 value = if (restaurantPhotos.isEmpty()) {
@@ -13885,7 +14019,7 @@ private fun RestaurantEditSheet(
                 trailingChevron = true,
                 readOnly = true,
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(610f))
+                    .offset(x = d(16f), y = d(photoTop))
                     .width(d(336f)),
                 onClick = { if (!busy) photoManagerOpen = true },
                 onValueChange = {},
@@ -13894,7 +14028,7 @@ private fun RestaurantEditSheet(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(d(11f)),
                 modifier = Modifier
-                    .offset(x = d(16f), y = d(703f))
+                    .offset(x = d(16f), y = d(actionTop))
                     .width(d(336f))
                     .height(d(53f)),
             ) {
@@ -13983,7 +14117,8 @@ private fun RestaurantEditSheet(
                                             note = cuisine,
                                             price = price,
                                             link = address,
-                                            date = dateTime,
+                                            reservationDate = reservationDate,
+                                            reservationTime = reservationTime,
                                             priority = priority,
                                         ),
                                     )
@@ -14017,8 +14152,8 @@ private fun RestaurantEditSheet(
                     fontSize = s(11f),
                     lineHeight = s(15f),
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                        modifier = Modifier
-                        .offset(x = d(16f), y = d(765f))
+                    modifier = Modifier
+                        .offset(x = d(16f), y = d(messageTop))
                         .width(d(336f)),
                 )
             }
@@ -14050,10 +14185,10 @@ private fun RestaurantEditSheet(
     }
     if (datePickerOpen) {
         AccommodationCalendarDialog(
-            initialValue = dateTime,
+            initialValue = reservationDate,
             onDismiss = { datePickerOpen = false },
             onConfirm = { selectedDate ->
-                dateTime = selectedDate
+                reservationDate = selectedDate
                 datePickerOpen = false
             },
         )
@@ -14932,6 +15067,7 @@ private fun RestaurantCard(
     onStatusChange: (String) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val language = LocalLanguage.current
     val cardBorderColor = contentBorderColor()
     // Failed signed-URL resolutions are represented by blank placeholders so
     // photo indexes stay stable in the editor. Google Places resource names
@@ -14984,6 +15120,11 @@ private fun RestaurantCard(
         "бронь" -> localized("Бронь подтверждена", "Reservation confirmed", "Reserva confirmada", "Reservierung bestätigt")
         "были" -> localized("Посещено", "Visited", "Visitado", "Besucht")
         else -> localized("Запланировать бронь", "Plan reservation", "Planificar reserva", "Reservierung planen")
+    }
+    val reservationDetails = if (booked) {
+        formatRestaurantReservationLabel(restaurant.reservationDate, restaurant.reservationTime, language)
+    } else {
+        ""
     }
     Column(
         modifier = modifier
@@ -15146,6 +15287,18 @@ private fun RestaurantCard(
                     OdysseyCalendarIcon(14.dp, if (booked) Color(0xFF22B07D) else secondaryTextColor())
                     Text(if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reservation, color = if (booked) Color(0xFF22B07D) else secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.5.sp, lineHeight = 17.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                if (reservationDetails.isNotBlank()) {
+                    Text(
+                        reservationDetails,
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             } else {
                 Text(
                     if (saving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else reviewsLabel.ifBlank { reservation },
@@ -15229,6 +15382,11 @@ private fun RestaurantDetailsSheet(
         "бронь" -> localized("Бронь подтверждена", "Reservation confirmed", "Reserva confirmada", "Reservierung bestätigt")
         "были" -> localized("Посещено", "Visited", "Visitado", "Besucht")
         else -> localized("Запланировано", "Planned", "Planeado", "Geplant")
+    }
+    val reservationDetails = if (restaurant.status == "бронь") {
+        formatRestaurantReservationLabel(restaurant.reservationDate, restaurant.reservationTime, language)
+    } else {
+        ""
     }
     val cuisine = localizedRestaurantNote(restaurant.note)
 
@@ -15392,7 +15550,7 @@ private fun RestaurantDetailsSheet(
         ) {
             OdysseyCalendarIcon(17.dp, primaryColor())
             Text(statusLabel, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.5.sp, modifier = Modifier.weight(1f))
-            restaurant.date.takeIf(String::isNotBlank)?.let {
+            reservationDetails.takeIf(String::isNotBlank)?.let {
                 Text(it, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
             }
         }
@@ -21646,6 +21804,28 @@ private fun formatAccommodationDeadline(value: String, language: String): String
         else -> listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
     }
     return "${match.groupValues[3].toInt()} ${months[match.groupValues[2].toInt() - 1]}"
+}
+
+private fun formatRestaurantReservationDate(value: String, language: String): String =
+    value.trim().takeIf(String::isNotBlank)?.let { formatAccommodationDeadline(it, language) }.orEmpty()
+
+private fun formatRestaurantReservationLabel(date: String, time: String, language: String): String =
+    listOf(
+        formatRestaurantReservationDate(date, language).takeIf(String::isNotBlank),
+        time.trim().takeIf(String::isNotBlank),
+    ).filterNotNull().joinToString(" · ")
+
+private fun showRestaurantTimePicker(context: Context, initialValue: String, onConfirm: (String) -> Unit) {
+    val match = Regex("^(\\d{1,2}):(\\d{2})$").matchEntire(initialValue.trim())
+    val initialHour = match?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 23) ?: 19
+    val initialMinute = match?.groupValues?.get(2)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+    TimePickerDialog(
+        context,
+        { _, hour, minute -> onConfirm(String.format(Locale.ROOT, "%02d:%02d", hour, minute)) },
+        initialHour,
+        initialMinute,
+        true,
+    ).show()
 }
 
 private fun formatAccommodationPrice(value: String): String {
