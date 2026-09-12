@@ -1645,9 +1645,11 @@ fun OdysseyApp(
             val client = SupabaseProvider.clientForCurrentAuthFlow()
             val repository = AccountRepository(client)
             val profile = runCatching { repository.loadProfile() }.getOrNull()
+            val webOnboardingResult = runCatching { repository.loadWebOnboardingCompleted() }
             // Older accounts may have trips but no account_profile row. Read
             // that server-side signal before deciding whether this is a new
-            // user; this avoids showing onboarding after an app upgrade.
+            // user; the shared web tutorial state below then decides whether
+            // this account still needs the current onboarding flow.
             val existingTrips = if (profile?.hasStoredProfile == true) {
                 emptyList()
             } else {
@@ -1666,12 +1668,19 @@ fun OdysseyApp(
                     loadedProfile
                 }
             }
+            val effectiveProfile = migratedProfile?.copy(
+                onboardingCompleted = effectiveOnboardingCompleted(
+                    accountProfileCompleted = migratedProfile.onboardingCompleted,
+                    webOnboardingCompleted = webOnboardingResult.getOrNull(),
+                    webOnboardingStateLoaded = webOnboardingResult.isSuccess,
+                ),
+            )
             // If the migration probe failed, keep the profile unavailable so
             // an existing user is never incorrectly sent into first-run
             // onboarding. The regular Home screen can still render and retry
             // its own trip request.
-            accountProfile = if (profileReady) migratedProfile else null
-            migratedProfile?.let {
+            accountProfile = if (profileReady) effectiveProfile else null
+            effectiveProfile?.let {
                 themePreference = it.themePreference
                 val languageChosenBeforeAuth = languageSelectedBeforeAuth
                 if (languageChosenBeforeAuth != null) {
@@ -1821,10 +1830,10 @@ fun OdysseyApp(
                     )
                 }
                 composable("onboarding/{mode}") { entry ->
-                    val mode = if (entry.arguments?.getString("mode") == "replay") {
-                        OnboardingMode.REPLAY
-                    } else {
-                        OnboardingMode.FIRST_RUN
+                    val mode = when (entry.arguments?.getString("mode")) {
+                        "replay" -> OnboardingMode.REPLAY
+                        "create" -> OnboardingMode.CREATE_FLOW
+                        else -> OnboardingMode.FIRST_RUN
                     }
                     OnboardingTutorialScreen(
                         mode = mode,
@@ -1837,8 +1846,9 @@ fun OdysseyApp(
                                 )
                                 authScope.launch {
                                     runCatching {
-                                        AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                            .updateOnboardingState(onboardingCompleted = true)
+                                        val repository = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                        repository.updateOnboardingState(onboardingCompleted = true)
+                                        repository.updateWebOnboardingState(completed = true)
                                     }
                                 }
                                 val destination = onboardingDestination(
@@ -1860,7 +1870,9 @@ fun OdysseyApp(
                 composable("trips") {
                     MyTripsScreen(
                         onTripClick = { navController.navigate("trip/$it") },
-                        onNewTrip = { navController.navigate("create-trip") },
+                        onNewTrip = { firstTrip ->
+                            navController.navigate(if (firstTrip) "onboarding/create" else "create-trip")
+                        },
                         onLogout = {
                             hasSession = false
                             navController.navigate("foundation") {
@@ -2061,7 +2073,7 @@ private fun OnboardingTutorialScreen(
                 }
             }
 
-            if (page == RamingoOnboardingPage.FIRST_TRIP && mode == OnboardingMode.FIRST_RUN) {
+            if (page == RamingoOnboardingPage.FIRST_TRIP && mode != OnboardingMode.REPLAY) {
                 Button(
                     enabled = !finishing,
                     onClick = { exit(OnboardingExitAction.CREATE_FIRST_TRIP) },
@@ -2147,6 +2159,8 @@ private data class OnboardingStepCopy(
     val eyebrow: String,
     val title: String,
     val body: String,
+    val action: String,
+    val actionDetails: String,
 )
 
 @Composable
@@ -2155,19 +2169,25 @@ private fun OnboardingStepContent(
 ) {
     val copy = when (page) {
         RamingoOnboardingPage.WELCOME -> OnboardingStepCopy(
-            localized("01 · ПЛАН", "01 · PLAN", "01 · PLAN", "01 · PLAN"),
-            localized("Планируйте всё в одном месте", "Plan the whole trip in one place", "Planifique todo el viaje en un solo lugar", "Planen Sie die ganze Reise an einem Ort"),
-            localized("Маршрут, места, жильё и заметки — всё внутри одной поездки.", "Routes, places, stays and notes — all inside one trip.", "Rutas, lugares, alojamientos y notas: todo dentro de un viaje.", "Routen, Orte, Unterkünfte und Notizen — alles in einer Reise."),
+            localized("01 · НАЧАЛО", "01 · START", "01 · INICIO", "01 · START"),
+            localized("Создайте поездку за минуту", "Create a trip in a minute", "Cree un viaje en un minuto", "Erstellen Sie eine Reise in einer Minute"),
+            localized("На главной собраны поездки, а новая поездка начинается с одной кнопки.", "Your trips live on the home screen, and a new one starts with a single button.", "Sus viajes están en la pantalla principal y uno nuevo comienza con un solo botón.", "Ihre Reisen liegen auf der Startseite, und eine neue beginnt mit einem einzigen Button."),
+            localized("Нажмите «Новое путешествие»", "Tap “New trip”", "Pulse «Nuevo viaje»", "Tippen Sie auf „Neue Reise“"),
+            localized("Затем заполните название, города и даты поездки.", "Then fill in the trip title, cities and dates.", "Después, complete el nombre, las ciudades y las fechas.", "Füllen Sie dann Titel, Städte und Reisedaten aus."),
         )
         RamingoOnboardingPage.PLAN -> OnboardingStepCopy(
-            localized("02 · МАРШРУТ", "02 · ROUTE", "02 · RUTA", "02 · ROUTE"),
-            localized("Соберите свой маршрут", "Build your route", "Construya su ruta", "Stellen Sie Ihre Route zusammen"),
-            localized("Добавляйте города и места и выстраивайте путь по карте — день за днём.", "Add cities and places and shape the path on the map, day by day.", "Añada ciudades y lugares y trace la ruta en el mapa, día a día.", "Fügen Sie Städte und Orte hinzu und formen Sie den Weg auf der Karte — Tag für Tag."),
+            localized("02 · ПЛАН", "02 · PLAN", "02 · PLAN", "02 · PLAN"),
+            localized("Соберите маршрут по дням", "Build your route day by day", "Construya su ruta día a día", "Stellen Sie Ihre Route Tag für Tag zusammen"),
+            localized("Добавляйте переезды, места и жильё в связанных разделах поездки.", "Add transfers, places and lodging in the connected trip sections.", "Añada traslados, lugares y alojamiento en las secciones conectadas del viaje.", "Fügen Sie Fahrten, Orte und Unterkünfte in den verbundenen Reisebereichen hinzu."),
+            localized("Откройте «Маршрут»", "Open “Route”", "Abra «Ruta»", "Öffnen Sie „Route“"),
+            localized("Выберите день, добавьте переезд или место и переходите к следующему дню по шкале.", "Choose a day, add a transfer or place, then move to the next day on the day rail.", "Elija un día, añada un traslado o lugar y pase al siguiente día en la escala.", "Wählen Sie einen Tag, fügen Sie eine Fahrt oder einen Ort hinzu und wechseln Sie über die Tagesleiste weiter."),
         )
         RamingoOnboardingPage.FIRST_TRIP -> OnboardingStepCopy(
-            localized("03 · СТАРТ", "03 · START", "03 · INICIO", "03 · START"),
-            localized("Готовы спланировать поездку?", "Ready to plan your first trip?", "¿Listo para planear su primer viaje?", "Bereit für Ihre erste Reise?"),
-            localized("Создайте первую поездку или сначала осмотритесь — данные и подсказки сохранятся.", "Create your first trip or explore first — your data and hints stay intact.", "Cree su primer viaje o explore primero: sus datos y sugerencias se conservarán.", "Erstellen Sie Ihre erste Reise oder sehen Sie sich zuerst um — Daten und Hinweise bleiben erhalten."),
+            localized("03 · НАСТРОЙКИ", "03 · SETTINGS", "03 · AJUSTES", "03 · EINSTELLUNGEN"),
+            localized("Ramingo подстроится под вас", "Ramingo adapts to you", "Ramingo se adapta a usted", "Ramingo passt sich an Sie an"),
+            localized("Язык, тема и повторное обучение всегда доступны в профиле. Готовы начать?", "Language, theme and the tutorial are always available in your profile. Ready to start?", "El idioma, el tema y el tutorial siempre están disponibles en su perfil. ¿Listo para empezar?", "Sprache, Design und Tutorial sind jederzeit im Profil verfügbar. Bereit für den Start?"),
+            localized("Откройте ⚙ → «Показать обучение»", "Open ⚙ → “Show tutorial”", "Abra ⚙ → «Mostrar tutorial»", "Öffnen Sie ⚙ → „Tutorial anzeigen“"),
+            localized("Настройки доступны с главной и внутри поездки — к подсказкам можно вернуться в любой момент.", "Settings are available from the home screen and inside a trip — return to these hints at any time.", "Los ajustes están disponibles desde el inicio y dentro de un viaje: vuelva a estas sugerencias cuando quiera.", "Die Einstellungen sind auf der Startseite und in einer Reise verfügbar — kehren Sie jederzeit zu diesen Hinweisen zurück."),
         )
     }
 
@@ -2208,6 +2228,62 @@ private fun OnboardingStepContent(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(start = 12.dp, top = 6.dp, end = 12.dp),
         )
+        val actionShape = RoundedCornerShape(15.dp)
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 16.dp, end = 12.dp)
+                .clip(actionShape)
+                .background(tintedSurfaceColor())
+                .border(1.dp, primaryColor().copy(alpha = 0.25f), actionShape)
+                .padding(12.dp),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(primaryColor()),
+            ) {
+                Text(
+                    (page.ordinal + 1).toString().padStart(2, '0'),
+                    color = primaryContentColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 10.sp,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    localized("ЧТО НАЖАТЬ", "WHAT TO TAP", "QUÉ PULSAR", "WAS ANTIPPEN"),
+                    color = primaryColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 9.sp,
+                    letterSpacing = 0.9.sp,
+                )
+                Text(
+                    copy.action,
+                    color = contentTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(
+                    copy.actionDetails,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }
 
@@ -3433,7 +3509,7 @@ private fun RamingoBrand(modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun MyTripsScreen(
     onTripClick: (String) -> Unit,
-    onNewTrip: () -> Unit,
+    onNewTrip: (Boolean) -> Unit,
     onLogout: () -> Unit,
     darkTheme: Boolean,
     themePreference: ThemePreference,
@@ -3738,7 +3814,7 @@ private fun MyTripsScreen(
                             highlighted = showCreateTripHint,
                             onAction = {
                                 if (showCreateTripHint) dismissCreateTripHint()
-                                onNewTrip()
+                                onNewTrip(activeTrips.isEmpty())
                             },
                         )
                         if (showCreateTripHint) {
@@ -3749,7 +3825,7 @@ private fun MyTripsScreen(
                                 actionLabel = localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"),
                                 onAction = {
                                     dismissCreateTripHint()
-                                    onNewTrip()
+                                    onNewTrip(activeTrips.isEmpty())
                                 },
                                 onDismiss = ::dismissCreateTripHint,
                             )
@@ -3767,7 +3843,7 @@ private fun MyTripsScreen(
                     )
                 }
             }
-            item { NewTripCard(onNewTrip) }
+            item { NewTripCard { onNewTrip(activeTrips.isEmpty()) } }
         }
         }
 
@@ -7676,6 +7752,15 @@ private fun TripCityChip(city: String, onRemove: () -> Unit) {
     }
 }
 
+internal fun weatherCitiesForOverview(
+    overviewWeatherCities: List<String>,
+    tripCities: List<String>,
+    fallbackCities: List<String>,
+): List<String> = (overviewWeatherCities.ifEmpty { tripCities.ifEmpty { fallbackCities } })
+    .map(String::trim)
+    .filter(String::isNotBlank)
+    .distinctBy { it.lowercase(Locale.ROOT) }
+
 @Composable
 private fun TripOverviewScreen(
     tripId: String,
@@ -7729,10 +7814,18 @@ private fun TripOverviewScreen(
         weatherLoading = true
 
         loadedOverview.let { trip ->
-            val routeCities = trip.overviewMapPoints.ifEmpty {
+            // The web editor stores its weather city selection in `cities`.
+            // Keep the Android-only overviewWeatherCities override when it is
+            // present, then fall back to the shared trip list before using
+            // map points or route legs.
+            val fallbackCities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
-            val cities = trip.overviewWeatherCities.ifEmpty { routeCities }.distinct()
+            val cities = weatherCitiesForOverview(
+                overviewWeatherCities = trip.overviewWeatherCities,
+                tripCities = trip.cities,
+                fallbackCities = fallbackCities,
+            )
             val unresolvedCities = cities.filter { city ->
                 trip.cityCoordinates[city] == null && cityCatalogEntry(city) == null
             }

@@ -1,9 +1,10 @@
 package com.odyssey.travelplanner.ui
 
-/** The two supported entry points into the shared onboarding flow. */
+/** The supported entry points into the shared onboarding flow. */
 enum class OnboardingMode {
     FIRST_RUN,
     REPLAY,
+    CREATE_FLOW,
 }
 
 /** Actions available when the first-run onboarding is completed. */
@@ -20,6 +21,23 @@ fun normalizeOnboardingPage(index: Int): Int =
 
 fun shouldShowFirstRunOnboarding(onboardingCompleted: Boolean): Boolean =
     !onboardingCompleted
+
+/**
+ * Prefer the shared web tutorial state when it was read successfully. A
+ * missing shared record means the current app version has not completed the
+ * tutorial yet, even if an older Android-only profile flag was migrated.
+ * Network failures fall back to the Android profile flag so an existing user
+ * is never blocked behind onboarding while offline.
+ */
+fun effectiveOnboardingCompleted(
+    accountProfileCompleted: Boolean,
+    webOnboardingCompleted: Boolean?,
+    webOnboardingStateLoaded: Boolean,
+): Boolean = if (webOnboardingStateLoaded) {
+    webOnboardingCompleted == true
+} else {
+    accountProfileCompleted
+}
 
 fun onboardingDestination(
     action: OnboardingExitAction,

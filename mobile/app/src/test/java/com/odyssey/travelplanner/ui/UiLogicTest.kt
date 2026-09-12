@@ -85,6 +85,26 @@ class UiLogicTest {
     }
 
     @Test
+    fun weatherUsesSharedTripCitiesBeforeMapOnlySelection() {
+        assertEquals(
+            listOf("Инцелль", "Верона", "Рим"),
+            weatherCitiesForOverview(
+                overviewWeatherCities = emptyList(),
+                tripCities = listOf(" Инцелль ", "Верона", "Рим"),
+                fallbackCities = listOf("Верона", "Пиза"),
+            ),
+        )
+        assertEquals(
+            listOf("Пиза"),
+            weatherCitiesForOverview(
+                overviewWeatherCities = listOf("Пиза"),
+                tripCities = listOf("Рим"),
+                fallbackCities = listOf("Верона"),
+            ),
+        )
+    }
+
+    @Test
     fun weatherTripDatesIncludesBothEndsOfTheTrip() {
         assertEquals(
             listOf(

@@ -150,6 +150,37 @@ class AccountRepository(private val client: SupabaseClient) {
         )
     }
 
+    /**
+     * The web app stores its first-run tutorial state in this generic user_data
+     * record. Reading the same record keeps the Android and web onboarding in
+     * sync without introducing another table or column.
+     */
+    suspend fun loadWebOnboardingCompleted(): Boolean? {
+        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: return null
+        val row = client.from("user_data").select {
+            filter { eq("user_id", userId); eq("key", "web-onboarding") }
+        }.decodeList<UserDataRow>().firstOrNull() ?: return null
+        return when (row.value["completed"]?.jsonPrimitive?.contentOrNull?.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+    }
+
+    suspend fun updateWebOnboardingState(completed: Boolean) {
+        val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        client.from("user_data").upsert(
+            UserDataRow(
+                userId = userId,
+                key = "web-onboarding",
+                value = buildJsonObject {
+                    put("completed", completed)
+                    put("completedAt", java.time.Instant.now().toString())
+                },
+            ),
+        ) { onConflict = "user_id,key" }
+    }
+
     suspend fun uploadProfilePhoto(bytes: ByteArray): String {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()

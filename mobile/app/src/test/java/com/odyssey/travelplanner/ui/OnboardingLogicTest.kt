@@ -22,6 +22,14 @@ class OnboardingLogicTest {
     }
 
     @Test
+    fun sharedWebOnboardingStateOverridesLegacyAndroidFlag() {
+        assertFalse(effectiveOnboardingCompleted(true, webOnboardingCompleted = false, webOnboardingStateLoaded = true))
+        assertTrue(effectiveOnboardingCompleted(false, webOnboardingCompleted = true, webOnboardingStateLoaded = true))
+        assertFalse(effectiveOnboardingCompleted(false, webOnboardingCompleted = null, webOnboardingStateLoaded = true))
+        assertTrue(effectiveOnboardingCompleted(true, webOnboardingCompleted = null, webOnboardingStateLoaded = false))
+    }
+
+    @Test
     fun completionActionsUseHomeOrTheExistingCreateTripFlow() {
         assertEquals("trips", onboardingDestination(OnboardingExitAction.SKIP))
         assertEquals("trips", onboardingDestination(OnboardingExitAction.EXPLORE))
