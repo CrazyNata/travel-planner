@@ -1519,14 +1519,21 @@ button {
   font-weight: 800;
 }
 .edit-trip {
-  border: 0;
+  border: 1px solid #dcdaf8;
   border-radius: 13px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  padding: 13px 19px;
-  color: #fff;
+  background: #fff;
+  padding: 12px 18px;
+  color: var(--accent);
   font-size: 14px;
   font-weight: 800;
-  box-shadow: 0 8px 20px #4c46d64d;
+  box-shadow: 0 4px 12px #4c46d614;
+}
+.edit-trip:hover {
+  border-color: var(--accent);
+  background: #f8f7ff;
+}
+.edit-trip:active {
+  background: #eeedff;
 }
 .trip-card-editor {
   display: flex;
