@@ -2402,6 +2402,11 @@ button {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
 }
+.weather-trip-days-note {
+  margin: 8px 0 0;
+  color: #817a72;
+  font-size: 10px;
+}
 .overview-draft {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 360px;
@@ -8758,6 +8763,9 @@ body.ramingo-onboarding-open {
 }
 .app.app-dark .weather-trip-selected {
   border-top-color: #394158;
+}
+.app.app-dark .weather-trip-days-note {
+  color: #98a2b7;
 }
 .app.app-dark .overview-draft > section,
 .app.app-dark .sights-empty,

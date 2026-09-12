@@ -12863,7 +12863,6 @@ function WeatherOverview({
                 {selectedTripDate === tripForecastDate
                   ? "Выделен первый день"
                   : "Выделен выбранный день"}
-                {selectedWeatherCity ? ` · ${selectedWeatherCity.name}` : ""}
               </p>
             </div>
             <div className="weather-trip-days-actions">
@@ -12939,6 +12938,9 @@ function WeatherOverview({
                 : "—"}
             </strong>
           </div>
+          <p className="weather-trip-days-note">
+            В полном варианте здесь можно пролистывать все {weatherDateOptions.length} дней.
+          </p>
         </section>
       )}
     </section>
