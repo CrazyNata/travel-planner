@@ -6338,7 +6338,9 @@ function AccommodationCityPicker({
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const localOptions = Array.from(new Set(cities.filter(Boolean)))
     .filter((city) => !normalizedQuery || city.toLocaleLowerCase().includes(normalizedQuery));
-  const visibleLocalOptions = normalizedQuery ? localOptions : localOptions.slice(0, 8);
+  const visibleLocalOptions = normalizedQuery || localOptions.length <= 12
+    ? localOptions
+    : localOptions.slice(0, 8);
   const filteredRemoteOptions = normalizedQuery
     ? remoteOptions.filter((city) => {
       const cityName = city.split(",")[0]?.trim().toLocaleLowerCase() || city.toLocaleLowerCase();
@@ -9146,6 +9148,7 @@ function Restaurants({
   const [addingRestaurant, setAddingRestaurant] = useState(false);
   const restaurantCities = mergeTripCities(
     parseTripCities(trip.cities),
+    trip.overviewMapPoints || [],
     (trip.days || []).flatMap((day) =>
       day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
     ),
