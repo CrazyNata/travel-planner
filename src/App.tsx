@@ -10383,20 +10383,27 @@ function AccommodationList({
                 aria-expanded={sortMenuOpen}
                 aria-controls="accommodation-sort-menu"
                 onClick={() => setSortMenuOpen((open) => !open)}
-              >
-                <svg
-                  className="accommodation-sort-trigger-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
                 >
-                  <path d="M12 3v18" />
-                  <path d="m8 7 4-4 4 4" />
-                  <path d="m16 17-4 4-4-4" />
-                </svg>
-                <span>Сортировка: {sortLabels[sortMode]}</span>
-                <span className="accommodation-sort-chevron" aria-hidden="true">⌄</span>
-              </button>
+                  <svg
+                    className="accommodation-sort-trigger-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 6h16" />
+                    <path d="M4 12h13" />
+                    <path d="M4 18h9" />
+                  </svg>
+                  <span>Сортировка: {sortLabels[sortMode]}</span>
+                  <svg
+                    className="accommodation-sort-chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
               {sortMenuOpen && (
                 <div
                   id="accommodation-sort-menu"
