@@ -2483,8 +2483,8 @@ button {
   color: #29435d !important;
 }
 .weather-trip-days-list button.weather-trip-date.city-stay:not(.active) {
-  border-color: #3d78a5 !important;
-  box-shadow: inset 0 -4px 0 rgba(61, 120, 165, 0.86), 0 0 0 1px rgba(61, 120, 165, 0.2);
+  border-color: #2387c4 !important;
+  box-shadow: inset 0 -6px 0 #2387c4, 0 0 0 2px rgba(35, 135, 196, 0.3), 0 4px 12px rgba(35, 135, 196, 0.16);
 }
 .weather-trip-days-list button.weather-trip-date.active {
   border-color: #3d78a5 !important;
@@ -8910,8 +8910,8 @@ body.ramingo-onboarding-open {
   color: #d1e0f0 !important;
 }
 .app.app-dark .weather-trip-days-list button.weather-trip-date.city-stay:not(.active) {
-  border-color: #8b84ef !important;
-  box-shadow: inset 0 -4px 0 rgba(139, 132, 239, 0.9), 0 0 0 1px rgba(139, 132, 239, 0.28);
+  border-color: #a29cff !important;
+  box-shadow: inset 0 -6px 0 #a29cff, 0 0 0 2px rgba(162, 156, 255, 0.38), 0 4px 12px rgba(162, 156, 255, 0.22);
 }
 .app.app-dark .weather-trip-selected {
   border-top-color: #394158;
