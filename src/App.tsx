@@ -277,7 +277,17 @@ type ImportedRestaurant = {
   categories?: string[];
   priority?: boolean;
   dogFriendly?: boolean;
+  reservationDate?: string;
+  reservationTime?: string;
 };
+
+function formatRestaurantReservationDate(value?: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}.${month}.${year}`;
+}
+
 const restaurantCuisineOptions = [
   "Итальянская",
   "Тоскана",
@@ -8410,6 +8420,11 @@ function RestaurantPage({
               </p>
               <h3>{place.name}</h3>
               {place.note && <small>{place.note}</small>}
+              {place.status === "бронь" && (place.reservationDate || place.reservationTime) && (
+                <small className="restaurant-reservation-summary">
+                  Бронь: {formatRestaurantReservationDate(place.reservationDate)}{place.reservationTime ? ` · ${place.reservationTime}` : ""}
+                </small>
+              )}
               <footer>
                 {place.link ? (
                   <a href={place.link} target="_blank" rel="noreferrer">
@@ -8524,6 +8539,8 @@ function RestaurantForm({
   const [cuisine, setCuisine] = useState("Тоскана");
   const [note, setNote] = useState("");
   const [link, setLink] = useState("");
+  const [reservationDate, setReservationDate] = useState("");
+  const [reservationTime, setReservationTime] = useState("");
   const [cuisineFocused, setCuisineFocused] = useState(false);
   const [photos, setPhotos] = useState(["", "", ""]);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -8575,6 +8592,8 @@ function RestaurantForm({
             cuisine: cuisine.trim() || undefined,
             note: note.trim() || undefined,
             link: link.trim() || undefined,
+            reservationDate: status === "бронь" ? reservationDate || undefined : undefined,
+            reservationTime: status === "бронь" ? reservationTime || undefined : undefined,
             // Local previews are intentionally not persisted as restaurant data.
             // Uploaded photos can be added later from the editor.
             photos: photos.filter((photo) => photo && !photo.startsWith("blob:")),
@@ -8687,14 +8706,6 @@ function RestaurantForm({
             </div>
           </label>
           <label>
-            Дата и время
-            <select defaultValue="15 сент · 13:00">
-              <option>15 сент · 13:00</option>
-              <option>15 сент · 20:00</option>
-              <option>16 сент · 13:00</option>
-            </select>
-          </label>
-          <label>
             Средний чек
             <div className="price-options">
               {["€", "€€", "€€€", "€€€€"].map((item) => (
@@ -8749,6 +8760,27 @@ function RestaurantForm({
             </button>
           </div>
         </section>
+        {status === "бронь" && (
+          <section className="restaurant-reservation-fields" aria-label="Дата и время брони">
+            <div className="restaurant-reservation-heading">
+              <div>
+                <b>Дата и время брони</b>
+                <span>Укажите, на когда сделана бронь</span>
+              </div>
+              <span aria-hidden="true">◷</span>
+            </div>
+            <div className="restaurant-reservation-grid">
+              <label>
+                Дата брони
+                <input type="date" value={reservationDate} onChange={(event) => setReservationDate(event.target.value)} />
+              </label>
+              <label>
+                Время брони
+                <input type="time" value={reservationTime} onChange={(event) => setReservationTime(event.target.value)} />
+              </label>
+            </div>
+          </section>
+        )}
         <footer>
           <button type="button" onClick={onClose}>
             Отмена
@@ -8785,6 +8817,8 @@ function RestaurantEditor({
   const [note, setNote] = useState(restaurant.note || "");
   const [link, setLink] = useState(restaurant.link || "");
   const [status, setStatus] = useState(restaurant.status || "хочу");
+  const [reservationDate, setReservationDate] = useState(restaurant.reservationDate || "");
+  const [reservationTime, setReservationTime] = useState(restaurant.reservationTime || "");
   const [price, setPrice] = useState(restaurant.price || "€€");
   const [placeType, setPlaceType] = useState(restaurant.placeType || "ресторан");
   const [categories, setCategories] = useState(restaurant.categories || []);
@@ -8843,6 +8877,8 @@ function RestaurantEditor({
             note: note.trim(),
             link: link.trim(),
             status,
+            reservationDate: status === "бронь" ? reservationDate || undefined : undefined,
+            reservationTime: status === "бронь" ? reservationTime || undefined : undefined,
             price,
             placeType,
             categories,
@@ -8879,6 +8915,27 @@ function RestaurantEditor({
           <b>Статус</b>
           <div>{["хочу", "бронь", "были"].map((item) => <button className={status === item ? "active" : ""} type="button" onClick={() => setStatus(item)} key={item}>{item}</button>)}<button className={priority ? "active" : ""} type="button" onClick={() => setPriority((current) => !current)}>🔥 приоритет</button><button className={dogFriendly ? "active" : ""} type="button" onClick={() => setDogFriendly((current) => !current)}>🐶 Можно с собакой</button></div>
         </section>
+        {status === "бронь" && (
+          <section className="restaurant-reservation-fields" aria-label="Дата и время брони">
+            <div className="restaurant-reservation-heading">
+              <div>
+                <b>Дата и время брони</b>
+                <span>Укажите, на когда сделана бронь</span>
+              </div>
+              <span aria-hidden="true">◷</span>
+            </div>
+            <div className="restaurant-reservation-grid">
+              <label>
+                Дата брони
+                <input type="date" value={reservationDate} onChange={(event) => setReservationDate(event.target.value)} />
+              </label>
+              <label>
+                Время брони
+                <input type="time" value={reservationTime} onChange={(event) => setReservationTime(event.target.value)} />
+              </label>
+            </div>
+          </section>
+        )}
         <section className="restaurant-editor-photos">
           <b>Фотографии</b>
           <div>
