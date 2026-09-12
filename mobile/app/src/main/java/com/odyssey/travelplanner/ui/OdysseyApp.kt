@@ -186,6 +186,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -4797,7 +4798,7 @@ private fun NotificationSettingsRow(
             Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 10.sp)
             Text(detail, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 9.sp, modifier = Modifier.padding(top = 3.dp))
         }
-        AccountToggle(checked = checked, onClick = onClick)
+        AccountToggle(checked = checked, label = title, onClick = onClick)
     }
 }
 
@@ -5401,13 +5402,22 @@ private fun AccountSettingsDivider(color: Color) {
 }
 
 @Composable
-private fun AccountToggle(checked: Boolean, onClick: () -> Unit) {
+private fun AccountToggle(checked: Boolean, label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .width(40.dp)
             .height(24.dp)
             .clip(RoundedCornerShape(999.dp))
             .background(if (checked) primaryColor() else Color(0xFFE4E1EB))
+            .semantics {
+                contentDescription = label
+                role = Role.Switch
+                stateDescription = if (checked) {
+                    localized("Включено", "On", "Activado", "Aktiv")
+                } else {
+                    localized("Выключено", "Off", "Desactivado", "Aus")
+                }
+            }
             .clickable(onClick = onClick),
     ) {
         Box(
@@ -5431,7 +5441,15 @@ private fun AccountMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVecto
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .let { modifier -> if (onClick != null) modifier.clickable { onClick() } else modifier }
+            .let { modifier ->
+                if (onClick != null) {
+                    modifier
+                        .semantics { role = Role.Button }
+                        .clickable { onClick() }
+                } else {
+                    modifier
+                }
+            }
             .padding(horizontal = 13.dp),
     ) {
         AccountIconTile(icon, danger = isDanger)
