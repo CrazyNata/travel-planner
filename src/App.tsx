@@ -12614,7 +12614,11 @@ function WeatherOverview({
     weatherTripStartDate,
     weatherTripEndDate,
   );
+  const weatherCityKey = weatherCities.map((city) => city.name).join("|");
   const [selectedTripDate, setSelectedTripDate] = useState(tripForecastDate);
+  const [selectedWeatherCityName, setSelectedWeatherCityName] = useState(
+    weatherCities[0]?.name || "",
+  );
   const [visibleTripDateStart, setVisibleTripDateStart] = useState(0);
   const visibleTripDates = weatherDateOptions.slice(
     visibleTripDateStart,
@@ -12643,6 +12647,14 @@ function WeatherOverview({
     setSelectedTripDate(tripForecastDate);
     setVisibleTripDateStart(0);
   }, [tripForecastDate, weatherTripStartDate, weatherTripEndDate]);
+
+  useEffect(() => {
+    setSelectedWeatherCityName((current) =>
+      weatherCities.some((city) => city.name === current)
+        ? current
+        : weatherCities[0]?.name || "",
+    );
+  }, [weatherCityKey]);
 
   const selectTripDate = (date: string) => {
     setSelectedTripDate(date);
@@ -12716,9 +12728,11 @@ function WeatherOverview({
       typeof weather[city.name]?.tripDays?.[selectedTripDate]?.temperature ===
       "number",
   );
-  const primaryWeatherCity = weatherCities[0];
-  const selectedPrimaryForecast = primaryWeatherCity
-    ? weather[primaryWeatherCity.name]?.tripDays?.[selectedTripDate]
+  const selectedWeatherCity =
+    weatherCities.find((city) => city.name === selectedWeatherCityName) ||
+    weatherCities[0];
+  const selectedCityForecast = selectedWeatherCity
+    ? weather[selectedWeatherCity.name]?.tripDays?.[selectedTripDate]
     : undefined;
 
   return (
@@ -12729,7 +12743,7 @@ function WeatherOverview({
           <p>
             {mode === "now"
               ? "Текущая погода в городах поездки"
-              : `Погода на ${selectedTripDateLabel}`}
+              : `Погода на ${selectedTripDateLabel}${selectedWeatherCity ? ` · ${selectedWeatherCity.name}` : ""}`}
           </p>
         </div>
         <div className="weather-switch" role="group" aria-label="Период погоды">
@@ -12769,7 +12783,31 @@ function WeatherOverview({
             <article
               className={`weather-card${photo ? " has-photo" : ""}${
                 photo && brightenPhotos ? " christmas-weather-photo" : ""
-              }`}
+              }${
+                mode === "trip" && selectedWeatherCity?.name === city.name
+                  ? " selected"
+                  : ""
+              }${mode === "trip" ? " selectable" : ""}`}
+              role={mode === "trip" ? "button" : undefined}
+              tabIndex={mode === "trip" ? 0 : undefined}
+              aria-pressed={
+                mode === "trip"
+                  ? selectedWeatherCity?.name === city.name
+                  : undefined
+              }
+              onClick={() => {
+                if (mode === "trip") setSelectedWeatherCityName(city.name);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  mode !== "trip" ||
+                  (event.key !== "Enter" && event.key !== " ")
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                setSelectedWeatherCityName(city.name);
+              }}
               style={
                 photo
                   ? {
@@ -12825,6 +12863,7 @@ function WeatherOverview({
                 {selectedTripDate === tripForecastDate
                   ? "Выделен первый день"
                   : "Выделен выбранный день"}
+                {selectedWeatherCity ? ` · ${selectedWeatherCity.name}` : ""}
               </p>
             </div>
             <div className="weather-trip-days-actions">
@@ -12845,8 +12884,8 @@ function WeatherOverview({
           </header>
           <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
             {visibleTripDates.map((date) => {
-              const primaryForecast = primaryWeatherCity
-                ? weather[primaryWeatherCity.name]?.tripDays?.[date]
+              const selectedForecast = selectedWeatherCity
+                ? weather[selectedWeatherCity.name]?.tripDays?.[date]
                 : undefined;
               return (
                 <button
@@ -12858,8 +12897,8 @@ function WeatherOverview({
                 >
                   <span>{formatWeatherOverviewDate(date)}</span>
                   <b>
-                    {primaryForecast?.temperature !== undefined
-                      ? `${Math.round(primaryForecast.temperature)}°`
+                    {selectedForecast?.temperature !== undefined
+                      ? `${Math.round(selectedForecast.temperature)}°`
                       : "—"}
                   </b>
                 </button>
@@ -12883,20 +12922,20 @@ function WeatherOverview({
             <div>
               <b>
                 {selectedTripDateLabel}
-                {primaryWeatherCity ? ` · ${primaryWeatherCity.name}` : ""}
+                {selectedWeatherCity ? ` · ${selectedWeatherCity.name}` : ""}
               </b>
               <span>
-                {selectedPrimaryForecast?.code !== undefined
-                  ? weatherDescription(selectedPrimaryForecast.code)
+                {selectedCityForecast?.code !== undefined
+                  ? weatherDescription(selectedCityForecast.code)
                   : "Прогноз появится позже"}
-                {selectedPrimaryForecast?.code !== undefined
+                {selectedCityForecast?.code !== undefined
                   ? " · хороший день для прогулки"
                   : ""}
               </span>
             </div>
             <strong>
-              {selectedPrimaryForecast?.temperature !== undefined
-                ? `${Math.round(selectedPrimaryForecast.temperature)}°`
+              {selectedCityForecast?.temperature !== undefined
+                ? `${Math.round(selectedCityForecast.temperature)}°`
                 : "—"}
             </strong>
           </div>

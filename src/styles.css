@@ -2236,6 +2236,19 @@ button {
 .weather-card.has-photo b,
 .weather-card.has-photo span,
 .weather-card.has-photo p { color: #fff; }
+.weather-overview.trip-mode .weather-card.selectable {
+  cursor: pointer;
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+.weather-overview.trip-mode .weather-card.selectable:hover,
+.weather-overview.trip-mode .weather-card.selectable:focus-visible {
+  transform: translateY(-2px);
+  outline: 0;
+  box-shadow: 0 0 0 2px #8eb6d0, 0 8px 20px rgba(61, 120, 165, 0.2);
+}
+.weather-overview.trip-mode .weather-card.selected {
+  box-shadow: 0 0 0 3px #3d78a5, 0 8px 20px rgba(61, 120, 165, 0.22);
+}
 .weather-card.christmas-weather-photo {
   filter: brightness(1.18) contrast(1.08) saturate(1.08);
 }
@@ -8699,6 +8712,13 @@ body.ramingo-onboarding-open {
   background-position: center;
   background-size: cover;
   color: #fff;
+}
+.app.app-dark .weather-overview.trip-mode .weather-card.selectable:hover,
+.app.app-dark .weather-overview.trip-mode .weather-card.selectable:focus-visible {
+  box-shadow: 0 0 0 2px #8b84ef, 0 8px 20px #080a1466;
+}
+.app.app-dark .weather-overview.trip-mode .weather-card.selected {
+  box-shadow: 0 0 0 3px #8b84ef, 0 8px 20px #080a1466;
 }
 .app.app-dark .weather-trip-days {
   border-color: #394158;
