@@ -12541,6 +12541,55 @@ const weatherDescription = (code: number) => {
   return "Ливень";
 };
 
+type WeatherVisualKind = "sunny" | "cloudy" | "fog" | "rain" | "snow" | "storm";
+
+const weatherVisualKind = (code?: number): WeatherVisualKind | null => {
+  if (code === undefined) return null;
+  if (code === 0) return "sunny";
+  if (code <= 3) return "cloudy";
+  if (code <= 48) return "fog";
+  if (code <= 82) return "rain";
+  if (code <= 86) return "snow";
+  return "storm";
+};
+
+function WeatherDateIcon({ kind }: { kind: WeatherVisualKind }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      {kind === "sunny" && (
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4m0-14.2-1.4 1.4M6.3 17.7l-1.4 1.4" />
+        </>
+      )}
+      {kind === "cloudy" && (
+        <path d="M6.8 18h9.1a4.1 4.1 0 0 0 .6-8.16A5.5 5.5 0 0 0 6.1 11.6 3.2 3.2 0 0 0 6.8 18Z" />
+      )}
+      {kind === "fog" && (
+        <path d="M5 9.5h8.5a3.6 3.6 0 0 0 .4 7.2H18M4 13h5m-6 4h5m4 4h6" />
+      )}
+      {kind === "rain" && (
+        <>
+          <path d="M6.8 15.5h9.1a4.1 4.1 0 0 0 .6-8.16A5.5 5.5 0 0 0 6.1 9.1a3.2 3.2 0 0 0 .7 6.4Z" />
+          <path d="m8 18-1 2m5-2-1 2m5-2-1 2" />
+        </>
+      )}
+      {kind === "snow" && (
+        <>
+          <path d="M6.8 15.5h9.1a4.1 4.1 0 0 0 .6-8.16A5.5 5.5 0 0 0 6.1 9.1a3.2 3.2 0 0 0 .7 6.4Z" />
+          <path d="M8 19v-2m-1 1h2m4 1v-2m-1 1h2m4 1v-2m-1 1h2" />
+        </>
+      )}
+      {kind === "storm" && (
+        <>
+          <path d="M6.8 14.5h9.1a4.1 4.1 0 0 0 .6-8.16A5.5 5.5 0 0 0 6.1 8.1a3.2 3.2 0 0 0 .7 6.4Z" />
+          <path d="m13 14-3 5h3l-1 4 4-6h-3l2-3" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 const canonicalWeatherCity = (value?: string) => {
   const normalized = value?.trim().toLocaleLowerCase("ru") || "";
   const match = Object.keys(mapLocations)
@@ -12552,11 +12601,13 @@ const canonicalWeatherCity = (value?: string) => {
 type WeatherDailyForecast = {
   time: string[];
   temperature_2m_max: (number | null)[];
+  temperature_2m_min: (number | null)[];
   weather_code: (number | null)[];
 };
 
 type WeatherDaySnapshot = {
   temperature?: number;
+  nightTemperature?: number;
   code?: number;
 };
 
@@ -12678,7 +12729,7 @@ function WeatherOverview({
     const latitude = weatherCities.map((city) => city.latitude).join(",");
     const longitude = weatherCities.map((city) => city.longitude).join(",");
     void fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&temperature_unit=celsius&forecast_days=16&timezone=auto`,
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=celsius&forecast_days=16&timezone=auto`,
     )
       .then(async (response) => {
         if (!response.ok) throw new Error("Weather request failed");
@@ -12695,6 +12746,8 @@ function WeatherOverview({
               tripDays[date] = {
                 temperature:
                   item.daily?.temperature_2m_max[dailyIndex] ?? undefined,
+                nightTemperature:
+                  item.daily?.temperature_2m_min[dailyIndex] ?? undefined,
                 code: item.daily?.weather_code[dailyIndex] ?? undefined,
               };
             });
@@ -12886,20 +12939,32 @@ function WeatherOverview({
               const selectedForecast = selectedWeatherCity
                 ? weather[selectedWeatherCity.name]?.tripDays?.[date]
                 : undefined;
+              const visualKind = weatherVisualKind(selectedForecast?.code);
+              const dayTemperature = selectedForecast?.temperature;
+              const nightTemperature = selectedForecast?.nightTemperature;
               return (
                 <button
                   key={date}
                   type="button"
-                  className={selectedTripDate === date ? "active" : ""}
+                  className={`weather-trip-date${selectedTripDate === date ? " active" : ""}${visualKind ? ` weather-trip-date-${visualKind}` : ""}`}
                   aria-pressed={selectedTripDate === date}
+                  aria-label={`${formatWeatherOverviewDate(date)}${dayTemperature !== undefined ? `, днём ${Math.round(dayTemperature)} градусов${nightTemperature !== undefined ? `, ночью ${Math.round(nightTemperature)} градусов` : ""}` : ", прогноз пока недоступен"}`}
                   onClick={() => selectTripDate(date)}
                 >
-                  <span>{formatWeatherOverviewDate(date)}</span>
-                  <b>
-                    {selectedForecast?.temperature !== undefined
-                      ? `${Math.round(selectedForecast.temperature)}°`
-                      : "—"}
-                  </b>
+                  <span className="weather-trip-date-label">
+                    {formatWeatherOverviewDate(date)}
+                  </span>
+                  {visualKind && (
+                    <span className="weather-trip-date-icon">
+                      <WeatherDateIcon kind={visualKind} />
+                    </span>
+                  )}
+                  <span className="weather-trip-date-temperatures">
+                    <b>{dayTemperature !== undefined ? `${Math.round(dayTemperature)}°` : "—"}</b>
+                    {nightTemperature !== undefined && (
+                      <small>☾ {Math.round(nightTemperature)}°</small>
+                    )}
+                  </span>
                 </button>
               );
             })}
@@ -12929,6 +12994,9 @@ function WeatherOverview({
                   : "Прогноз появится позже"}
                 {selectedCityForecast?.code !== undefined
                   ? " · хороший день для прогулки"
+                  : ""}
+                {selectedCityForecast?.nightTemperature !== undefined
+                  ? ` · ночью ${Math.round(selectedCityForecast.nightTemperature)}°`
                   : ""}
               </span>
             </div>

@@ -2380,6 +2380,93 @@ button {
   display: block;
   font-size: 10px;
 }
+.weather-trip-date {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.weather-trip-date-label,
+.weather-trip-date-temperatures {
+  position: relative;
+  z-index: 1;
+}
+.weather-trip-date-label {
+  white-space: nowrap;
+}
+.weather-trip-date-icon {
+  position: absolute;
+  z-index: 0;
+  top: 13px;
+  left: 50%;
+  width: 42px;
+  height: 42px;
+  transform: translateX(-50%);
+  opacity: 0.45;
+}
+.weather-trip-date-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+.weather-trip-date-temperatures {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+.weather-trip-date-temperatures b {
+  color: inherit !important;
+  font-size: 17px !important;
+  line-height: 1;
+}
+.weather-trip-date-temperatures small {
+  color: inherit;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+.weather-trip-date-sunny {
+  border-color: #eed48a !important;
+  background: linear-gradient(145deg, #fff5c9, #f5c96b) !important;
+  color: #75581c !important;
+}
+.weather-trip-date-cloudy {
+  border-color: #c6dbe5 !important;
+  background: linear-gradient(145deg, #eff7fa, #c6dce7) !important;
+  color: #46687a !important;
+}
+.weather-trip-date-fog {
+  border-color: #d0d9df !important;
+  background: linear-gradient(145deg, #f1f4f5, #d7e0e4) !important;
+  color: #5e7079 !important;
+}
+.weather-trip-date-rain {
+  border-color: #a7c9dc !important;
+  background: linear-gradient(145deg, #d7ebf5, #8db7cf) !important;
+  color: #315d76 !important;
+}
+.weather-trip-date-snow {
+  border-color: #c8e1ec !important;
+  background: linear-gradient(145deg, #f7fcff, #cfeaf4) !important;
+  color: #4d7790 !important;
+}
+.weather-trip-date-storm {
+  border-color: #92a5bc !important;
+  background: linear-gradient(145deg, #becddd, #7f94ad) !important;
+  color: #29435d !important;
+}
+.weather-trip-days-list button.weather-trip-date.active {
+  border-color: #3d78a5 !important;
+  background: #3d78a5 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+.weather-trip-days-list button.weather-trip-date.active .weather-trip-date-icon {
+  opacity: 0.36;
+}
 .weather-trip-selected {
   display: flex;
   align-items: center;
@@ -8765,6 +8852,36 @@ body.ramingo-onboarding-open {
 .app.app-dark .weather-trip-days-list button.active b {
   color: #fff;
 }
+.app.app-dark .weather-trip-date-sunny {
+  border-color: #927a38 !important;
+  background: linear-gradient(145deg, #5b4d27, #80632a) !important;
+  color: #ffe9a1 !important;
+}
+.app.app-dark .weather-trip-date-cloudy {
+  border-color: #486273 !important;
+  background: linear-gradient(145deg, #334b5a, #263c49) !important;
+  color: #c0e1ef !important;
+}
+.app.app-dark .weather-trip-date-fog {
+  border-color: #54616b !important;
+  background: linear-gradient(145deg, #3b454c, #2c353c) !important;
+  color: #ced9de !important;
+}
+.app.app-dark .weather-trip-date-rain {
+  border-color: #466f88 !important;
+  background: linear-gradient(145deg, #3b6177, #274659) !important;
+  color: #b8e2f4 !important;
+}
+.app.app-dark .weather-trip-date-snow {
+  border-color: #537888 !important;
+  background: linear-gradient(145deg, #3b5966, #2a454f) !important;
+  color: #c8edf7 !important;
+}
+.app.app-dark .weather-trip-date-storm {
+  border-color: #5e7189 !important;
+  background: linear-gradient(145deg, #44566d, #2f3e55) !important;
+  color: #d1e0f0 !important;
+}
 .app.app-dark .weather-trip-selected {
   border-top-color: #394158;
 }
@@ -10748,6 +10865,20 @@ body.ramingo-onboarding-open {
   }
   .weather-trip-days-list button b {
     font-size: 15px;
+  }
+  .weather-trip-date-icon {
+    top: 11px;
+    width: 31px;
+    height: 31px;
+  }
+  .weather-trip-date-temperatures {
+    gap: 2px;
+  }
+  .weather-trip-date-temperatures b {
+    font-size: 15px !important;
+  }
+  .weather-trip-date-temperatures small {
+    font-size: 8px;
   }
   .weather-trip-days-more {
     height: 82px;
