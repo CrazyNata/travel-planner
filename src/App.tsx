@@ -16629,12 +16629,15 @@ export function App() {
       const payload = data?.payload as StoredTripPayload | undefined;
       const trip = payload && savedTrip(payload);
       if (!payload || !trip) return;
-      const signedTrip = await signTripPhotoUrls(trip);
       setStoredPayload(payload);
       setDrafts((items) =>
-        items.some((item) => item.id === signedTrip.id)
+        items.some((item) => item.id === trip.id)
           ? items
-          : [...items, signedTrip],
+          : [...items, trip],
+      );
+      const signedTrip = await signTripPhotoUrls(trip);
+      setDrafts((items) =>
+        items.map((item) => (item.id === signedTrip.id ? signedTrip : item)),
       );
     };
     const loadUserData = async (currentUserId: string) => {
@@ -16653,6 +16656,22 @@ export function App() {
             : null;
         })
         .filter((trip): trip is TripSummary => trip !== null);
+      const mergeRemoteDrafts = (
+        current: TripSummary[],
+        remote: TripSummary[],
+      ) => {
+        const remoteIds = new Set(remote.map((trip) => trip.id));
+        return [
+          ...remote,
+          ...current.filter((trip) => !remoteIds.has(trip.id)),
+        ];
+      };
+      setDrafts((current) => mergeRemoteDrafts(current, parsedRemoteDrafts));
+      setActiveTrip((current) =>
+        parsedRemoteDrafts.find((trip) => trip.id === current.id) ||
+        parsedRemoteDrafts[0] ||
+        current,
+      );
       const remoteDrafts = await Promise.all(
         parsedRemoteDrafts.map((trip) => signTripPhotoUrls(trip)),
       );
@@ -16661,14 +16680,7 @@ export function App() {
         if (syncedTrip !== trip) saveTripToSupabase(syncedTrip);
         return syncedTrip;
       });
-      setDrafts((current) => [
-        ...syncedRemoteDrafts,
-        ...current.filter(
-          (trip) =>
-            trip.id === "supabase-main" &&
-            !syncedRemoteDrafts.some((remote) => remote.id === trip.id),
-        ),
-      ]);
+      setDrafts((current) => mergeRemoteDrafts(current, syncedRemoteDrafts));
       setActiveTrip((current) =>
         syncedRemoteDrafts.find((trip) => trip.id === current.id) ||
         syncedRemoteDrafts[0] ||
