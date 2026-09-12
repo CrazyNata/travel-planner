@@ -5809,7 +5809,10 @@ function TripMap({
     let resizeObserver: ResizeObserver | undefined;
     const userCoordinates = browserLocation.state.coordinates;
 
-    void import("mapbox-gl").then(({ default: mapboxgl }) => {
+    // Let the trip shell and data render before parsing the large Mapbox chunk.
+    // The map remains available immediately after the first paint without
+    // competing with the critical app bundle on slower connections.
+    const mapboxLoadTimer = window.setTimeout(() => void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (disposed || !container.current) return;
       if (token) mapboxgl.accessToken = token;
       map = new mapboxgl.Map({
@@ -5939,10 +5942,11 @@ function TripMap({
           }
         });
       }
-    });
+    }), 1200);
 
     return () => {
       disposed = true;
+      window.clearTimeout(mapboxLoadTimer);
       resizeObserver?.disconnect();
       map?.remove();
       mapRef.current = null;
