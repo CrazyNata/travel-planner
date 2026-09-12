@@ -15701,18 +15701,24 @@ function Auth({
 }) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error" | "">("");
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [email, setEmail] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<RememberedAccount | null>(null);
   const [accountListOpen, setAccountListOpen] = useState(false);
   const [manualEmail, setManualEmail] = useState(true);
   const isRegister = mode === "register";
+  const showMessage = (nextMessage: string, type: "success" | "error" = "success") => {
+    setMessage(nextMessage);
+    setMessageType(nextMessage ? type : "");
+  };
   const canUseRememberedAccount = !isRegister && rememberedAccounts.length > 0 && !manualEmail;
   const accountInitial = (account: RememberedAccount) =>
     account.name.trim().charAt(0).toLocaleUpperCase() || account.email.charAt(0).toLocaleUpperCase();
   const enterRegistration = () => {
     setMode("register");
-    setMessage("");
+    showMessage("");
     setAccountListOpen(false);
     setManualEmail(true);
     setSelectedAccount(null);
@@ -15721,7 +15727,7 @@ function Auth({
   const enterLogin = () => {
     const firstAccount = rememberedAccounts[0] || null;
     setMode("login");
-    setMessage("");
+    showMessage("");
     setSelectedAccount(firstAccount);
     setEmail(firstAccount?.email || "");
     setManualEmail(!firstAccount);
@@ -15739,7 +15745,23 @@ function Auth({
     setEmail(account.email);
     setManualEmail(false);
     setAccountListOpen(false);
-    setMessage("");
+    showMessage("");
+  };
+  const handleGoogleSignIn = async () => {
+    showMessage("");
+    setGoogleBusy(true);
+    setAuthSessionPersistence(isRegister || rememberMe);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) {
+      const errorMessage = error.message.toLowerCase().includes("provider")
+        ? "Вход через Google пока не настроен. Попробуйте войти по e-mail."
+        : error.message;
+      showMessage(errorMessage, "error");
+      setGoogleBusy(false);
+    }
   };
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -15756,10 +15778,11 @@ function Auth({
       !password ||
       (isRegister && (!name || password.length < 8 || !accepted))
     ) {
-      setMessage(
+      showMessage(
         isRegister
           ? "Заполните все поля, пароль должен содержать не менее 8 символов."
           : "Введите e-mail и пароль.",
+        "error",
       );
       return;
     }
@@ -15771,7 +15794,7 @@ function Auth({
         data: { full_name: name, invite_pending: false },
       });
       if (error || !data.user) {
-        setMessage(error?.message || "Не удалось завершить регистрацию.");
+        showMessage(error?.message || "Не удалось завершить регистрацию.", "error");
         return;
       }
       onAuthorized(
@@ -15781,7 +15804,7 @@ function Auth({
         email: data.user.email || email,
         name: data.user.user_metadata.full_name || name,
       });
-      setMessage("Регистрация завершена. Открываем поездку...");
+      showMessage("Регистрация завершена. Открываем поездку...");
       window.setTimeout(() => onInviteComplete?.(inviteNextPath), 350);
       return;
     }
@@ -15794,24 +15817,24 @@ function Auth({
         options: { data: { full_name: name } },
       });
       if (error) {
-        setMessage(error.message);
+        showMessage(error.message, "error");
         return;
       }
       // Supabase returns an obfuscated user instead of an error for an existing
       // address when e-mail confirmation is enabled.
       if (!data.session && data.user?.identities?.length === 0) {
-        setMessage("Этот e-mail уже зарегистрирован. Войдите в аккаунт.");
+        showMessage("Этот e-mail уже зарегистрирован. Войдите в аккаунт.", "error");
         setMode("login");
         return;
       }
       if (!data.session) {
-        setMessage("Аккаунт создан. Подтвердите e-mail, затем войдите.");
+        showMessage("Аккаунт создан. Подтвердите e-mail, затем войдите.");
         setMode("login");
         return;
       }
       onAuthorized(name);
       onRememberedAccount({ email, name });
-      setMessage("Аккаунт создан. Открываем ваши путешествия...");
+      showMessage("Аккаунт создан. Открываем ваши путешествия...");
       window.setTimeout(() => go("trips"), 500);
       return;
     }
@@ -15822,9 +15845,14 @@ function Auth({
       password,
     });
     if (error || !data.user) {
-      setMessage(
-        error?.message ?? "Не удалось войти. Проверьте e-mail и пароль.",
-      );
+      const errorText = error?.message?.toLowerCase() || "";
+      const messageText =
+        errorText.includes("invalid login credentials") ||
+        errorText.includes("invalid credentials") ||
+        errorText.includes("wrong password")
+          ? "Неверный e-mail или пароль."
+          : error?.message ?? "Не удалось войти. Проверьте e-mail и пароль.";
+      showMessage(messageText, "error");
       return;
     }
     onAuthorized(
@@ -15836,7 +15864,7 @@ function Auth({
         name: data.user.user_metadata.full_name || data.user.email || "Путешественник",
       });
     }
-    setMessage("Вход выполнен. Открываем ваши путешествия...");
+    showMessage("Вход выполнен. Открываем ваши путешествия...");
     window.setTimeout(() => go("trips"), 500);
   };
   return (
@@ -15870,8 +15898,8 @@ function Auth({
               : "Войдите, чтобы продолжить планирование путешествий."}
           </p>
           {!inviteSetup && <><div className="auth-providers">
-            <button>
-              <b className="google-mark">G</b> Google
+            <button type="button" onClick={handleGoogleSignIn} disabled={googleBusy}>
+              <b className="google-mark">G</b> {googleBusy ? "Открываем Google…" : "Google"}
             </button>
           </div>
           <div className="auth-divider">
@@ -15985,7 +16013,11 @@ function Auth({
             </button>
           </form>
           {message && (
-            <p className="auth-message" role="status">
+            <p
+              className={`auth-message${messageType === "error" ? " error" : ""}`}
+              role={messageType === "error" ? "alert" : "status"}
+              aria-live="polite"
+            >
               {message}
             </p>
           )}
