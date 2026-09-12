@@ -5648,6 +5648,48 @@ private fun weatherDateModeSubtitle(date: LocalDate?, tripDatesWeather: Boolean,
     }
 }
 
+private fun weatherCityByDate(
+    dates: List<LocalDate>,
+    routeLegs: List<com.odyssey.travelplanner.data.RouteLeg>,
+    accommodations: List<Accommodation>,
+): Map<LocalDate, String> {
+    val transitions = routeLegs.mapIndexedNotNull { index, leg ->
+        val date = runCatching { LocalDate.parse(leg.date) }.getOrNull()
+            ?: dates.firstOrNull()?.plusDays(index.toLong())
+        date?.let { WeatherRouteTransition(it, leg.from, leg.to, index) }
+    }.sortedWith(compareBy<WeatherRouteTransition> { it.date }.thenBy { it.index })
+    var routeCity = transitions.firstOrNull()?.from ?: accommodations.firstOrNull()?.city.orEmpty()
+    var transitionIndex = 0
+
+    return dates.associateWith { date ->
+        val stayCity = accommodations.firstNotNullOfOrNull { accommodation ->
+            val range = parseTripDateRange(accommodation.dates) ?: return@firstNotNullOfOrNull null
+            val includesDate = if (range.first == range.second) {
+                date == range.first
+            } else {
+                !date.isBefore(range.first) && date.isBefore(range.second)
+            }
+            accommodation.city.takeIf { includesDate && it.isNotBlank() }
+        }
+        if (stayCity != null) {
+            stayCity
+        } else {
+            while (transitionIndex < transitions.size && !transitions[transitionIndex].date.isAfter(date)) {
+                routeCity = transitions[transitionIndex].to
+                transitionIndex += 1
+            }
+            routeCity
+        }
+    }.filterValues(String::isNotBlank)
+}
+
+private data class WeatherRouteTransition(
+    val date: LocalDate,
+    val from: String,
+    val to: String,
+    val index: Int,
+)
+
 private fun calendarForTripDate(date: LocalDate): Calendar = Calendar.getInstance().apply {
     set(date.year, date.monthValue - 1, date.dayOfMonth, 0, 0, 0)
     set(Calendar.MILLISECOND, 0)
@@ -21977,6 +22019,8 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
                 weather = weather,
                 weatherLoading = false,
                 tripDates = overview.dates,
+                routeLegs = overview.routeLegs,
+                accommodations = overview.accommodations,
                 tripDatesWeather = tripDatesWeather,
                 onTripDatesWeatherChange = { tripDatesWeather = it },
             )
@@ -22207,6 +22251,8 @@ private fun OverviewContent(
                             weather = weather,
                             weatherLoading = weatherLoading,
                             tripDates = overview.dates,
+                            routeLegs = overview.routeLegs,
+                            accommodations = overview.accommodations,
                             tripDatesWeather = tripDatesWeather,
                             onTripDatesWeatherChange = { tripDatesWeather = it },
                         )
@@ -22327,12 +22373,26 @@ private fun OverviewWeatherBlock(
     weather: Map<String, WeatherSnapshot>,
     weatherLoading: Boolean,
     tripDates: String,
+    routeLegs: List<com.odyssey.travelplanner.data.RouteLeg>,
+    accommodations: List<Accommodation>,
     tripDatesWeather: Boolean,
     onTripDatesWeatherChange: (Boolean) -> Unit,
 ) {
     val language = LocalLanguage.current
     val tripDateOptions = remember(tripDates) { weatherTripDates(tripDates) }
     var selectedTripDate by remember(tripDates) { mutableStateOf(tripDateOptions.firstOrNull()) }
+    var selectedWeatherCity by remember(tripDates, weatherCities) { mutableStateOf(weatherCities.firstOrNull()) }
+    val cityByDate = remember(tripDates, routeLegs, accommodations) {
+        weatherCityByDate(tripDateOptions, routeLegs, accommodations)
+    }
+    LaunchedEffect(weatherCities) {
+        if (selectedWeatherCity == null || weatherCities.none { cityFilterKey(it) == cityFilterKey(selectedWeatherCity.orEmpty()) }) {
+            selectedWeatherCity = weatherCities.firstOrNull()
+        }
+    }
+    val selectedCityDateCount = selectedWeatherCity?.let { city ->
+        tripDateOptions.count { date -> cityFilterKey(cityByDate[date].orEmpty()) == cityFilterKey(city) }
+    } ?: 0
     val selectedDateKey = selectedTripDate?.toString()
     val selectedForecastAvailable = selectedDateKey?.let { dateKey ->
         weatherCities.any { city ->
@@ -22418,6 +22478,8 @@ private fun OverviewWeatherBlock(
                     weatherLoading = weatherLoading,
                     tripDatesWeather = tripDatesWeather,
                     tripDate = if (tripDatesWeather) selectedDateKey else null,
+                    selected = tripDatesWeather && cityFilterKey(selectedWeatherCity.orEmpty()) == cityFilterKey(city),
+                    onClick = { if (tripDatesWeather) selectedWeatherCity = city },
                 )
             }
         }
@@ -22425,9 +22487,11 @@ private fun OverviewWeatherBlock(
             WeatherTripDayPanel(
                 dates = tripDateOptions,
                 selectedDate = selectedTripDate ?: tripDateOptions.first(),
-                primaryCity = weatherCities.firstOrNull(),
+                selectedCity = selectedWeatherCity,
+                cityByDate = cityByDate,
                 weather = weather,
                 language = language,
+                selectedCityDateCount = selectedCityDateCount,
                 onDateSelected = { selectedTripDate = it },
             )
         }
@@ -22438,9 +22502,11 @@ private fun OverviewWeatherBlock(
 private fun WeatherTripDayPanel(
     dates: List<LocalDate>,
     selectedDate: LocalDate,
-    primaryCity: String?,
+    selectedCity: String?,
+    cityByDate: Map<LocalDate, String>,
     weather: Map<String, WeatherSnapshot>,
     language: String,
+    selectedCityDateCount: Int,
     onDateSelected: (LocalDate) -> Unit,
 ) {
     val shape = RoundedCornerShape(17.dp)
@@ -22448,17 +22514,17 @@ private fun WeatherTripDayPanel(
     val selectedText = if (LocalDarkTheme.current) Color.White else Color(0xFF315C7C)
     val visibleDates = dates.take(8)
     val hiddenCount = (dates.size - visibleDates.size).coerceAtLeast(0)
-    val selectedWeather = primaryCity?.let { city -> weather[city]?.tripDays?.get(selectedDate.toString()) }
+    val selectedWeather = selectedCity?.let { city -> weather[city]?.tripDays?.get(selectedDate.toString()) }
     val selectedConditionValue = selectedWeather?.condition
     val selectedCondition = if (selectedConditionValue == null) {
         null
     } else {
         localizedWeatherCondition(selectedConditionValue)
     }
-    val cityLabel = if (primaryCity == null) {
+    val cityLabel = if (selectedCity == null) {
         localized("Города маршрута", "Route cities", "Ciudades de la ruta", "Städte der Route")
     } else {
-        localizedCityName(primaryCity)
+        localizedCityName(selectedCity)
     }
 
     Column(
@@ -22480,7 +22546,11 @@ private fun WeatherTripDayPanel(
                     fontSize = 15.sp,
                 )
                 Text(
-                    localized("Выбранный день", "Selected day", "Día seleccionado", "Ausgewählter Tag"),
+                    if (selectedCityDateCount > 0 && selectedCity != null) {
+                        localized("Дни в ${localizedCityName(selectedCity)} подсвечены", "Days in ${localizedCityName(selectedCity)} are highlighted", "Días en ${localizedCityName(selectedCity)} resaltados", "Tage in ${localizedCityName(selectedCity)} hervorgehoben")
+                    } else {
+                        localized("Выбранный день", "Selected day", "Día seleccionado", "Ausgewählter Tag")
+                    },
                     color = secondaryTextColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W600,
@@ -22505,10 +22575,12 @@ private fun WeatherTripDayPanel(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
         ) {
             visibleDates.forEach { date ->
-                val dayWeather = primaryCity?.let { city -> weather[city]?.tripDays?.get(date.toString()) }
+                val dayWeather = selectedCity?.let { city -> weather[city]?.tripDays?.get(date.toString()) }
                 val selected = date == selectedDate
+                val isSelectedCityDate = selectedCity != null && cityFilterKey(cityByDate[date].orEmpty()) == cityFilterKey(selectedCity.orEmpty())
                 val dateDescription = buildString {
                     append(weatherDateLabel(date, language))
+                    if (isSelectedCityDate) append(", ${localizedCityName(selectedCity.orEmpty())}")
                     append(": ")
                     append(dayWeather?.temperature ?: localized("прогноз пока недоступен", "forecast unavailable", "pronóstico no disponible", "Vorhersage nicht verfügbar"))
                 }
@@ -22518,8 +22590,18 @@ private fun WeatherTripDayPanel(
                         .width(66.dp)
                         .height(70.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(if (selected) selectedBackground else secondarySurfaceColor())
-                        .border(if (selected) 1.dp else 0.dp, if (selected) primaryColor() else Color.Transparent, RoundedCornerShape(13.dp))
+                        .background(
+                            when {
+                                selected -> selectedBackground
+                                isSelectedCityDate -> if (LocalDarkTheme.current) Color(0x334F47B5) else Color(0xFFE8F2F8)
+                                else -> secondarySurfaceColor()
+                            },
+                        )
+                        .border(
+                            if (selected) 1.dp else if (isSelectedCityDate) 2.dp else 0.dp,
+                            if (selected || isSelectedCityDate) primaryColor() else Color.Transparent,
+                            RoundedCornerShape(13.dp),
+                        )
                         .semantics {
                             contentDescription = dateDescription
                             role = Role.Button
@@ -23000,6 +23082,8 @@ private fun WeatherPlaceholder(
     weatherLoading: Boolean,
     tripDatesWeather: Boolean,
     tripDate: String? = null,
+    selected: Boolean = false,
+    onClick: () -> Unit = {},
 ) {
     val selectedTripDay = tripDate?.let { weather?.tripDays?.get(it) }
     val displayedTemperature = if (tripDatesWeather) {
@@ -23024,8 +23108,19 @@ private fun WeatherPlaceholder(
     } else {
         weather?.tripIsEstimate == true
     }
+    val shape = RoundedCornerShape(16.dp)
     Box(
-        modifier = Modifier.width(120.dp).height(150.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF6C5CE7)),
+        modifier = Modifier
+            .width(120.dp)
+            .height(150.dp)
+            .clip(shape)
+            .background(Color(0xFF6C5CE7))
+            .border(if (selected) 3.dp else 0.dp, if (selected) primaryColor() else Color.Transparent, shape)
+            .clickable(enabled = tripDatesWeather, onClick = onClick)
+            .semantics {
+                contentDescription = localizedCityName(city)
+                role = Role.Button
+            },
     ) {
         if (photo != null) {
             AsyncImage(

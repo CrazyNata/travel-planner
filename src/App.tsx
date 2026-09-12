@@ -12674,6 +12674,66 @@ const canonicalWeatherCity = (value?: string) => {
   return match?.toLocaleLowerCase("ru") || normalized;
 };
 
+function buildWeatherCityByDate(
+  dates: string[],
+  routeDays: DraftDay[] = [],
+  accommodations: SavedAccommodation[] = [],
+  startDate?: string,
+) {
+  const fallbackYear = startDate
+    ? new Date(`${startDate}T00:00:00Z`).getUTCFullYear()
+    : new Date().getUTCFullYear();
+  const transitions = routeDays
+    .map((day, index) => {
+      const leg = day.roadLeg;
+      if (!leg?.from || !leg.to) return null;
+      return {
+        date: routeDateForDay(startDate, day, index, accommodations),
+        from: leg.from,
+        to: leg.to,
+        index,
+      };
+    })
+    .filter(
+      (
+        transition,
+      ): transition is {
+        date: string;
+        from: string;
+        to: string;
+        index: number;
+      } => Boolean(transition?.date),
+    )
+    .sort((left, right) => left.date.localeCompare(right.date) || left.index - right.index);
+
+  const cityByDate = new globalThis.Map<string, string>();
+  let routeCity = transitions[0]?.from || accommodations[0]?.city || "";
+  let transitionIndex = 0;
+
+  dates.forEach((date) => {
+    const stay = accommodations.find((accommodation) => {
+      const range = accommodationDateParts(accommodation.dates, fallbackYear);
+      if (!range.checkIn || date < range.checkIn) return false;
+      return !range.checkOut || date < range.checkOut;
+    });
+    if (stay?.city) {
+      cityByDate.set(date, stay.city);
+      return;
+    }
+
+    while (
+      transitionIndex < transitions.length &&
+      transitions[transitionIndex].date <= date
+    ) {
+      routeCity = transitions[transitionIndex].to;
+      transitionIndex += 1;
+    }
+    if (routeCity) cityByDate.set(date, routeCity);
+  });
+
+  return cityByDate;
+}
+
 type WeatherDailyForecast = {
   time: string[];
   temperature_2m_max: (number | null)[];
@@ -12705,6 +12765,8 @@ function WeatherOverview({
   tripDates,
   tripStartDate,
   tripEndDate,
+  routeDays = [],
+  accommodations = [],
   coverPhotos,
   brightenPhotos = false,
 }: {
@@ -12712,6 +12774,8 @@ function WeatherOverview({
   tripDates: string;
   tripStartDate?: string;
   tripEndDate?: string;
+  routeDays?: DraftDay[];
+  accommodations?: SavedAccommodation[];
   coverPhotos: CoverPhoto[];
   brightenPhotos?: boolean;
 }) {
@@ -12740,6 +12804,12 @@ function WeatherOverview({
   const weatherDateOptions = buildWeatherOverviewDates(
     weatherTripStartDate,
     weatherTripEndDate,
+  );
+  const weatherCityByDate = buildWeatherCityByDate(
+    weatherDateOptions,
+    routeDays,
+    accommodations,
+    weatherTripStartDate,
   );
   const weatherCityKey = weatherCities.map((city) => city.name).join("|");
   const [selectedTripDate, setSelectedTripDate] = useState(tripForecastDate);
@@ -12863,6 +12933,15 @@ function WeatherOverview({
   const selectedCityForecast = selectedWeatherCity
     ? weather[selectedWeatherCity.name]?.tripDays?.[selectedTripDate]
     : undefined;
+  const selectedWeatherCityKey = canonicalWeatherCity(selectedWeatherCity?.name);
+  const selectedCityDateKeys = new Set(
+    weatherDateOptions.filter(
+      (date) =>
+        Boolean(weatherCityByDate.get(date)) &&
+        Boolean(selectedWeatherCityKey) &&
+        canonicalWeatherCity(weatherCityByDate.get(date)) === selectedWeatherCityKey,
+    ),
+  );
 
   return (
     <section className={`weather-overview${mode === "trip" ? " trip-mode" : ""}`}>
@@ -12989,9 +13068,11 @@ function WeatherOverview({
             <div>
               <h3 id="weather-trip-days-title">Каждый день поездки</h3>
               <p>
-                {selectedTripDate === tripForecastDate
-                  ? "Выделен первый день"
-                  : "Выделен выбранный день"}
+                {selectedWeatherCity && selectedCityDateKeys.size > 0
+                  ? `Дни в ${selectedWeatherCity.name} подсвечены`
+                  : selectedTripDate === tripForecastDate
+                    ? "Выделен первый день"
+                    : "Выделен выбранный день"}
               </p>
             </div>
             <div className="weather-trip-days-actions">
@@ -13018,13 +13099,17 @@ function WeatherOverview({
               const visualKind = weatherVisualKind(selectedForecast?.code);
               const dayTemperature = selectedForecast?.temperature;
               const nightTemperature = selectedForecast?.nightTemperature;
+              const isSelectedCityDate =
+                Boolean(weatherCityByDate.get(date)) &&
+                Boolean(selectedWeatherCityKey) &&
+                canonicalWeatherCity(weatherCityByDate.get(date)) === selectedWeatherCityKey;
               return (
                 <button
                   key={date}
                   type="button"
-                  className={`weather-trip-date${selectedTripDate === date ? " active" : ""}${visualKind ? ` weather-trip-date-${visualKind}` : ""}`}
+                  className={`weather-trip-date${selectedTripDate === date ? " active" : ""}${isSelectedCityDate ? " city-stay" : ""}${visualKind ? ` weather-trip-date-${visualKind}` : ""}`}
                   aria-pressed={selectedTripDate === date}
-                  aria-label={`${formatWeatherOverviewDate(date)}${dayTemperature !== undefined ? `, днём ${Math.round(dayTemperature)} градусов${nightTemperature !== undefined ? `, ночью ${Math.round(nightTemperature)} градусов` : ""}` : ", прогноз пока недоступен"}`}
+                  aria-label={`${formatWeatherOverviewDate(date)}${isSelectedCityDate && selectedWeatherCity ? `, ${selectedWeatherCity.name}` : ""}${dayTemperature !== undefined ? `, днём ${Math.round(dayTemperature)} градусов${nightTemperature !== undefined ? `, ночью ${Math.round(nightTemperature)} градусов` : ""}` : ", прогноз пока недоступен"}`}
                   onClick={() => selectTripDate(date)}
                 >
                   <span className="weather-trip-date-label">
@@ -13349,6 +13434,8 @@ function TripOverview({
           tripDates={trip.dates}
           tripStartDate={trip.startDate}
           tripEndDate={trip.endDate}
+          routeDays={trip.days}
+          accommodations={trip.accommodations}
           coverPhotos={coverPhotos}
           brightenPhotos={trip.title === "Рождественская Италия"}
         />
@@ -13517,6 +13604,8 @@ function TripOverview({
             tripDates={trip.dates}
             tripStartDate={trip.startDate}
             tripEndDate={trip.endDate}
+            routeDays={trip.days}
+            accommodations={trip.accommodations}
             coverPhotos={coverPhotos}
             brightenPhotos={trip.title === "Рождественская Италия"}
           />
