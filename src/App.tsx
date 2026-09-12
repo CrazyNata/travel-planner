@@ -9148,7 +9148,6 @@ function Restaurants({
   const [addingRestaurant, setAddingRestaurant] = useState(false);
   const restaurantCities = mergeTripCities(
     parseTripCities(trip.cities),
-    trip.overviewMapPoints || [],
     (trip.days || []).flatMap((day) =>
       day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
     ),
