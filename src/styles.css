@@ -2327,13 +2327,23 @@ button {
   background: #e9f2f8;
 }
 .weather-trip-days-list {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(40px, 1fr)) 48px;
+  display: flex;
+  align-items: stretch;
+  width: max-content;
+  max-width: 100%;
   gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.weather-trip-days-list::-webkit-scrollbar {
+  display: none;
 }
 .weather-trip-days-list button {
   display: grid;
-  min-height: 86px;
+  flex: 0 0 47px;
+  width: 47px;
+  height: 82px;
+  min-height: 82px;
   align-content: center;
   justify-items: center;
   gap: 5px;
@@ -2357,7 +2367,10 @@ button {
 .weather-trip-days-list button.active b { color: #fff; }
 .weather-trip-days-more {
   display: grid;
-  min-height: 86px;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 82px;
+  min-height: 82px;
   place-items: center;
   border: 0;
   background: transparent;
@@ -10733,7 +10746,6 @@ body.ramingo-onboarding-open {
     grid-template-columns: repeat(2, 1fr);
   }
   .weather-trip-days-list {
-    grid-template-columns: repeat(8, minmax(0, 1fr)) 42px;
     gap: 4px;
   }
   .weather-trip-days-list button {
