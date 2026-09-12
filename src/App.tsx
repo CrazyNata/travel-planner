@@ -1444,6 +1444,17 @@ function mergeTripCities(...cityLists: string[][]) {
   });
 }
 
+const cityFilterAliases: Record<string, string> = {
+  валдидентро: "вальдидентро",
+  инцель: "инцелль",
+  chioggia: "кьоджа",
+};
+
+function cityFilterKey(value: string) {
+  const city = value.split(",")[0].trim().toLocaleLowerCase("ru");
+  return cityFilterAliases[city] || city;
+}
+
 function externalUrl(value: string) {
   if (!value) return "#";
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -8111,14 +8122,12 @@ function RestaurantPage({
     index: number;
   } | null>(null);
   const [editing, setEditing] = useState<ImportedRestaurant | null>(null);
-  const cityValues = [
-    ...availableCities,
-    ...places.map((place) => place.city),
-  ].filter(Boolean);
+  const cityValues = (availableCities.length
+    ? availableCities
+    : places.map((place) => place.city)
+  ).filter(Boolean);
   const tripCities = Array.from(
-    new globalThis.Map(
-      cityValues.map((city) => [city.split(",")[0].trim().toLocaleLowerCase(), city] as const),
-    ).values(),
+    new globalThis.Map(cityValues.map((city) => [cityFilterKey(city), city] as const)).values(),
   );
   const cities = [...tripCities].sort((a, b) => a.localeCompare(b, "ru"));
   const citySuggestions = tripCities.filter((city) =>
@@ -8167,7 +8176,7 @@ function RestaurantPage({
     (place) => {
       const rating = place.googleRating || 0;
       return (
-        (filterCity === "Все города" || place.city.split(",")[0].trim().toLocaleLowerCase() === filterCity.split(",")[0].trim().toLocaleLowerCase()) &&
+        (filterCity === "Все города" || cityFilterKey(place.city) === cityFilterKey(filterCity)) &&
         (filterCuisine === "Все кухни" || cuisineFor(place) === filterCuisine) &&
         (selectedRating.min === 0 || rating >= selectedRating.min) &&
         (filterPrice === "Все цены" || place.price === filterPrice) &&
@@ -9135,14 +9144,10 @@ function Restaurants({
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
-  const restaurantCities = Array.from(
-    new Set(
-      [
-        ...(trip.cities || "").split("·").map((city) => city.trim()),
-        ...(trip.days || []).flatMap((day) =>
-          day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
-        ),
-      ].filter(Boolean),
+  const restaurantCities = mergeTripCities(
+    parseTripCities(trip.cities),
+    (trip.days || []).flatMap((day) =>
+      day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
     ),
   );
   return (
