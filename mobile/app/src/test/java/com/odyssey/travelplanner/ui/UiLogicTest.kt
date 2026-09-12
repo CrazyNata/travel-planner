@@ -123,4 +123,44 @@ class UiLogicTest {
             weatherTripDates("2026-09-25 – 2027-09-25", maxDays = 2),
         )
     }
+
+    @Test
+    fun weatherStartsWithCityOfFirstTripDayWhenItIsAvailable() {
+        assertEquals(
+            "Инцелль",
+            weatherDefaultCityForTrip(
+                dates = listOf(LocalDate.of(2026, 9, 25), LocalDate.of(2026, 9, 26)),
+                cityByDate = mapOf(
+                    LocalDate.of(2026, 9, 25) to "Инцелль",
+                    LocalDate.of(2026, 9, 26) to "Верона",
+                ),
+                availableCities = listOf("Инцелль", "Верона"),
+            ),
+        )
+    }
+
+    @Test
+    fun reservationRequiresDateAndTimeOnlyForBookedRestaurants() {
+        assertEquals(
+            "Укажите дату и время брони",
+            restaurantReservationValidationMessage("бронь", "", "", "RU"),
+        )
+        assertEquals(
+            "Укажите время брони",
+            restaurantReservationValidationMessage("бронь", "2026-09-25", "", "RU"),
+        )
+        assertEquals(null, restaurantReservationValidationMessage("хочу", "", "", "RU"))
+    }
+
+    @Test
+    fun bookingSearchUsesAccommodationDates() {
+        val url = accommodationBookingSearchUrl(
+            name = "Hotel Prague",
+            city = "Прага",
+            dates = "2026-10-01 – 2026-10-10",
+        )
+        assertTrue(url.contains("ss=Hotel+Prague+%D0%9F%D1%80%D0%B0%D0%B3%D0%B0"))
+        assertTrue(url.contains("checkin=2026-10-01"))
+        assertTrue(url.contains("checkout=2026-10-10"))
+    }
 }

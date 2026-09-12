@@ -5683,6 +5683,17 @@ private fun weatherCityByDate(
     }.filterValues(String::isNotBlank)
 }
 
+internal fun weatherDefaultCityForTrip(
+    dates: List<LocalDate>,
+    cityByDate: Map<LocalDate, String>,
+    availableCities: List<String>,
+): String? {
+    val firstDayCity = dates.firstOrNull()?.let { cityByDate[it] }
+    return firstDayCity?.takeIf { city ->
+        availableCities.any { availableCity -> cityFilterKey(availableCity) == cityFilterKey(city) }
+    } ?: availableCities.firstOrNull()
+}
+
 private data class WeatherRouteTransition(
     val date: LocalDate,
     val from: String,
@@ -7879,11 +7890,18 @@ private fun TripOverviewScreen(
             val fallbackCities = trip.overviewMapPoints.ifEmpty {
                 trip.routeLegs.flatMap { listOf(it.from, it.to) }.distinct()
             }.distinct()
-            val cities = weatherCitiesForOverview(
+            val selectedWeatherCities = weatherCitiesForOverview(
                 overviewWeatherCities = trip.overviewWeatherCities,
                 tripCities = trip.cities,
                 fallbackCities = fallbackCities,
             )
+            val firstTripCity = weatherCityByDate(
+                dates = weatherTripDates(trip.dates),
+                routeLegs = trip.routeLegs,
+                accommodations = trip.accommodations,
+            ).values.firstOrNull()
+            val cities = (listOfNotNull(firstTripCity) + selectedWeatherCities)
+                .distinctBy { cityFilterKey(it) }
             val unresolvedCities = cities.filter { city ->
                 trip.cityCoordinates[city] == null && cityCatalogEntry(city) == null
             }
@@ -11961,6 +11979,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var savingRestaurantId by remember { mutableStateOf<String?>(null) }
     var editingRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
+    var bookingRestaurantId by remember { mutableStateOf<String?>(null) }
     var detailsRestaurant by remember { mutableStateOf<com.odyssey.travelplanner.data.Restaurant?>(null) }
     var cityPickerOpen by remember { mutableStateOf(false) }
     var restaurantCatalogOpen by remember { mutableStateOf(false) }
@@ -12285,20 +12304,26 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                     onOpenDetails = { detailsRestaurant = restaurant },
                     onAddPhoto = { uploadingRestaurantId = restaurant.id; photoPicker.launch("image/*") },
                     modifier = Modifier.padding(top = if (index == 0) 16.dp else 13.dp),
-                ) { status ->
-                    scope.launch {
-                        savingRestaurantId = restaurant.id
-                        runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateRestaurantStatus(tripId, restaurant.id, status) }
-                            .onSuccess {
-                                actionMessage = null
-                                onRestaurantAdded()
+                    onStatusChange = { status ->
+                        if (status == "бронь" && restaurant.status != "бронь") {
+                            bookingRestaurantId = restaurant.id
+                            editingRestaurant = restaurant
+                        } else {
+                            scope.launch {
+                                savingRestaurantId = restaurant.id
+                                runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateRestaurantStatus(tripId, restaurant.id, status) }
+                                    .onSuccess {
+                                        actionMessage = null
+                                        onRestaurantAdded()
+                                    }
+                                    .onFailure {
+                                        actionMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить статус. Проверьте интернет и повторите попытку.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexión e inténtalo de nuevo.", "Status konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
+                                    }
+                                savingRestaurantId = null
                             }
-                            .onFailure {
-                                actionMessage = localizedFailure(language, it, localized(language, "Не удалось сохранить статус. Проверьте интернет и повторите попытку.", "Could not save the status. Check your connection and try again.", "No se pudo guardar el estado. Comprueba la conexión e inténtalo de nuevo.", "Status konnte nicht gespeichert werden. Prüfen Sie die Verbindung und versuchen Sie es erneut."))
-                            }
-                        savingRestaurantId = null
-                    }
-                }
+                        }
+                    },
+                )
             }
         }
     }
@@ -12320,10 +12345,14 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 onEdit = {
                     val restaurant = detailsRestaurant
                     detailsRestaurant = null
-                    if (canEdit && restaurant != null) editingRestaurant = restaurant
+                    if (canEdit && restaurant != null) {
+                        bookingRestaurantId = null
+                        editingRestaurant = restaurant
+                    }
                 },
                 onDeleted = {
                     detailsRestaurant = null
+                    bookingRestaurantId = null
                     onRestaurantAdded()
                 },
             )
@@ -12350,7 +12379,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     }
     if (canEdit && editingRestaurant != null) {
         ModalBottomSheet(
-            onDismissRequest = { editingRestaurant = null },
+            onDismissRequest = {
+                editingRestaurant = null
+                bookingRestaurantId = null
+            },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = cardSurfaceColor(),
             tonalElevation = 0.dp,
@@ -12362,10 +12394,15 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 restaurant = editingRestaurant!!,
                 tripId = tripId,
                 cityOptions = tripCityOptions,
-                onClose = { editingRestaurant = null },
+                isBookingFlow = bookingRestaurantId == editingRestaurant!!.id,
+                onClose = {
+                    editingRestaurant = null
+                    bookingRestaurantId = null
+                },
                 onPhotosUpdated = onRestaurantAdded,
                 onSaved = {
                     editingRestaurant = null
+                    bookingRestaurantId = null
                     onRestaurantAdded()
                 },
             )
@@ -12464,44 +12501,54 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 },
                 onClose = ::closeRestaurantForm,
                 onSave = {
-                    scope.launch {
-                        saving = true
-                        var createdRestaurantId: String? = null
-                        runCatching {
-                            val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                            val restaurantId = repository.addRestaurantDetails(
-                                com.odyssey.travelplanner.data.RestaurantInput(
-                                    name = name,
-                                    city = city,
-                                    status = status,
-                                    note = cuisine,
-                                    price = price,
-                                    link = address,
-                                    reservationDate = reservationDate,
-                                    reservationTime = reservationTime,
-                                    priority = priority,
-                                ),
-                                tripId,
-                            )
-                            createdRestaurantId = restaurantId
-                            newRestaurantPhotoUris.forEach { uri ->
-                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: error("Не удалось прочитать изображение")
-                                repository.addRestaurantPhoto(tripId, restaurantId, bytes)
-                            }
-                        }.onSuccess {
-                            closeRestaurantForm()
-                            onRestaurantAdded()
-                        }.onFailure {
-                            createdRestaurantId?.let { restaurantId ->
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                        .deleteTripItem(tripId, "restaurants", restaurantId)
+                    val reservationValidationMessage = restaurantReservationValidationMessage(
+                        status = status,
+                        reservationDate = reservationDate,
+                        reservationTime = reservationTime,
+                        language = language,
+                    )
+                    if (reservationValidationMessage != null) {
+                        message = reservationValidationMessage
+                    } else {
+                        scope.launch {
+                            saving = true
+                            var createdRestaurantId: String? = null
+                            runCatching {
+                                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                val restaurantId = repository.addRestaurantDetails(
+                                    com.odyssey.travelplanner.data.RestaurantInput(
+                                        name = name,
+                                        city = city,
+                                        status = status,
+                                        note = cuisine,
+                                        price = price,
+                                        link = address,
+                                        reservationDate = reservationDate,
+                                        reservationTime = reservationTime,
+                                        priority = priority,
+                                    ),
+                                    tripId,
+                                )
+                                createdRestaurantId = restaurantId
+                                newRestaurantPhotoUris.forEach { uri ->
+                                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                        ?: error("Не удалось прочитать изображение")
+                                    repository.addRestaurantPhoto(tripId, restaurantId, bytes)
                                 }
+                            }.onSuccess {
+                                closeRestaurantForm()
+                                onRestaurantAdded()
+                            }.onFailure {
+                                createdRestaurantId?.let { restaurantId ->
+                                    runCatching {
+                                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                                            .deleteTripItem(tripId, "restaurants", restaurantId)
+                                    }
+                                }
+                                message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
                             }
-                            message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
+                            saving = false
                         }
-                        saving = false
                     }
                 },
             )
@@ -13620,18 +13667,18 @@ private fun RestaurantAddField(
                 .height(d(51f))
                 .clip(RoundedCornerShape(d(14f)))
                 .background(cardSurfaceColor())
-                .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f))),
+                .border(d(1f), contentBorderColor(), RoundedCornerShape(d(14f)))
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         ) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
+                enabled = onClick == null,
                 readOnly = readOnly,
                 singleLine = true,
                 textStyle = textStyle,
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(primaryColor()),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+                modifier = Modifier.fillMaxSize(),
                 decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier
@@ -13661,8 +13708,7 @@ private fun RestaurantAddField(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(end = d(12f))
-                        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+                        .padding(end = d(12f)),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
                     OdysseyChevronDown(d(16f), secondaryTextColor())
@@ -13785,6 +13831,7 @@ private fun RestaurantEditSheet(
     restaurant: com.odyssey.travelplanner.data.Restaurant,
     tripId: String,
     cityOptions: List<String>,
+    isBookingFlow: Boolean = false,
     onClose: () -> Unit,
     onPhotosUpdated: () -> Unit,
     onSaved: () -> Unit,
@@ -13794,13 +13841,15 @@ private fun RestaurantEditSheet(
     var name by remember(restaurant.id) { mutableStateOf(restaurant.name) }
     var city by remember(restaurant.id) { mutableStateOf(restaurant.city) }
     var cuisine by remember(restaurant.id) { mutableStateOf(restaurant.note) }
-    var reservationDate by remember(restaurant.id) {
+    var reservationDate by remember(restaurant.id, isBookingFlow) {
         mutableStateOf(restaurant.reservationDate.ifBlank { if (restaurant.status == "бронь") restaurant.date else "" })
     }
-    var reservationTime by remember(restaurant.id) { mutableStateOf(restaurant.reservationTime) }
+    var reservationTime by remember(restaurant.id, isBookingFlow) { mutableStateOf(restaurant.reservationTime) }
     var price by remember(restaurant.id) { mutableStateOf(restaurant.price) }
     var address by remember(restaurant.id) { mutableStateOf(restaurant.link) }
-    var status by remember(restaurant.id) { mutableStateOf(restaurant.status.ifBlank { "хочу" }) }
+    var status by remember(restaurant.id, isBookingFlow) {
+        mutableStateOf(if (isBookingFlow) "бронь" else restaurant.status.ifBlank { "хочу" })
+    }
     var priority by remember(restaurant.id) { mutableStateOf(restaurant.priority) }
     var saving by remember { mutableStateOf(false) }
     var deleting by remember(restaurant.id) { mutableStateOf(false) }
@@ -13820,6 +13869,7 @@ private fun RestaurantEditSheet(
         val actionTop = if (hasReservationFields) 863f else 703f
         val messageTop = if (hasReservationFields) 925f else 765f
         val contentHeight = if (hasReservationFields) 990f else 830f
+        val reservationValidationMessage = restaurantReservationValidationMessage(status, reservationDate, reservationTime, language)
 
         Box(
             modifier = Modifier
@@ -13836,7 +13886,11 @@ private fun RestaurantEditSheet(
                     .background(Color(0xFFE6E6EC)),
             )
             Text(
-                text = localized("Редактировать ресторан", "Edit restaurant", "Editar restaurante", "Restaurant bearbeiten"),
+                text = if (isBookingFlow) {
+                    localized("Забронировать ресторан", "Book restaurant", "Reservar restaurante", "Restaurant buchen")
+                } else {
+                    localized("Редактировать ресторан", "Edit restaurant", "Editar restaurante", "Restaurant bearbeiten")
+                },
                 color = contentTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
@@ -14145,31 +14199,35 @@ private fun RestaurantEditSheet(
                         .clip(RoundedCornerShape(d(15f)))
                         .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
                         .clickable(enabled = !busy) {
-                            scope.launch {
-                                saving = true
-                                message = null
-                                runCatching {
-                                    SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateRestaurantDetailsRich(
-                                        tripId = tripId,
-                                        restaurantId = restaurant.id,
-                                        input = com.odyssey.travelplanner.data.RestaurantInput(
-                                            name = name,
-                                            city = city,
-                                            status = status,
-                                            note = cuisine,
-                                            price = price,
-                                            link = address,
-                                            reservationDate = reservationDate,
-                                            reservationTime = reservationTime,
-                                            priority = priority,
-                                        ),
-                                    )
-                                }.onSuccess {
-                                    onSaved()
-                                }.onFailure {
-                                    message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
+                            if (reservationValidationMessage != null) {
+                                message = reservationValidationMessage
+                            } else {
+                                scope.launch {
+                                    saving = true
+                                    message = null
+                                    runCatching {
+                                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateRestaurantDetailsRich(
+                                            tripId = tripId,
+                                            restaurantId = restaurant.id,
+                                            input = com.odyssey.travelplanner.data.RestaurantInput(
+                                                name = name,
+                                                city = city,
+                                                status = status,
+                                                note = cuisine,
+                                                price = price,
+                                                link = address,
+                                                reservationDate = reservationDate,
+                                                reservationTime = reservationTime,
+                                                priority = priority,
+                                            ),
+                                        )
+                                    }.onSuccess {
+                                        onSaved()
+                                    }.onFailure {
+                                        message = localizedFailure(language, it, localized(language, "Не удалось сохранить ресторан", "Could not save restaurant", "No se pudo guardar el restaurante", "Restaurant konnte nicht gespeichert werden"))
+                                    }
+                                    saving = false
                                 }
-                                saving = false
                             }
                         },
                 ) {
@@ -17957,7 +18015,6 @@ private fun AccommodationContent(
             reviewCount = accommodation.reviewCount ?: live.reviewCount,
             source = accommodation.source.ifBlank { live.source },
             googlePlaceId = accommodation.googlePlaceId.ifBlank { live.placeId },
-            bookingUrl = accommodation.bookingUrl.ifBlank { live.googleMapsUrl },
             website = accommodation.website.ifBlank { live.website },
             phone = accommodation.phone.ifBlank { live.phone },
             address = accommodation.address.ifBlank { live.address },
@@ -18371,7 +18428,7 @@ private fun AccommodationCard(
     val price = formatAccommodationPrice(accommodation.price)
     val bookingTarget = accommodation.bookingUrl.trim().takeIf(String::isNotBlank)
         ?: accommodation.website.trim().takeIf(String::isNotBlank)
-        ?: accommodationBookingSearchUrl(accommodation.name, accommodation.city)
+        ?: accommodationBookingSearchUrl(accommodation.name, accommodation.city, accommodation.dates)
     val bookingLabel = when {
         accommodation.bookingUrl.isNotBlank() -> localized("Открыть ссылку", "Open link", "Abrir enlace", "Link öffnen")
         accommodation.website.isNotBlank() -> localized("Открыть сайт", "Open website", "Abrir sitio", "Website öffnen")
@@ -19239,7 +19296,7 @@ private fun AccommodationPlaceDetailsSheet(
     }
     val bookingTarget = bookingUrl.trim().takeIf(String::isNotBlank)
         ?: place.website.trim().takeIf(String::isNotBlank)
-        ?: accommodationBookingSearchUrl(place.name, place.city)
+        ?: accommodationBookingSearchUrl(place.name, place.city, accommodationDateRange(checkIn, checkOut, tripDates))
 
     Column(
         modifier = Modifier
@@ -21879,9 +21936,33 @@ private fun formatAccommodationPrice(value: String): String {
 private fun accommodationPriceLevelLabel(priceLevel: Int?): String =
     priceLevel?.coerceIn(1, 4)?.let { "€".repeat(it) }.orEmpty()
 
-private fun accommodationBookingSearchUrl(name: String, city: String): String {
+internal fun accommodationBookingSearchUrl(name: String, city: String, dates: String = ""): String {
     val query = URLEncoder.encode(listOf(name.trim(), city.trim()).filter(String::isNotBlank).joinToString(" "), "UTF-8")
-    return "https://www.booking.com/searchresults.html?ss=$query"
+    val (checkIn, checkOut) = accommodationDateParts(dates)
+    return buildString {
+        append("https://www.booking.com/searchresults.html?ss=")
+        append(query)
+        if (checkIn.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+            append("&checkin=")
+            append(checkIn)
+        }
+        if (checkOut.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+            append("&checkout=")
+            append(checkOut)
+        }
+    }
+}
+
+internal fun restaurantReservationValidationMessage(
+    status: String,
+    reservationDate: String,
+    reservationTime: String,
+    language: String,
+): String? = when {
+    status == "бронь" && reservationDate.isBlank() && reservationTime.isBlank() -> localized(language, "Укажите дату и время брони", "Choose the reservation date and time", "Indica la fecha y hora de la reserva", "Wählen Sie Datum und Uhrzeit der Reservierung")
+    status == "бронь" && reservationDate.isBlank() -> localized(language, "Укажите дату брони", "Choose the reservation date", "Indica la fecha de la reserva", "Wählen Sie das Reservierungsdatum")
+    status == "бронь" && reservationTime.isBlank() -> localized(language, "Укажите время брони", "Choose the reservation time", "Indica la hora de la reserva", "Wählen Sie die Reservierungszeit")
+    else -> null
 }
 
 internal fun normalizeAccommodationStatus(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
@@ -22082,7 +22163,15 @@ private fun OverviewContent(
             .distinctBy { cityFilterKey(it) }
     }
     val defaultMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
-    val weatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
+    val selectedWeatherCitiesForDisplay = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
+    val firstTripCity = remember(overview.dates, overview.routeLegs, overview.accommodations) {
+        weatherCityByDate(
+            dates = weatherTripDates(overview.dates),
+            routeLegs = overview.routeLegs,
+            accommodations = overview.accommodations,
+        ).values.firstOrNull()
+    }
+    val weatherCities = (listOfNotNull(firstTripCity) + selectedWeatherCitiesForDisplay)
         .distinctBy { cityFilterKey(it) }
     val selectableWeatherCities = routeCities.ifEmpty { defaultMapCities }
     val weatherEditorCities = (selectableWeatherCities + selectedWeatherCities)
@@ -22381,9 +22470,11 @@ private fun OverviewWeatherBlock(
     val language = LocalLanguage.current
     val tripDateOptions = remember(tripDates) { weatherTripDates(tripDates) }
     var selectedTripDate by remember(tripDates) { mutableStateOf(tripDateOptions.firstOrNull()) }
-    var selectedWeatherCity by remember(tripDates, weatherCities) { mutableStateOf(weatherCities.firstOrNull()) }
     val cityByDate = remember(tripDates, routeLegs, accommodations) {
         weatherCityByDate(tripDateOptions, routeLegs, accommodations)
+    }
+    var selectedWeatherCity by remember(tripDates, weatherCities, cityByDate) {
+        mutableStateOf(weatherDefaultCityForTrip(tripDateOptions, cityByDate, weatherCities))
     }
     LaunchedEffect(weatherCities) {
         if (selectedWeatherCity == null || weatherCities.none { cityFilterKey(it) == cityFilterKey(selectedWeatherCity.orEmpty()) }) {
@@ -22479,7 +22570,7 @@ private fun OverviewWeatherBlock(
                     tripDatesWeather = tripDatesWeather,
                     tripDate = if (tripDatesWeather) selectedDateKey else null,
                     selected = tripDatesWeather && cityFilterKey(selectedWeatherCity.orEmpty()) == cityFilterKey(city),
-                    onClick = { if (tripDatesWeather) selectedWeatherCity = city },
+                    onClick = { selectedWeatherCity = city },
                 )
             }
         }
@@ -23108,6 +23199,7 @@ private fun WeatherPlaceholder(
     } else {
         weather?.tripIsEstimate == true
     }
+    val cityContentDescription = localizedCityName(city)
     val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
@@ -23116,11 +23208,11 @@ private fun WeatherPlaceholder(
             .clip(shape)
             .background(Color(0xFF6C5CE7))
             .border(if (selected) 3.dp else 0.dp, if (selected) primaryColor() else Color.Transparent, shape)
-            .clickable(enabled = tripDatesWeather, onClick = onClick)
-            .semantics {
-                contentDescription = localizedCityName(city)
+            .semantics(mergeDescendants = true) {
+                contentDescription = cityContentDescription
                 role = Role.Button
-            },
+            }
+            .clickable(onClick = onClick),
     ) {
         if (photo != null) {
             AsyncImage(
