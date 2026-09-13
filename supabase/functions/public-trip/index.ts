@@ -137,6 +137,32 @@ function publicDays(payload: JsonObject, nestedData: JsonObject) {
     .filter((day) => day.date || day.places.length || day.city !== "Маршрут");
 }
 
+function publicAccommodations(
+  payload: JsonObject,
+  nestedData: JsonObject,
+  nestedTrip: JsonObject,
+) {
+  const rawAccommodations = firstArray(
+    payload.accommodations,
+    nestedTrip.accommodations,
+    nestedData.accommodations,
+  );
+  return rawAccommodations
+    .filter(isJsonObject)
+    .map((stay, index) => ({
+      id: firstString(stay.id) || `public-accommodation-${index + 1}`,
+      name: firstString(stay.name) || "Жильё",
+      city: firstString(stay.city),
+      dates: firstString(stay.dates),
+      paymentDeadline: firstString(stay.paymentDeadline),
+      status: firstString(stay.status) || "бронь",
+      price: firstString(stay.price),
+      ...(firstString(stay.bookingUrl)
+        ? { bookingUrl: firstString(stay.bookingUrl) }
+        : {}),
+    }));
+}
+
 function publicTripFromPayload(id: string, payload: JsonObject) {
   const nestedData = isJsonObject(payload.data) ? payload.data : {};
   const nestedTrip = isJsonObject(nestedData.trip) ? nestedData.trip : {};
@@ -166,6 +192,7 @@ function publicTripFromPayload(id: string, payload: JsonObject) {
   );
   const cities = firstString(payload.cities, nestedTrip.cities) ||
     [...new Set(days.map((day) => day.city).filter((city) => city !== "Маршрут"))].join(" · ");
+  const accommodations = publicAccommodations(payload, nestedData, nestedTrip);
 
   return {
     id,
@@ -179,6 +206,7 @@ function publicTripFromPayload(id: string, payload: JsonObject) {
     coverPhotos,
     photos: coverPhotos,
     days,
+    accommodations,
   } satisfies JsonObject;
 }
 

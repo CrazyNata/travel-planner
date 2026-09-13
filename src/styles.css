@@ -5455,6 +5455,75 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .public-route-empty {
   margin-top: 24px;
 }
+.public-payment {
+  margin-top: 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fdfcf9;
+  padding: 22px;
+}
+.public-payment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.public-payment-heading p {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.public-payment-heading h2 {
+  margin: 0;
+  color: #23201c;
+  font: 600 24px/1.15 Unbounded, sans-serif;
+  letter-spacing: -.05em;
+}
+.public-payment-heading > span,
+.public-payment-view-only {
+  border-radius: 999px;
+  background: #f0efff;
+  padding: 7px 10px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.public-payment-description {
+  margin: 8px 0 20px;
+  color: #9c948a;
+  font-size: 12px;
+}
+.public-payment .payment-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.public-payment .payment-list {
+  margin-top: 20px;
+}
+.public-payment .payment-row {
+  background: #fff;
+}
+.public-payment .payment-row footer > span:first-child:last-child {
+  flex: 1;
+}
+.public-payment .payment-row footer > a + .public-payment-view-only {
+  margin-left: auto;
+}
+@media (max-width: 760px) {
+  .public-payment {
+    padding: 16px;
+  }
+  .public-payment-heading h2 {
+    font-size: 20px;
+  }
+  .public-payment .payment-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
 .author {
   display: flex;
   align-items: center;

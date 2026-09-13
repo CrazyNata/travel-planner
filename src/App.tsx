@@ -16131,6 +16131,11 @@ type PublicTripDay = {
   places: string[];
 };
 
+type PublicTripAccommodation = Pick<
+  SavedAccommodation,
+  "id" | "name" | "city" | "dates" | "paymentDeadline" | "status" | "price" | "bookingUrl"
+>;
+
 function publicTripDays(trip: TripSummary): PublicTripDay[] {
   const fallbackCities = trip.cities
     .split(/[·,]/)
@@ -16177,6 +16182,86 @@ function publicTripInitials(title: string) {
     .slice(0, 2)
     .toUpperCase();
   return initials || "R";
+}
+
+function publicAccommodationIsPaid(stay: Pick<SavedAccommodation, "status">) {
+  return stay.status.trim().toLocaleLowerCase("ru-RU") === "оплачено";
+}
+
+function PublicAccommodationPayments({
+  accommodations,
+}: {
+  accommodations: PublicTripAccommodation[];
+}) {
+  const paidCount = accommodations.filter(publicAccommodationIsPaid).length;
+  const unpaidCount = accommodations.length - paidCount;
+
+  return (
+    <section className="public-payment" id="public-payment">
+      <div className="public-payment-heading">
+        <div>
+          <p>Жильё</p>
+          <h2>Оплата жилья</h2>
+        </div>
+        <span>Только просмотр</span>
+      </div>
+      <p className="public-payment-description">
+        Сроки оплаты и статус бронирований доступны без регистрации.
+      </p>
+      <div className="payment-summary">
+        <article>
+          <b>{paidCount}</b>
+          <span className="paid">● Оплачено</span>
+        </article>
+        <article>
+          <b>{unpaidCount}</b>
+          <span className="due">● Не оплачено</span>
+        </article>
+        <article>
+          <b>{accommodations.length}</b>
+          <span className="unknown">● Всего жилья</span>
+        </article>
+      </div>
+      <div className="payment-list">
+        {accommodations.map((stay) => {
+          const paid = publicAccommodationIsPaid(stay);
+          const details = [
+            stay.city,
+            stay.dates ? formatAccommodationDates(stay.dates) : "",
+          ].filter(Boolean).join(" · ");
+          return (
+            <article className={`payment-row ${paid ? "is-paid" : "is-due"}`} key={stay.id}>
+              <div className="payment-row-copy">
+                <span className={`payment-status ${paid ? "is-paid" : "is-due"}`}>
+                  {paid ? "Оплачено" : "Не оплачено"}
+                </span>
+                <h3>{cityFlag(stay.city)} {stay.name}</h3>
+                {details && <p>{details}</p>}
+                <div className={`payment-row-deadline ${paid ? "is-paid" : "is-due"} ${stay.paymentDeadline ? "" : "is-missing"}`}>
+                  <span>{paid ? "Дата оплаты" : "Оплатить до"}</span>
+                  <b>{formatAccommodationPaymentDate(stay.paymentDeadline)}</b>
+                </div>
+              </div>
+              <div className="payment-row-amount">
+                <b>{formatAccommodationPrice(stay.price) || "—"}</b>
+                <span>стоимость проживания</span>
+              </div>
+              <footer>
+                {stay.bookingUrl ? (
+                  <a href={externalUrl(stay.bookingUrl)} target="_blank" rel="noreferrer">
+                    Ссылка на жильё →
+                  </a>
+                ) : <span />}
+                <span className={paid ? "payment-marked" : "public-payment-view-only"}>
+                  {paid ? "✓ Оплата отмечена" : "Только просмотр"}
+                </span>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function PublicTripPage({ slug }: { slug: string }) {
@@ -16241,6 +16326,7 @@ function PublicTripPage({ slug }: { slug: string }) {
 
   const routeDays = publicTripDays(trip);
   const placeCount = routeDays.reduce((total, day) => total + day.places.length, 0);
+  const accommodations = (trip.accommodations || []) as PublicTripAccommodation[];
   const coverImage = trip.coverImage || trip.coverPhotos?.[0]?.image || trip.photos?.[0]?.image;
 
   return (
@@ -16276,6 +16362,9 @@ function PublicTripPage({ slug }: { slug: string }) {
           </span>
           <em>Только просмотр</em>
         </div>
+        {accommodations.length > 0 && (
+          <PublicAccommodationPayments accommodations={accommodations} />
+        )}
         {routeDays.map((day, index) => (
           <section className="public-day" key={day.id}>
             <header>
