@@ -9397,6 +9397,24 @@ body.ramingo-onboarding-open {
 .app:not(.app-dark) .pets-page .pets-choice-row button.active { background: #fff; color: var(--accent); }
 .app:not(.app-dark) .pets-page .pets-card-photo { background: linear-gradient(135deg, #eeeaff, #f8f6ff); }
 .app:not(.app-dark) .pets-page .pets-card-actions a { color: var(--accent); }
+.app:not(.app-dark) .pets-page .pets-edit-button {
+  border: 1px solid #d8d4ff;
+  background: #f0efff;
+  color: var(--accent);
+}
+.app:not(.app-dark) .pets-page .pets-edit-button:hover {
+  border-color: #bdb7ff;
+  background: #e8e5ff;
+}
+.app:not(.app-dark) .pets-page .pets-delete-button {
+  border: 1px solid #f1cccc;
+  background: #fff5f5;
+  color: #c65561;
+}
+.app:not(.app-dark) .pets-page .pets-delete-button:hover {
+  border-color: #e5a5ab;
+  background: #ffecec;
+}
 .app:not(.app-dark) .pets-page .pets-card-skeleton { border-color: #dedcf1; background: #fff; }
 .app:not(.app-dark) .pets-page .pets-skeleton-photo,
 .app:not(.app-dark) .pets-page .pets-skeleton-body span,
