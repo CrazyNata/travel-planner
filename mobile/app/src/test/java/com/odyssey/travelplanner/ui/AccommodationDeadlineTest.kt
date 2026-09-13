@@ -40,4 +40,10 @@ class AccommodationDeadlineTest {
         assertEquals("Today", accommodationDeadlineCountdownLabel(0, "EN"))
         assertEquals("Cancellation ended", accommodationDeadlineCountdownLabel(-1, "EN"))
     }
+
+    @Test
+    fun formatsPaymentDeadlineAsSeparateDateAndTime() {
+        assertEquals("24 сен 2026 · 23:59", formatAccommodationPaymentDeadlineDetail("2026-09-24", "RU"))
+        assertEquals("Sep 24, 2026 · 23:59", formatAccommodationPaymentDeadlineDetail("2026-09-24", "EN"))
+    }
 }

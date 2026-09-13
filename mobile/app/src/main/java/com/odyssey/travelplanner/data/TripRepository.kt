@@ -100,6 +100,7 @@ data class Accommodation(
     val bookingUrl: String,
     // Optional fields extend the existing JSON payload without requiring a new table.
     val deadline: String = "",
+    val paymentDeadline: String = "",
     val currency: String = "",
     val rating: Double? = null,
     val source: String = "manual",
@@ -456,6 +457,7 @@ data class AccommodationInput(
     val details: String = "",
     val bookingUrl: String = "",
     val deadline: String = "",
+    val paymentDeadline: String = "",
     val source: String = "",
     val googlePlaceId: String = "",
     val bookingPropertyId: String = "",
@@ -732,6 +734,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                                 photos = emptyList(),
                                 bookingUrl = "",
                                 deadline = jsonText(accommodation["deadline"]),
+                                paymentDeadline = jsonText(accommodation["paymentDeadline"]),
                                 currency = jsonText(accommodation["currency"]),
                             )
                         },
@@ -816,6 +819,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 photos = accommodationPhotoReferences(accommodation),
                 bookingUrl = accommodationText("bookingUrl").ifBlank { accommodationText("externalUrl") },
                 deadline = accommodationText("deadline"),
+                paymentDeadline = accommodationText("paymentDeadline"),
                 currency = accommodationText("currency"),
                 rating = firstJsonDouble(
                     accommodation,
@@ -2481,6 +2485,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("details", input.details.trim())
             put("bookingUrl", input.bookingUrl.trim())
             put("deadline", input.deadline.trim())
+            put("paymentDeadline", input.paymentDeadline.trim())
             put("photos", buildJsonArray { })
             put("source", input.source.trim().ifBlank { "manual" })
             if (input.googlePlaceId.isNotBlank()) put("googlePlaceId", input.googlePlaceId.trim())
@@ -2516,6 +2521,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("details", kotlinx.serialization.json.JsonPrimitive(input.details.trim()))
                 put("bookingUrl", kotlinx.serialization.json.JsonPrimitive(input.bookingUrl.trim()))
                 put("deadline", kotlinx.serialization.json.JsonPrimitive(input.deadline.trim()))
+                put("paymentDeadline", kotlinx.serialization.json.JsonPrimitive(input.paymentDeadline.trim()))
                 put("externalUrl", kotlinx.serialization.json.JsonPrimitive(input.externalUrl.trim()))
                 put("address", kotlinx.serialization.json.JsonPrimitive(input.address.trim()))
             })

@@ -72,6 +72,12 @@ internal fun accommodationDeadlineTimeLabel(language: String): String = when (la
     else -> "23:59 по местному времени"
 }
 
+internal fun formatAccommodationPaymentDeadlineDetail(value: String, language: String): String {
+    val raw = value.trim()
+    if (raw.isBlank()) return ""
+    return "${formatAccommodationDeadlineDetail(raw, language)} · 23:59"
+}
+
 private fun languageKey(value: String): String = when (value.trim().uppercase(Locale.ROOT).substringBefore('-')) {
     "EN", "ENGLISH" -> "EN"
     "ES", "SPANISH" -> "ES"

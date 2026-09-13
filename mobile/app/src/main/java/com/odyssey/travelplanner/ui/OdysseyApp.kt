@@ -18288,6 +18288,7 @@ private fun AccommodationContent(
     var checkIn by remember { mutableStateOf("") }
     var checkOut by remember { mutableStateOf("") }
     var deadline by remember { mutableStateOf("") }
+    var paymentDeadline by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("EUR") }
     var status by remember { mutableStateOf("хочу") }
@@ -18471,6 +18472,7 @@ private fun AccommodationContent(
         checkIn = ""
         checkOut = ""
         deadline = ""
+        paymentDeadline = ""
         price = ""
         currency = "EUR"
         status = "хочу"
@@ -18594,10 +18596,10 @@ private fun AccommodationContent(
                 checkIn = checkIn,
                 checkOut = checkOut,
                 deadline = deadline,
+                paymentDeadline = paymentDeadline,
                 price = price,
                 currency = currency,
                 bookingUrl = bookingUrl,
-                details = details,
                 status = status,
                 photoUri = newAccommodationPhotoUri,
                 saving = saving,
@@ -18607,10 +18609,10 @@ private fun AccommodationContent(
                 onCheckInClick = { datePickerTarget = "checkIn" },
                 onCheckOutClick = { datePickerTarget = "checkOut" },
                 onDeadlineClick = { datePickerTarget = "deadline" },
+                onPaymentDeadlineClick = { datePickerTarget = "paymentDeadline" },
                 onPriceChange = { price = it },
                 onCurrencyChange = { currency = it },
                 onBookingUrlChange = { bookingUrl = it },
-                onDetailsChange = { details = it },
                 onStatusChange = { status = it },
                 onPickPhoto = { newAccommodationPhotoPicker.launch("image/*") },
                 onClose = ::closeAccommodationForm,
@@ -18634,6 +18636,7 @@ private fun AccommodationContent(
                                         details = details,
                                         bookingUrl = bookingUrl,
                                         deadline = deadline,
+                                        paymentDeadline = paymentDeadline,
                                         source = "manual",
                                         externalUrl = bookingUrl,
                                         address = details,
@@ -18756,6 +18759,7 @@ private fun AccommodationContent(
             initialValue = when (target) {
                 "checkIn" -> checkIn
                 "checkOut" -> checkOut
+                "paymentDeadline" -> paymentDeadline
                 else -> deadline
             },
             minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
@@ -18764,6 +18768,7 @@ private fun AccommodationContent(
                 when (target) {
                     "checkIn" -> checkIn = selected
                     "checkOut" -> checkOut = selected
+                    "paymentDeadline" -> paymentDeadline = selected
                     else -> deadline = selected
                 }
                 datePickerTarget = null
@@ -18968,14 +18973,15 @@ private fun AccommodationCard(
                     Text(catalogRatingCountLabel(count, language), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 10.5.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
-            if (accommodation.deadline.isNotBlank()) {
+            if (accommodation.deadline.isNotBlank() || accommodation.paymentDeadline.isNotBlank()) {
                 AccommodationDeadlineCard(
                     deadline = accommodation.deadline,
+                    paymentDeadline = accommodation.paymentDeadline,
                     language = language,
                     remindersEnabled = remindersEnabled,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = if (accommodation.deadline.isNotBlank() || accommodation.paymentDeadline.isNotBlank()) 15.5.dp else 12.dp).height(42.dp)) {
                 if (canEdit) {
                     Box(modifier = (if (bookingTarget.isNotBlank()) Modifier.width(150.234.dp) else Modifier.weight(1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(12.dp)).clickable { onEdit() }, contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -19011,9 +19017,15 @@ private fun AccommodationCard(
 }
 
 @Composable
-private fun AccommodationDeadlineCard(deadline: String, language: String, remindersEnabled: Boolean) {
+private fun AccommodationDeadlineCard(
+    deadline: String,
+    paymentDeadline: String,
+    language: String,
+    remindersEnabled: Boolean,
+) {
     val status = accommodationDeadlineStatus(deadline)
-    if (status == null) {
+    val hasPaymentDeadline = paymentDeadline.isNotBlank()
+    if (!hasPaymentDeadline && status == null) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -19049,29 +19061,154 @@ private fun AccommodationDeadlineCard(deadline: String, language: String, remind
         return
     }
 
-    val daysRemaining = status.daysRemaining
-    val expired = daysRemaining < 0L
-    val urgent = !expired && daysRemaining <= 3L
+    if (!hasPaymentDeadline) {
+        val daysRemaining = status?.daysRemaining ?: return
+        val expired = daysRemaining < 0L
+        val urgent = !expired && daysRemaining <= 3L
+        val accent = when {
+            expired -> Color(0xFFD85A67)
+            urgent -> Color(0xFFF0A03D)
+            else -> Color(0xFF22B07D)
+        }
+        val panel = accent.copy(alpha = if (LocalDarkTheme.current) 0.16f else 0.08f)
+        val border = accent.copy(alpha = if (LocalDarkTheme.current) 0.55f else 0.28f)
+        val countdownLabel = accommodationDeadlineCountdownLabel(daysRemaining, language)
+        val subtitle = when {
+            expired -> localized("Бесплатная отмена завершилась", "Free cancellation has ended", "La cancelación gratuita ha terminado", "Kostenlose Stornierung beendet")
+            daysRemaining == 0L -> localized("Дедлайн сегодня", "Deadline is today", "La fecha límite es hoy", "Frist ist heute")
+            urgent -> localized("Дедлайн приближается", "Deadline is approaching", "La fecha límite se acerca", "Die Frist rückt näher")
+            else -> localized("До конца указанной даты", "Until the end of the date", "Hasta el final de la fecha", "Bis zum Ende des Datums")
+        }
+        val detail = localized(
+            "До ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "Until ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "Hasta ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "Bis ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(panel)
+                .border(1.dp, border, RoundedCornerShape(14.dp))
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (expired) "!" else "✓",
+                    color = accent,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W900,
+                    fontSize = 19.sp,
+                    lineHeight = 22.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.width(23.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = localized("Бесплатная отмена", "Free cancellation", "Cancelación gratuita", "Kostenlose Stornierung"),
+                        color = accent,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.5.sp,
+                        lineHeight = 16.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                    Text(
+                        text = subtitle,
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W600,
+                        fontSize = 9.5.sp,
+                        lineHeight = 13.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                    if (expired) {
+                        Text("—", color = accent, fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 19.sp, lineHeight = 21.sp)
+                    } else {
+                        Text(daysRemaining.toString(), color = if (urgent) accent else primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 21.sp, lineHeight = 21.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                    Text(
+                        text = if (expired) localized("истёк", "ended", "terminó", "beendet") else localized("дней осталось", "days left", "días", "Tage übrig"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 8.5.sp,
+                        lineHeight = 11.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 23.dp, top = 7.dp).fillMaxWidth(),
+            ) {
+                Text(
+                    text = detail,
+                    color = secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 9.5.sp,
+                    lineHeight = 13.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (remindersEnabled) localized("✓ Напоминания включены", "✓ Reminders on", "✓ Recordatorios activos", "✓ Erinnerungen an") else localized("Напоминания выключены", "Reminders off", "Recordatorios apagados", "Erinnerungen aus"),
+                    color = if (remindersEnabled) accent else secondaryTextColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 8.5.sp,
+                    lineHeight = 11.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.padding(start = 6.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (!expired) {
+                Text(
+                    text = countdownLabel,
+                    color = accent,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 9.5.sp,
+                    lineHeight = 13.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.padding(start = 23.dp, top = 2.dp),
+                )
+            }
+        }
+        return
+    }
+
+    val daysRemaining = status?.daysRemaining ?: 0L
+    val expired = status?.let { it.daysRemaining < 0L } == true
+    val urgent = status != null && !expired && daysRemaining <= 3L
     val accent = when {
+        status == null -> primaryColor()
         expired -> Color(0xFFD85A67)
         urgent -> Color(0xFFF0A03D)
         else -> Color(0xFF22B07D)
     }
     val panel = accent.copy(alpha = if (LocalDarkTheme.current) 0.16f else 0.08f)
     val border = accent.copy(alpha = if (LocalDarkTheme.current) 0.55f else 0.28f)
-    val countdownLabel = accommodationDeadlineCountdownLabel(daysRemaining, language)
-    val subtitle = when {
-        expired -> localized("Бесплатная отмена завершилась", "Free cancellation has ended", "La cancelación gratuita ha terminado", "Kostenlose Stornierung beendet")
-        daysRemaining == 0L -> localized("Дедлайн сегодня", "Deadline is today", "La fecha límite es hoy", "Frist ist heute")
-        urgent -> localized("Дедлайн приближается", "Deadline is approaching", "La fecha límite se acerca", "Die Frist rückt näher")
-        else -> localized("До конца указанной даты", "Until the end of the date", "Hasta el final de la fecha", "Bis zum Ende des Datums")
+    val cancellationDetail = status?.let {
+        localized(
+            "до ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "until ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "hasta ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+            "bis ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
+        )
     }
-    val detail = localized(
-        "До ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
-        "Until ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
-        "Hasta ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
-        "Bis ${formatAccommodationDeadlineDetail(deadline, language)} · ${accommodationDeadlineTimeLabel(language)}",
-    )
+    val paymentDetail = formatAccommodationPaymentDeadlineDetail(paymentDeadline, language)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -19081,21 +19218,93 @@ private fun AccommodationDeadlineCard(deadline: String, language: String, remind
             .border(1.dp, border, RoundedCornerShape(14.dp))
             .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = if (expired) "!" else "✓",
-                color = accent,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W900,
-                fontSize = 19.sp,
-                lineHeight = 22.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                modifier = Modifier.width(23.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
+        if (status != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = localized("Бесплатная отмена", "Free cancellation", "Cancelación gratuita", "Kostenlose Stornierung"),
+                    text = if (expired) "!" else "✓",
                     color = accent,
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W900,
+                    fontSize = 19.sp,
+                    lineHeight = 22.sp,
+                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    modifier = Modifier.width(23.dp),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = localized("Бесплатная отмена", "Free cancellation", "Cancelación gratuita", "Kostenlose Stornierung"),
+                        color = accent,
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.5.sp,
+                        lineHeight = 16.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                    Text(
+                        text = cancellationDetail.orEmpty(),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W700,
+                        fontSize = 9.5.sp,
+                        lineHeight = 13.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                    if (expired) {
+                        Text("—", color = accent, fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 19.sp, lineHeight = 21.sp)
+                    } else {
+                        Text(daysRemaining.toString(), color = if (urgent) accent else primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 21.sp, lineHeight = 21.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
+                    }
+                    Text(
+                        text = if (expired) localized("истёк", "ended", "terminó", "beendet") else localized("дней осталось", "days left", "días", "Tage übrig"),
+                        color = secondaryTextColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 8.5.sp,
+                        lineHeight = 11.sp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                    )
+                }
+            }
+        } else if (deadline.isNotBlank()) {
+            Text(
+                text = localized(
+                    "Бесплатная отмена до ${formatAccommodationDeadline(deadline, language)}",
+                    "Free cancellation until ${formatAccommodationDeadline(deadline, language)}",
+                    "Cancelación gratuita hasta ${formatAccommodationDeadline(deadline, language)}",
+                    "Kostenlose Stornierung bis ${formatAccommodationDeadline(deadline, language)}",
+                ),
+                color = Color(0xFF22B07D),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (status != null) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 23.dp, top = 9.dp, end = 72.dp)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(accent.copy(alpha = if (LocalDarkTheme.current) 0.34f else 0.22f)),
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+        ) {
+            OdysseyCalendarIcon(20.dp, primaryColor())
+            Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
+                Text(
+                    text = localized("Оплатить до", "Pay by", "Pagar antes de", "Bezahlen bis"),
+                    color = primaryColor(),
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
                     fontSize = 12.5.sp,
@@ -19103,57 +19312,20 @@ private fun AccommodationDeadlineCard(deadline: String, language: String, remind
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                 )
                 Text(
-                    text = subtitle,
+                    text = paymentDetail,
                     color = secondaryTextColor(),
                     fontFamily = Manrope,
-                    fontWeight = FontWeight.W600,
+                    fontWeight = FontWeight.W700,
                     fontSize = 9.5.sp,
                     lineHeight = 13.sp,
                     style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
-                if (expired) {
-                    Text("—", color = accent, fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 19.sp, lineHeight = 21.sp)
-                } else {
-                    Text(daysRemaining.toString(), color = if (urgent) accent else primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W900, fontSize = 21.sp, lineHeight = 21.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding))
-                }
-                Text(
-                    text = if (expired) localized("истёк", "ended", "terminó", "beendet") else localized("дней осталось", "days left", "días", "Tage übrig"),
-                    color = secondaryTextColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 8.5.sp,
-                    lineHeight = 11.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                )
-            }
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 23.dp, top = 7.dp).fillMaxWidth(),
-        ) {
             Text(
-                text = detail,
-                color = secondaryTextColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W700,
-                fontSize = 9.5.sp,
-                lineHeight = 13.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = if (remindersEnabled) {
-                    localized("✓ Напоминания включены", "✓ Reminders on", "✓ Recordatorios activos", "✓ Erinnerungen an")
-                } else {
-                    localized("Напоминания выключены", "Reminders off", "Recordatorios apagados", "Erinnerungen aus")
-                },
-                color = if (remindersEnabled) accent else secondaryTextColor(),
+                text = if (remindersEnabled) localized("✓ Напоминания включены", "✓ Reminders on", "✓ Recordatorios activos", "✓ Erinnerungen an") else localized("Напоминания выключены", "Reminders off", "Recordatorios apagados", "Erinnerungen aus"),
+                color = if (remindersEnabled) Color(0xFF22B07D) else secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 8.5.sp,
@@ -19162,18 +19334,6 @@ private fun AccommodationDeadlineCard(deadline: String, language: String, remind
                 modifier = Modifier.padding(start = 6.dp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (!expired) {
-            Text(
-                text = countdownLabel,
-                color = accent,
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 9.5.sp,
-                lineHeight = 13.sp,
-                style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                modifier = Modifier.padding(start = 23.dp, top = 2.dp),
             )
         }
     }
@@ -19643,6 +19803,7 @@ private fun AccommodationPlaceDetailsSheet(
     var bookingUrl by remember(place.id) { mutableStateOf("") }
     var checkIn by remember(place.id) { mutableStateOf(accommodationDateParts(tripDates).first) }
     var checkOut by remember(place.id) { mutableStateOf(accommodationDateParts(tripDates).second) }
+    var paymentDeadline by remember(place.id) { mutableStateOf("") }
     var datePickerTarget by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -19736,6 +19897,13 @@ private fun AccommodationPlaceDetailsSheet(
             AccommodationEditDateField(label = localized("Заезд", "Check-in", "Entrada", "Anreise"), value = checkIn, scale = 1f, modifier = Modifier.weight(1f), onClick = { datePickerTarget = "checkIn" })
             AccommodationEditDateField(label = localized("Выезд", "Check-out", "Salida", "Abreise"), value = checkOut, scale = 1f, modifier = Modifier.weight(1f), onClick = { datePickerTarget = "checkOut" })
         }
+        AccommodationEditDateField(
+            label = localized("Оплатить до", "Pay by", "Pagar antes de", "Bezahlen bis"),
+            value = paymentDeadline,
+            scale = 1f,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { datePickerTarget = "paymentDeadline" },
+        )
         if (message != null) Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
         Button(
             onClick = {
@@ -19755,6 +19923,7 @@ private fun AccommodationPlaceDetailsSheet(
                                     status = "хочу",
                                     details = place.address,
                                     bookingUrl = bookingUrl.trim(),
+                                    paymentDeadline = paymentDeadline,
                                     source = place.source,
                                     googlePlaceId = place.placeId,
                                     externalUrl = bookingUrl.trim(),
@@ -19794,11 +19963,19 @@ private fun AccommodationPlaceDetailsSheet(
     }
     datePickerTarget?.let { target ->
         AccommodationCalendarDialog(
-            initialValue = if (target == "checkIn") checkIn else checkOut,
+            initialValue = when (target) {
+                "checkIn" -> checkIn
+                "checkOut" -> checkOut
+                else -> paymentDeadline
+            },
             minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
             onDismiss = { datePickerTarget = null },
             onConfirm = { selected ->
-                if (target == "checkIn") checkIn = selected else checkOut = selected
+                when (target) {
+                    "checkIn" -> checkIn = selected
+                    "checkOut" -> checkOut = selected
+                    else -> paymentDeadline = selected
+                }
                 datePickerTarget = null
             },
         )
@@ -19991,10 +20168,10 @@ private fun AccommodationAddSheet(
     checkIn: String,
     checkOut: String,
     deadline: String,
+    paymentDeadline: String,
     price: String,
     currency: String,
     bookingUrl: String,
-    details: String,
     status: String,
     photoUri: Uri?,
     saving: Boolean,
@@ -20004,10 +20181,10 @@ private fun AccommodationAddSheet(
     onCheckInClick: () -> Unit,
     onCheckOutClick: () -> Unit,
     onDeadlineClick: () -> Unit,
+    onPaymentDeadlineClick: () -> Unit,
     onPriceChange: (String) -> Unit,
     onCurrencyChange: (String) -> Unit,
     onBookingUrlChange: (String) -> Unit,
-    onDetailsChange: (String) -> Unit,
     onStatusChange: (String) -> Unit,
     onPickPhoto: () -> Unit,
     onClose: () -> Unit,
@@ -20153,8 +20330,8 @@ private fun AccommodationAddSheet(
                     AccommodationEditDateField(label = localized("Выезд", "Check-out", "Salida", "Abreise"), value = checkOut, scale = scale, modifier = Modifier.width(d(154.5f)), onClick = onCheckOutClick)
                 }
                 AccommodationEditDateField(label = localized("Бесплатная отмена до", "Free cancellation until", "Cancelación gratuita hasta", "Kostenlose Stornierung bis"), value = deadline, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(710f)).width(d(321f)), onClick = onDeadlineClick)
-                AccommodationEditTextField(label = localized("Ссылка на жильё", "Accommodation link", "Enlace del alojamiento", "Unterkunftslink"), value = bookingUrl, placeholder = "https://example.com/...", valueWeight = FontWeight.W600, valueColor = primaryColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(321f)), onValueChange = onBookingUrlChange)
-                AccommodationEditTextField(label = localized("Адрес / заметка", "Address / note", "Dirección / nota", "Adresse / Notiz"), value = details, placeholder = localized("Дополнительные детали", "Additional details", "Detalles adicionales", "Zusätzliche Details"), valueWeight = FontWeight.W600, valueColor = contentTextColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(896f)).width(d(321f)), onValueChange = onDetailsChange)
+                AccommodationEditDateField(label = localized("Оплатить до", "Pay by", "Pagar antes de", "Bezahlen bis"), value = paymentDeadline, scale = scale, modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(321f)), onClick = onPaymentDeadlineClick)
+                AccommodationEditTextField(label = localized("Ссылка на жильё", "Accommodation link", "Enlace del alojamiento", "Unterkunftslink"), value = bookingUrl, placeholder = "https://example.com/...", valueWeight = FontWeight.W600, valueColor = primaryColor(), scale = scale, modifier = Modifier.offset(x = d(16f), y = d(896f)).width(d(321f)), onValueChange = onBookingUrlChange)
 
                 message?.let {
                     Text(text = it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = s(11f), lineHeight = s(15f), style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding), modifier = Modifier.offset(x = d(16f), y = d(984f)).width(d(336f)))
@@ -20189,6 +20366,7 @@ private fun AccommodationEditSheet(
     var checkIn by remember(accommodation.id) { mutableStateOf(initialDates.first) }
     var checkOut by remember(accommodation.id) { mutableStateOf(initialDates.second) }
     var deadline by remember(accommodation.id) { mutableStateOf(accommodation.deadline) }
+    var paymentDeadline by remember(accommodation.id) { mutableStateOf(accommodation.paymentDeadline) }
     var price by remember(accommodation.id) { mutableStateOf(formatAccommodationPriceInput(accommodation.price)) }
     var currency by remember(accommodation.id) { mutableStateOf(accommodationCurrencyForPrice(accommodation.price, accommodation.currency)) }
     var bookingUrl by remember(accommodation.id) { mutableStateOf(accommodation.bookingUrl) }
@@ -20252,6 +20430,7 @@ private fun AccommodationEditSheet(
                             details = details,
                             bookingUrl = bookingUrl,
                             deadline = deadline,
+                            paymentDeadline = paymentDeadline,
                             externalUrl = bookingUrl,
                             address = details,
                         ),
@@ -20530,6 +20709,13 @@ private fun AccommodationEditSheet(
                 modifier = Modifier.offset(x = d(16f), y = d(710f)).width(d(336f)),
                 onClick = { datePickerTarget = "deadline" },
             )
+            AccommodationEditDateField(
+                label = localized("Оплатить до", "Pay by", "Pagar antes de", "Bezahlen bis"),
+                value = paymentDeadline,
+                scale = scale,
+                modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(336f)),
+                onClick = { datePickerTarget = "paymentDeadline" },
+            )
             AccommodationEditTextField(
                 label = localized("Ссылка на жильё", "Accommodation link", "Enlace del alojamiento", "Unterkunftslink"),
                 value = bookingUrl,
@@ -20537,18 +20723,8 @@ private fun AccommodationEditSheet(
                 valueWeight = FontWeight.W600,
                 valueColor = primaryColor(),
                 scale = scale,
-                modifier = Modifier.offset(x = d(16f), y = d(803f)).width(d(336f)),
-                onValueChange = { bookingUrl = it },
-            )
-            AccommodationEditTextField(
-                label = localized("Адрес / заметка", "Address / note", "Dirección / nota", "Adresse / Notiz"),
-                value = details,
-                placeholder = localized("Дополнительные детали", "Additional details", "Detalles adicionales", "Zusätzliche Details"),
-                valueWeight = FontWeight.W600,
-                valueColor = contentTextColor(),
-                scale = scale,
                 modifier = Modifier.offset(x = d(16f), y = d(896f)).width(d(336f)),
-                onValueChange = { details = it },
+                onValueChange = { bookingUrl = it },
             )
 
             Row(
@@ -20720,6 +20896,7 @@ private fun AccommodationEditSheet(
             initialValue = when (target) {
                 "checkIn" -> checkIn
                 "checkOut" -> checkOut
+                "paymentDeadline" -> paymentDeadline
                 else -> deadline
             },
             minimumDate = if (target == "checkOut" && checkIn.isNotBlank()) accommodationDateCalendar(checkIn) else null,
@@ -20728,6 +20905,7 @@ private fun AccommodationEditSheet(
                 when (target) {
                     "checkIn" -> checkIn = selected
                     "checkOut" -> checkOut = selected
+                    "paymentDeadline" -> paymentDeadline = selected
                     else -> deadline = selected
                 }
                 datePickerTarget = null
