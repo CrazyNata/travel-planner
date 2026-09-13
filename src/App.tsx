@@ -435,6 +435,12 @@ function accommodationBudgetExpense(
 function isAutomaticBudgetExpense(expense: BudgetExpense) {
   return expense.id.startsWith("accommodation:");
 }
+
+function isAccommodationTotalExpense(expense: BudgetExpense) {
+  if (expense.category !== "Жильё") return false;
+  const name = expense.name.trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, " ");
+  return /^(жилье|жильё|проживание|жилье всего|жильё всего|расходы на жилье|расходы на жильё)$/.test(name);
+}
 type StoredDay = {
   id?: string;
   city?: string;
@@ -1101,7 +1107,6 @@ async function loadPublicTrip(slug: string, signal: AbortSignal) {
     {
       headers: {
         apikey: publishableKey,
-        Authorization: `Bearer ${publishableKey}`,
       },
       signal,
     },
@@ -11570,7 +11575,10 @@ function Budget({
   const automaticExpenses = (trip.accommodations || [])
     .map(accommodationBudgetExpense)
     .filter((expense): expense is BudgetExpense => expense !== null);
-  const expenses = [...normalizedStoredExpenses, ...automaticExpenses];
+  const hasAccommodationTotal = normalizedStoredExpenses.some(isAccommodationTotalExpense);
+  const expenses = hasAccommodationTotal
+    ? normalizedStoredExpenses
+    : [...normalizedStoredExpenses, ...automaticExpenses];
   const hasAutoCategories = normalizedStoredExpenses.some(
     (expense, index) => expense.category !== storedExpenses[index]?.category,
   );
@@ -15340,15 +15348,22 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
     const citiesToSearch = selectedCity === "Все города"
       ? (cities.length ? cities : ["Рим"]).slice(0, 6)
       : [selectedCity];
-    setLiveCatalog(null);
     const timeout = window.setTimeout(() => {
       setCatalogLoading(true);
+      const groups: PetPlace[][] = [];
+      const publishPartialCatalog = () => {
+        if (!controller.signal.aborted) setLiveCatalog(groups.flat());
+      };
       void Promise.all(
-        citiesToSearch.map((city) =>
-          fetchGooglePetCatalog(city, selectedType, query, controller.signal).catch(() => []),
-        ),
+        citiesToSearch.map(async (city, index) => {
+          const places = await fetchGooglePetCatalog(city, selectedType, query, controller.signal).catch(() => []);
+          if (!controller.signal.aborted) {
+            groups[index] = places;
+            publishPartialCatalog();
+          }
+        })
       )
-        .then(async (groups) => {
+        .then(async () => {
           const places = groups.flat();
           return enrichPetCatalogPhotos(places, controller.signal);
         })
@@ -15393,8 +15408,8 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
-      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{catalogPending ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
-      {!catalogPending && !visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
+      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : catalogLoading ? "Обновляем…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{!visibleCatalog.length && (catalogPending || catalogLoading) ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      {!catalogPending && !catalogLoading && !visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
       {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
     </section>
@@ -15417,6 +15432,7 @@ function Workspace({
   tab,
   onTabChange,
   darkTheme = false,
+  readOnly = false,
 }: {
   go: (view: View) => void;
   trip: TripSummary;
@@ -15424,6 +15440,7 @@ function Workspace({
   tab: Tab;
   onTabChange: (tab: Tab) => void;
   darkTheme?: boolean;
+  readOnly?: boolean;
 }) {
   const [editingRoadDay, setEditingRoadDay] = useState<number | null>(null);
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
@@ -15680,7 +15697,7 @@ function Workspace({
         ["photos", "Фото"],
       ];
   return (
-    <div className={`trip-shell${darkTheme ? " theme-dark" : ""}`}>
+    <div className={`trip-shell${darkTheme ? " theme-dark" : ""}${readOnly ? " trip-shell-readonly" : ""}`}>
       <header className="trip-header">
         <button
           className="back back-icon"
@@ -15696,13 +15713,17 @@ function Workspace({
           <div className="trip-title-block">
             <h1>
               {trip.title}{" "}
-              <button
-                className="status-picker"
-                onClick={() => setStatusMenuOpen((open) => !open)}
-                aria-expanded={statusMenuOpen}
-              >
-                ● {trip.status}
-              </button>
+              {readOnly ? (
+                <span className="status-picker status-read-only">● {trip.status}</span>
+              ) : (
+                <button
+                  className="status-picker"
+                  onClick={() => setStatusMenuOpen((open) => !open)}
+                  aria-expanded={statusMenuOpen}
+                >
+                  ● {trip.status}
+                </button>
+              )}
             </h1>
             <p>
               {trip.isDraft
@@ -15733,7 +15754,7 @@ function Workspace({
               </div>
             )}
           </div>
-          {tab === "overview" && (
+          {tab === "overview" && !readOnly && (
             <button
               className="edit-trip"
               onClick={() => setOverviewEditorOpen(true)}
@@ -15741,7 +15762,7 @@ function Workspace({
               ✎ Редактировать
             </button>
           )}
-          {!trip.isDraft && (
+          {!trip.isDraft && !readOnly && (
             <div className="share">
               <div>
                 <Avatar>АС</Avatar>
@@ -16264,17 +16285,24 @@ function PublicAccommodationPayments({
   );
 }
 
+function readOnlyTripUpdate(_trip: TripSummary) {
+  // Public links can reuse the regular trip workspace without ever writing
+  // the loaded snapshot back to Supabase.
+}
+
 function PublicTripPage({ slug }: { slug: string }) {
   const navigate = useNavigate();
   const [trip, setTrip] = useState<TripSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<Tab>("overview");
 
   useEffect(() => {
     const controller = new AbortController();
     setTrip(null);
     setLoading(true);
     setError("");
+    setTab("overview");
     void loadPublicTrip(slug, controller.signal)
       .then((loadedTrip) => setTrip(loadedTrip))
       .catch((loadError) => {
@@ -16324,69 +16352,23 @@ function PublicTripPage({ slug }: { slug: string }) {
     );
   }
 
-  const routeDays = publicTripDays(trip);
-  const placeCount = routeDays.reduce((total, day) => total + day.places.length, 0);
-  const accommodations = (trip.accommodations || []) as PublicTripAccommodation[];
-  const coverImage = trip.coverImage || trip.coverPhotos?.[0]?.image || trip.photos?.[0]?.image;
-
   return (
-    <div className="public public-trip-page">
+    <div className="app public public-trip-full-page">
       <header>
         <span>◇ Публичный маршрут · только просмотр</span>
         <button type="button" onClick={() => navigate("/auth")}>Открыть Ramingo</button>
       </header>
-      <section
-        className="public-hero"
-        style={
-          coverImage
-            ? {
-                backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.28), rgba(27, 28, 31, 0.28)), url(${coverImage})`,
-                backgroundPosition: "center",
-                backgroundSize: "cover",
-              }
-            : undefined
-        }
-      >
-        <div>
-          <p>{trip.cities || "Маршрут путешествия"}</p>
-          <h1>{trip.title}</h1>
-        </div>
-      </section>
-      <main>
-        <div className="author public-read-only-author">
-          <span>
-            <Avatar>{publicTripInitials(trip.title)}</Avatar>
-            <b>
-              Публичное путешествие<small>{trip.dates || "Даты уточняются"} · {placeCount} мест</small>
-            </b>
-          </span>
-          <em>Только просмотр</em>
-        </div>
-        {accommodations.length > 0 && (
-          <PublicAccommodationPayments accommodations={accommodations} />
-        )}
-        {routeDays.map((day, index) => (
-          <section className="public-day" key={day.id}>
-            <header>
-              <i>{index + 1}</i>
-              <h2>{day.city}</h2>
-              <span>{formatPublicDayDate(day.date)}</span>
-            </header>
-            <div>
-              {day.places.length ? (
-                day.places.map((place, placeIndex) => (
-                  <PlaceRow place={place} index={placeIndex} key={`${day.id}-${placeIndex}-${place}`} />
-                ))
-              ) : (
-                <div className="public-day-empty">Пока нет добавленных мест.</div>
-              )}
-            </div>
-          </section>
-        ))}
-        {!routeDays.length && (
-          <div className="public-day-empty public-route-empty">В этом путешествии пока нет добавленных дней.</div>
-        )}
-      </main>
+      <Workspace
+        go={() => navigate("/auth")}
+        trip={trip}
+        onUpdateTrip={readOnlyTripUpdate}
+        tab={tab}
+        onTabChange={(nextTab) => {
+          setTab(nextTab);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        readOnly
+      />
     </div>
   );
 }

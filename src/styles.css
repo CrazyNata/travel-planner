@@ -5379,6 +5379,57 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   background: none;
   color: #eef0f3;
 }
+.public-trip-full-page {
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+.public-trip-full-page .trip-shell-readonly {
+  min-height: calc(100vh - 36px);
+  background: #f3f4f6;
+}
+.public-trip-full-page .trip-shell-readonly .trip-header {
+  background: #f3f4f6;
+}
+.public-trip-full-page .status-read-only {
+  cursor: default;
+}
+/* The public workspace reuses the owner layout, but its snapshot is never
+   editable. Keep navigation, filters, maps and external links available while
+   removing controls that could suggest a public visitor can change the trip. */
+.trip-shell-readonly .add-cover-photo,
+.trip-shell-readonly .cover-order,
+.trip-shell-readonly .cover-file-input,
+.trip-shell-readonly .draft-route-actions > button,
+.trip-shell-readonly .add-route-day,
+.trip-shell-readonly .route-checklist input,
+.trip-shell-readonly .restaurant-actions,
+.trip-shell-readonly .restaurant-edit,
+.trip-shell-readonly .accommodation-heading-actions > .accent,
+.trip-shell-readonly .accommodation-edit,
+.trip-shell-readonly .accommodation-body .stay-statuses,
+.trip-shell-readonly .accommodation-body footer > button,
+.trip-shell-readonly .cancellation-page .accommodation-heading > .accent,
+.trip-shell-readonly .payment-page .accommodation-heading > .accent,
+.trip-shell-readonly .payment-row footer > button,
+.trip-shell-readonly .budget-actions > div,
+.trip-shell-readonly .budget-table-action button,
+.trip-shell-readonly .photos-heading > button,
+.trip-shell-readonly .photo-file-input,
+.trip-shell-readonly .members .invite,
+.trip-shell-readonly .members .member > select,
+.trip-shell-readonly .members .member-remove,
+.trip-shell-readonly .members .public-link,
+.trip-shell-readonly .pets-heading > .accent,
+.trip-shell-readonly .pets-add-button,
+.trip-shell-readonly .pets-edit-button,
+.trip-shell-readonly .pets-delete-button,
+.trip-shell-readonly .sights-add-trigger,
+.trip-shell-readonly .sights-day-rename,
+.trip-shell-readonly .sights-add-day,
+.trip-shell-readonly .sights-event-check input,
+.trip-shell-readonly .sights-redesigned-empty > button {
+  display: none !important;
+}
 .public-hero {
   height: 250px;
   background: repeating-linear-gradient(
@@ -6907,6 +6958,28 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
     border-radius: 0 22px 22px 0;
   }
 }
+
+/* Budget readability pass: keep the values unchanged and enlarge the
+   surrounding labels and amounts by roughly 15%. */
+.budget-actions h2 { font-size: 29px; }
+.budget-actions > div button,
+.budget-currency button { font-size: 15px; }
+.budget-cards span,
+.budget-cards small { font-size: 15px; }
+.budget-cards b { font-size: 35px; }
+.budget-table-heading h2 { font-size: 26px; }
+.budget-table-heading p { font-size: 14px; }
+.budget-table-heading > span { font-size: 15px; }
+.budget-table th { font-size: 13px; }
+.budget-table td { font-size: 15px; }
+.budget-table-category-head b,
+.budget-table-category-head span { font-size: 17px; }
+.budget-table-expense-name b { font-size: 15px; }
+.budget-table-expense-name small { font-size: 13px; }
+.budget-table-amount { font-size: 16px !important; }
+.budget-table-total b { font-size: 18px; }
+.budget-table-total small { font-size: 13px; }
+.budget-table-total .budget-table-amount { font-size: 21px !important; }
 
 /* Web onboarding. It is a modal layer so the walkthrough never changes the
    current trip or the page underneath it. */

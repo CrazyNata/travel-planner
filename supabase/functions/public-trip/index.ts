@@ -169,45 +169,101 @@ function publicTripFromPayload(id: string, payload: JsonObject) {
   const title = firstString(payload.title, nestedTrip.title);
   if (!title) return null;
 
-  const days = publicDays(payload, nestedData);
-  const topLevelPlaces = firstArray(payload.places)
-    .map(stringValue)
+  // Keep the same trip payload that the authenticated trip screen receives.
+  // The public route is read-only in the client, so the endpoint only removes
+  // storage/auth internals and normalizes legacy nested payloads below.
+  const publicTrip: JsonObject = { ...payload };
+  delete publicTrip.data;
+  delete publicTrip.owner_id;
+  delete publicTrip.ownerId;
+  delete publicTrip.userId;
+  delete publicTrip.isOwner;
+
+  const copyArrayFallback = (key: string, ...values: unknown[]) => {
+    if (Array.isArray(publicTrip[key])) return;
+    const fallback = values.find((value) => Array.isArray(value));
+    if (Array.isArray(fallback)) publicTrip[key] = fallback;
+  };
+  const copyValueFallback = (key: string, ...values: unknown[]) => {
+    if (publicTrip[key] !== undefined && publicTrip[key] !== null) return;
+    const fallback = values.find((value) => value !== undefined && value !== null);
+    if (fallback !== undefined && fallback !== null) publicTrip[key] = fallback;
+  };
+
+  copyArrayFallback("days", nestedData.days, publicDays(payload, nestedData));
+  copyArrayFallback("sights", nestedData.sights);
+  copyArrayFallback("sightDays", nestedTrip.sightDays, nestedData.sightDays);
+  copyArrayFallback("restaurants", nestedData.restaurants);
+  copyArrayFallback(
+    "accommodations",
+    nestedTrip.accommodations,
+    nestedData.accommodations,
+    publicAccommodations(payload, nestedData, nestedTrip),
+  );
+  copyArrayFallback("budgetExpenses", nestedData.budgetExpenses);
+  copyArrayFallback("petPlaces", nestedTrip.petPlaces, nestedData.petPlaces);
+  copyArrayFallback("members", nestedTrip.members, nestedData.members);
+  copyArrayFallback("overviewMapPoints", nestedTrip.overviewMapPoints, nestedData.overviewMapPoints);
+  copyArrayFallback("coverPhotos", nestedTrip.coverPhotos, nestedTrip.photos, nestedData.coverPhotos);
+  copyArrayFallback("photos", nestedTrip.photos, nestedTrip.coverPhotos, nestedData.photos);
+
+  copyValueFallback("dates", nestedTrip.dates);
+  copyValueFallback("startDate", nestedTrip.startDate, nestedTrip.start);
+  copyValueFallback("endDate", nestedTrip.endDate, nestedTrip.end);
+  copyValueFallback("cities", nestedTrip.cities);
+  copyValueFallback("status", nestedTrip.status);
+  copyValueFallback("coverImage", nestedTrip.coverImage);
+  copyValueFallback("coverTextColor", nestedTrip.coverTextColor);
+  copyValueFallback("sightDaysVersion", nestedTrip.sightDaysVersion, nestedData.sightDaysVersion);
+  copyValueFallback("sightNotes", nestedTrip.sightNotes, nestedData.sightNotes);
+  copyValueFallback("budgetSplit", nestedTrip.budgetSplit, nestedData.budgetSplit);
+  copyValueFallback("budgetCurrency", nestedTrip.budgetCurrency, nestedData.budgetCurrency);
+  copyValueFallback("budgetManualRates", nestedTrip.budgetManualRates, nestedData.budgetManualRates);
+
+  publicTrip.id = id;
+  publicTrip.title = title;
+  publicTrip.dates = firstString(publicTrip.dates, nestedTrip.dates);
+  publicTrip.startDate = firstString(publicTrip.startDate, nestedTrip.startDate, nestedTrip.start);
+  publicTrip.endDate = firstString(publicTrip.endDate, nestedTrip.endDate, nestedTrip.end);
+
+  const days = Array.isArray(publicTrip.days) ? publicTrip.days : [];
+  const fallbackCities = days
+    .filter(isJsonObject)
+    .map((day) => {
+      const roadLeg = isJsonObject(day.roadLeg) ? day.roadLeg : {};
+      return firstString(day.city, roadLeg.to, roadLeg.from);
+    })
     .filter(Boolean);
-  if (!days.length && topLevelPlaces.length) {
-    days.push({
-      id: "public-day-1",
-      city: firstString(payload.cities, nestedTrip.cities) || "Маршрут",
-      date: "",
-      places: topLevelPlaces,
-    });
+  publicTrip.cities = firstString(publicTrip.cities, nestedTrip.cities) ||
+    [...new Set(fallbackCities)].join(" · ");
+
+  const coverPhotos = Array.isArray(publicTrip.coverPhotos)
+    ? publicTrip.coverPhotos
+    : publicCoverPhotos(firstArray(payload.coverPhotos, payload.photos, nestedTrip.coverPhotos, nestedTrip.photos));
+  if (!Array.isArray(publicTrip.coverPhotos)) publicTrip.coverPhotos = coverPhotos;
+  if (!Array.isArray(publicTrip.photos)) publicTrip.photos = coverPhotos;
+  publicTrip.coverImage = firstString(
+    publicTrip.coverImage,
+    nestedTrip.coverImage,
+    coverPhotos.find(isJsonObject)?.image,
+  );
+
+  // Some early payloads stored places at the top level instead of in days.
+  if (!days.length) {
+    const topLevelPlaces = firstArray(publicTrip.places)
+      .map(stringValue)
+      .filter(Boolean);
+    if (topLevelPlaces.length) {
+      publicTrip.days = [{
+        id: "public-day-1",
+        city: publicTrip.cities || "Маршрут",
+        date: "",
+        places: topLevelPlaces,
+      }];
+    }
   }
 
-  const coverPhotos = publicCoverPhotos(
-    firstArray(payload.coverPhotos, payload.photos, nestedTrip.coverPhotos, nestedTrip.photos),
-  );
-  const coverImage = firstString(
-    payload.coverImage,
-    nestedTrip.coverImage,
-    coverPhotos[0]?.image,
-  );
-  const cities = firstString(payload.cities, nestedTrip.cities) ||
-    [...new Set(days.map((day) => day.city).filter((city) => city !== "Маршрут"))].join(" · ");
-  const accommodations = publicAccommodations(payload, nestedData, nestedTrip);
-
-  return {
-    id,
-    title,
-    dates: firstString(payload.dates, nestedTrip.dates),
-    startDate: firstString(payload.startDate, nestedTrip.startDate, nestedTrip.start),
-    endDate: firstString(payload.endDate, nestedTrip.endDate, nestedTrip.end),
-    cities,
-    status: firstString(payload.status, nestedTrip.status),
-    coverImage,
-    coverPhotos,
-    photos: coverPhotos,
-    days,
-    accommodations,
-  } satisfies JsonObject;
+  return publicTrip;
 }
 
 Deno.serve(async (request) => {
