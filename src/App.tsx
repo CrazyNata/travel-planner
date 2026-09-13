@@ -25,6 +25,7 @@ type View =
   | "trip"
   | "catalog"
   | "public"
+  | "public-trip"
   | "delete-account"
   | "privacy"
   | "terms"
@@ -1078,6 +1079,45 @@ function tripFromRow(row: TripRow): TripSummary | null {
     dates: normalizeTripDates(row.payload.dates),
     isDraft: true,
   } satisfies TripSummary;
+}
+
+function publicTripPath(trip: Pick<TripSummary, "id">) {
+  return `/p/${encodeURIComponent(trip.id)}`;
+}
+
+function publicTripLink(trip: Pick<TripSummary, "id">) {
+  const path = publicTripPath(trip);
+  return {
+    href: `${window.location.origin}${path}`,
+    label: `${window.location.host}${path}`,
+  };
+}
+
+async function loadPublicTrip(slug: string, signal: AbortSignal) {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+  const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/public-trip?slug=${encodeURIComponent(slug)}`,
+    {
+      headers: {
+        apikey: publishableKey,
+        Authorization: `Bearer ${publishableKey}`,
+      },
+      signal,
+    },
+  );
+  const body = (await response.json().catch(() => null)) as {
+    trip?: TripSummary;
+    error?: string;
+  } | null;
+  if (!response.ok) {
+    throw new Error(body?.error || "Публичное путешествие недоступно.");
+  }
+  const trip = body?.trip;
+  if (!trip || typeof trip.title !== "string") {
+    throw new Error("Не удалось загрузить публичное путешествие.");
+  }
+  return tripFromRow({ id: slug, payload: trip }) || trip;
 }
 
 function isTripDeleted(trip: Pick<TripSummary, "deletedAt">): boolean {
@@ -11862,8 +11902,7 @@ function Members({
   );
   const [published, setPublished] = useState(trip.published ?? false);
   const [copyLabel, setCopyLabel] = useState("Копировать");
-  const publicUrl = "ramingo.online/p/italy-8d-a1b2";
-  const publicHref = `https://${publicUrl}`;
+  const { href: publicHref, label: publicUrl } = publicTripLink(trip);
   const inviteMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
@@ -16085,6 +16124,184 @@ function PublicRoute({ go }: { go: (view: View) => void }) {
   );
 }
 
+type PublicTripDay = {
+  id: string;
+  city: string;
+  date: string;
+  places: string[];
+};
+
+function publicTripDays(trip: TripSummary): PublicTripDay[] {
+  const fallbackCities = trip.cities
+    .split(/[·,]/)
+    .map((city) => city.trim())
+    .filter(Boolean);
+  return (trip.days || [])
+    .map((day, index) => {
+      const rawDay = day as DraftDay & { city?: string; date?: string };
+      const city = rawDay.city?.trim() ||
+        rawDay.roadLeg?.to?.trim() ||
+        fallbackCities[index] ||
+        "Маршрут";
+      const places = Array.isArray(rawDay.places)
+        ? rawDay.places.map((place) => place.trim()).filter(Boolean)
+        : [];
+      return {
+        id: rawDay.id || `public-day-${index + 1}`,
+        city,
+        date: rawDay.date?.trim() || rawDay.roadLeg?.date?.trim() || "",
+        places,
+      };
+    })
+    .filter((day) => day.date || day.places.length || day.city !== "Маршрут");
+}
+
+function formatPublicDayDate(value: string) {
+  if (!value) return "Дата уточняется";
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function publicTripInitials(title: string) {
+  const initials = title
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return initials || "R";
+}
+
+function PublicTripPage({ slug }: { slug: string }) {
+  const navigate = useNavigate();
+  const [trip, setTrip] = useState<TripSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setTrip(null);
+    setLoading(true);
+    setError("");
+    void loadPublicTrip(slug, controller.signal)
+      .then((loadedTrip) => setTrip(loadedTrip))
+      .catch((loadError) => {
+        if (loadError instanceof DOMException && loadError.name === "AbortError") return;
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Публичное путешествие недоступно.",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="public public-state-page">
+        <header>
+          <span>◇ Публичный маршрут · только просмотр</span>
+        </header>
+        <main className="public-state">
+          <div>
+            <strong>Загружаем путешествие…</strong>
+            <span>Регистрация не нужна.</span>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !trip) {
+    return (
+      <div className="public public-state-page">
+        <header>
+          <span>◇ Публичный маршрут · только просмотр</span>
+          <button type="button" onClick={() => navigate("/auth")}>Открыть Ramingo</button>
+        </header>
+        <main className="public-state">
+          <div>
+            <strong>Путешествие недоступно</strong>
+            <span>{error || "Ссылка отключена или устарела."}</span>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const routeDays = publicTripDays(trip);
+  const placeCount = routeDays.reduce((total, day) => total + day.places.length, 0);
+  const coverImage = trip.coverImage || trip.coverPhotos?.[0]?.image || trip.photos?.[0]?.image;
+
+  return (
+    <div className="public public-trip-page">
+      <header>
+        <span>◇ Публичный маршрут · только просмотр</span>
+        <button type="button" onClick={() => navigate("/auth")}>Открыть Ramingo</button>
+      </header>
+      <section
+        className="public-hero"
+        style={
+          coverImage
+            ? {
+                backgroundImage: `linear-gradient(rgba(27, 28, 31, 0.28), rgba(27, 28, 31, 0.28)), url(${coverImage})`,
+                backgroundPosition: "center",
+                backgroundSize: "cover",
+              }
+            : undefined
+        }
+      >
+        <div>
+          <p>{trip.cities || "Маршрут путешествия"}</p>
+          <h1>{trip.title}</h1>
+        </div>
+      </section>
+      <main>
+        <div className="author public-read-only-author">
+          <span>
+            <Avatar>{publicTripInitials(trip.title)}</Avatar>
+            <b>
+              Публичное путешествие<small>{trip.dates || "Даты уточняются"} · {placeCount} мест</small>
+            </b>
+          </span>
+          <em>Только просмотр</em>
+        </div>
+        {routeDays.map((day, index) => (
+          <section className="public-day" key={day.id}>
+            <header>
+              <i>{index + 1}</i>
+              <h2>{day.city}</h2>
+              <span>{formatPublicDayDate(day.date)}</span>
+            </header>
+            <div>
+              {day.places.length ? (
+                day.places.map((place, placeIndex) => (
+                  <PlaceRow place={place} index={placeIndex} key={`${day.id}-${placeIndex}-${place}`} />
+                ))
+              ) : (
+                <div className="public-day-empty">Пока нет добавленных мест.</div>
+              )}
+            </div>
+          </section>
+        ))}
+        {!routeDays.length && (
+          <div className="public-day-empty public-route-empty">В этом путешествии пока нет добавленных дней.</div>
+        )}
+      </main>
+    </div>
+  );
+}
+
 function PasswordField({ className = "", ...inputProps }: InputHTMLAttributes<HTMLInputElement>) {
   const [visible, setVisible] = useState(false);
   return (
@@ -16729,6 +16946,8 @@ export function App() {
   const inviteSetup = authSearch.get("inviteSetup") === "1";
   const inviteNextPath = authSearch.get("next") || undefined;
   const tripMatch = matchPath("/trips/:tripId/:tab?", location.pathname);
+  const publicTripMatch = matchPath("/p/:slug", location.pathname);
+  const publicTripSlug = publicTripMatch?.params.slug || "";
   const routeTripId = tripMatch?.params.tripId;
   const routeTab = ([
     "overview",
@@ -16744,7 +16963,9 @@ export function App() {
   ] as Tab[]).includes(tripMatch?.params.tab as Tab)
     ? (tripMatch?.params.tab as Tab)
     : "overview";
-  const view: View = tripMatch
+  const view: View = publicTripMatch
+    ? "public-trip"
+    : tripMatch
     ? "trip"
     : location.pathname === "/create"
       ? "create"
@@ -16795,6 +17016,7 @@ export function App() {
       create: "/create",
       catalog: "/catalog",
       public: "/public",
+      "public-trip": "/p",
       "delete-account": "/delete-account",
       privacy: "/privacy",
       terms: "/terms",
@@ -16943,7 +17165,11 @@ export function App() {
         setDarkTheme(false);
         setAuthReady(true);
         setIsAuthenticated(false);
-        if (location.pathname !== "/auth" && view !== "housing-preview") {
+        if (
+          location.pathname !== "/auth" &&
+          view !== "housing-preview" &&
+          view !== "public-trip"
+        ) {
           const next = `${location.pathname}${location.search}`;
           navigate(`/auth?next=${encodeURIComponent(next)}`, { replace: true });
         }
@@ -17142,7 +17368,8 @@ export function App() {
       view !== "housing-preview" &&
       view !== "delete-account" &&
       view !== "privacy" &&
-      view !== "terms") ||
+      view !== "terms" &&
+      view !== "public-trip") ||
     (isAuthenticated && view === "auth" && !inviteSetup)
   ) {
     return null;
@@ -17151,6 +17378,7 @@ export function App() {
   if (view === "privacy") return <LegalPage kind="privacy" />;
   if (view === "terms") return <LegalPage kind="terms" />;
   if (view === "housing-preview") return <AccommodationPrototype />;
+  if (view === "public-trip") return <PublicTripPage slug={publicTripSlug} />;
   if (view === "auth")
     return (
         <Auth

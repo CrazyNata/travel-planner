@@ -5405,6 +5405,56 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   padding-top: 24px;
   padding-bottom: 70px;
 }
+.public-state-page {
+  min-height: 100vh;
+  background: #f6f7fb;
+}
+.public-state {
+  display: grid;
+  min-height: 72vh;
+  place-items: center;
+  padding: 32px 18px;
+  text-align: center;
+}
+.public-state > div {
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  padding: 28px 30px;
+  box-shadow: 0 16px 34px #28213a12;
+}
+.public-state strong {
+  color: #23201c;
+  font-size: 18px;
+}
+.public-state span {
+  color: #9c948a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.public-read-only-author em {
+  border-radius: 999px;
+  background: #edf6ef;
+  padding: 8px 12px;
+  color: #4b8b62;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+.public-day-empty {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+  color: #9c948a;
+  font-size: 12px;
+}
+.public-route-empty {
+  margin-top: 24px;
+}
 .author {
   display: flex;
   align-items: center;

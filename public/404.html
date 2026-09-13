@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ramingo</title>
+  </head>
+  <body>
+    <script>
+      (function redirectSpaRoute() {
+        var path = window.location.pathname;
+        var marker = path.indexOf("/p/");
+        var basePath = marker >= 0 ? path.slice(0, marker) : "";
+        var appPath = marker >= 0 ? path.slice(marker) : path;
+        window.location.replace(
+          basePath + "/#" + appPath + window.location.search,
+        );
+      })();
+    </script>
+  </body>
+</html>
