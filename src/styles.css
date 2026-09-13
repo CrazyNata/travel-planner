@@ -6959,6 +6959,59 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   }
 }
 
+/* Pets readability pass: enlarge the catalog typography without changing
+   the card grid or its dimensions. */
+.pets-page .pets-heading h1 { font-size: 39px; }
+.pets-page .pets-heading > div > span { font-size: 15px; }
+.pets-page .pets-heading .accent { font-size: 15px; }
+.pets-page .pets-toolbar label { font-size: 13px; }
+.pets-page .pets-toolbar input,
+.pets-page .pets-toolbar select { font-size: 15px; }
+.pets-page .pets-filter-button { font-size: 15px; }
+.pets-page .pets-filter-button b { font-size: 13px; }
+.pets-page .pets-filter-panel { font-size: 14px; }
+.pets-page .pets-choice-row button,
+.pets-page .pets-filter-reset { font-size: 13px; }
+.pets-page .pets-type-tabs button { font-size: 15px; }
+.pets-page .pets-manual-card b { font-size: 16px; }
+.pets-page .pets-manual-card small { font-size: 13px; }
+.pets-page .pets-section-title { font-size: 23px; }
+.pets-page .pets-section-title-row > span { font-size: 14px; }
+.pets-page .pets-catalog-source { font-size: 13px; }
+.pets-page .pets-card-body > small:first-child { font-size: 10px; }
+.pets-page .pets-card-body h3 { font-size: 18px; }
+.pets-page .pets-card-city { font-size: 13px; }
+.pets-page .pets-rating { font-size: 14px; }
+.pets-page .pets-rating span { font-size: 13px; }
+.pets-page .pets-card-body > p { font-size: 13px; }
+.pets-page .pets-card-note { font-size: 12px; }
+.pets-page .pets-card-actions a { font-size: 13px; }
+.pets-page .pets-add-button,
+.pets-page .pets-edit-button,
+.pets-page .pets-delete-button { font-size: 13px; }
+.pets-page .pets-empty { font-size: 15px; }
+.pets-page .pets-form-modal header small { font-size: 12px; }
+.pets-page .pets-form-modal h2 { font-size: 24px; }
+.pets-page .pets-form-modal > label,
+.pets-page .pets-form-modal > section,
+.pets-page .pets-form-grid,
+.pets-page .pets-form-photo-section { font-size: 14px; }
+.pets-page .pets-form-modal input,
+.pets-page .pets-form-modal textarea { font-size: 15px; }
+.pets-page .pets-photo-placeholder b { font-size: 15px; }
+.pets-page .pets-photo-placeholder small,
+.pets-page .pets-photo-uploading { font-size: 12px; }
+.pets-page .pets-photo-remove { font-size: 13px; }
+.pets-page .pets-form-modal footer button { font-size: 15px; }
+
+@media (max-width: 760px) {
+  .pets-page .pets-heading h1 { font-size: 32px; }
+}
+
+@media (max-width: 380px) {
+  .pets-page .pets-heading h1 { font-size: 25px; }
+}
+
 /* Budget readability pass: keep the values unchanged and enlarge the
    surrounding labels and amounts by roughly 15%. */
 .budget-actions h2 { font-size: 29px; }
