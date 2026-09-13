@@ -231,6 +231,8 @@ type SavedAccommodation = {
   dates: string;
   days: number;
   deadline: string;
+  /** Optional payment deadline kept inside the trip payload for existing trips. */
+  paymentDeadline?: string;
   progress: number;
   status: string;
   price: string;
@@ -1657,6 +1659,29 @@ function accommodationCancellationTime(stay: SavedAccommodation) {
   if (!deadline) return Number.POSITIVE_INFINITY;
   const timestamp = Date.parse(`${deadline}T00:00:00Z`);
   return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+function accommodationPaymentTime(stay: SavedAccommodation) {
+  const paymentDeadline = stay.paymentDeadline?.trim() || "";
+  if (!paymentDeadline) return Number.POSITIVE_INFINITY;
+  const timestamp = Date.parse(`${paymentDeadline}T00:00:00Z`);
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+function formatAccommodationPaymentDate(value?: string) {
+  const raw = value?.trim() || "";
+  if (!raw) return "Дата не указана";
+  const date = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "Дата не указана";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function accommodationIsPaid(stay: SavedAccommodation) {
+  return stay.status === "оплачено";
 }
 
 type AccommodationCurrency =
@@ -9556,7 +9581,6 @@ function LegacyAccommodation() {
                     </button>
                   ))}
                 </div>
-                <small>{stay.details}</small>
                 <footer>
                   <a
                     href="https://www.booking.com/"
@@ -9900,6 +9924,7 @@ function AccommodationForm({
   const [checkIn, setCheckIn] = useState(dateParts.checkIn);
   const [checkOut, setCheckOut] = useState(dateParts.checkOut);
   const [freeCancellation, setFreeCancellation] = useState(initial?.deadline || "");
+  const [paymentDeadline, setPaymentDeadline] = useState(initial?.paymentDeadline || "");
   const [status, setStatus] = useState(initial?.status || "бронь");
   const [name, setName] = useState(initial?.name || "");
   const [city, setCity] = useState(initial?.city || "");
@@ -10026,6 +10051,7 @@ function AccommodationForm({
             dates: `${data.get("checkIn")} – ${data.get("checkOut")}`,
             days: 30,
             deadline: String(data.get("freeCancellation") || ""),
+            paymentDeadline: String(data.get("paymentDeadline") || ""),
             progress: 42,
             status,
             price: formatAccommodationPriceValue(price, priceCurrency),
@@ -10241,15 +10267,13 @@ function AccommodationForm({
           Ссылка на жильё
           <input name="bookingUrl" value={bookingUrl} onChange={(event) => setBookingUrl(event.target.value)} placeholder="https://..." />
         </label>
-        <label>
-          Адрес / заметка
-          <textarea
-            name="details"
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
-            placeholder="Адрес, условия или заметка"
-          />
-        </label>
+        <DatePicker
+          label="Оплатить до"
+          name="paymentDeadline"
+          value={paymentDeadline}
+          onChange={setPaymentDeadline}
+          className="accommodation-date-picker accommodation-payment-date-picker"
+        />
         <footer>
           {initial && onDelete && (
             <button
@@ -10286,11 +10310,15 @@ function AccommodationList({
   onChange,
   tripId,
   cities = accommodationCities,
+  onShowCancellation,
+  onShowPayment,
 }: {
   stays: SavedAccommodation[];
   onChange: (accommodations: SavedAccommodation[]) => void;
   tripId: string;
   cities?: string[];
+  onShowCancellation: () => void;
+  onShowPayment: () => void;
 }) {
   const [filter, setFilter] = useState("Все");
   const [sortMode, setSortMode] = useState<"date" | "cancellation" | "payment">("date");
@@ -10349,7 +10377,9 @@ function AccommodationList({
       if (sortMode === "payment") {
         const firstStatus = statuses[first.stay.name] || first.stay.status;
         const secondStatus = statuses[second.stay.name] || second.stay.status;
-        return (paymentOrder[firstStatus] ?? 9) - (paymentOrder[secondStatus] ?? 9) || first.index - second.index;
+        return (paymentOrder[firstStatus] ?? 9) - (paymentOrder[secondStatus] ?? 9) ||
+          accommodationPaymentTime(first.stay) - accommodationPaymentTime(second.stay) ||
+          first.index - second.index;
       }
       const firstTime = sortMode === "cancellation"
         ? accommodationCancellationTime(first.stay)
@@ -10446,7 +10476,8 @@ function AccommodationList({
         </header>
         <div className="accommodation-tabs">
           <button className="active">Список жилья</button>
-          <button onClick={() => setFilter("отмена")}>Отмена</button>
+          <button onClick={onShowCancellation}>Отмена</button>
+          <button onClick={onShowPayment}>Оплата</button>
         </div>
         <div className="accommodation-filters">
           {["Все", "хочу", "бронь", "оплачено"].map((item) => (
@@ -10570,7 +10601,14 @@ function AccommodationList({
                     </button>
                   ))}
                 </div>
-                <small>{stay.details}</small>
+                <div
+                  className={`accommodation-payment-deadline ${
+                    accommodationIsPaid(stay) ? "is-paid" : "is-due"
+                  }`}
+                >
+                  <span>{accommodationIsPaid(stay) ? "Оплачено" : "Оплатить до"}</span>
+                  <b>{formatAccommodationPaymentDate(stay.paymentDeadline)}</b>
+                </div>
                 <footer>
                   <a
                     href={externalUrl(stay.bookingUrl || "")}
@@ -10698,10 +10736,12 @@ function AccommodationList({
 function CancellationPage({
   accommodations,
   onShowList,
+  onShowPayment,
   onAdd,
 }: {
   accommodations: SavedAccommodation[];
   onShowList: () => void;
+  onShowPayment: () => void;
   onAdd: () => void;
 }) {
   const [nearestFirst, setNearestFirst] = useState(true);
@@ -10745,6 +10785,7 @@ function CancellationPage({
       <div className="accommodation-tabs">
         <button onClick={onShowList}>Список жилья</button>
         <button className="active">Отмена</button>
+        <button onClick={onShowPayment}>Оплата</button>
       </div>
       <div className="cancellation-intro">
         <p>
@@ -10803,6 +10844,189 @@ function CancellationPage({
   );
 }
 
+function PaymentPage({
+  accommodations,
+  onShowList,
+  onShowCancellation,
+  onAdd,
+  onChange,
+}: {
+  accommodations: SavedAccommodation[];
+  onShowList: () => void;
+  onShowCancellation: () => void;
+  onAdd: () => void;
+  onChange: (accommodations: SavedAccommodation[]) => void;
+}) {
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "unpaid">("all");
+  const [sortBy, setSortBy] = useState<"payment" | "stay">("payment");
+  const [nearestFirst, setNearestFirst] = useState(true);
+  const paidCount = accommodations.filter(accommodationIsPaid).length;
+  const unpaidCount = accommodations.length - paidCount;
+  const withoutDateCount = accommodations.filter(
+    (stay) => !stay.paymentDeadline?.trim(),
+  ).length;
+
+  const paymentList = accommodations
+    .map((stay, index) => ({ stay, index }))
+    .filter(({ stay }) => {
+      if (statusFilter === "paid") return accommodationIsPaid(stay);
+      if (statusFilter === "unpaid") return !accommodationIsPaid(stay);
+      return true;
+    })
+    .sort((first, second) => {
+      const firstTime = sortBy === "payment"
+        ? accommodationPaymentTime(first.stay)
+        : accommodationStartTime(first.stay);
+      const secondTime = sortBy === "payment"
+        ? accommodationPaymentTime(second.stay)
+        : accommodationStartTime(second.stay);
+      if (firstTime !== secondTime) {
+        if (!Number.isFinite(firstTime)) return 1;
+        if (!Number.isFinite(secondTime)) return -1;
+        return nearestFirst ? firstTime - secondTime : secondTime - firstTime;
+      }
+      return first.index - second.index;
+    })
+    .map(({ stay }) => stay);
+
+  const markPaid = (id: string) => {
+    onChange(
+      accommodations.map((stay) =>
+        stay.id === id ? { ...stay, status: "оплачено" } : stay,
+      ),
+    );
+  };
+
+  return (
+    <section className="accommodation-page payment-page">
+      <header className="accommodation-heading">
+        <h2>Жильё</h2>
+        <button className="accent" onClick={onAdd}>
+          ＋ Добавить жильё
+        </button>
+      </header>
+      <div className="accommodation-tabs">
+        <button onClick={onShowList}>Список жилья</button>
+        <button onClick={onShowCancellation}>Отмена</button>
+        <button className="active">Оплата</button>
+      </div>
+      <div className="payment-intro">
+        <p>
+          Все даты оплаты из карточек жилья автоматически собраны здесь.
+        </p>
+        <button
+          type="button"
+          aria-pressed={nearestFirst}
+          onClick={() => setNearestFirst((current) => !current)}
+        >
+          ↕ {nearestFirst ? "Сначала ближайшие" : "Сначала дальние"}
+        </button>
+      </div>
+      <div className="payment-controls" aria-label="Фильтр и сортировка оплаты">
+        <div className="payment-control-group">
+          <span>Статус</span>
+          <button
+            type="button"
+            className={statusFilter === "all" ? "active" : ""}
+            onClick={() => setStatusFilter("all")}
+          >
+            Все · {accommodations.length}
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "paid" ? "active" : ""}
+            onClick={() => setStatusFilter("paid")}
+          >
+            Оплаченные · {paidCount}
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "unpaid" ? "active" : ""}
+            onClick={() => setStatusFilter("unpaid")}
+          >
+            Неоплаченные · {unpaidCount}
+          </button>
+        </div>
+        <div className="payment-control-group">
+          <span>Сортировать</span>
+          <button
+            type="button"
+            className={sortBy === "payment" ? "active" : ""}
+            onClick={() => setSortBy("payment")}
+          >
+            По оплате
+          </button>
+          <button
+            type="button"
+            className={sortBy === "stay" ? "active" : ""}
+            onClick={() => setSortBy("stay")}
+          >
+            По заселению
+          </button>
+        </div>
+      </div>
+      <div className="payment-summary">
+        <article>
+          <b>{paidCount}</b>
+          <span className="paid">● Оплачено</span>
+        </article>
+        <article>
+          <b>{unpaidCount}</b>
+          <span className="due">● Не оплачено</span>
+        </article>
+        <article>
+          <b>{withoutDateCount}</b>
+          <span className="unknown">● Без даты</span>
+        </article>
+      </div>
+      <div className="payment-list">
+        {paymentList.map((stay) => {
+          const paid = accommodationIsPaid(stay);
+          const hasPaymentDate = Boolean(stay.paymentDeadline?.trim());
+          return (
+            <article className={`payment-row ${paid ? "is-paid" : "is-due"}`} key={stay.id}>
+              <div className="payment-row-copy">
+                <span className={`payment-status ${paid ? "is-paid" : "is-due"}`}>
+                  {paid ? "Оплачено" : "Не оплачено"}
+                </span>
+                <h3>{cityFlag(stay.city)} {stay.name}</h3>
+                <p>{stay.city} · {formatAccommodationDates(stay.dates)}</p>
+                <div className={`payment-row-deadline ${paid ? "is-paid" : "is-due"} ${hasPaymentDate ? "" : "is-missing"}`}>
+                  <span>{paid ? "Дата оплаты" : "Оплатить до"}</span>
+                  <b>{formatAccommodationPaymentDate(stay.paymentDeadline)}</b>
+                </div>
+              </div>
+              <div className="payment-row-amount">
+                <b>{formatAccommodationPrice(stay.price)}</b>
+                <span>стоимость проживания</span>
+              </div>
+              <footer>
+                <a
+                  href={externalUrl(stay.bookingUrl || "")}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Ссылка на жильё →
+                </a>
+                {paid ? (
+                  <span className="payment-marked">✓ Оплата отмечена</span>
+                ) : (
+                  <button type="button" onClick={() => markPaid(stay.id)}>
+                    Отметить оплачено
+                  </button>
+                )}
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+      {!paymentList.length && (
+        <p className="accommodation-empty">В этом фильтре пока нет жилья.</p>
+      )}
+    </section>
+  );
+}
+
 function Accommodation({
   trip,
   onUpdateTrip,
@@ -10811,6 +11035,7 @@ function Accommodation({
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [showCancellation, setShowCancellation] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [adding, setAdding] = useState(false);
   const tripCityOptions = Array.from(
     new Set([
@@ -10821,45 +11046,69 @@ function Accommodation({
       ),
     ].filter(Boolean)),
   );
+  const saveAddedAccommodation = (stay: SavedAccommodation) => {
+    onUpdateTrip({
+      ...trip,
+      accommodations: [...(trip.accommodations || []), stay],
+    });
+    setAdding(false);
+  };
   if (showCancellation)
     return (
       <>
-        {
-          <CancellationPage
-            accommodations={trip.accommodations || []}
-            onShowList={() => setShowCancellation(false)}
-            onAdd={() => setAdding(true)}
-          />
-        }
+        <CancellationPage
+          accommodations={trip.accommodations || []}
+          onShowList={() => setShowCancellation(false)}
+          onShowPayment={() => {
+            setShowCancellation(false);
+            setShowPayment(true);
+          }}
+          onAdd={() => setAdding(true)}
+        />
         {adding && (
           <AccommodationForm
             tripId={trip.id}
             cities={tripCityOptions}
             onClose={() => setAdding(false)}
+            onSaved={saveAddedAccommodation}
+          />
+        )}
+      </>
+    );
+  if (showPayment)
+    return (
+      <>
+        <PaymentPage
+          accommodations={trip.accommodations || []}
+          onShowList={() => setShowPayment(false)}
+          onShowCancellation={() => {
+            setShowPayment(false);
+            setShowCancellation(true);
+          }}
+          onAdd={() => setAdding(true)}
+          onChange={(accommodations) => onUpdateTrip({ ...trip, accommodations })}
+        />
+        {adding && (
+          <AccommodationForm
+            tripId={trip.id}
+            cities={tripCityOptions}
+            onClose={() => setAdding(false)}
+            onSaved={saveAddedAccommodation}
           />
         )}
       </>
     );
   return (
-    <div
-      onClickCapture={(event) => {
-        if (
-          event.target instanceof HTMLButtonElement &&
-          event.target.closest(".accommodation-tabs") &&
-          event.target.textContent === "Отмена"
-        )
-          setShowCancellation(true);
-      }}
-    >
-      <AccommodationList
-        stays={trip.accommodations || []}
-        tripId={trip.id}
-        cities={tripCityOptions}
-        onChange={(accommodations) =>
-          onUpdateTrip({ ...trip, accommodations })
-        }
-      />
-    </div>
+    <AccommodationList
+      stays={trip.accommodations || []}
+      tripId={trip.id}
+      cities={tripCityOptions}
+      onShowCancellation={() => setShowCancellation(true)}
+      onShowPayment={() => setShowPayment(true)}
+      onChange={(accommodations) =>
+        onUpdateTrip({ ...trip, accommodations })
+      }
+    />
   );
 }
 

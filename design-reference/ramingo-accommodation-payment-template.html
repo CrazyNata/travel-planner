@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблон вкладки «Оплата»</title>
+  <style>
+    :root {
+      --page: #f1f2f5;
+      --surface: #fff;
+      --text: #252630;
+      --muted: #8d96a7;
+      --line: #e1e4ea;
+      --purple: #574de2;
+      --purple-soft: #eeecff;
+      --green: #5b874f;
+      --green-soft: #eaf5e7;
+      --orange: #b98438;
+      --orange-soft: #fff4e3;
+      --shadow: 0 14px 34px rgba(37, 40, 55, .09);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font-family: Manrope, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button { font: inherit; cursor: pointer; }
+    .page { width: min(1260px, calc(100% - 56px)); margin: 0 auto; padding: 34px 0 58px; }
+    .reference-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; color: #6d7282; font-size: 12px; font-weight: 800; }
+    .reference-bar strong { color: #242530; font-size: 15px; }
+    .reference-bar span { color: #a0a7b4; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1030px) minmax(230px, 1fr); gap: 34px; align-items: start; }
+    .app-window { min-width: 0; padding: 0 0 30px; }
+    .heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .heading h1 { margin: 0; font-size: clamp(32px, 4vw, 42px); font-weight: 900; letter-spacing: -.09em; line-height: 1; }
+    .heading-actions { display: flex; align-items: center; gap: 10px; }
+    .sort { display: inline-flex; min-height: 43px; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 0 13px; color: #343a48; font-size: 12px; font-weight: 800; }
+    .sort i { color: var(--purple); font-size: 18px; font-style: normal; }
+    .sort b { color: #9ca4b2; font-size: 14px; font-weight: 800; }
+    .primary { min-height: 43px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #5146db, #695ce9); padding: 0 18px; color: #fff; font-size: 12px; font-weight: 900; box-shadow: 0 9px 19px rgba(87,77,226,.28); }
+    .tabs { display: flex; gap: 29px; margin-top: 22px; border-bottom: 1px solid var(--line); }
+    .tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 0 3px 14px; color: #9ba2b1; font-size: 13px; font-weight: 900; }
+    .tabs button.active { border-color: var(--purple); color: #242630; }
+    .intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 26px 0 22px; }
+    .intro p { margin: 0; color: #778399; font-size: 13px; line-height: 1.45; }
+    .secondary { flex: none; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); padding: 11px 15px; color: #2d3543; font-size: 12px; font-weight: 900; }
+    .payment-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 2px 0 20px; }
+    .payment-toolbar-group { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+    .payment-toolbar-group > span { margin-right: 3px; color: #9aa1b1; font-size: 10px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+    .payment-toolbar button { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 8px 12px; color: #788196; font-size: 11px; font-weight: 900; }
+    .payment-toolbar button.active { border-color: var(--purple); background: var(--purple-soft); color: var(--purple); }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .summary article { min-height: 91px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 18px 20px; }
+    .summary b { display: block; font-size: 31px; font-weight: 900; letter-spacing: -.07em; line-height: 1; }
+    .summary span { display: block; margin-top: 10px; font-size: 11px; font-weight: 900; letter-spacing: .01em; text-transform: uppercase; }
+    .summary .paid { color: var(--green); }
+    .summary .due { color: var(--orange); }
+    .summary .unknown { color: #7f8492; }
+    .payment-list { display: grid; gap: 14px; margin-top: 25px; }
+    .payment-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); padding: 18px 22px; box-shadow: 0 5px 18px rgba(37,40,55,.035); }
+    .payment-card.paid { border-color: #d9ead6; }
+    .payment-card.due { border-color: #eadfc7; }
+    .state { display: inline-flex; border-radius: 999px; padding: 6px 10px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+    .state.paid { color: var(--green); background: var(--green-soft); }
+    .state.due { color: var(--orange); background: var(--orange-soft); }
+    .state.check { color: #7f8492; background: #f0eff5; }
+    .payment-card h2 { overflow: hidden; margin: 10px 0 6px; font-size: 19px; font-weight: 900; letter-spacing: -.05em; text-overflow: ellipsis; white-space: nowrap; }
+    .payment-card p { margin: 0; color: #9ba5b5; font-size: 12px; }
+    .payment-date { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 9px; margin-top: 13px; border-radius: 12px; padding: 10px 12px; }
+    .payment-date.due { border: 1px solid #f0dfbf; background: var(--orange-soft); }
+    .payment-date.paid { border: 1px solid #d9ead6; background: var(--green-soft); }
+    .payment-date span { color: #8a7a61; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+    .payment-date.paid span { color: #6c8a64; }
+    .payment-date b { color: #9a712d; font-size: 12px; }
+    .payment-date.paid b { color: #57804e; }
+    .payment-date small { flex-basis: 100%; color: #a08d73; font-size: 10px; }
+    .payment-date.paid small { color: #779173; }
+    .amount { min-width: 140px; text-align: right; }
+    .amount b { display: block; font-size: 29px; font-weight: 900; letter-spacing: -.07em; line-height: 1; }
+    .amount span { display: block; margin-top: 8px; color: #9ba5b5; font-size: 10px; }
+    .payment-card footer { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #eff0f3; padding-top: 13px; color: #9ba5b5; font-size: 11px; }
+    .payment-card footer div { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 11px; }
+    .payment-card a { color: var(--purple); font-size: 11px; font-weight: 900; text-decoration: none; }
+    .payment-card footer button { border: 1px solid var(--purple); border-radius: 10px; background: var(--purple); padding: 8px 11px; color: #fff; font-size: 11px; font-weight: 900; }
+    .marked { border-radius: 999px; background: var(--green-soft); padding: 7px 10px; color: var(--green); font-size: 10px; font-weight: 900; }
+    .notes { position: sticky; top: 24px; border: 1px solid #dedbf8; border-radius: 17px; background: #faf9ff; padding: 18px; box-shadow: var(--shadow); }
+    .notes .tag { display: inline-flex; border-radius: 999px; background: var(--purple-soft); padding: 6px 10px; color: var(--purple); font-size: 10px; font-weight: 900; }
+    .notes h2 { margin: 13px 0 7px; font-size: 20px; letter-spacing: -.05em; }
+    .notes > p { margin: 0 0 17px; color: #7c8190; font-size: 12px; line-height: 1.5; }
+    .note { display: grid; grid-template-columns: 28px 1fr; gap: 9px; margin: 9px 0; padding: 11px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .note i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: var(--purple); color: #fff; font-size: 12px; font-style: normal; font-weight: 900; }
+    .note strong { display: block; font-size: 11px; }
+    .note span { display: block; margin-top: 3px; color: #8a909f; font-size: 10px; line-height: 1.4; }
+    .do-not { margin-top: 15px; padding: 11px; border: 1px solid #dcd9fa; border-radius: 11px; color: #655cc5; background: #f1efff; font-size: 10px; line-height: 1.45; }
+    @media (max-width: 1040px) { .layout { grid-template-columns: 1fr; } .notes { position: static; } }
+    @media (max-width: 680px) {
+      .page { width: calc(100% - 28px); padding-top: 22px; }
+      .reference-bar, .heading, .intro { align-items: flex-start; flex-direction: column; }
+      .heading-actions, .heading-actions > * { width: 100%; }
+      .heading-actions { flex-direction: column; }
+      .sort, .primary { justify-content: center; }
+      .tabs { overflow-x: auto; gap: 21px; white-space: nowrap; }
+      .tabs button { flex: none; }
+      .payment-toolbar { align-items: flex-start; flex-direction: column; }
+      .payment-toolbar-group { width: 100%; }
+      .summary { grid-template-columns: 1fr; gap: 10px; }
+      .payment-card { grid-template-columns: 1fr; }
+      .amount { min-width: 0; text-align: left; }
+      .payment-card footer { align-items: flex-start; flex-direction: column; }
+      .payment-card footer div { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="reference-bar">
+      <strong>Ramingo · жильё</strong>
+      <span>Визуальный шаблон перед реализацией · 13 сентября 2026</span>
+    </div>
+
+    <section class="layout">
+      <div class="app-window">
+        <header class="heading">
+          <h1>Жильё</h1>
+          <div class="heading-actions">
+            <button class="sort" type="button"><i>☷</i> Сортировка: по дате оплаты <b>⌄</b></button>
+            <button class="primary" type="button">＋ Добавить жильё</button>
+          </div>
+        </header>
+
+        <nav class="tabs" aria-label="Разделы жилья">
+          <button type="button">Список жилья</button>
+          <button type="button">Отмена</button>
+          <button class="active" type="button">Оплата</button>
+        </nav>
+
+        <div class="intro">
+          <p>Здесь собраны суммы, даты оплаты и текущий статус каждого бронирования.</p>
+          <button class="secondary" type="button">↕ Сначала ближайшая дата</button>
+        </div>
+
+        <div class="payment-toolbar" aria-label="Фильтр и сортировка оплаты">
+          <div class="payment-toolbar-group">
+            <span>Статус</span>
+            <button class="active" type="button">Все · 3</button>
+            <button type="button">Оплаченные · 1</button>
+            <button type="button">Неоплаченные · 2</button>
+          </div>
+          <div class="payment-toolbar-group">
+            <span>Сортировать</span>
+            <button class="active" type="button">По дате оплаты</button>
+            <button type="button">По дате проживания</button>
+          </div>
+        </div>
+
+        <section class="summary" aria-label="Сводка оплаты">
+          <article><b>1</b><span class="paid">● Оплачено</span></article>
+          <article><b>2</b><span class="due">● Не оплачено</span></article>
+          <article><b>0</b><span class="unknown">● Без цены</span></article>
+        </section>
+
+        <section class="payment-list" aria-label="Список оплаты">
+          <article class="payment-card paid">
+            <div>
+              <span class="state paid">Оплачено</span>
+              <h2>🇮🇹 La mia casa al @Pigneto</h2>
+              <p>Рим, Италия · 27–30 сен · 3 ночи</p>
+              <div class="payment-date paid"><span>Оплачено</span><b>10 сентября 2026</b><small>полная сумма внесена</small></div>
+            </div>
+            <div class="amount"><b>€434,98</b><span>стоимость проживания</span></div>
+            <footer>
+              <span>Статус жилья: Оплачено</span>
+              <div><a href="#">Ссылка на жильё →</a><span class="marked">✓ Оплата отмечена</span></div>
+            </footer>
+          </article>
+
+          <article class="payment-card due">
+            <div>
+              <span class="state due">Нужно оплатить</span>
+              <h2>🇩🇪 Erlebniswelt Fantenberg</h2>
+              <p>Инцель · 25–26 сен · 1 ночь</p>
+              <div class="payment-date due"><span>Оплатить до</span><b>20 сентября 2026</b><small>до 23:59 · Europe/Berlin</small></div>
+            </div>
+            <div class="amount"><b>€90</b><span>стоимость проживания</span></div>
+            <footer>
+              <span>Статус жилья: Забронировано</span>
+              <div><a href="#">Ссылка на жильё →</a><button type="button">Отметить оплачено</button></div>
+            </footer>
+          </article>
+
+          <article class="payment-card due">
+            <div>
+              <span class="state due">Нужно оплатить</span>
+              <h2>🇮🇹 Residenze Mquadro</h2>
+              <p>Верона, Италия · 26–27 сен · 1 ночь</p>
+              <div class="payment-date due"><span>Оплатить до</span><b>24 сентября 2026</b><small>до 23:59 · Europe/Rome</small></div>
+            </div>
+            <div class="amount"><b>€91,24</b><span>стоимость проживания</span></div>
+            <footer>
+              <span>Статус жилья: Забронировано</span>
+              <div><a href="#">Ссылка на жильё →</a><button type="button">Отметить оплачено</button></div>
+            </footer>
+          </article>
+        </section>
+      </div>
+
+      <aside class="notes">
+        <span class="tag">Жильё · вкладка «Оплата»</span>
+        <h2>Сначала согласуем этот экран</h2>
+        <p>Шаблон показывает отдельную вкладку рядом со «Список жилья» и «Отмена».</p>
+        <div class="note"><i>1</i><div><strong>Заметку из карточки убираем</strong><span>Поле «Адрес / заметка» больше не занимает место в карточке жилья.</span></div></div>
+        <div class="note"><i>2</i><div><strong>Добавляем «Оплатить до»</strong><span>Вместо заметки показываем дедлайн оплаты, точное время и часовой пояс.</span></div></div>
+        <div class="note"><i>3</i><div><strong>Статусы и даты отдельно</strong><span>Можно отфильтровать оплаченные и неоплаченные варианты, а список упорядочить по дате.</span></div></div>
+        <div class="do-not">Это только визуальный шаблон для согласования. После подтверждения его можно перенести в React без изменений структуры данных Supabase.</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>
