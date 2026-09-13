@@ -651,18 +651,25 @@ function formatRussianCount(
   few: string,
   many: string,
 ) {
+  return `${value} ${russianCountWord(value, one, few, many)}`;
+}
+
+function russianCountWord(
+  value: number,
+  one: string,
+  few: string,
+  many: string,
+) {
   const absoluteValue = Math.abs(value);
   const lastTwo = absoluteValue % 100;
   const last = absoluteValue % 10;
-  const word =
-    lastTwo >= 11 && lastTwo <= 14
-      ? many
-      : last === 1
-        ? one
-        : last >= 2 && last <= 4
-          ? few
-          : many;
-  return `${value} ${word}`;
+  return lastTwo >= 11 && lastTwo <= 14
+    ? many
+    : last === 1
+      ? one
+      : last >= 2 && last <= 4
+        ? few
+        : many;
 }
 
 function mapsUrl(from: string, to: string) {
@@ -7738,7 +7745,12 @@ function DraftRouteCard({
             )}
           </h2>
           <span>
-            {itemCount}/{roadLeg ? itemCount : 4} пунктов
+            {itemCount}/{roadLeg ? itemCount : 4} {russianCountWord(
+              roadLeg ? itemCount : 4,
+              "пункт",
+              "пункта",
+              "пунктов",
+            )}
           </span>
         </div>
         <div className="draft-route-actions">
@@ -7973,7 +7985,7 @@ function RouteTab({
           </small>
           <b>{item.city}</b>
           <span>
-            {item.date} · {item.places.length} мест
+            {item.date} · {formatRussianCount(item.places.length, "место", "места", "мест")}
           </span>
         </button>
       ))}
@@ -8001,7 +8013,7 @@ function RouteTab({
       <footer>
         <span>Маршрут дня</span>
         <b>
-          ≈ {current.distance} · {current.places.length} точек
+          ≈ {current.distance} · {formatRussianCount(current.places.length, "точка", "точки", "точек")}
         </b>
       </footer>
     </aside>
@@ -8033,7 +8045,7 @@ function RouteTab({
                   <b>
                     {item.city}
                     <small>
-                      {item.date} · {item.places.length} мест
+                      {item.date} · {formatRussianCount(item.places.length, "место", "места", "мест")}
                     </small>
                   </b>
                   <i>⌄</i>
@@ -8525,16 +8537,16 @@ function RestaurantPage({
                 className="restaurant-filter-apply"
                 onClick={() => setFiltersOpen(false)}
               >
-                Показать {visible.length} ресторанов
+                Показать {formatRussianCount(visible.length, "ресторан", "ресторана", "ресторанов")}
               </button>
             </div>
           )}
         </div>
       </div>
       <div className="restaurants-map-layout">
-        <div className="restaurant-list-column">
+          <div className="restaurant-list-column">
           <div className="restaurant-list-head">
-            <span>{visible.length} {visible.length === 1 ? "место" : visible.length < 5 ? "места" : "мест"}</span>
+            <span>{formatRussianCount(visible.length, "место", "места", "мест")}</span>
             <span>Нажмите на карточку, чтобы увидеть точку на карте</span>
           </div>
           <div className="restaurant-grid">
@@ -9320,7 +9332,7 @@ function RestaurantCatalog({
           </div>
         )}
         <footer className="restaurant-catalog-footer">
-          <span>{items.length ? `${items.length} мест найдено` : ""}</span>
+          <span>{items.length ? `${formatRussianCount(items.length, "место", "места", "мест")} найдено` : ""}</span>
           <button type="button" onClick={onClose}>Готово</button>
         </footer>
       </section>
@@ -10057,7 +10069,7 @@ function AccommodationCatalog({
           </div>
         )}
         <footer className="accommodation-catalog-footer">
-          <span>{items.length ? `${items.length} вариантов найдено` : ""}</span>
+          <span>{items.length ? `${formatRussianCount(items.length, "вариант", "варианта", "вариантов")} найдено` : ""}</span>
           <button type="button" onClick={onClose}>Готово</button>
         </footer>
       </section>
@@ -12781,7 +12793,7 @@ function OverviewEditor({
           <section className="editor-section">
             <header>
               <b>Маршрут на карте</b>
-              <small>{mapPoints.length} точек</small>
+              <small>{formatRussianCount(mapPoints.length, "точка", "точки", "точек")}</small>
             </header>
             <div className="editor-chips">
               {mapPoints.map((point, index) => (
@@ -12959,7 +12971,7 @@ function OverviewEditor({
           <section className="editor-section">
             <header>
               <b>Маршрут на карте</b>
-              <small>{mapPoints.length} точек</small>
+              <small>{formatRussianCount(mapPoints.length, "точка", "точки", "точек")}</small>
             </header>
             <div className="editor-chips">
               {mapPoints.map((point, index) => (
@@ -13514,7 +13526,7 @@ function WeatherOverview({
                   ←
                 </button>
               )}
-              <span>{weatherDateOptions.length} дней</span>
+              <span>{formatRussianCount(weatherDateOptions.length, "день", "дня", "дней")}</span>
             </div>
           </header>
           <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
@@ -13564,8 +13576,12 @@ function WeatherOverview({
                   selectTripDate(weatherDateOptions[nextTripDateStart])
                 }
               >
-                +{weatherDateOptions.length - nextTripDateStart}
-                <small>дней</small>
+                +{formatRussianCount(
+                  weatherDateOptions.length - nextTripDateStart,
+                  "день",
+                  "дня",
+                  "дней",
+                )}
               </button>
             )}
           </div>
@@ -13594,7 +13610,7 @@ function WeatherOverview({
             </strong>
           </div>
           <p className="weather-trip-days-note">
-            В полном варианте здесь можно пролистывать все {weatherDateOptions.length} дней.
+            В полном варианте здесь можно пролистывать все {formatRussianCount(weatherDateOptions.length, "день", "дня", "дней")}.
           </p>
         </section>
       )}
@@ -14379,7 +14395,7 @@ function WalkingMap({
         </div>
         <footer>
           <span>Маршрут дня · {travelMode === "driving" ? "на машине" : "пешком"}</span>
-          <b>{`${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}</b>
+          <b>{formatRussianCount(sights.length, "точка", "точки", "точек")}</b>
         </footer>
       </div>
     );
@@ -14395,7 +14411,7 @@ function WalkingMap({
         <b>
           {stats
             ? `${(stats.distance / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км · ${hours ? `${hours} ч ` : ""}${minutes} мин`
-            : `${sights.length} ${sights.length === 1 ? "точка" : sights.length < 5 ? "точки" : "точек"}`}
+            : formatRussianCount(sights.length, "точка", "точки", "точек")}
         </b>
       </footer>
     </div>
@@ -14643,7 +14659,7 @@ function Sights({
                     >
                       <small>День {index + 1}</small>
                       <b>{day.title}</b>
-                      <span>{count} мест</span>
+                      <span>{formatRussianCount(count, "место", "места", "мест")}</span>
                     </button>
                     <button
                       type="button"
@@ -14694,7 +14710,7 @@ function Sights({
           <main className="sights-timeline-column">
             <header className="sights-timeline-heading">
               <h1>День {selectedDay + 1} · {activeDayTitle}</h1>
-              <p>{routeSights.length} мест</p>
+              <p>{formatRussianCount(routeSights.length, "место", "места", "мест")}</p>
             </header>
             {visibleSights.length ? (
               <div className="sights-timeline">
@@ -15143,7 +15159,7 @@ function DayEditor({
         <section>
           <div>
             <b>Список мест</b>
-            <small>{places.length} мест</small>
+            <small>{formatRussianCount(places.length, "место", "места", "мест")}</small>
           </div>
           <div className="day-place-input">
             <input
@@ -15565,7 +15581,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
-      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.places.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : catalogLoading ? "Обновляем…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{!visibleCatalog.length && (catalogPending || catalogLoading) ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.places.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : catalogLoading ? "Обновляем…" : formatRussianCount(visibleCatalog.length, "место", "места", "мест")}</span></div><div className="pets-grid">{!visibleCatalog.length && (catalogPending || catalogLoading) ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
       {!catalogPending && !catalogLoading && !visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
       {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
