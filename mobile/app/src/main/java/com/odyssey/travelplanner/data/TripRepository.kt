@@ -62,6 +62,8 @@ data class TripCard(
     val accommodations: List<Accommodation> = emptyList(),
     /** ISO timestamp set when the whole trip is moved to the deleted filter. */
     val deletedAt: String? = null,
+    /** Straight-line fallback used for the account's aggregate travel statistic. */
+    val distanceKm: Double? = null,
 )
 
 @Serializable
@@ -272,6 +274,35 @@ private fun jsonInt(element: JsonElement?): Int? {
     val primitive = element?.jsonPrimitive ?: return null
     return primitive.intOrNull ?: jsonDouble(primitive)?.toInt()
 }
+
+private fun routeLegsForDistance(payload: JsonObject): List<RouteLeg> {
+    val days = payload["days"]?.jsonArray ?: JsonArray(emptyList())
+    val startDate = tripStartDate(payload)
+    return routeDayObjectsInDateOrder(days, startDate).mapIndexedNotNull { index, day ->
+        val roadLeg = day["roadLeg"]?.jsonObject ?: return@mapIndexedNotNull null
+        val from = jsonText(roadLeg["from"])
+        val to = jsonText(roadLeg["to"])
+        if (from.isBlank() || to.isBlank()) return@mapIndexedNotNull null
+        RouteLeg(
+            dayId = jsonText(day["id"]).ifBlank { "legacy-route-$index" },
+            from = from,
+            to = to,
+            date = jsonText(day["date"]).ifBlank { jsonText(roadLeg["date"]) },
+            checkIn = "",
+            checkOut = "",
+            notes = "",
+            mapsUrl = jsonText(roadLeg["mapsUrl"]),
+        )
+    }
+}
+
+private fun cityCoordinatesFromPayload(payload: JsonObject): Map<String, CityLocation> =
+    payload["cityCoordinates"]?.jsonObject.orEmpty().mapNotNull { (city, value) ->
+        val coordinates = value.jsonObject
+        val latitude = coordinates["latitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+        val longitude = coordinates["longitude"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+        city to CityLocation(latitude = latitude, longitude = longitude)
+    }.toMap()
 
 private fun firstJsonDouble(objectValue: JsonObject, vararg keys: String): Double? =
     keys.firstNotNullOfOrNull { key -> jsonDouble(objectValue[key]) }
@@ -728,6 +759,10 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         client.resolveTripPhotoReference(reference)
                     }
                     val role = currentUserRole(row, currentUserId)
+                    val distanceKm = straightLineRouteDistanceKm(
+                        routeLegs = routeLegsForDistance(row.payload),
+                        savedCoordinates = cityCoordinatesFromPayload(row.payload),
+                    )
                     TripCard(
                         id = row.id,
                         title = text("title").ifBlank { "Путешествие" },
@@ -745,6 +780,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                         isOwner = row.ownerId == currentUserId,
                         canEdit = roleCanEdit(role),
                         deletedAt = text("deletedAt").takeIf(String::isNotBlank),
+                        distanceKm = distanceKm,
                         accommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
                             val accommodation = item.jsonObject
                             val name = jsonText(accommodation["name"]).takeIf(String::isNotBlank) ?: return@mapNotNull null

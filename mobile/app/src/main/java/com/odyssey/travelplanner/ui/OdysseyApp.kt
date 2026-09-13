@@ -5157,6 +5157,12 @@ private fun AccountSettingsSheet(
             .distinctBy(::cityFilterKey)
             .size
     }
+    val distanceKm = remember(trips) {
+        trips.mapNotNull { it.distanceKm }.takeIf { it.isNotEmpty() }?.sum()
+    }
+    val distanceLabel = distanceKm?.let {
+        "≈ ${String.format(mapLocale(language), "%.0f", it)}"
+    } ?: "—"
     val context = LocalContext.current
     val sheetBackground = if (darkTheme) OdysseyDarkSurface else Color(0xFFF7F5FF)
     val dividerColor = if (darkTheme) OdysseyDarkBorder else contentBorderColor()
@@ -5227,7 +5233,7 @@ private fun AccountSettingsSheet(
                     label = localizedCountWord(cityCount, language, "город", "города", "городов", "city", "cities", "ciudad", "ciudades", "Stadt", "Städte"),
                     modifier = Modifier.weight(1f),
                 )
-                AccountStat(value = "—", label = localized("км", "km", "km", "km"), modifier = Modifier.weight(1f))
+                AccountStat(value = distanceLabel, label = localized("км", "km", "km", "km"), modifier = Modifier.weight(1f))
             }
 
             Text(localized("ВНЕШНИЙ ВИД", "APPEARANCE", "APARIENCIA", "DARSTELLUNG"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 20.dp, bottom = 9.dp))
