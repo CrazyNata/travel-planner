@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ramingo accommodation payment reminders every morning
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Prague
+Persistent=true
+RandomizedDelaySec=300
+Unit=ramingo-payment-reminders.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблон восстановления жилья</title>
+  <style>
+    :root{--page:#eeedf3;--surface:#fff;--text:#19191f;--muted:#8c8b97;--line:#e7e5ec;--purple:#6c5ce7;--danger:#e0524b;--danger-bg:#fff3f2;--shadow:0 20px 55px #302a4d22}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#fff0,transparent 30%),var(--page);color:var(--text);font-family:Inter,system-ui,sans-serif}.page{width:min(1100px,calc(100% - 32px));margin:auto;padding:34px 0 60px}.intro{text-align:center;margin-bottom:28px}.intro h1{margin:0;font-size:clamp(26px,4vw,40px);letter-spacing:-.05em}.intro p{color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:minmax(320px,1fr) minmax(320px,390px);gap:32px;align-items:start}.panel,.phone{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}.panel{border-radius:24px;padding:24px}.phone{width:390px;max-width:100%;justify-self:center;border:7px solid #1d1c25;border-radius:38px;overflow:hidden;background:#f8f7fb}.screen{padding:18px 15px 26px}.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.head h2{font-size:22px;margin:0;letter-spacing:-.04em}.head span{color:var(--muted);font-size:12px}.tabs{display:flex;gap:8px;margin-bottom:18px}.tabs button{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;color:var(--muted);font-weight:800}.tabs .active{color:var(--purple);border-color:#cec8ff;background:#f5f3ff}.tabs .deleted{color:var(--danger);border-color:#ffd2cd;background:var(--danger-bg)}.cards{display:grid;gap:12px}.card{display:grid;grid-template-columns:92px 1fr;gap:14px;padding:12px;border:1px solid var(--line);border-radius:18px;background:#fff}.thumb{width:92px;height:92px;border-radius:13px;background:linear-gradient(135deg,#d6c8bb,#8f7b71)}.card h3{font-size:15px;margin:3px 0 6px}.card p{margin:0;color:var(--muted);font-size:11px}.card footer{display:flex;align-items:center;justify-content:space-between;margin-top:13px}.price{font-weight:900}.delete{border:0;background:transparent;color:var(--danger);font-size:12px;font-weight:800}.restore-card{border-color:#ffd2cd;background:linear-gradient(135deg,#fff,#fff7f6)}.restore-card .thumb{filter:grayscale(.75);opacity:.75}.restore{border:0;border-radius:10px;padding:8px 11px;background:var(--purple);color:white;font-weight:800;font-size:11px}.note{margin:18px 0 0;padding:12px 14px;border-radius:14px;background:#f6f4ff;color:#5b50b8;font-size:12px;line-height:1.45}.label{margin:0 0 10px;color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}@media(max-width:760px){.grid{grid-template-columns:1fr}.panel{order:2}.phone{order:1}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="intro"><h1>Удаление жилья с восстановлением</h1><p>Предварительный шаблон для веб-версии и Android. Данные и фотографии остаются в поездке до окончательной очистки.</p></div>
+    <div class="grid">
+      <section class="panel">
+        <p class="label">Веб-версия · список жилья</p>
+        <div class="head"><div><h2>Жильё</h2><span>3 варианта</span></div><button class="restore">＋ Добавить жильё</button></div>
+        <div class="tabs"><button class="active">Список жилья</button><button class="deleted">Удалённые · 1</button></div>
+        <div class="cards">
+          <article class="card"><div class="thumb"></div><div><h3>Hotel Artemide</h3><p>Рим · 19–22 декабря</p><footer><span class="price">394 €</span><button class="delete">удалить</button></footer></div></article>
+          <article class="card restore-card"><div class="thumb"></div><div><h3>Novo Hotel Rossi</h3><p>Удалено сегодня · Верона</p><footer><span class="price">49 €</span><button class="restore">Восстановить</button></footer></div></article>
+        </div>
+        <p class="note">Во вкладке «Удалённые» можно вернуть жильё вместе со ссылкой, статусом и фотографиями.</p>
+      </section>
+      <section class="phone">
+        <div class="screen">
+          <p class="label">Android · экран жилья</p>
+          <div class="head"><div><h2>Жильё</h2><span>3 варианта</span></div><span>⋮</span></div>
+          <div class="tabs"><button class="active">Список</button><button class="deleted">Удалённые · 1</button></div>
+          <div class="cards">
+            <article class="card restore-card"><div class="thumb"></div><div><h3>Novo Hotel Rossi</h3><p>Удалено сегодня</p><footer><span class="price">49 €</span><button class="restore">Вернуть</button></footer></div></article>
+          </div>
+          <p class="note">После нажатия «Вернуть» карточка снова появится в списке жилья и на маршруте.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

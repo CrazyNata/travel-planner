@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · шаблоны улучшений мобильного приложения</title>
+  <style>
+    :root {
+      --page: #f3f1f8;
+      --phone: #fbfafc;
+      --surface: #ffffff;
+      --surface-2: #f4f1fb;
+      --text: #181820;
+      --muted: #8e8c98;
+      --line: #e6e3ec;
+      --purple: #6c5ce7;
+      --purple-2: #8b78f3;
+      --purple-soft: #eeeafd;
+      --green: #1ca871;
+      --green-soft: #e7f8f0;
+      --orange: #e88b39;
+      --orange-soft: #fff2e4;
+      --red: #d85a67;
+      --red-soft: #ffedf0;
+      --shadow: 0 18px 55px rgba(38, 30, 72, .14);
+      --phone-shadow: 0 14px 40px rgba(38, 30, 72, .2);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 0%, #fff 0, transparent 32%),
+        radial-gradient(circle at 90% 9%, #e9e3ff 0, transparent 28%),
+        var(--page);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    .page {
+      width: min(1320px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 32px 0 60px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #6d6b78;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .01em;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border-radius: 11px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--purple), var(--purple-2));
+      box-shadow: 0 8px 18px rgba(108, 92, 231, .28);
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .intro { max-width: 800px; margin: 24px auto 28px; text-align: center; }
+    .intro h1 { margin: 0; font-size: clamp(25px, 4vw, 42px); letter-spacing: -.045em; }
+    .intro p { margin: 11px auto 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 auto 28px;
+    }
+
+    .legend span, .tag {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #696672;
+      background: rgba(255,255,255,.74);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .legend .must { border-color: #c9c1ff; color: #5d4fd3; background: var(--purple-soft); }
+    .legend .nice { border-color: #bfe9d5; color: #17875c; background: var(--green-soft); }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(280px, 1fr));
+      gap: 22px;
+      align-items: start;
+    }
+
+    .template {
+      overflow: hidden;
+      border: 1px solid rgba(227,224,236,.9);
+      border-radius: 24px;
+      background: rgba(255,255,255,.68);
+      box-shadow: var(--shadow);
+    }
+
+    .template-head { padding: 18px 18px 14px; }
+    .template-head .tag { display: inline-block; margin-bottom: 9px; color: #5d4fd3; border-color: #d8d1ff; background: var(--purple-soft); }
+    .template-head h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+    .template-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .phone-wrap { display: flex; justify-content: center; padding: 0 18px 22px; }
+    .phone {
+      width: min(100%, 360px);
+      height: 650px;
+      overflow: hidden;
+      border: 7px solid #1c1b25;
+      border-radius: 38px;
+      background: var(--phone);
+      box-shadow: var(--phone-shadow);
+    }
+
+    .phone-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 29px;
+      padding: 0 16px;
+      color: #6e6c79;
+      background: var(--phone);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .phone-content { height: calc(100% - 29px); overflow: auto; scrollbar-width: none; }
+    .phone-content::-webkit-scrollbar { display: none; }
+    .screen { min-height: 100%; padding: 17px 15px 20px; }
+    .screen-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
+    .screen-header h3 { margin: 0; font-size: 19px; letter-spacing: -.04em; }
+    .screen-header small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .icon-btn { display: grid; width: 31px; height: 31px; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 15px; }
+    .primary { width: 100%; padding: 12px 14px; border: 0; border-radius: 13px; color: #fff; background: var(--purple); font-size: 12px; font-weight: 850; }
+    .secondary { padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--purple); background: var(--surface); font-size: 11px; font-weight: 800; }
+
+    .trip-card { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 7px 22px rgba(48,42,77,.07); }
+    .trip-cover { position: relative; height: 115px; padding: 13px; color: #fff; background: linear-gradient(135deg, rgba(63,40,125,.3), rgba(15,17,35,.78)), linear-gradient(135deg, #caa4a7, #6f7ab5 54%, #e8c080); }
+    .trip-cover strong { position: absolute; right: 13px; bottom: 13px; left: 13px; font-size: 17px; letter-spacing: -.04em; }
+    .trip-cover span { display: inline-flex; padding: 5px 8px; border-radius: 999px; color: #fff; background: rgba(20,19,33,.35); font-size: 9px; font-weight: 800; }
+    .trip-body { padding: 13px; }
+    .trip-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 10px; }
+    .progress { height: 5px; margin-top: 10px; overflow: hidden; border-radius: 99px; background: #eceaf0; }
+    .progress i { display: block; width: 63%; height: 100%; border-radius: inherit; background: var(--purple); }
+
+    .countdown { margin: 12px 0; padding: 14px; border: 1px solid #d9d2ff; border-radius: 17px; background: linear-gradient(135deg, #f0edff, #fbfaff); }
+    .countdown-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .eyebrow { color: var(--purple); font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .countdown h4 { margin: 5px 0 0; font-size: 17px; letter-spacing: -.04em; }
+    .count-number { color: var(--purple); font-size: 31px; font-weight: 900; line-height: .95; letter-spacing: -.06em; text-align: right; }
+    .count-number small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 0; }
+    .countdown footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 13px; padding-top: 10px; border-top: 1px solid #dfdaf8; color: #777283; font-size: 10px; }
+    .countdown footer b { color: var(--text); }
+
+    .next-action { display: flex; align-items: center; gap: 11px; margin: 12px 0; padding: 12px; border: 1px solid #c3ead7; border-radius: 15px; background: var(--green-soft); }
+    .action-icon { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #fff; background: var(--green); font-size: 15px; }
+    .next-action strong { display: block; font-size: 11px; }
+    .next-action span { display: block; margin-top: 3px; color: #51816c; font-size: 9px; line-height: 1.35; }
+    .next-action button { margin-left: auto; padding: 7px 8px; border: 0; border-radius: 8px; color: #157d55; background: #fff; font-size: 9px; font-weight: 850; }
+
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }
+    .section-title strong { font-size: 12px; }
+    .section-title button { border: 0; color: var(--purple); background: transparent; font-size: 10px; font-weight: 800; }
+    .mini-list { display: grid; gap: 7px; }
+    .mini-row { display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+    .mini-row .bullet { display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--purple); background: var(--purple-soft); font-size: 12px; }
+    .mini-row strong { display: block; font-size: 10px; }
+    .mini-row span { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .mini-row em { margin-left: auto; color: var(--green); font-size: 9px; font-style: normal; font-weight: 850; }
+
+    .overview-hero { padding: 15px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #6c5ce7, #9587ef); }
+    .overview-hero .eyebrow { color: #dfd9ff; }
+    .overview-hero h4 { margin: 5px 0 3px; font-size: 20px; letter-spacing: -.045em; }
+    .overview-hero p { margin: 0; color: #ece9ff; font-size: 10px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 13px; }
+    .stat { padding: 9px 7px; border-radius: 11px; background: rgba(255,255,255,.16); }
+    .stat strong { display: block; font-size: 15px; }
+    .stat span { display: block; margin-top: 3px; color: #e7e3ff; font-size: 8px; }
+    .map { position: relative; height: 146px; margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: #e9eff5; }
+    .map:before, .map:after { position: absolute; content: ""; border: 2px solid rgba(108,92,231,.28); border-radius: 50%; transform: rotate(-16deg); }
+    .map:before { inset: 22px -24px 44px 42px; }
+    .map:after { inset: 74px 36px -24px -25px; border-color: rgba(28,168,113,.25); }
+    .route-line { position: absolute; top: 46%; left: 18%; width: 64%; height: 3px; background: var(--purple); transform: rotate(-15deg); }
+    .pin { position: absolute; display: grid; width: 25px; height: 25px; place-items: center; border: 3px solid #fff; border-radius: 50% 50% 50% 0; color: #fff; background: var(--purple); box-shadow: 0 4px 10px rgba(40,30,90,.2); font-size: 9px; font-weight: 900; transform: rotate(-45deg); }
+    .pin b { transform: rotate(45deg); }
+    .pin.one { top: 27px; left: 42px; } .pin.two { top: 65px; left: 144px; } .pin.three { top: 91px; right: 36px; }
+    .route-caption { display: flex; justify-content: space-between; margin-top: 7px; color: var(--muted); font-size: 9px; }
+
+    .deadline-card { margin: 13px 0; padding: 14px; border: 1px solid #ffd7b1; border-radius: 17px; background: linear-gradient(135deg, #fff8ef, #fff); }
+    .deadline-card .eyebrow { color: var(--orange); }
+    .deadline-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+    .deadline-title h4 { margin: 0; font-size: 14px; }
+    .deadline-title strong { color: var(--orange); font-size: 21px; letter-spacing: -.05em; }
+    .deadline-card p { margin: 6px 0 0; color: #85776b; font-size: 9px; line-height: 1.45; }
+    .deadline-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #f4dfc9; color: #8d7b69; font-size: 9px; }
+    .deadline-card footer b { color: #4f453e; }
+    .deadline-card .secondary { padding: 7px 9px; color: var(--orange); font-size: 9px; }
+
+    .notice { display: flex; gap: 10px; padding: 11px; border-radius: 13px; background: var(--surface-2); }
+    .notice-icon { display: grid; width: 25px; height: 25px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: var(--purple); background: #e6e0ff; font-size: 12px; }
+    .notice strong { display: block; font-size: 10px; }
+    .notice span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+
+    .settings-group { margin: 13px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    .settings-row { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row .row-icon { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--purple); background: var(--purple-soft); font-size: 12px; }
+    .settings-row strong { display: block; font-size: 10px; }
+    .settings-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.3; }
+    .switch { width: 37px; height: 22px; margin-left: auto; padding: 3px; border: 0; border-radius: 99px; background: var(--purple); }
+    .switch i { display: block; width: 16px; height: 16px; margin-left: 15px; border-radius: 50%; background: #fff; }
+    .time-pill { margin-left: auto; padding: 7px 9px; border: 1px solid #d9d2ff; border-radius: 9px; color: var(--purple); background: var(--purple-soft); font-size: 10px; font-weight: 850; }
+    .preset-row { display: flex; gap: 6px; margin: 10px 0 12px; }
+    .preset { flex: 1; padding: 8px 4px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 9px; font-weight: 750; }
+    .preset.active { border-color: #c9c1ff; color: var(--purple); background: var(--purple-soft); }
+
+    .check-summary { display: flex; align-items: center; gap: 11px; padding: 13px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, #26315e, #4d56a4); }
+    .ring { display: grid; width: 48px; height: 48px; place-items: center; border: 4px solid rgba(255,255,255,.28); border-top-color: #fff; border-radius: 50%; font-size: 11px; font-weight: 900; }
+    .check-summary strong { display: block; font-size: 12px; }
+    .check-summary span { display: block; margin-top: 4px; color: #d9dcff; font-size: 9px; }
+    .filter-row { display: flex; gap: 6px; margin: 13px 0 9px; }
+    .filter { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 9px; font-weight: 800; }
+    .filter.active { border-color: #c9c1ff; color: var(--purple); background: var(--purple-soft); }
+    .check-row { display: flex; align-items: center; gap: 10px; padding: 11px 3px; border-bottom: 1px solid var(--line); }
+    .checkbox { display: grid; width: 22px; height: 22px; flex: 0 0 auto; place-items: center; border: 1.5px solid #c6c2cf; border-radius: 7px; color: #fff; font-size: 12px; }
+    .check-row.done .checkbox { border-color: var(--green); background: var(--green); }
+    .check-row.done strong { color: var(--muted); text-decoration: line-through; }
+    .check-row strong { font-size: 10px; }
+    .check-row span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .check-row .drag { margin-left: auto; color: #c0bdc9; font-size: 13px; }
+
+    .calendar-card { padding: 14px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); }
+    .calendar-card h4 { margin: 0; font-size: 14px; }
+    .calendar-card p { margin: 5px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .cal-event { display: flex; align-items: center; gap: 9px; margin: 6px 0; padding: 8px; border-radius: 10px; background: var(--surface-2); }
+    .cal-date { width: 28px; color: var(--purple); font-size: 9px; font-weight: 900; text-align: center; }
+    .cal-event strong { display: block; font-size: 9px; }
+    .cal-event span { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; }
+    .calendar-card .primary { margin-top: 9px; }
+    .calendar-note { display: flex; gap: 8px; margin-top: 10px; color: #698074; font-size: 9px; line-height: 1.35; }
+
+    .empty-state { display: grid; min-height: 510px; place-items: center; padding: 24px 18px; text-align: center; }
+    .empty-illustration { display: grid; width: 88px; height: 88px; margin: 0 auto 16px; place-items: center; border-radius: 28px; color: var(--purple); background: var(--purple-soft); font-size: 38px; }
+    .empty-state h4 { margin: 0; font-size: 17px; letter-spacing: -.03em; }
+    .empty-state p { margin: 8px auto 17px; max-width: 230px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .offline { display: flex; align-items: center; gap: 9px; margin-top: 15px; padding: 10px; border: 1px solid #ffd9bd; border-radius: 12px; color: #a36436; background: var(--orange-soft); font-size: 9px; line-height: 1.35; text-align: left; }
+
+    .budget-hero { padding: 15px; border-radius: 17px; color: #fff; background: linear-gradient(135deg, #1ca871, #4ebd92); }
+    .budget-hero .eyebrow { color: #d9ffed; }
+    .budget-hero h4 { margin: 6px 0 2px; font-size: 24px; letter-spacing: -.05em; }
+    .budget-hero p { margin: 0; color: #dffbed; font-size: 9px; }
+    .bar-label { display: flex; justify-content: space-between; margin: 13px 0 5px; color: #658876; font-size: 9px; }
+    .budget-bar { height: 8px; overflow: hidden; border-radius: 99px; background: #edf0f0; }
+    .budget-bar i { display: block; width: 48%; height: 100%; border-radius: inherit; background: var(--green); }
+    .budget-rows { display: grid; gap: 7px; margin-top: 12px; }
+    .budget-row { display: flex; justify-content: space-between; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 10px; }
+    .budget-row span { color: var(--muted); } .budget-row b { color: var(--text); }
+
+    .collab-card { padding: 14px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); }
+    .collab-card h4 { margin: 0; font-size: 14px; }
+    .collab-card p { margin: 5px 0 12px; color: var(--muted); font-size: 9px; }
+    .member { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .member:last-of-type { border-bottom: 0; }
+    .avatar { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; color: #fff; background: var(--purple); font-size: 10px; font-weight: 900; }
+    .member strong { display: block; font-size: 10px; } .member span { display: block; margin-top: 2px; color: var(--muted); font-size: 8px; }
+    .member em { margin-left: auto; color: var(--green); font-size: 9px; font-style: normal; font-weight: 800; }
+
+    .release {
+      margin-top: 26px;
+      padding: 22px;
+      border: 1px solid #d9d2ff;
+      border-radius: 22px;
+      background: rgba(250,249,255,.82);
+    }
+    .release h2 { margin: 0; font-size: 19px; letter-spacing: -.03em; }
+    .release p { margin: 6px 0 16px; color: var(--muted); font-size: 12px; }
+    .release-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .release-item { padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .release-item strong { display: block; font-size: 11px; }
+    .release-item span { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .release-item b { display: inline-block; margin-top: 10px; padding: 4px 7px; border-radius: 999px; color: #5d4fd3; background: var(--purple-soft); font-size: 9px; }
+    .release-item.done b { color: #16845a; background: var(--green-soft); }
+
+    @media (max-width: 1020px) {
+      .gallery { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+      .release-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 680px) {
+      .page { width: min(100% - 22px, 410px); padding-top: 20px; }
+      .gallery { grid-template-columns: 1fr; gap: 16px; }
+      .template { border-radius: 20px; }
+      .phone { height: 680px; }
+      .release-grid { grid-template-columns: 1fr; }
+      .intro { margin-top: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark">R</span><span>Ramingo · мобильные шаблоны</span></div>
+    <section class="intro">
+      <h1>Полезные улучшения без изменения приложения</h1>
+      <p>Отдельная визуальная подборка для согласования. Это макеты экранов, а не рабочая версия: они не подключены к Android-коду, Supabase или данным поездок.</p>
+    </section>
+    <div class="legend">
+      <span class="must">P0 · перед продакшеном</span>
+      <span class="nice">P1 · следующая версия</span>
+      <span>P2 · техническое качество</span>
+    </div>
+
+    <section class="gallery" aria-label="Шаблоны экранов">
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Главный экран</span><h2>Countdown поездки</h2><p>Сразу видно, сколько осталось до путешествия и что сделать дальше.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Мои путешествия</h3><small>Доброе утро, Наташа</small></div><button class="icon-btn">⚙</button></div>
+          <div class="trip-card"><div class="trip-cover"><span>Через 106 дней</span><strong>Рождественская Италия</strong></div><div class="trip-body"><div class="trip-meta"><span>19 дек — 3 янв</span><span>16 дней</span></div><div class="progress"><i></i></div></div></div>
+          <div class="countdown"><div class="countdown-top"><div><div class="eyebrow">До поездки</div><h4>Время подготовиться</h4></div><div class="count-number">106<small>дней</small></div></div><footer><span>Старт <b>19 декабря 2026</b></span><span>10 городов</span></footer></div>
+          <div class="next-action"><span class="action-icon">✓</span><div><strong>Добавьте бесплатную отмену</strong><span>Так мы напомним не пропустить дедлайн жилья.</span></div><button>Открыть</button></div>
+          <div class="section-title"><strong>Ближайшие события</strong><button>Все</button></div>
+          <div class="mini-list"><div class="mini-row"><span class="bullet">⌂</span><div><strong>Отмена отеля в Риме</strong><span>Осталось 7 дней</span></div><em>Важно</em></div><div class="mini-row"><span class="bullet">✓</span><div><strong>Чек-лист поездки</strong><span>8 из 14 выполнено</span></div><em>57%</em></div></div>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Обзор поездки</span><h2>Следующее действие</h2><p>На насыщенном экране появляется один понятный приоритет вместо перегруза.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Christmas Italy</h3><small>Обзор поездки</small></div><button class="icon-btn">✎</button></div>
+          <div class="overview-hero"><div class="eyebrow">19 дек — 3 янв · 16 дней</div><h4>Италия на Рождество</h4><p>Маршрут готов на 63%</p><div class="stat-grid"><div class="stat"><strong>10</strong><span>городов</span></div><div class="stat"><strong>9</strong><span>переездов</span></div><div class="stat"><strong>57%</strong><span>чек-листа</span></div></div></div>
+          <div class="next-action"><span class="action-icon">⌂</span><div><strong>Проверьте отмену жилья</strong><span>Hotel Roma · дедлайн через 7 дней</span></div><button>Открыть</button></div>
+          <div class="map"><span class="route-line"></span><span class="pin one"><b>1</b></span><span class="pin two"><b>2</b></span><span class="pin three"><b>3</b></span></div><div class="route-caption"><span>Полный маршрут</span><b>9 отрезков · 10 городов</b></div>
+          <div class="section-title"><strong>Быстрый доступ</strong><button>Настроить</button></div><div class="mini-list"><div class="mini-row"><span class="bullet">▣</span><div><strong>Чек-лист</strong><span>8 из 14 задач</span></div></div><div class="mini-row"><span class="bullet">▤</span><div><strong>Календарь</strong><span>Экспортировать события</span></div></div></div>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Жильё</span><h2>Дедлайн отмены</h2><p>Точная дата, время и часовой пояс делают напоминание однозначным.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Жильё</h3><small>Рождественская Италия</small></div><button class="icon-btn">＋</button></div>
+          <div class="deadline-card"><div class="eyebrow">Бесплатная отмена</div><div class="deadline-title"><h4>Hotel Roma</h4><strong>7 дней</strong></div><p>Бесплатная отмена до 12 декабря 2026, 23:59 по времени Рима.</p><footer><span>Дедлайн<br><b>12 дек · 23:59 CET</b></span><button class="secondary">Изменить</button></footer></div>
+          <div class="notice"><span class="notice-icon">i</span><div><strong>Напоминания включены</strong><span>Мы напомним за 7, 3, 1 день и в день дедлайна.</span></div></div>
+          <div class="section-title"><strong>Другие бронирования</strong><button>Фильтр</button></div>
+          <div class="mini-list"><div class="mini-row"><span class="bullet">⌂</span><div><strong>Casa Pisa</strong><span>Заезд 25 декабря · отмена до 18 дек</span></div><em>14 дней</em></div><div class="mini-row"><span class="bullet">⌂</span><div><strong>Venice Stay</strong><span>Заезд 29 декабря · невозвратный</span></div><em style="color:var(--muted)">Нет</em></div></div>
+          <button class="primary" style="margin-top:15px">Добавить жильё</button>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Настройки</span><h2>Центр уведомлений</h2><p>Понятные переключатели, пресеты и отдельное время отправки.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Уведомления</h3><small>Настройте напоминания под себя</small></div><button class="icon-btn">?</button></div>
+          <div class="notice"><span class="notice-icon">✓</span><div><strong>Разрешение телефона включено</strong><span>Ramingo сможет напоминать о важных датах.</span></div></div>
+          <div class="settings-group"><div class="settings-row"><span class="row-icon">◉</span><div><strong>Все уведомления</strong><small>Поездки, жильё и задачи</small></div><button class="switch"><i></i></button></div><div class="settings-row"><span class="row-icon">✈</span><div><strong>До начала поездки</strong><small>30, 14, 7, 3 и 1 день</small></div><button class="switch"><i></i></button></div><div class="settings-row"><span class="row-icon">⌂</span><div><strong>Бесплатная отмена</strong><small>7, 3, 1 день и день дедлайна</small></div><button class="switch"><i></i></button></div></div>
+          <div class="section-title"><strong>Время отправки</strong><button>Часовой пояс: авто</button></div><div class="settings-group"><div class="settings-row"><span class="row-icon">◷</span><div><strong>Ежедневное время</strong><small>Напоминания не будут приходить ночью</small></div><span class="time-pill">09:00</span></div></div>
+          <div class="section-title"><strong>Быстрый пресет</strong></div><div class="preset-row"><button class="preset active">Сбалансированный</button><button class="preset">Только важное</button><button class="preset">Всё</button></div><button class="primary">Сохранить настройки</button>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Подготовка</span><h2>Чек-лист и вещи</h2><p>Задачи сохраняются в поездке и видны всей группе.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Чек-лист</h3><small>Рождественская Италия</small></div><button class="icon-btn">＋</button></div>
+          <div class="check-summary"><span class="ring">57%</span><div><strong>8 из 14 задач</strong><span>Хороший темп — осталось совсем немного.</span></div></div>
+          <div class="filter-row"><button class="filter active">Все</button><button class="filter">Вещи</button><button class="filter">Документы</button><button class="filter">Брони</button></div>
+          <div class="check-row done"><span class="checkbox">✓</span><div><strong>Проверить паспорта</strong><span>Документы · вся группа</span></div><span class="drag">☷</span></div><div class="check-row done"><span class="checkbox">✓</span><div><strong>Забронировать поезд Рим—Пиза</strong><span>Брони · Наташа</span></div><span class="drag">☷</span></div><div class="check-row"><span class="checkbox"></span><div><strong>Собрать аптечку</strong><span>Вещи · общая задача</span></div><span class="drag">☷</span></div><div class="check-row"><span class="checkbox"></span><div><strong>Скачать офлайн-карты</strong><span>Подготовка · вся группа</span></div><span class="drag">☷</span></div><div class="check-row"><span class="checkbox"></span><div><strong>Проверить правила багажа</strong><span>Документы · Наташа</span></div><span class="drag">☷</span></div>
+          <button class="primary" style="margin-top:17px">Добавить задачу</button>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Интеграция</span><h2>Экспорт в календарь</h2><p>Переезды, заезды и важные дедлайны можно добавить в календарь телефона.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Календарь</h3><small>События поездки</small></div><button class="icon-btn">×</button></div>
+          <div class="calendar-card"><h4>Добавить поездку в календарь</h4><p>Выберите, какие события создать. В макете данные остаются только примером.</p><div class="cal-event"><span class="cal-date">19<br>ДЕК</span><div><strong>Начало поездки</strong><span>Рим · весь день</span></div></div><div class="cal-event"><span class="cal-date">22<br>ДЕК</span><div><strong>Переезд Рим → Пиза</strong><span>09:20—10:45</span></div></div><div class="cal-event"><span class="cal-date">12<br>ДЕК</span><div><strong>Дедлайн бесплатной отмены</strong><span>23:59 · Europe/Rome</span></div></div><button class="primary">Экспортировать выбранное</button><div class="calendar-note"><span>ⓘ</span><span>События можно удалить из календаря позже. Изменения поездки не перезапишут личные события.</span></div></div>
+          <div class="section-title"><strong>Формат</strong></div><div class="settings-group"><div class="settings-row"><span class="row-icon">▣</span><div><strong>Календарь устройства</strong><small>Добавить через системное окно Android</small></div><span class="time-pill">Выбрать</span></div></div>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P0 · Надёжность</span><h2>Пустое и офлайн-состояние</h2><p>Пользователь всегда понимает, что происходит и что можно сделать.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen"><div class="empty-state"><div><div class="empty-illustration">✈</div><h4>Пока нет поездок</h4><p>Создайте первую поездку, чтобы собрать маршрут, брони и важные даты в одном месте.</p><button class="primary">Создать поездку</button><div class="offline"><span>⌁</span><span>Нет соединения. Данные не потеряны — попробуйте синхронизацию позже.</span></div></div></div></div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Бюджет</span><h2>План и факт расходов</h2><p>Быстрый итог по бюджету, категориям и валюте поездки.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen">
+          <div class="screen-header"><div><h3>Бюджет</h3><small>Рождественская Италия · EUR</small></div><button class="icon-btn">＋</button></div><div class="budget-hero"><div class="eyebrow">Потрачено из плана</div><h4>1 240 € <small style="font-size:11px;font-weight:700">/ 2 600 €</small></h4><p>Осталось 1 360 € · 48% бюджета</p></div><div class="bar-label"><span>Использовано</span><b>48%</b></div><div class="budget-bar"><i></i></div><div class="section-title"><strong>По категориям</strong><button>Все расходы</button></div><div class="budget-rows"><div class="budget-row"><span>Жильё</span><b>720 €</b></div><div class="budget-row"><span>Транспорт</span><b>310 €</b></div><div class="budget-row"><span>Еда</span><b>145 €</b></div><div class="budget-row"><span>Другое</span><b>65 €</b></div></div><button class="primary" style="margin-top:15px">Добавить расход</button>
+        </div></div></div></div>
+      </article>
+
+      <article class="template">
+        <header class="template-head"><span class="tag">P1 · Команда</span><h2>Участники и роли</h2><p>Статус приглашений и права видны без поиска по экрану.</p></header>
+        <div class="phone-wrap"><div class="phone"><div class="phone-bar"><span>9:41</span><span>◔ ◉ ▰</span></div><div class="phone-content"><div class="screen"><div class="screen-header"><div><h3>Участники</h3><small>Рождественская Италия · 3 человека</small></div><button class="icon-btn">＋</button></div><div class="collab-card"><h4>Кто планирует поездку</h4><p>У каждого участника понятная роль и статус доступа.</p><div class="member"><span class="avatar">Н</span><div><strong>Наташа</strong><span>Владелец · все права</span></div><em>Активна</em></div><div class="member"><span class="avatar" style="background:#ea8b57">А</span><div><strong>Алексей</strong><span>Редактор · может менять маршрут</span></div><em>Активен</em></div><div class="member"><span class="avatar" style="background:#5ba3ca">М</span><div><strong>Маша</strong><span>Приглашение отправлено</span></div><em style="color:var(--orange)">Ожидает</em></div><button class="secondary" style="width:100%;margin-top:14px">Управить доступом</button></div><div class="notice" style="margin-top:13px"><span class="notice-icon">↗</span><div><strong>Последнее изменение 5 минут назад</strong><span>Маршрут обновлён Алексeем.</span></div></div></div></div></div></div>
+      </article>
+    </section>
+
+    <section class="release">
+      <h2>Чек-лист перед публикацией</h2>
+      <p>Это не часть интерфейса приложения — рабочий шаблон для проверки перед следующим релизом.</p>
+      <div class="release-grid">
+        <div class="release-item done"><strong>Авторизация и данные</strong><span>Регистрация, вход, восстановление пароля, выход, удаление аккаунта и сохранение после перезапуска.</span><b>Проверить на чистом устройстве</b></div>
+        <div class="release-item"><strong>Уведомления Android</strong><span>Разрешение, отказ, перезагрузка, смена часового пояса, изменение дат, deep link в нужную поездку.</span><b>P0 · обязательно</b></div>
+        <div class="release-item"><strong>Play Console и безопасность</strong><span>Data safety, политика, страница удаления аккаунта, закрытый тест, защита от скомпрометированных паролей.</span><b>P0 · обязательно</b></div>
+        <div class="release-item"><strong>Визуальные состояния</strong><span>Loading, empty, retry, офлайн и понятное сообщение об ошибке для каждого ключевого раздела.</span><b>P0 · обязательно</b></div>
+        <div class="release-item"><strong>Данные поездки</strong><span>Никаких перезаписей существующих поездок: новые шаблоны должны работать поверх текущих данных.</span><b>Правило данных</b></div>
+        <div class="release-item"><strong>Техническая поддержка</strong><span>После стабилизации разделить большой UI-файл и добавить instrumentation-тесты критических сценариев.</span><b>P2 · после релиза</b></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

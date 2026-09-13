@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo · уведомления внутри настроек</title>
+  <style>
+    :root {
+      --page: #f2f0f8;
+      --phone: #f8f6ff;
+      --surface: #fff;
+      --soft: #f0edff;
+      --text: #1c1b24;
+      --muted: #92909d;
+      --line: #e3e0e9;
+      --purple: #6c5ce7;
+      --purple-2: #8a78ef;
+      --purple-soft: #eeeafd;
+      --red: #ed5d5d;
+      --red-soft: #ffebeb;
+      --shadow: 0 24px 70px rgba(43, 33, 82, .15);
+      --phone-shadow: 0 16px 42px rgba(36, 31, 52, .22);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 0%, #fff 0, transparent 34%),
+        radial-gradient(circle at 92% 5%, #e9e4ff 0, transparent 31%),
+        var(--page);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button { font: inherit; cursor: pointer; }
+
+    .page {
+      width: min(1180px, calc(100% - 34px));
+      margin: 0 auto;
+      padding: 32px 0 58px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #6b6977;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 35px;
+      height: 35px;
+      place-items: center;
+      border-radius: 11px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--purple), var(--purple-2));
+      box-shadow: 0 8px 18px rgba(108, 92, 231, .28);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .intro {
+      max-width: 770px;
+      margin: 23px auto 28px;
+      text-align: center;
+    }
+
+    .intro h1 {
+      margin: 0;
+      font-size: clamp(25px, 4vw, 40px);
+      letter-spacing: -.05em;
+    }
+
+    .intro p {
+      margin: 10px auto 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: minmax(320px, 370px) 56px minmax(320px, 370px);
+      align-items: start;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .stage-title {
+      min-height: 55px;
+      padding: 0 4px 13px;
+    }
+
+    .stage-title .tag {
+      display: inline-flex;
+      padding: 6px 10px;
+      border: 1px solid #d2caff;
+      border-radius: 999px;
+      color: #5948d6;
+      background: var(--purple-soft);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .stage-title h2 {
+      margin: 9px 0 0;
+      font-size: 16px;
+      letter-spacing: -.025em;
+    }
+
+    .stage-title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .phone {
+      width: 100%;
+      height: 820px;
+      overflow: hidden;
+      border: 7px solid #1d1c25;
+      border-radius: 42px;
+      background: var(--phone);
+      box-shadow: var(--phone-shadow);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 29px;
+      padding: 0 16px;
+      color: #777583;
+      background: var(--phone);
+      font-size: 9px;
+      font-weight: 850;
+    }
+
+    .phone-content {
+      height: calc(100% - 29px);
+      overflow: auto;
+      scrollbar-width: none;
+    }
+
+    .phone-content::-webkit-scrollbar { display: none; }
+
+    .screen { min-height: 100%; padding: 0 17px 22px; }
+
+    /* Existing Ramingo settings sheet */
+    .sheet-handle {
+      width: 76px;
+      height: 5px;
+      margin: 0 auto 18px;
+      border-radius: 999px;
+      background: #9f9cac;
+    }
+
+    .account-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 1px 22px;
+    }
+
+    .avatar {
+      display: grid;
+      width: 64px;
+      height: 64px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 21px;
+      color: #fff;
+      background: linear-gradient(135deg, #7564ea, #8e7bf0);
+      font-size: 30px;
+      font-weight: 700;
+    }
+
+    .account-head h3 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -.035em;
+    }
+
+    .account-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .close {
+      display: grid;
+      width: 46px;
+      height: 46px;
+      margin-left: auto;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: #8d8b98;
+      background: #f0eff5;
+      font-size: 28px;
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 30px;
+    }
+
+    .stat {
+      min-height: 81px;
+      padding: 15px 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .stat strong { display: block; color: var(--purple); font-size: 26px; line-height: 1; }
+    .stat span { display: block; margin-top: 12px; color: var(--muted); font-size: 11px; font-weight: 650; }
+
+    .group-title {
+      margin: 0 0 12px;
+      color: var(--purple);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .055em;
+      text-transform: uppercase;
+    }
+
+    .settings-group {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 66px;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .settings-row:last-child { border-bottom: 0; }
+
+    .settings-icon {
+      display: grid;
+      width: 35px;
+      height: 35px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 12px;
+      color: var(--purple);
+      background: #f5f3ff;
+      font-size: 18px;
+    }
+
+    .settings-row strong { font-size: 14px; }
+
+    .settings-row small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .chevron {
+      margin-left: auto;
+      color: #91909b;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .notification-entry {
+      position: relative;
+      background: linear-gradient(90deg, #fff, #fbfaff);
+    }
+
+    .notification-entry::before {
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      left: 0;
+      width: 3px;
+      border-radius: 0 4px 4px 0;
+      background: var(--purple);
+      content: "";
+    }
+
+    .notification-entry .settings-icon { background: var(--purple-soft); }
+
+    .entry-badge {
+      margin-left: auto;
+      padding: 5px 7px;
+      border-radius: 999px;
+      color: #5c4bd5;
+      background: var(--purple-soft);
+      font-size: 8px;
+      font-weight: 850;
+    }
+
+    .danger { color: var(--red); }
+    .danger .settings-icon { color: var(--red); background: var(--red-soft); }
+    .danger .chevron { color: var(--red); }
+
+    .version {
+      margin: 24px 0 20px;
+      color: var(--muted);
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .logout {
+      display: block;
+      margin: 0 auto;
+      border: 0;
+      color: #898793;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    /* New destination screen */
+    .notification-screen { padding-top: 18px; }
+
+    .notification-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 17px;
+    }
+
+    .back,
+    .help {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--text);
+      background: var(--surface);
+    }
+
+    .back { font-size: 21px; line-height: 1; }
+    .help { margin-left: auto; color: var(--purple); font-size: 14px; font-weight: 850; }
+
+    .notification-header h3 { margin: 0; font-size: 20px; letter-spacing: -.045em; }
+    .notification-header p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+
+    .permission {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 13px;
+      padding: 12px;
+      border-radius: 14px;
+      background: var(--soft);
+    }
+
+    .permission-icon {
+      display: grid;
+      width: 29px;
+      height: 29px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 9px;
+      color: var(--purple);
+      background: #e4deff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .permission strong,
+    .permission span { display: block; }
+
+    .permission strong { font-size: 10px; }
+    .permission span { margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+
+    .notification-group { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+
+    .notification-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 63px;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .notification-row:last-child { border-bottom: 0; }
+
+    .row-icon {
+      display: grid;
+      width: 29px;
+      height: 29px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 9px;
+      color: var(--purple);
+      background: var(--purple-soft);
+      font-size: 12px;
+    }
+
+    .row-copy { min-width: 0; }
+    .row-copy strong, .row-copy small { display: block; }
+    .row-copy strong { font-size: 10px; }
+    .row-copy small { margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.3; }
+
+    .switch {
+      position: relative;
+      width: 39px;
+      height: 23px;
+      flex: 0 0 auto;
+      margin-left: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 99px;
+      background: #cbc8d3;
+    }
+
+    .switch::after {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(35, 30, 62, .18);
+      content: "";
+      transition: transform .18s ease;
+    }
+
+    .switch[aria-pressed="true"] { background: var(--purple); }
+    .switch[aria-pressed="true"]::after { transform: translateX(16px); }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 18px 0 8px;
+    }
+
+    .section-head strong { font-size: 12px; }
+    .section-head span { color: var(--purple); font-size: 9px; font-weight: 850; }
+
+    .time-value {
+      margin-left: auto;
+      padding: 8px 10px;
+      border: 1px solid #d8d1ff;
+      border-radius: 10px;
+      color: #5948d6;
+      background: var(--purple-soft);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .preset-row {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr .72fr;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .preset {
+      min-height: 34px;
+      padding: 6px 5px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .preset.active { border-color: #c8c0ff; color: #5948d6; background: var(--purple-soft); }
+
+    .primary {
+      width: 100%;
+      min-height: 41px;
+      border: 0;
+      border-radius: 13px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--purple), #7868eb);
+      box-shadow: 0 10px 20px rgba(108, 92, 231, .2);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 820px;
+      color: var(--purple);
+      font-size: 31px;
+      font-weight: 300;
+    }
+
+    .summary {
+      max-width: 870px;
+      margin: 28px auto 0;
+      padding: 17px 19px;
+      border: 1px solid #d9d2ff;
+      border-radius: 18px;
+      background: rgba(250, 249, 255, .84);
+    }
+
+    .summary h2 { margin: 0; font-size: 17px; letter-spacing: -.03em; }
+    .summary p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .summary strong { color: #5948d6; }
+
+    @media (max-width: 850px) {
+      .page { width: min(100% - 22px, 420px); padding-top: 20px; }
+      .flow { grid-template-columns: 1fr; gap: 22px; }
+      .flow-arrow { min-height: 0; height: 22px; transform: rotate(90deg); }
+      .phone { height: 820px; }
+      .summary { margin-bottom: 20px; }
+    }
+
+    @media (max-width: 430px) {
+      .page { width: min(100% - 12px, 410px); }
+      .phone { border-width: 6px; border-radius: 37px; }
+      .screen { padding-right: 12px; padding-left: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark">R</span><span>Ramingo · макет изменения настроек</span></div>
+
+    <section class="intro">
+      <h1>Уведомления внутри наших настроек</h1>
+      <p>Слева — существующий экран «Настройки аккаунта» с одной новой строкой. Справа — экран, который открывается после нажатия на «Уведомления».</p>
+    </section>
+
+    <section class="flow" aria-label="Переход из настроек в центр уведомлений">
+      <div>
+        <header class="stage-title">
+          <span class="tag">Шаг 1 · уже знакомый экран</span>
+          <h2>Настройки аккаунта</h2>
+          <p>Добавляется только выделенная строка «Уведомления».</p>
+        </header>
+
+        <div class="phone">
+          <div class="status"><span>16:28</span><span>◔ ◉ ▰ &nbsp;72%</span></div>
+          <div class="phone-content">
+            <div class="screen">
+              <div class="sheet-handle"></div>
+              <header class="account-head">
+                <span class="avatar">T</span>
+                <div><h3>timur.munykin</h3><p>Личный кабинет · Ramingo</p></div>
+                <button class="close" aria-label="Закрыть">×</button>
+              </header>
+
+              <div class="stats">
+                <div class="stat"><strong>0</strong><span>поездки</span></div>
+                <div class="stat"><strong>0</strong><span>городов</span></div>
+                <div class="stat"><strong>—</strong><span>км</span></div>
+              </div>
+
+              <h4 class="group-title">Настройки аккаунта</h4>
+              <div class="settings-group">
+                <div class="settings-row"><span class="settings-icon">◎</span><div><strong>Языки</strong></div><span class="entry-badge" style="margin-left:auto;color:#92909d;background:transparent;font-size:11px;font-weight:650">Русский</span><span class="chevron">›</span></div>
+                <div class="settings-row"><span class="settings-icon">☾</span><div><strong>Тёмная тема</strong></div><button class="switch" aria-label="Тёмная тема" aria-pressed="false"></button></div>
+                <button class="settings-row notification-entry" id="notification-entry" style="width:100%;border:0;text-align:left;color:inherit"><span class="settings-icon">♧</span><div><strong>Уведомления</strong><small>Поездки, жильё и важные даты</small></div><span class="entry-badge">Включены</span><span class="chevron">›</span></button>
+                <div class="settings-row"><span class="settings-icon">▣</span><div><strong>Сменить пароль</strong></div><span class="chevron">›</span></div>
+                <div class="settings-row"><span class="settings-icon">▧</span><div><strong>Сменить фото</strong></div><span class="chevron">›</span></div>
+                <div class="settings-row danger"><span class="settings-icon">▥</span><div><strong>Удалить аккаунт</strong></div><span class="chevron">›</span></div>
+              </div>
+
+              <div class="version">Версия приложения · 0.2.47</div>
+              <button class="logout">Выйти из аккаунта</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-arrow" aria-hidden="true">→</div>
+
+      <div id="notification-screen">
+        <header class="stage-title">
+          <span class="tag">Шаг 2 · после нажатия</span>
+          <h2>Центр уведомлений</h2>
+          <p>Новая отдельная страница с деталями напоминаний.</p>
+        </header>
+
+        <div class="phone">
+          <div class="status"><span>16:28</span><span>◔ ◉ ▰ &nbsp;72%</span></div>
+          <div class="phone-content">
+            <div class="screen notification-screen">
+              <header class="notification-header">
+                <button class="back" aria-label="Назад">‹</button>
+                <div><h3>Уведомления</h3><p>Настройте напоминания под себя</p></div>
+                <button class="help" aria-label="Справка">?</button>
+              </header>
+
+              <div class="permission"><span class="permission-icon">✓</span><div><strong>Разрешение телефона включено</strong><span>Ramingo сможет напоминать о важных датах.</span></div></div>
+
+              <div class="notification-group">
+                <div class="notification-row"><span class="row-icon">◉</span><div class="row-copy"><strong>Все уведомления</strong><small>Поездки, жильё и задачи</small></div><button class="switch" aria-label="Все уведомления" aria-pressed="true"></button></div>
+                <div class="notification-row"><span class="row-icon">✈</span><div class="row-copy"><strong>До начала поездки</strong><small>30, 14, 7, 3 и 1 день</small></div><button class="switch" aria-label="Напоминания до поездки" aria-pressed="true"></button></div>
+                <div class="notification-row"><span class="row-icon">⌂</span><div class="row-copy"><strong>Бесплатная отмена</strong><small>7, 3, 1 день и день дедлайна</small></div><button class="switch" aria-label="Напоминания об отмене" aria-pressed="true"></button></div>
+              </div>
+
+              <div class="section-head"><strong>Время отправки</strong><span>Часовой пояс: авто</span></div>
+              <div class="notification-group"><div class="notification-row"><span class="row-icon">◷</span><div class="row-copy"><strong>Ежедневное время</strong><small>Напоминания не будут приходить ночью</small></div><span class="time-value">09:00</span></div></div>
+
+              <div class="section-head"><strong>Быстрый пресет</strong></div>
+              <div class="preset-row"><button class="preset active">Сбалансированный</button><button class="preset">Только важное</button><button class="preset">Всё</button></div>
+              <button class="primary">Сохранить настройки</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary">
+      <h2>Идея изменения</h2>
+      <p>В существующем окне аккаунта появляется <strong>одна строка «Уведомления»</strong>. Все переключатели и время отправки находятся уже на отдельном экране, поэтому текущие настройки не перегружаются.</p>
+    </section>
+  </main>
+
+  <script>
+    // Интерактивность только для просмотра макета; данные приложения не сохраняются.
+    document.querySelectorAll('.switch').forEach((toggle) => {
+      toggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const next = toggle.getAttribute('aria-pressed') !== 'true';
+        toggle.setAttribute('aria-pressed', String(next));
+      });
+    });
+
+    document.querySelectorAll('.preset').forEach((preset) => {
+      preset.addEventListener('click', () => {
+        document.querySelectorAll('.preset').forEach((item) => item.classList.remove('active'));
+        preset.classList.add('active');
+      });
+    });
+
+    document.getElementById('notification-entry').addEventListener('click', () => {
+      document.getElementById('notification-screen').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  </script>
+</body>
+</html>

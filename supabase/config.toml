@@ -1,2 +1,5 @@
 [functions.public-trip]
 verify_jwt = false
+
+[functions.payment-reminders]
+verify_jwt = false

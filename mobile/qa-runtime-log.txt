@@ -1,0 +1,249 @@
+--------- beginning of main
+09-07 17:48:51.762 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:51.767 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:51.860 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:51.870 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:51.914 18705 18705 I adbd    : adbd service requested 'shell,v2,TERM=dumb,raw:monkey -p com.odyssey.travelplanner 1'
+09-07 17:48:52.117 17979 17979 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+09-07 17:48:52.131 17979 17979 I AndroidRuntime: Using default boot image
+09-07 17:48:52.131 17979 17979 I AndroidRuntime: Leaving lock profiling enabled
+09-07 17:48:52.138 17979 17979 I app_process: Using generational CollectorTypeCMC GC.
+09-07 17:48:52.272 17979 17979 D nativeloader: InitDefaultPublicLibraries for_preload=1: libandroid.so:libaaudio.so:libamidi.so:libbinder_ndk.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicu.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativehelper.so:libnativewindow.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so
+09-07 17:48:52.296 17979 17979 D nativeloader: Load libicu_jni.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+09-07 17:48:52.297 17979 17979 D app_process: u_setTimeZoneFilesDirectory("/apex/com.android.tzdata/etc/tz/versioned/8/icu") succeeded. 
+09-07 17:48:52.297 17979 17979 D app_process: I18n APEX ICU file found: /apex/com.android.i18n/etc/icu/icudt75l.dat
+09-07 17:48:52.299 17979 17979 D nativeloader: Load libjavacore.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+09-07 17:48:52.301 17979 17979 D nativeloader: Load libopenjdk.so using APEX ns com_android_art for caller /apex/com.android.art/javalib/core-oj.jar: ok
+09-07 17:48:52.307 17979 17979 I app_process: Priority-to-niceness mapping: 19, 16, 13, 10, 0, -2, -4, -5, -6, -8
+09-07 17:48:52.343 17979 17979 W libc    : Access denied finding property "ro.vendor.mtk.hbt_binfmt_misc_support"
+09-07 17:48:52.343 17979 17979 W libc    : Access denied finding property "ro.vendor.mtk.app32_boost_support"
+09-07 17:48:52.343 17979 17979 W libc    : Access denied finding property "ro.vendor.mtk.hbt_dyn_type"
+09-07 17:48:52.343 17979 17979 W libc    : Access denied finding property "persist.vendor.mtk.hbt_dyn_type"
+09-07 17:48:52.368 17979 17979 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+09-07 17:48:52.369 17979 17979 D AndroidRuntime: Calling main entry com.android.commands.monkey.Monkey
+09-07 17:48:52.370 17979 17979 W Monkey  : args: [-p, com.odyssey.travelplanner, 1]
+09-07 17:48:52.370 17979 17979 W Monkey  :  arg: "-p"
+09-07 17:48:52.370 17979 17979 W Monkey  :  arg: "com.odyssey.travelplanner"
+09-07 17:48:52.370 17979 17979 W Monkey  :  arg: "1"
+09-07 17:48:52.370 17979 17979 W Monkey  : data="com.odyssey.travelplanner"
+--------- beginning of system
+09-07 17:48:52.410  1810  4495 W ActivityManager: registerReceiverWithFeature: no app for null
+09-07 17:48:52.432  1810  4495 W ActivityTaskManager: callingPackage for (uid=2000, pid=17979) has no WPC
+09-07 17:48:52.434  1810  4495 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+09-07 17:48:52.434  1810  4495 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@1cf2a597 does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+09-07 17:48:52.434  1810  4495 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+09-07 17:48:52.434  1810  4495 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+09-07 17:48:52.436  1810  4495 I PowerHalWrapper: <amsBoostResume> last:null, next:com.odyssey.travelplannerhasATProcess:true 
+09-07 17:48:52.437  1810  4495 D ActivityTaskManager: Ignore refresh rate change for same package 'com.odyssey.travelplanner'.
+09-07 17:48:52.438  1810  4495 I PowerHalWrapper: amsBoostNotify pid:16636,activity:com.odyssey.travelplanner.MainActivity, package:com.odyssey.travelplanner, mProcessCreatePackcom.odyssey.travelplanner 
+09-07 17:48:52.438  1810  4495 I PowerHalWrapper: state: 1 
+09-07 17:48:52.438   860   928 I libPowerHal: [perfLockAcq] idx:0 hdl:53177 hint:22 pid:860 tid:860 duration:10000 lock_user:vendor.mediatek => ret_hdl:53177
+09-07 17:48:52.439   860   928 I libPowerHal: [PE] MTKPOWER_HINT_PACK_SWITCH update cmd:1408300, param:100, pr:3
+09-07 17:48:52.439  1810  4495 I ScnModule: [GameDetection] packname: com.odyssey.travelplanner, apkSize: 66837187. 
+09-07 17:48:52.439  1810  4495 I mtkpower_client: [PowerHal_Wrap_notifyAppState] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity pid=16636 activityId:49427725 state:1
+09-07 17:48:52.439   860   928 I libPowerHal: [PE] MTKPOWER_HINT_PACK_SWITCH update cmd:400000 param:3000000 pr:3
+09-07 17:48:52.439   860   928 I libPowerHal: [PE] MTKPOWER_HINT_PACK_SWITCH update cmd:400100 param:3000000 pr:3
+09-07 17:48:52.439   860   928 I libPowerHal: [PE] MTKPOWER_HINT_PACK_SWITCH update cmd:1000000 param:0 pr:3
+09-07 17:48:52.439   860   928 I libPowerHal: [recordCPUFreqInfo] set cluster[0] min(MTKPOWER_HINT_PACK_SWITCH): 1700000 max(-1): -1 cluster[1] min(MTKPOWER_HINT_PACK_SWITCH): 2000000 max(-1): -1
+09-07 17:48:52.439   860   928 I libPowerHal: [perfLockAcq] Done for hdl : 53177
+09-07 17:48:52.440   853   853 I vendor.mediatek.hardware.mtkpower_applist-service.mediatek: packName: com.odyssey.travelplanner actName: com.odyssey.travelplanner.MainActivity pid: 16636 activityId: 49427725 uid: 10336 state: 1
+09-07 17:48:52.440   853   853 I MTK_APPList: [notifyAPPstate] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity, pid=16636, activityId=49427725, uid=10336, state:RESUMED, fps:-1, win:0
+09-07 17:48:52.440   853   853 I MTK_APPList: [notifyAPPstate] multi_resumed_app_count: 1
+09-07 17:48:52.440   853   853 I MTK_APPList: [notifyAPPstate] multi_resumed_app_info[0] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity, pid:16636, activityId:49427725, fps:-1, isMultiWindow:0
+09-07 17:48:52.440   853   853 I MTK_APPList: [getForegroundAPPCount] 1
+09-07 17:48:52.440   853   853 I MTK_APPList: [notifyAPPstate] foreground:com.odyssey.travelplanner, pid:16636, activityId:49427725, uid:10336
+09-07 17:48:52.440   853   853 I MTK_APPList: [notifyNetdUID] 10336
+09-07 17:48:52.440   860   928 I libPowerHal: [perfLockRel] hdl:53176, idx:-1
+09-07 17:48:52.441   853   853 I MTK_APPList: [notifyPID] 16636
+09-07 17:48:52.441  1810  4495 I PowerHalWrapper: amsBoostNotify AMS_BOOST_PROCESS_CREATE_BOOST:true 
+09-07 17:48:52.441   860   928 I libPowerHal: [perfSetSysInfo] pid type:24, 16636
+09-07 17:48:52.444  1810  4495 I PowerHalWrapper: amsBoostNotify pid:16636,activity:com.odyssey.travelplanner.MainActivity, package:com.odyssey.travelplanner, mProcessCreatePackcom.odyssey.travelplanner 
+09-07 17:48:52.444  1810  4495 I PowerHalWrapper: state: 0 
+09-07 17:48:52.445  1810  4495 I ScnModule: [GameDetection] packname: com.odyssey.travelplanner, apkSize: 66837187. 
+09-07 17:48:52.445  1810  4495 I mtkpower_client: [PowerHal_Wrap_notifyAppState] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity pid=16636 activityId:49427725 state:0
+09-07 17:48:52.445   853   853 I vendor.mediatek.hardware.mtkpower_applist-service.mediatek: packName: com.odyssey.travelplanner actName: com.odyssey.travelplanner.MainActivity pid: 16636 activityId: 49427725 uid: 10336 state: 0
+09-07 17:48:52.445   853   853 I MTK_APPList: [notifyAPPstate] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity, pid=16636, activityId=49427725, uid=10336, state:PAUSED, fps:-1, win:0
+09-07 17:48:52.445   853   853 I MTK_APPList: [notifyAPPstate] multi_resumed_app_count: 0
+09-07 17:48:52.445   853   853 I MTK_APPList: [getForegroundAPPCount] 1
+09-07 17:48:52.445   853   853 I MTK_APPList: [notifyNetdUID] 10336
+09-07 17:48:52.446   853   853 I MTK_APPList: [notifyPID] 16636
+09-07 17:48:52.446  1810  4495 I PowerHalWrapper: amsBoostNotify AMS_BOOST_PROCESS_CREATE_BOOST:true 
+09-07 17:48:52.447   860   928 I libPowerHal: [perfSetSysInfo] pid type:24, 16636
+09-07 17:48:52.447  2999  3410 D KeyguardService: setOccluded(false)
+09-07 17:48:52.448  2999  3410 D KeyguardViewMediator: setOccluded(false)
+09-07 17:48:52.448  2999  2999 D KeyguardViewMediator: handleSetOccluded(false)
+09-07 17:48:52.448  2999  2999 D KeyguardViewMediator: KeyguardViewMediator queue processing message: SET_OCCLUDED
+09-07 17:48:52.448  1810  4495 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.odyssey.travelplanner/.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=3
+09-07 17:48:52.449 17979 17979 I Monkey  : Events injected: 1
+09-07 17:48:52.452  1810  4495 V SettingsProvider: name : accelerometer_rotation appId : 1000
+09-07 17:48:52.452  2999  3059 D WindowManagerShell: onActivityRestartAttempt: ComponentInfo{com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity}
+09-07 17:48:52.452  1810  4495 V SettingsProvider: name : user_rotation appId : 1000
+09-07 17:48:52.453  1810  4495 V SettingsProvider: name : accelerometer_rotation appId : 1000
+09-07 17:48:52.453  1810  4495 V SettingsProvider: name : user_rotation appId : 1000
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.453  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.454  1810  4451 D CoreBackPreview: Window{6a9b2e7 u0 com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@672839a, mPriority=0, mIsAnimationCallback=true}
+09-07 17:48:52.456 16636 16636 I Mapbox  : [maps-android\Mbgl-RenderThread]: Renderer resumed, renderThreadPrepared=true, surface.isValid=true
+09-07 17:48:52.456 17979 17979 I Monkey  : ## Network stats: elapsed time=23ms (0ms mobile, 0ms wifi, 23ms not connected)
+09-07 17:48:52.459 17979 17979 I app_process: System.exit called, status: 0
+09-07 17:48:52.459 17979 17979 I AndroidRuntime: VM exiting with result code 0.
+09-07 17:48:52.459 16636 16636 D Activity: onResume setDolbyGameProfilePackage lastPkg =  currentPkg = com.odyssey.travelplanner
+09-07 17:48:52.465 16636 16636 D ActivityThread: handleResumeActivity#3 r.window=com.android.internal.policy.PhoneWindow@48a51e1a.mFinished = falsewillBeVisible = true
+09-07 17:48:52.468  1810  1919 I PowerHalWrapper: amsBoostNotify pid:16636,activity:com.odyssey.travelplanner.MainActivity, package:com.odyssey.travelplanner, mProcessCreatePackcom.odyssey.travelplanner 
+09-07 17:48:52.468  1810  1919 I PowerHalWrapper: state: 0 
+09-07 17:48:52.469  1810  1919 I ScnModule: [GameDetection] packname: com.odyssey.travelplanner, apkSize: 66837187. 
+09-07 17:48:52.469  1810  1919 I mtkpower_client: [PowerHal_Wrap_notifyAppState] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity pid=16636 activityId:49427725 state:0
+09-07 17:48:52.469   853   853 I vendor.mediatek.hardware.mtkpower_applist-service.mediatek: packName: com.odyssey.travelplanner actName: com.odyssey.travelplanner.MainActivity pid: 16636 activityId: 49427725 uid: 10336 state: 0
+09-07 17:48:52.469   853   853 I MTK_APPList: [notifyAPPstate] com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity, pid=16636, activityId=49427725, uid=10336, state:PAUSED, fps:-1, win:0
+09-07 17:48:52.469   853   853 I MTK_APPList: [notifyAPPstate] multi_resumed_app_count: 0
+09-07 17:48:52.469   853   853 I MTK_APPList: [getForegroundAPPCount] 1
+09-07 17:48:52.469   853   853 I MTK_APPList: [notifyNetdUID] 10336
+09-07 17:48:52.471   853   853 I MTK_APPList: [notifyPID] 16636
+09-07 17:48:52.471  1810  1919 I PowerHalWrapper: amsBoostNotify AMS_BOOST_PROCESS_CREATE_BOOST:true 
+09-07 17:48:52.471   860   928 I libPowerHal: [perfSetSysInfo] pid type:24, 16636
+09-07 17:48:52.476   904   983 I BufferQueueDebug: [com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity#21192](this:0xb40000744181c640,id:-1,api:0,p:-1,c:-1) BufferQueue core=(904:/system/bin/surfaceflinger)
+09-07 17:48:52.477   399   399 E lowmemorykiller: sys.lmk.killcnt = 100:4,200:65,250:82,500:428,700:355,800:378,900:4966
+09-07 17:48:52.478   399   399 I lowmemorykiller: Kill 'com.google.android.apps.messaging' (14570), uid 10143, oom_score_adj 965 to free 142732kB rss, 45464kB swap; reason: device is not responding
+09-07 17:48:52.479  1810  1857 I WindowManager: Relayout Window{6a9b2e7 u0 com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity}: oldVis=4 newVis=0 focusMayChange = true requestedWidth = 720 requestedHeight = 1640 outFrames = ClientWindowFrames{frame=[0,0][720,1640] display=[0,0][720,1640] parentFrame=[0,0][0,0]} outSurfaceControl = Surface(name=com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity)/@0x4e53f66
+09-07 17:48:52.479   399   399 W LibMBrainProxy: MBrain offline
+09-07 17:48:52.484 16636 16636 D BufferQueueConsumer: [](id:40fc00000004,api:0,p:-1,c:16636) connect: controlledByApp=false
+09-07 17:48:52.484   399   421 E lowmemorykiller: process_mrelease 14570 failed: No such process
+09-07 17:48:52.484 16636 16636 D BLASTBufferQueue: [VRI[MainActivity]#2](f:0,a:0) constructor()
+09-07 17:48:52.484 16636 16636 D BLASTBufferQueue: [VRI[MainActivity]#2](f:0,a:0) update width=720 height=1640 format=-1 mTransformHint=0
+09-07 17:48:52.495 16636 16636 D TextureView: getHardwareLayer, createNewSurface:false
+09-07 17:48:52.515 16636 16662 D BLASTBufferQueue: [VRI[MainActivity]#2](f:0,a:1) acquireNextBufferLocked size=720x1640 mFrameNumber=1 applyTransaction=true mTimestamp=76375690885628(auto) mPendingTransactions.size=0 graphicBufferId=71451075936288 transform=0
+09-07 17:48:52.520 16636 16636 I Mapbox  : [maps-android\Mbgl-RenderThread]: Renderer paused
+09-07 17:48:52.521 16636 16636 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=androidx.activity.OnBackPressedDispatcher$Api34Impl$createOnBackAnimationCallback$1@b41dfbf
+09-07 17:48:52.522 16636 16653 I Mapbox  : [events_service]: Queue is empty, nothing to flush
+09-07 17:48:52.522  1810  1857 D CoreBackPreview: Window{6a9b2e7 u0 com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@dd142a7, mPriority=-1, mIsAnimationCallback=false}
+09-07 17:48:52.523 16636 16651 I Mapbox  : [events_service]: Queue is empty, nothing to flush
+09-07 17:48:52.539 16636 16662 D BLASTBufferQueue: [VRI[MainActivity]#2](f:0,a:1) destructor()
+09-07 17:48:52.539 16636 16662 D BufferQueueConsumer: [VRI[MainActivity]#2(BLAST Consumer)2](id:40fc00000004,api:0,p:-1,c:16636) disconnect
+09-07 17:48:52.541  1810  3269 V ActivityManager: Death received in com.android.server.am.ActivityManagerService$AppDeathRecipient@1031b1d for thread android.os.BinderProxy@6039192
+09-07 17:48:52.541 18705 18705 I adbd    : Remote process closed the socket (on MSG_PEEK)
+09-07 17:48:52.541  1810  3269 I ActivityManager: Process com.google.android.apps.messaging (pid 14570) has died: cch+65 CEM 
+09-07 17:48:52.541   817   817 I Zygote  : Process 14570 exited due to signal 9 (Killed)
+09-07 17:48:52.542  1810  1971 I libprocessgroup: Removed cgroup /sys/fs/cgroup/uid_10143/pid_14570
+09-07 17:48:52.547  1810  3269 I mtkpower_client: [PowerHal_Wrap_notifyAppState] com.google.android.apps.messaging/com.google.android.apps.messaging pid=14570 activityId:14570 state:3
+09-07 17:48:52.547   853   853 I vendor.mediatek.hardware.mtkpower_applist-service.mediatek: packName: com.google.android.apps.messaging actName: com.google.android.apps.messaging pid: 14570 activityId: 14570 uid: 10143 state: 3
+09-07 17:48:52.547   853   853 I MTK_APPList: [notifyAPPstate] com.google.android.apps.messaging/com.google.android.apps.messaging, pid=14570, activityId=14570, uid=10143, state:DEAD, fps:-1, win:0
+09-07 17:48:52.547   853   853 I MTK_APPList: [notifyAPPstate] multi_resumed_app_count: 0
+09-07 17:48:52.548   853   853 I MTK_APPList: [getForegroundAPPCount] 1
+09-07 17:48:52.548   853   853 I MTK_APPList: [notifyAPPstate] pack:com.google.android.apps.messaging, pid:14570, STATE_DEAD
+09-07 17:48:52.548   853   853 I MTK_APPList: [notifyNetdUID] 10336
+09-07 17:48:52.548   853   853 I MTK_APPList: [notifyPID] 16636
+09-07 17:48:52.549   860   928 I libPowerHal: [perfSetSysInfo] pid type:24, 16636
+09-07 17:48:52.552  1810  4496 I PowerHalWrapper: amsBoostStop AMS_BOOST_PACK_SWITCH:true, AMS_BOOST_ACT_SWITCH:false, AMS_BOOST_PROCESS_CREATE:false, AMS_BOOST_PROCESS_CREATE_FOR_GAME:false, AMS_BOOST_HOT_LAUNCH:false 
+09-07 17:48:52.552   860   895 I libPowerHal: [mtkPowerHint] hint:22, hold:500, ext:0, ext_hold:0
+09-07 17:48:52.553  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.553  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.553  1810  1917 E ApplicationHelper: Fail to get PackageManager
+09-07 17:48:52.554   860   928 I libPowerHal: [perfLockAcq] idx:2 hdl:53178 hint:22 pid:860 tid:860 duration:500 lock_user:vendor.mediatek => ret_hdl:53178
+09-07 17:48:52.554   860   928 I libPowerHal: [perfLockAcq] Done for hdl : 53178
+09-07 17:48:52.554   860   928 I libPowerHal: [perfLockRel] hdl:53177, idx:0
+09-07 17:48:52.555   860   928 I libPowerHal: [perfLockRel] Done for hdl : 53177
+09-07 17:48:52.555   904   904 I SurfaceFlinger: onHandleDestroyed: name=com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity#21192, layerId=21192, parentId=0
+09-07 17:48:52.572   904   904 I BufferQueueDebug: [com.odyssey.travelplanner/com.odyssey.travelplanner.MainActivity#21192](this:0xb40000744181c640,id:-1,api:0,p:-1,c:904) onDestructor()
+09-07 17:48:53.054   860   928 I mtkpower@impl: [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:53178
+09-07 17:48:53.054   860   928 I libPowerHal: [perfLockRel] hdl:53178, idx:2
+09-07 17:48:53.054   860   928 I libPowerHal: [PD] MTKPOWER_HINT_PACK_SWITCH update cmd:1408300 param:0, pr:6
+09-07 17:48:53.055   860   928 I libPowerHal: [PD] MTKPOWER_HINT_PACK_SWITCH update cmd:400000 param:-1 pr:6
+09-07 17:48:53.055   860   928 I libPowerHal: [PD] MTKPOWER_HINT_PACK_SWITCH update cmd:400100 param:-1 pr:6
+09-07 17:48:53.056   860   928 I libPowerHal: [PD] MTKPOWER_HINT_PACK_SWITCH update cmd:1000000 param:-1 pr:6
+09-07 17:48:53.056   860   928 I libPowerHal: [recordCPUFreqInfo] set cluster[0] min(-1): -1 max(-1): -1 cluster[1] min(-1): -1 max(-1): -1
+09-07 17:48:53.057   860   928 I libPowerHal: [perfLockRel] Done for hdl : 53178
+09-07 17:48:53.094  5875  5875 D BoundBrokerSvc: onRebind: Intent { act=com.google.android.gms.libs.gmscorelogger.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.PersistentDirectBootAwareApiService }
+09-07 17:48:53.354  1810  1927 D AES     : AEEIOCTL_GET/SET_SF_STATE IOCTL,cmd= 1074294797, lParam=0. 
+09-07 17:48:53.356  1810  1927 D Watchdog: run psi cpu:0 io:0 memory:0
+09-07 17:48:53.357  1810  1927 D AES     : AEEIOCTL_RT_MON_Kick IOCTL,cmd= 2147774474, lParam=300. 
+09-07 17:48:53.584 18705 18705 I adbd    : adbd service requested 'exec:screencap '-p''
+09-07 17:48:53.797 18007 18007 W BpBinder: Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+09-07 17:48:53.798 18007 18007 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+09-07 17:48:53.845 18007 18008 I GrallocExtra: gralloc_extra_query:is_SW3D 0
+09-07 17:48:53.846 18007 18007 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm
+09-07 17:48:53.846 18007 18007 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm-uncached
+09-07 17:48:53.846 18007 18007 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_svp_region
+09-07 17:48:53.846 18007 18007 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_prot_region
+09-07 17:48:53.846 18007 18007 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_wfd_region
+09-07 17:48:54.000 18007 18007 W RefBase : RefBase: Explicit destruction, weak count = 0 (in 0x6fcf5f0840). Use sp<> to manage this object.
+09-07 17:48:54.013 18007 18007 D RefBase :   #00 pc 000000000005e6c0  /apex/com.android.runtime/lib64/bionic/libc.so (__cxa_finalize+224) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:54.013 18007 18007 D RefBase :   #01 pc 0000000000063748  /apex/com.android.runtime/lib64/bionic/libc.so (exit+24) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:54.013 18007 18007 D RefBase :   #02 pc 0000000000057208  /apex/com.android.runtime/lib64/bionic/libc.so (__libc_init+120) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:54.827  1148  1148 I thermal_repeater: [recvMdThermalInfo] ret=29, strLen=127,  1, 32767,,, -28401, 32767, 0
+09-07 17:48:57.557  1810  1965 I ActivityManager: Test idle passed
+09-07 17:48:57.713  4343  4355 I m.ontim.sidebar: Background concurrent mark compact GC freed 96KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 1603KB/3206KB, paused 746us,3.631ms total 108.548ms
+09-07 17:48:58.094 18705 18705 I adbd    : adbd service requested 'exec:screencap '-p''
+09-07 17:48:58.306 18012 18012 W BpBinder: Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+09-07 17:48:58.306 18012 18012 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+09-07 17:48:58.347 18012 18013 I GrallocExtra: gralloc_extra_query:is_SW3D 0
+09-07 17:48:58.348 18012 18012 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm
+09-07 17:48:58.348 18012 18012 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm-uncached
+09-07 17:48:58.348 18012 18012 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_svp_region
+09-07 17:48:58.348 18012 18012 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_prot_region
+09-07 17:48:58.348 18012 18012 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_wfd_region
+09-07 17:48:58.500 18012 18012 W RefBase : RefBase: Explicit destruction, weak count = 0 (in 0x76a47fd840). Use sp<> to manage this object.
+09-07 17:48:58.511 18012 18012 D RefBase :   #00 pc 000000000005e6c0  /apex/com.android.runtime/lib64/bionic/libc.so (__cxa_finalize+224) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:58.511 18012 18012 D RefBase :   #01 pc 0000000000063748  /apex/com.android.runtime/lib64/bionic/libc.so (exit+24) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:58.511 18012 18012 D RefBase :   #02 pc 0000000000057208  /apex/com.android.runtime/lib64/bionic/libc.so (__libc_init+120) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:48:58.984 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:58.990 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:59.700 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:48:59.914 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:00.381 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:02.478  1810  4496 D PerfStats: Ontim_Liuting getDevicesForAttributesImpl: 0,023ms [cache: true, hit: true]
+09-07 17:49:02.479  1810  3269 D PerfStats: Ontim_Liuting getDevicesForAttributesImpl: 0,012ms [cache: true, hit: true]
+09-07 17:49:02.565  1810  1965 I ActivityManager: Test idle passed
+09-07 17:49:02.694  4362  4371 I olby.daxservice: Background concurrent mark compact GC freed 224KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 1647KB/3294KB, paused 332us,3.245ms total 107.553ms
+09-07 17:49:04.850  1148  1148 I thermal_repeater: [recvMdThermalInfo] ret=29, strLen=127,  1, 32767,,, -28401, 32767, 0
+09-07 17:49:04.946   919   932 D ccci_mdinit: (1):monitor_time_update_thread round:7029 ########
+09-07 17:49:04.961  1810  2919 D TnDeviceStorageMonitorServiceExImpl: checkLowStorage  usableBytes=185570672640 cur3G =3000000000 cur500M=500000000
+09-07 17:49:06.209 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:06.213 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:06.802 12221 12269 I PlayCommon: [1522] Preparing logs for uploading
+09-07 17:49:06.894 12221 12269 I PlayCommon: [1522] Connecting to server: https://play.googleapis.com/play/log?format=raw&proto_v2=true
+09-07 17:49:06.974 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:06.983 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:07.100 12221 12269 I PlayCommon: [1522] Successfully uploaded logs.
+09-07 17:49:07.571  1810  1965 I ActivityManager: Test idle passed
+09-07 17:49:07.773  4366  4382 D libtmsnfc_nci: ART-GC black_dense_end:0x213f000 mid_gen_end:0x2143000 post_compact_end:0x216b000 black_allocations_begin:0x2268000 young:0 performed_compaction:1
+09-07 17:49:07.775  4366  4382 I libtmsnfc_nci: Background concurrent mark compact GC freed 1021KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 2979KB/5958KB, paused 375us,4.701ms total 196.467ms
+09-07 17:49:07.778  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /system/priv-app/TagGoogle/TagGoogle.apk' with 1 weak references
+09-07 17:49:07.779  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/base.apk' with 1 weak references
+09-07 17:49:07.780  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_AdsDynamite_installtime.apk' with 1 weak references
+09-07 17:49:07.780  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_CronetDynamite_installtime.apk' with 1 weak references
+09-07 17:49:07.780  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_DynamiteLoader_installtime.apk' with 1 weak references
+09-07 17:49:07.781  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_DynamiteModulesA_installtime.apk' with 1 weak references
+09-07 17:49:07.781  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_DynamiteModulesC_installtime.apk' with 1 weak references
+09-07 17:49:07.781  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_GoogleCertificates_installtime.apk' with 1 weak references
+09-07 17:49:07.781  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_MapsDynamite_installtime.apk' with 1 weak references
+09-07 17:49:07.782  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_MeasurementDynamite_installtime.apk' with 1 weak references
+09-07 17:49:07.782  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_config.ru.apk' with 1 weak references
+09-07 17:49:07.783  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_config.xhdpi.apk' with 1 weak references
+09-07 17:49:07.783  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~fsHR0AtaCHtDC6Jq95iF-g==/com.google.android.gms-1TlcAv2SdTXNZKu35PDrUA==/split_maps_core_dynamite_ondemand.apk' with 1 weak references
+09-07 17:49:07.784  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~lGNAvXJk0moQdnJ4i78ZBw==/com.twitter.android-x12I__U1VEejaRu22snFEw==/base.apk' with 1 weak references
+09-07 17:49:07.785  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~lGNAvXJk0moQdnJ4i78ZBw==/com.twitter.android-x12I__U1VEejaRu22snFEw==/split_config.arm64_v8a.apk' with 1 weak references
+09-07 17:49:07.786  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~lGNAvXJk0moQdnJ4i78ZBw==/com.twitter.android-x12I__U1VEejaRu22snFEw==/split_config.ru.apk' with 1 weak references
+09-07 17:49:07.786  4366  4384 W libtmsnfc_nci: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~lGNAvXJk0moQdnJ4i78ZBw==/com.twitter.android-x12I__U1VEejaRu22snFEw==/split_config.xhdpi.apk' with 1 weak references
+09-07 17:49:08.092 17107 17279 E msys    : E[N mns:DGWClient]_LogError(356)=>Failed to resolve using system DNS resolver, getaddrinfo(): No address associated with hostname
+09-07 17:49:08.126  5875  5875 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.libs.gmscorelogger.service.START dat=chimera-action:/... cmp=com.google.android.gms/.chimera.PersistentDirectBootAwareApiService }
+09-07 17:49:08.358  1810  1927 D AES     : AEEIOCTL_GET/SET_SF_STATE IOCTL,cmd= 1074294797, lParam=0. 
+09-07 17:49:08.360  1810  1927 D Watchdog: run psi cpu:0 io:0 memory:0
+09-07 17:49:08.360  1810  1927 D AES     : AEEIOCTL_RT_MON_Kick IOCTL,cmd= 2147774474, lParam=300. 
+09-07 17:49:08.588 18705 18705 I adbd    : adbd service requested 'exec:screencap '-p''
+09-07 17:49:08.797 18031 18031 W BpBinder: Linking to death on android.gui.ISurfaceComposer but there are no threads (yet?) listening to incoming transactions. See ProcessState::startThreadPool and ProcessState::setThreadPoolMaxThreadCount. Generally you should setup the binder threadpool before other initialization steps.
+09-07 17:49:08.798 18031 18031 W ProcessState: Extra binder thread started, but 0 threads requested. Do not use *startThreadPool when zero threads are requested.
+09-07 17:49:08.838 18031 18032 I GrallocExtra: gralloc_extra_query:is_SW3D 0
+09-07 17:49:08.839 18031 18031 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm
+09-07 17:49:08.839 18031 18031 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_mm-uncached
+09-07 17:49:08.839 18031 18031 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_svp_region
+09-07 17:49:08.839 18031 18031 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_prot_region
+09-07 17:49:08.839 18031 18031 I DMABUFHEAPS: Using DMA-BUF heap named: mtk_wfd_region
+09-07 17:49:08.996 18031 18031 W RefBase : RefBase: Explicit destruction, weak count = 0 (in 0x7f78d9f840). Use sp<> to manage this object.
+09-07 17:49:09.006 18031 18031 D RefBase :   #00 pc 000000000005e6c0  /apex/com.android.runtime/lib64/bionic/libc.so (__cxa_finalize+224) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:49:09.006 18031 18031 D RefBase :   #01 pc 0000000000063748  /apex/com.android.runtime/lib64/bionic/libc.so (exit+24) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:49:09.006 18031 18031 D RefBase :   #02 pc 0000000000057208  /apex/com.android.runtime/lib64/bionic/libc.so (__libc_init+120) (BuildId: cbe22ca05e685f937423c07537887fb8)
+09-07 17:49:09.080 18705 18705 I adbd    : adbd service requested 'shell,v2,TERM=dumb:export ANDROID_LOG_TAGS=''; exec logcat '-d' '-t' '1000''

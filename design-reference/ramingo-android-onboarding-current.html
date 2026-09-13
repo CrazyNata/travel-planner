@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f1f1f5">
+  <title>Ramingo · обучение использованию</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f1f1f5;
+      --page-glow: #fbfbfe;
+      --surface: #ffffff;
+      --surface-soft: #f8f8fb;
+      --phone: #f6f6f8;
+      --phone-deep: #ededf3;
+      --text: #11121a;
+      --muted: #747584;
+      --faint: #a4a5b0;
+      --line: #e2e2e9;
+      --line-strong: #d3d2e1;
+      --accent: #6d5ce8;
+      --accent-deep: #5746d4;
+      --accent-soft: #eeeaff;
+      --accent-wash: #f7f4ff;
+      --green: #3f9f76;
+      --blue: #4e8ccf;
+      --bezel: #1d1d24;
+      --bezel-hole: #0e0e13;
+      --shadow: 0 24px 70px rgba(36, 34, 70, .13);
+      --phone-shadow: 0 22px 42px rgba(22, 21, 32, .22);
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #17171d;
+      --page-glow: #22222c;
+      --surface: #24242d;
+      --surface-soft: #2c2c37;
+      --phone: #1d1d25;
+      --phone-deep: #292934;
+      --text: #f5f4fb;
+      --muted: #a7a6b5;
+      --faint: #777787;
+      --line: #3a3947;
+      --line-strong: #4a485a;
+      --accent: #897bff;
+      --accent-deep: #9b8fff;
+      --accent-soft: #332e54;
+      --accent-wash: #27233e;
+      --green: #6bc59c;
+      --blue: #72b0f0;
+      --bezel: #0c0c11;
+      --bezel-hole: #050508;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .28);
+      --phone-shadow: 0 22px 42px rgba(0, 0, 0, .38);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root[data-theme="system"] {
+        color-scheme: dark;
+        --page: #17171d;
+        --page-glow: #22222c;
+        --surface: #24242d;
+        --surface-soft: #2c2c37;
+        --phone: #1d1d25;
+        --phone-deep: #292934;
+        --text: #f5f4fb;
+        --muted: #a7a6b5;
+        --faint: #777787;
+        --line: #3a3947;
+        --line-strong: #4a485a;
+        --accent: #897bff;
+        --accent-deep: #9b8fff;
+        --accent-soft: #332e54;
+        --accent-wash: #27233e;
+        --green: #6bc59c;
+        --blue: #72b0f0;
+        --bezel: #0c0c11;
+        --bezel-hole: #050508;
+        --shadow: 0 24px 70px rgba(0, 0, 0, .28);
+        --phone-shadow: 0 22px 42px rgba(0, 0, 0, .38);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 50% -10%, var(--page-glow) 0, transparent 42rem),
+        var(--page);
+      color: var(--text);
+      font-family: Manrope, "Segoe UI", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+    img { display: block; max-width: 100%; }
+    .page-wrap { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
+
+    .topbar {
+      min-height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--accent);
+      box-shadow: 0 8px 18px rgba(109, 92, 232, .22);
+    }
+    .brand-mark img { width: 23px; height: 23px; }
+    .brand-name { font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+    .brand-sub {
+      margin-left: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .top-controls { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-end; }
+    .control-cluster { display: flex; align-items: center; gap: 8px; }
+    .control-label {
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .segmented {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--surface);
+    }
+    .segmented button {
+      min-width: 32px;
+      min-height: 28px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 9px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .segmented button.is-active {
+      color: var(--accent-deep);
+      background: var(--accent-soft);
+    }
+
+    .hero { padding: 64px 0 42px; max-width: 790px; }
+    .eyebrow, .section-kicker {
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin: 0; }
+    .hero h1 {
+      max-width: 680px;
+      margin-top: 14px;
+      font-size: clamp(34px, 5vw, 62px);
+      line-height: 1.02;
+      letter-spacing: -.06em;
+    }
+    .hero-copy {
+      max-width: 660px;
+      margin-top: 19px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin-top: 25px;
+    }
+    .meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .meta-item::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .approval-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 29px;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: color-mix(in srgb, var(--surface) 76%, transparent);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .approval-mark strong { color: var(--text); }
+    .approval-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+    .flow-card {
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .flow-sidebar {
+      display: flex;
+      flex-direction: column;
+      min-height: 735px;
+      padding: 28px 24px 23px;
+      border-right: 1px solid var(--line);
+    }
+    .panel-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .panel-label output { color: var(--accent); font-variant-numeric: tabular-nums; }
+    .flow-sidebar h2 {
+      margin-top: 15px;
+      font-size: 25px;
+      line-height: 1.08;
+      letter-spacing: -.045em;
+    }
+    .sidebar-copy {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .step-list { display: grid; gap: 9px; margin-top: 27px; }
+    .step-button {
+      display: grid;
+      grid-template-columns: 31px minmax(0, 1fr) 17px;
+      align-items: center;
+      gap: 11px;
+      width: 100%;
+      min-height: 72px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 13px;
+      color: var(--text);
+      background: var(--surface);
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .2s ease, background .2s ease, transform .2s ease;
+    }
+    .step-button:hover { transform: translateY(-1px); border-color: var(--line-strong); }
+    .step-button.is-active {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: var(--accent-wash);
+    }
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 29px;
+      height: 29px;
+      border-radius: 9px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-size: 10px;
+      font-weight: 900;
+    }
+    .step-button.is-active .step-number { color: #fff; background: var(--accent); }
+    .step-text { min-width: 0; }
+    .step-text strong { display: block; font-size: 12px; letter-spacing: -.02em; }
+    .step-text span {
+      display: block;
+      overflow: hidden;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .step-arrow { color: var(--faint); font-size: 18px; }
+    .flow-note {
+      margin-top: auto;
+      padding: 15px;
+      border-radius: 15px;
+      background: var(--surface-soft);
+    }
+    .flow-note strong { display: block; font-size: 11px; }
+    .flow-note p { margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .desktop-actions { display: flex; gap: 7px; margin-top: 16px; }
+    .action-button, .phone-button, .mini-target {
+      border: 0;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .action-button:hover, .phone-button:hover, .mini-target:hover { transform: translateY(-1px); }
+    .action-button {
+      min-height: 36px;
+      border-radius: 10px;
+      padding: 0 13px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .action-button.primary, .phone-button.primary {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 8px 16px rgba(109, 92, 232, .22);
+    }
+    .action-button.ghost, .phone-button.ghost {
+      color: var(--accent-deep);
+      background: var(--accent-soft);
+    }
+    .action-button.outline, .phone-button.outline {
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .action-button:disabled, .phone-button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    .flow-preview {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 28px 30px 27px;
+      background: var(--surface-soft);
+    }
+    .preview-topline { display: flex; justify-content: space-between; align-items: center; color: var(--faint); font-size: 10px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .preview-topline strong { color: var(--accent); font-size: 10px; }
+    .phone-stage { display: grid; place-items: center; flex: 1; min-height: 0; padding: 27px 12px 17px; }
+    .phone {
+      position: relative;
+      width: min(340px, 100%);
+      aspect-ratio: 0.497;
+      padding: 7px;
+      border: 6px solid var(--bezel);
+      border-radius: 47px;
+      background: var(--bezel);
+      box-shadow: var(--phone-shadow);
+    }
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: -6px;
+      left: 24px;
+      width: 28px;
+      height: 3px;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--bezel) 72%, #fff);
+      opacity: .4;
+    }
+    .phone-camera {
+      position: absolute;
+      z-index: 3;
+      top: 11px;
+      left: 50%;
+      width: 76px;
+      height: 24px;
+      transform: translateX(-50%);
+      border-radius: 0 0 16px 16px;
+      background: var(--bezel);
+    }
+    .phone-camera::after {
+      content: "";
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      transform: translateX(-50%);
+      border: 2px solid #343441;
+      border-radius: 50%;
+      background: var(--bezel-hole);
+    }
+    .phone-screen {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 36px;
+      background: var(--phone);
+      color: var(--text);
+    }
+    .phone-status {
+      display: flex;
+      justify-content: space-between;
+      height: 31px;
+      padding: 11px 15px 0;
+      color: var(--muted);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    .phone-status span:last-child { letter-spacing: .11em; }
+    .phone-content { height: calc(100% - 31px); }
+    .home-indicator {
+      position: absolute;
+      z-index: 5;
+      bottom: 7px;
+      left: 50%;
+      width: 72px;
+      height: 4px;
+      transform: translateX(-50%);
+      border-radius: 5px;
+      background: currentColor;
+      opacity: .22;
+    }
+    .scene {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 0 19px 22px;
+    }
+    .appbar { display: flex; align-items: center; justify-content: space-between; min-height: 50px; gap: 8px; }
+    .app-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .app-brand img { width: 28px; height: 28px; }
+    .app-brand strong { font-size: 13px; font-weight: 900; letter-spacing: -.03em; }
+    .app-link, .icon-button, .top-more {
+      border: 0;
+      padding: 4px;
+      color: var(--accent);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .icon-button { width: 27px; color: var(--muted); font-size: 19px; line-height: 1; }
+    .top-more { width: 24px; color: var(--accent); font-size: 17px; }
+    .screen-kicker { margin-top: 4px; color: var(--accent); font-size: 9px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .scene-body { flex: 1; min-height: 0; }
+    .plan-body { display: flex; flex-direction: column; gap: 14px; }
+    .feature-preview {
+      margin-top: 6px;
+      padding: 15px 14px 14px;
+      border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+      border-radius: 22px;
+      background: color-mix(in srgb, var(--accent-soft) 65%, var(--phone));
+    }
+    .mini-appbar { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 7px; font-weight: 800; }
+    .mini-appbar img { width: 17px; height: 17px; }
+    .mini-appbar span:last-child { margin-left: auto; color: var(--accent); font-size: 11px; }
+    .mini-home-title { margin-top: 12px; font-size: 16px; font-weight: 900; letter-spacing: -.045em; }
+    .filter-row { display: flex; gap: 4px; margin-top: 7px; }
+    .filter {
+      padding: 4px 7px;
+      border-radius: 7px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 6px;
+      font-weight: 800;
+    }
+    .filter.active { color: #fff; background: var(--accent); }
+    .trip-cover {
+      position: relative;
+      overflow: hidden;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(132deg, #181c3e 0%, #2a2d60 48%, #514557 100%);
+    }
+    .trip-cover::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 74% 18%, rgba(255, 221, 163, .93) 0 7%, transparent 7.5%),
+        radial-gradient(circle at 62% 44%, rgba(195, 204, 255, .4) 0 11%, transparent 11.5%),
+        linear-gradient(145deg, transparent 0 41%, rgba(247, 201, 150, .22) 41.5% 45%, transparent 45.5%);
+      opacity: .9;
+    }
+    .trip-cover-content { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end; min-height: 116px; padding: 13px; }
+    .trip-cover.large .trip-cover-content { min-height: 118px; }
+    .trip-cover.compact .trip-cover-content { min-height: 93px; padding: 11px; }
+    .trip-badge { align-self: flex-start; padding: 4px 6px; border-radius: 5px; color: #fff; background: rgba(13, 15, 42, .38); font-size: 6px; font-weight: 800; }
+    .trip-cover strong { display: block; margin-top: 9px; font-size: 16px; letter-spacing: -.045em; }
+    .trip-cover small { display: block; margin-top: 3px; color: rgba(255,255,255,.72); font-size: 7px; font-weight: 700; }
+    .route-chip {
+      overflow: hidden;
+      margin-top: 8px;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 7px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .copy-block { text-align: center; }
+    .copy-block h2 { font-size: 20px; line-height: 1.06; letter-spacing: -.055em; }
+    .copy-block p { max-width: 235px; margin: 8px auto 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .progress-dots { display: flex; justify-content: center; align-items: center; gap: 5px; margin-top: auto; padding-top: 12px; }
+    .progress-dots i { display: block; width: 6px; height: 6px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 30%, var(--phone)); }
+    .progress-dots i.is-active { width: 22px; background: var(--accent); }
+    .phone-actions { display: flex; gap: 7px; margin-top: 12px; }
+    .phone-button { min-height: 39px; border-radius: 12px; padding: 0 12px; font-size: 10px; font-weight: 900; }
+    .phone-actions .phone-button { flex: 1; }
+    .build-scene .appbar { min-height: 44px; }
+    .build-title { min-width: 0; text-align: center; }
+    .build-title strong { display: block; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .build-title span { display: block; margin-top: 2px; color: var(--muted); font-size: 7px; font-weight: 700; }
+    .build-body { display: flex; flex-direction: column; gap: 8px; }
+    .trip-heading { display: flex; align-items: center; justify-content: space-between; }
+    .trip-heading small { display: block; color: var(--muted); font-size: 7px; font-weight: 700; }
+    .trip-heading strong { display: block; margin-top: 3px; font-size: 13px; letter-spacing: -.035em; }
+    .trip-heading .gear { color: var(--accent); font-size: 13px; }
+    .map-preview {
+      position: relative;
+      height: 119px;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--green) 22%, var(--line));
+      background: #dfece5;
+    }
+    [data-theme="dark"] .map-preview,
+    [data-theme="dark"] .mini-map { background: #263c3b; }
+    @media (prefers-color-scheme: dark) {
+      :root[data-theme="system"] .map-preview,
+      :root[data-theme="system"] .mini-map { background: #263c3b; }
+    }
+    .map-preview::before, .mini-map::before {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      background:
+        linear-gradient(26deg, transparent 31%, rgba(101, 145, 137, .28) 31.5% 32.5%, transparent 33%),
+        linear-gradient(138deg, transparent 47%, rgba(101, 145, 137, .25) 47.5% 48.5%, transparent 49%),
+        linear-gradient(7deg, transparent 67%, rgba(101, 145, 137, .22) 67.5% 68.5%, transparent 69%),
+        repeating-linear-gradient(92deg, transparent 0 38px, rgba(255,255,255,.3) 39px 41px, transparent 42px 73px);
+      transform: rotate(-7deg);
+    }
+    .map-preview::after, .mini-map::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 19% 44%, rgba(255,255,255,.65), transparent 24%), radial-gradient(circle at 83% 76%, rgba(255,255,255,.5), transparent 20%);
+    }
+    .route-line {
+      position: absolute;
+      z-index: 1;
+      inset: 11px 14px;
+      width: calc(100% - 28px);
+      height: calc(100% - 22px);
+    }
+    .route-line path { fill: none; stroke: var(--accent); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+    .map-pin {
+      position: absolute;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 2px solid #fff;
+      border-radius: 50% 50% 50% 5px;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 4px 9px rgba(58, 44, 129, .22);
+      font-size: 7px;
+      font-weight: 900;
+      transform: rotate(-45deg);
+    }
+    .map-pin span { transform: rotate(45deg); }
+    .pin-one { left: 27%; top: 56%; }
+    .pin-two { left: 60%; top: 24%; }
+    .pin-three { left: 78%; top: 61%; }
+    .day-tabs { display: flex; gap: 5px; }
+    .day-tab { padding: 5px 8px; border-radius: 7px; color: var(--muted); background: var(--surface); font-size: 7px; font-weight: 900; }
+    .day-tab.active { color: #fff; background: var(--accent); }
+    .places { display: grid; gap: 5px; }
+    .place-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      padding: 5px 7px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+    }
+    .place-icon { display: grid; place-items: center; width: 19px; height: 19px; border-radius: 7px; color: var(--accent); background: var(--accent-soft); font-size: 9px; }
+    .place-row strong { display: block; font-size: 8px; }
+    .place-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 6px; }
+    .place-arrow { margin-left: auto; color: var(--faint); font-size: 12px; }
+    .build-copy { margin-top: 2px; text-align: center; }
+    .build-copy h2 { font-size: 17px; line-height: 1.08; letter-spacing: -.045em; }
+    .build-copy p { margin: 5px auto 0; color: var(--muted); font-size: 8px; line-height: 1.35; }
+    .scene-start .appbar { min-height: 47px; }
+    .start-body { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .start-orb {
+      display: grid;
+      place-items: center;
+      width: 47px;
+      height: 47px;
+      margin-top: 15px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+      border-radius: 15px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font-size: 22px;
+    }
+    .start-body h2 { max-width: 250px; margin-top: 17px; font-size: 23px; line-height: 1.04; letter-spacing: -.06em; }
+    .start-body > p { max-width: 234px; margin-top: 8px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .start-trip { width: 100%; margin-top: 17px; text-align: left; }
+    .start-actions { display: grid; gap: 7px; margin-top: auto; padding-top: 13px; }
+    .start-actions .phone-button { width: 100%; }
+    .text-button { border: 0; color: var(--accent); background: transparent; cursor: pointer; font-size: 9px; font-weight: 900; }
+    .preview-caption { min-height: 17px; color: var(--muted); font-size: 10px; line-height: 1.4; text-align: center; }
+    .toast {
+      position: fixed;
+      z-index: 20;
+      left: 50%;
+      bottom: 22px;
+      max-width: min(420px, calc(100% - 32px));
+      padding: 11px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      transform: translate(-50%, 130%);
+      transition: transform .25s ease;
+    }
+    .toast.is-visible { transform: translate(-50%, 0); }
+
+    .context-section { padding: 92px 0 0; }
+    .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 25px; }
+    .section-heading h2 { max-width: 610px; margin-top: 13px; font-size: clamp(27px, 4vw, 43px); line-height: 1.03; letter-spacing: -.055em; }
+    .section-heading p { max-width: 370px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .context-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 30px; }
+    .context-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 20px 18px 17px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--surface);
+    }
+    .context-label { color: var(--accent); font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+    .context-item h3 { margin-top: 10px; font-size: 18px; line-height: 1.08; letter-spacing: -.045em; }
+    .context-copy { margin-top: 7px; min-height: 41px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .mini-stage { display: grid; place-items: center; min-height: 370px; margin-top: 17px; padding: 12px; border-radius: 15px; background: var(--surface-soft); }
+    .mini-phone {
+      position: relative;
+      width: min(238px, 100%);
+      aspect-ratio: .57;
+      padding: 5px;
+      border: 4px solid var(--bezel);
+      border-radius: 30px;
+      background: var(--bezel);
+      box-shadow: 0 15px 26px rgba(20, 20, 34, .17);
+    }
+    .mini-phone::before { content: ""; position: absolute; z-index: 2; top: 5px; left: 50%; width: 46px; height: 15px; transform: translateX(-50%); border-radius: 0 0 10px 10px; background: var(--bezel); }
+    .mini-screen { position: relative; height: 100%; overflow: hidden; border-radius: 23px; background: var(--phone); }
+    .mini-status { display: flex; justify-content: space-between; padding: 10px 10px 0; color: var(--muted); font-size: 6px; font-weight: 900; }
+    .mini-brand { display: flex; align-items: center; gap: 5px; margin: 13px 12px 0; font-size: 10px; font-weight: 900; }
+    .mini-brand img { width: 20px; height: 20px; }
+    .mini-brand span { margin-left: auto; color: var(--accent); font-size: 11px; }
+    .mini-title { margin: 14px 12px 0; font-size: 16px; font-weight: 900; letter-spacing: -.05em; }
+    .mini-filters { display: flex; gap: 4px; margin: 7px 12px 0; }
+    .mini-filters i { padding: 4px 6px; border-radius: 6px; color: var(--muted); background: var(--surface); font-size: 5px; font-style: normal; font-weight: 900; }
+    .mini-filters i:first-child { color: #fff; background: var(--accent); }
+    .empty-icon { display: grid; place-items: center; width: 47px; height: 47px; margin: 38px auto 12px; border-radius: 15px; color: var(--accent); background: var(--accent-soft); font-size: 21px; }
+    .empty-title { display: block; padding: 0 15px; font-size: 12px; line-height: 1.2; text-align: center; }
+    .empty-body { margin: 6px auto 0; padding: 0 17px; color: var(--muted); font-size: 7px; line-height: 1.4; text-align: center; }
+    .mini-target {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: calc(100% - 24px);
+      min-height: 37px;
+      margin: 15px 12px 0;
+      border: 1px solid var(--accent);
+      border-radius: 11px;
+      color: var(--accent-deep);
+      background: var(--surface);
+      box-shadow: 0 0 0 4px var(--accent-soft), 0 0 0 7px color-mix(in srgb, var(--accent) 22%, transparent);
+      font-size: 8px;
+      font-weight: 900;
+    }
+    .mini-target span:last-child { margin-left: auto; padding-right: 10px; color: var(--muted); font-size: 13px; }
+    .coach-bubble {
+      position: relative;
+      display: flex;
+      gap: 7px;
+      margin: 15px 12px 0;
+      padding: 9px;
+      border: 1px solid var(--accent);
+      border-radius: 11px;
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 9px 18px rgba(38, 34, 90, .11);
+      font-size: 7px;
+      line-height: 1.3;
+    }
+    .coach-bubble::before {
+      content: "";
+      position: absolute;
+      top: -7px;
+      left: 50%;
+      width: 12px;
+      height: 12px;
+      border-top: 1px solid var(--accent);
+      border-left: 1px solid var(--accent);
+      background: var(--surface);
+      transform: translateX(-50%) rotate(45deg);
+    }
+    .coach-bubble strong { display: block; font-size: 7px; }
+    .coach-bubble small { display: block; margin-top: 4px; color: var(--muted); font-size: 6px; }
+    .coach-close { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .coach-number { flex: 0 0 auto; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; color: #fff; background: var(--accent); font-size: 7px; font-weight: 900; }
+    .mini-trip-bar { display: flex; align-items: center; justify-content: space-between; margin: 14px 12px 8px; }
+    .mini-trip-bar span { color: var(--muted); font-size: 7px; font-weight: 800; }
+    .mini-trip-bar strong { font-size: 10px; }
+    .mini-cover { margin: 0 12px; }
+    .mini-cover .trip-cover-content { min-height: 72px; padding: 9px; }
+    .mini-cover .trip-cover strong { margin-top: 5px; font-size: 10px; }
+    .mini-cover .trip-cover small { font-size: 5px; }
+    .mini-map { position: relative; height: 80px; overflow: hidden; margin: 8px 12px 0; border-radius: 12px; background: #dfece5; }
+    .mini-map .route-line { inset: 7px 8px; width: calc(100% - 16px); height: calc(100% - 14px); }
+    .mini-map .route-line path { stroke-width: 2.4; }
+    .mini-map .map-pin { width: 16px; height: 16px; font-size: 5px; }
+    .mini-map .pin-one { left: 28%; top: 51%; }
+    .mini-map .pin-two { left: 60%; top: 19%; }
+    .mini-map .pin-three { display: none; }
+    .mini-day { display: flex; gap: 4px; margin: 8px 12px 0; }
+    .mini-day span { padding: 4px 6px; border-radius: 5px; color: var(--muted); background: var(--surface); font-size: 5px; font-weight: 900; }
+    .mini-day span:first-child { color: #fff; background: var(--accent); }
+    .mini-add { margin-top: 10px; }
+    .settings-screen { background: var(--phone); }
+    .settings-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--accent-soft) 45%, var(--phone)); }
+    .settings-sheet { position: absolute; inset: 29px 0 0; overflow: hidden; padding: 12px 12px 13px; border-radius: 23px 23px 0 0; background: var(--surface); }
+    .sheet-handle { width: 35px; height: 4px; margin: 0 auto 11px; border-radius: 4px; background: var(--line-strong); }
+    .settings-title { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 900; letter-spacing: -.04em; }
+    .settings-title span { color: var(--muted); font-size: 13px; }
+    .profile-row { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding: 8px; border: 1px solid var(--line); border-radius: 11px; }
+    .profile-avatar { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: #fff; background: var(--accent); font-size: 11px; font-weight: 900; }
+    .profile-row strong { display: block; font-size: 8px; }
+    .profile-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 5px; }
+    .settings-group-label { margin: 12px 0 5px; color: var(--accent); font-size: 6px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .settings-list { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; }
+    .settings-row { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 7px; border-bottom: 1px solid var(--line); }
+    .settings-row:last-child { border-bottom: 0; }
+    .settings-row.highlight { outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: -1px; background: var(--accent-wash); }
+    .settings-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 7px; color: var(--accent); background: var(--accent-soft); font-size: 8px; }
+    .settings-row strong { font-size: 7px; }
+    .settings-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 5px; }
+    .settings-row > span:last-child { margin-left: auto; color: var(--muted); font-size: 9px; }
+    .context-action { align-self: flex-start; margin-top: 16px; color: var(--accent-deep); background: transparent; font-size: 10px; }
+
+    .rules-section { display: grid; grid-template-columns: minmax(190px, .7fr) minmax(0, 1.3fr); gap: 55px; padding: 94px 0 80px; }
+    .rules-section h2 { margin-top: 13px; font-size: clamp(26px, 3.5vw, 39px); line-height: 1.04; letter-spacing: -.055em; }
+    .rule-list { display: grid; }
+    .rule {
+      display: grid;
+      grid-template-columns: 33px minmax(0, 1fr);
+      gap: 14px;
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+    .rule:last-child { border-bottom: 1px solid var(--line); }
+    .rule-number { color: var(--accent); font-size: 10px; font-weight: 900; }
+    .rule p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .rule strong { color: var(--text); }
+    footer { padding: 16px 0 27px; border-top: 1px solid var(--line); color: var(--faint); font-size: 10px; line-height: 1.5; text-align: center; }
+
+    @media (max-width: 900px) {
+      .page-wrap { width: min(100% - 32px, 700px); }
+      .topbar { align-items: flex-start; flex-direction: column; padding: 17px 0; }
+      .top-controls { justify-content: flex-start; }
+      .flow-card { grid-template-columns: 1fr; }
+      .flow-sidebar { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .flow-note { margin-top: 25px; }
+      .flow-preview { min-height: 760px; }
+      .context-grid { grid-template-columns: 1fr; max-width: 430px; margin-inline: auto; }
+      .section-heading { display: block; }
+      .section-heading p { margin-top: 13px; }
+      .rules-section { grid-template-columns: 1fr; gap: 27px; }
+    }
+    @media (max-width: 540px) {
+      .page-wrap { width: min(100% - 22px, 430px); }
+      .hero { padding-top: 43px; }
+      .hero h1 { font-size: 38px; }
+      .hero-meta { display: grid; gap: 8px; }
+      .brand-sub { display: none; }
+      .top-controls { gap: 9px; }
+      .control-cluster { align-items: flex-start; flex-direction: column; gap: 4px; }
+      .flow-sidebar, .flow-preview { padding-inline: 17px; }
+      .flow-preview { min-height: 700px; }
+      .phone { width: min(316px, 100%); }
+      .context-section { padding-top: 67px; }
+      .rules-section { padding-top: 67px; }
+      .section-heading h2 { font-size: 31px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar page-wrap">
+    <a class="brand" href="#flow">
+      <span class="brand-mark"><img src="assets/ramingo-mark.png" alt=""></span>
+      <span class="brand-name">Ramingo</span>
+      <span class="brand-sub" data-i18n="brandSub">Android · шаблон согласования</span>
+    </a>
+    <div class="top-controls">
+      <div class="control-cluster">
+        <span class="control-label" data-i18n="languageLabel">Язык</span>
+        <div class="segmented" aria-label="Language">
+          <button type="button" data-language="ru" aria-pressed="true">RU</button>
+          <button type="button" data-language="en" aria-pressed="false">EN</button>
+          <button type="button" data-language="es" aria-pressed="false">ES</button>
+          <button type="button" data-language="de" aria-pressed="false">DE</button>
+        </div>
+      </div>
+      <div class="control-cluster">
+        <span class="control-label" data-i18n="themeLabel">Тема</span>
+        <div class="segmented" aria-label="Theme">
+          <button type="button" data-theme-choice="system" aria-pressed="false" data-i18n="system">Система</button>
+          <button type="button" data-theme-choice="light" aria-pressed="true" data-i18n="light">Светлая</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false" data-i18n="dark">Тёмная</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-wrap">
+    <section class="hero">
+      <div class="eyebrow" data-i18n="heroKicker">ONBOARDING / ПЕРВЫЙ ЗАПУСК</div>
+      <h1 data-i18n="heroTitle">Обучение использованию Ramingo</h1>
+      <p class="hero-copy" data-i18n="heroCopy">Три коротких экрана показывают, как Ramingo помогает собрать поездку. После onboarding пользователь учится уже в контексте — через две аккуратные подсказки внутри настоящих экранов приложения.</p>
+      <div class="hero-meta">
+        <span class="meta-item" data-i18n="metaOne">3 экрана</span>
+        <span class="meta-item" data-i18n="metaTwo">2 подсказки в контексте</span>
+        <span class="meta-item" data-i18n="metaThree">RU · EN · ES · DE</span>
+      </div>
+      <div class="approval-mark"><span class="approval-dot"></span><strong data-i18n="templateOnly">Только шаблон</strong><span data-i18n="noCode">Android-код не меняется</span></div>
+    </section>
+
+    <section class="flow-card" id="flow" aria-labelledby="flow-title">
+      <aside class="flow-sidebar">
+        <div class="panel-label"><span data-i18n="flowLabel">WELCOME FLOW</span><output id="step-output">01 / 03</output></div>
+        <h2 id="flow-title" data-i18n="flowTitle">Три шага до первой поездки</h2>
+        <p class="sidebar-copy" data-i18n="flowCopy">Выбери экран слева или нажми «Далее». Внутри телефона — настоящий визуальный язык Ramingo: текущий логотип, карточки, карта, дни и кнопки.</p>
+        <div class="step-list" role="tablist" aria-label="Onboarding screens">
+          <button class="step-button is-active" type="button" role="tab" aria-selected="true" data-screen="0">
+            <span class="step-number">01</span>
+            <span class="step-text"><strong data-i18n="stepOneTitle">Планируй в одном месте</strong><span data-i18n="stepOneBody">Маршрут, места, жильё и заметки</span></span>
+            <span class="step-arrow">→</span>
+          </button>
+          <button class="step-button" type="button" role="tab" aria-selected="false" data-screen="1">
+            <span class="step-number">02</span>
+            <span class="step-text"><strong data-i18n="stepTwoTitle">Собери свой маршрут</strong><span data-i18n="stepTwoBody">Города и места на карте</span></span>
+            <span class="step-arrow">→</span>
+          </button>
+          <button class="step-button" type="button" role="tab" aria-selected="false" data-screen="2">
+            <span class="step-number">03</span>
+            <span class="step-text"><strong data-i18n="stepThreeTitle">Начни планировать</strong><span data-i18n="stepThreeBody">Создай поездку или сначала посмотри</span></span>
+            <span class="step-arrow">→</span>
+          </button>
+        </div>
+        <div class="flow-note">
+          <strong data-i18n="noteTitle">Логика экрана</strong>
+          <p id="step-note"></p>
+        </div>
+        <div class="desktop-actions">
+          <button class="action-button outline" type="button" id="desktop-prev" data-i18n="back">Назад</button>
+          <button class="action-button primary" type="button" id="desktop-next" data-i18n="next">Далее</button>
+          <button class="action-button ghost" type="button" id="desktop-skip" data-i18n="skip">Пропустить</button>
+        </div>
+        <button class="action-button outline" type="button" id="desktop-restart" style="margin-top:7px" data-i18n="restart">Начать сначала</button>
+      </aside>
+
+      <div class="flow-preview">
+        <div class="preview-topline"><span data-i18n="previewLabel">LIVE PREVIEW</span><strong id="preview-state">01 / ПЛАН</strong></div>
+        <div class="phone-stage">
+          <div class="phone" aria-label="Ramingo onboarding phone preview">
+            <div class="phone-camera" aria-hidden="true"></div>
+            <div class="phone-screen">
+              <div class="phone-status"><span>9:41</span><span>● 5G&nbsp;&nbsp;▰ 87%</span></div>
+              <div id="phone-content" class="phone-content"></div>
+              <div class="home-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <p class="preview-caption" id="preview-caption" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="context-section" aria-labelledby="context-title">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker" data-i18n="contextKicker">ПОСЛЕ ONBOARDING / COACH MARKS</div>
+          <h2 id="context-title" data-i18n="contextTitle">Подсказки появляются внутри приложения</h2>
+        </div>
+        <p data-i18n="contextCopy">Никакого длинного tutorial: сначала действие пользователя, потом одна подсказка в правильном контексте.</p>
+      </div>
+      <div class="context-grid" id="context-grid"></div>
+    </section>
+
+    <section class="rules-section" aria-labelledby="rules-title">
+      <div>
+        <div class="section-kicker" data-i18n="rulesKicker">BEHAVIOUR / APPROVAL</div>
+        <h2 id="rules-title" data-i18n="rulesTitle">Поведение, которое согласуем</h2>
+      </div>
+      <div class="rule-list">
+        <div class="rule"><span class="rule-number">01</span><p data-i18n="ruleOne">После установки показываем только <strong>3 welcome-экрана</strong>.</p></div>
+        <div class="rule"><span class="rule-number">02</span><p data-i18n="ruleTwo">«Сначала посмотреть» ведёт на Home, где подсказка подсвечивает <strong>«Создать путешествие»</strong>.</p></div>
+        <div class="rule"><span class="rule-number">03</span><p data-i18n="ruleThree">После создания поездки, если мест нет, подсвечиваем <strong>«Добавить место»</strong>.</p></div>
+        <div class="rule"><span class="rule-number">04</span><p data-i18n="ruleFour">«Показать обучение» в настройках открывает flow повторно и <strong>не сбрасывает данные</strong>.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-wrap"><span data-i18n="footer">Это визуальный шаблон. Android-приложение не изменяется.</span></footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const copy = {
+      ru: {
+        brandSub: "Android · шаблон согласования", languageLabel: "Язык", themeLabel: "Тема",
+        system: "Система", light: "Светлая", dark: "Тёмная",
+        heroKicker: "ONBOARDING / ПЕРВЫЙ ЗАПУСК", heroTitle: "Обучение использованию Ramingo",
+        heroCopy: "Три коротких экрана показывают, как Ramingo помогает собрать поездку. После onboarding пользователь учится уже в контексте — через две аккуратные подсказки внутри настоящих экранов приложения.",
+        metaOne: "3 экрана", metaTwo: "2 подсказки в контексте", metaThree: "RU · EN · ES · DE", templateOnly: "Только шаблон", noCode: "Android-код не меняется",
+        flowLabel: "WELCOME FLOW", flowTitle: "Три шага до первой поездки",
+        flowCopy: "Выбери экран слева или нажми «Далее». Внутри телефона — настоящий визуальный язык Ramingo: текущий логотип, карточки, карта, дни и кнопки.",
+        stepOneTitle: "Планируй в одном месте", stepOneBody: "Маршрут, места, жильё и заметки",
+        stepTwoTitle: "Собери свой маршрут", stepTwoBody: "Города и места на карте",
+        stepThreeTitle: "Начни планировать", stepThreeBody: "Создай поездку или сначала посмотри",
+        noteTitle: "Логика экрана", noteOne: "Первый экран объясняет ценность Ramingo через привычный экран поездки. Пользователь видит результат ещё до первого действия.",
+        noteTwo: "Второй экран показывает, как собирается поездка: карта, дни и реальные элементы маршрута. Это короткое объяснение, а не tutorial.",
+        noteThree: "На последнем экране два понятных пути: сразу создать поездку или сначала осмотреть приложение. Кнопки Skip здесь нет.",
+        previewLabel: "LIVE PREVIEW", planState: "01 / ПЛАН", buildState: "02 / МАРШРУТ", startState: "03 / СТАРТ",
+        planEyebrow: "01 / ПЛАН", planTitle: "Планируй всё путешествие в одном месте", planBody: "Маршрут, места, жильё и заметки — всё внутри одной поездки.",
+        myTrips: "Мои поездки", all: "Все · 0", upcoming: "Предстоящие", italyTrip: "Зимняя Италия", tripDates: "19 дек — 3 янв · 10 дней", route: "Рим → Флоренция → Пиза",
+        buildEyebrow: "02 / МАРШРУТ", tripHome: "Главная", buildTitle: "Собери свой маршрут", buildBody: "Добавляй города и места и выстраивай путь по карте.", dayOne: "День 1", dayTwo: "День 2", placeOne: "Колизей", placeOneMeta: "Достопримечательность · 10:00", placeTwo: "Отель в центре", placeTwoMeta: "Размещение · ночь", addPlace: "Добавить место",
+        startEyebrow: "03 / СТАРТ", startTitle: "Готовы к следующему путешествию?", startBody: "Создайте первую поездку или сначала осмотритесь.", createTrip: "Создать мою первую поездку", exploreFirst: "Сначала посмотреть",
+        back: "Назад", next: "Далее", skip: "Пропустить", restart: "Начать сначала",
+        contextKicker: "ПОСЛЕ ONBOARDING / COACH MARKS", contextTitle: "Подсказки появляются внутри приложения", contextCopy: "Никакого длинного tutorial: сначала действие пользователя, потом одна подсказка в правильном контексте.",
+        homeTag: "HOME / 01", homeHintTitle: "Начните с создания первой поездки", homeHintBody: "Показывается на пустом Home после «Сначала посмотреть». Один раз.", createTripShort: "Создать путешествие", emptyTitle: "Здесь появятся ваши поездки", emptyBody: "Создайте первую поездку с нуля или выберите готовый маршрут.",
+        tripTag: "TRIP / 02", tripHintTitle: "Добавьте первое место", tripHintBody: "Появляется после создания первой поездки, если мест ещё нет.",
+        settingsTag: "SETTINGS / REPLAY", settingsHintTitle: "Повторный запуск без сброса данных", settingsHintBody: "Открывает три onboarding-экрана, но не делает пользователя новым.", settingsTitle: "Настройки", showTutorial: "Показать обучение", appearance: "Внешний вид", support: "Поддержка", about: "О приложении", themeRow: "Тема", languageRow: "Язык", languageValue: "Русский", account: "Личный аккаунт · Ramingo", version: "Версия приложения",
+        rulesKicker: "BEHAVIOUR / APPROVAL", rulesTitle: "Поведение, которое согласуем", ruleOne: "После установки показываем только 3 welcome-экрана.", ruleTwo: "«Сначала посмотреть» ведёт на Home, где подсказка подсвечивает «Создать путешествие».", ruleThree: "После создания поездки, если мест нет, подсвечиваем «Добавить место».", ruleFour: "«Показать обучение» в настройках открывает flow повторно и не сбрасывает данные.",
+        footer: "Это визуальный шаблон. Android-приложение не изменяется.", skipToast: "Onboarding пропущен → пользователь попадает на Home.", createToast: "Здесь откроется создание первой поездки.", exploreToast: "После просмотра на пустом Home появится подсказка.", hintToast: "Подсказка показана в правильном контексте.", replayToast: "Обучение открыто повторно. Данные и флаги подсказок сохраняются."
+      },
+      en: {
+        brandSub: "Android · approval template", languageLabel: "Language", themeLabel: "Theme",
+        system: "System", light: "Light", dark: "Dark",
+        heroKicker: "ONBOARDING / FIRST RUN", heroTitle: "Learn how to use Ramingo",
+        heroCopy: "Three short screens show how Ramingo helps build a trip. After onboarding, the user learns in context through two quiet hints inside the real product screens.",
+        metaOne: "3 screens", metaTwo: "2 contextual hints", metaThree: "RU · EN · ES · DE", templateOnly: "Template only", noCode: "Android code stays untouched",
+        flowLabel: "WELCOME FLOW", flowTitle: "Three steps to the first trip",
+        flowCopy: "Choose a screen on the left or press Next. The phone uses Ramingo’s real visual language: current logo, cards, map, days and buttons.",
+        stepOneTitle: "Plan in one place", stepOneBody: "Route, places, stays and notes",
+        stepTwoTitle: "Build your route", stepTwoBody: "Cities and places on the map",
+        stepThreeTitle: "Start planning", stepThreeBody: "Create a trip or look around first",
+        noteTitle: "Screen logic", noteOne: "The first screen explains Ramingo’s value through a familiar trip surface. The result is visible before the first action.",
+        noteTwo: "The second screen shows how a trip comes together: map, days and real route elements. It is a short explanation, not a tutorial.",
+        noteThree: "The final screen offers two clear paths: create a trip now or explore first. There is no Skip here.",
+        previewLabel: "LIVE PREVIEW", planState: "01 / PLAN", buildState: "02 / ROUTE", startState: "03 / START",
+        planEyebrow: "01 / PLAN", planTitle: "Plan the whole trip in one place", planBody: "Routes, places, stays and notes — all inside one trip.",
+        myTrips: "My trips", all: "All · 0", upcoming: "Upcoming", italyTrip: "Winter Italy", tripDates: "Dec 19 — Jan 3 · 10 days", route: "Rome → Florence → Pisa",
+        buildEyebrow: "02 / ROUTE", tripHome: "Overview", buildTitle: "Build your route", buildBody: "Add cities and places and shape the path on the map.", dayOne: "Day 1", dayTwo: "Day 2", placeOne: "Colosseum", placeOneMeta: "Landmark · 10:00", placeTwo: "Central hotel", placeTwoMeta: "Stay · night", addPlace: "Add place",
+        startEyebrow: "03 / START", startTitle: "Ready for the next adventure?", startBody: "Create your first trip or take a look around first.", createTrip: "Create my first trip", exploreFirst: "Explore first",
+        back: "Back", next: "Next", skip: "Skip", restart: "Start over",
+        contextKicker: "AFTER ONBOARDING / COACH MARKS", contextTitle: "Hints appear inside the product", contextCopy: "No long tutorial: first the user takes an action, then one hint appears in the right context.",
+        homeTag: "HOME / 01", homeHintTitle: "Start by creating your first trip", homeHintBody: "Shown on the empty Home after “Explore first”. Once.", createTripShort: "Create trip", emptyTitle: "Your trips will appear here", emptyBody: "Create a trip from scratch or choose a ready route.",
+        tripTag: "TRIP / 02", tripHintTitle: "Add your first place", tripHintBody: "Appears after the first trip is created if it has no places yet.",
+        settingsTag: "SETTINGS / REPLAY", settingsHintTitle: "Replay without resetting data", settingsHintBody: "Opens the three onboarding screens but does not make the user new.", settingsTitle: "Settings", showTutorial: "Show tutorial", appearance: "Appearance", support: "Support", about: "About", themeRow: "Theme", languageRow: "Language", languageValue: "English", account: "Personal account · Ramingo", version: "App version",
+        rulesKicker: "BEHAVIOUR / APPROVAL", rulesTitle: "Behaviour to approve", ruleOne: "After install, show only 3 welcome screens.", ruleTwo: "“Explore first” leads to Home, where the hint highlights “Create trip”.", ruleThree: "After the first trip, if there are no places, highlight “Add place”.", ruleFour: "“Show tutorial” in Settings reopens the flow without resetting data.",
+        footer: "This is a visual template. The Android app is not changed.", skipToast: "Onboarding skipped → the user lands on Home.", createToast: "This opens first-trip creation.", exploreToast: "The empty Home hint appears after exploring.", hintToast: "Hint shown in the right context.", replayToast: "Tutorial reopened. Data and hint flags are preserved."
+      },
+      es: {
+        brandSub: "Android · plantilla de aprobación", languageLabel: "Idioma", themeLabel: "Tema",
+        system: "Sistema", light: "Claro", dark: "Oscuro",
+        heroKicker: "ONBOARDING / PRIMER INICIO", heroTitle: "Aprende a usar Ramingo",
+        heroCopy: "Tres pantallas breves muestran cómo Ramingo ayuda a crear un viaje. Después, el usuario aprende en contexto con dos sugerencias dentro de las pantallas reales.",
+        metaOne: "3 pantallas", metaTwo: "2 sugerencias contextuales", metaThree: "RU · EN · ES · DE", templateOnly: "Solo plantilla", noCode: "El código Android no cambia",
+        flowLabel: "WELCOME FLOW", flowTitle: "Tres pasos hasta tu primer viaje",
+        flowCopy: "Elige una pantalla a la izquierda o pulsa Siguiente. El teléfono usa el lenguaje visual real de Ramingo: logo, tarjetas, mapa, días y botones.",
+        stepOneTitle: "Planifica en un solo lugar", stepOneBody: "Ruta, lugares, alojamientos y notas",
+        stepTwoTitle: "Crea tu ruta", stepTwoBody: "Ciudades y lugares en el mapa",
+        stepThreeTitle: "Empieza a planificar", stepThreeBody: "Crea un viaje o explora primero",
+        noteTitle: "Lógica de pantalla", noteOne: "La primera pantalla explica el valor de Ramingo mediante una superficie de viaje familiar. El resultado se ve antes de la primera acción.",
+        noteTwo: "La segunda muestra cómo se construye un viaje: mapa, días y elementos reales de la ruta. Es una explicación breve, no un tutorial.",
+        noteThree: "La última ofrece dos caminos claros: crear un viaje ahora o explorar primero. Aquí no hay Omitir.",
+        previewLabel: "VISTA PREVIA", planState: "01 / PLAN", buildState: "02 / RUTA", startState: "03 / INICIO",
+        planEyebrow: "01 / PLAN", planTitle: "Planifica todo el viaje en un solo lugar", planBody: "Rutas, lugares, alojamientos y notas — todo dentro de un viaje.",
+        myTrips: "Mis viajes", all: "Todos · 0", upcoming: "Próximos", italyTrip: "Italia de invierno", tripDates: "19 dic — 3 ene · 10 días", route: "Roma → Florencia → Pisa",
+        buildEyebrow: "02 / RUTA", tripHome: "Resumen", buildTitle: "Crea tu ruta", buildBody: "Añade ciudades y lugares y forma el camino en el mapa.", dayOne: "Día 1", dayTwo: "Día 2", placeOne: "Coliseo", placeOneMeta: "Monumento · 10:00", placeTwo: "Hotel céntrico", placeTwoMeta: "Alojamiento · noche", addPlace: "Añadir lugar",
+        startEyebrow: "03 / INICIO", startTitle: "¿Listo para el próximo viaje?", startBody: "Crea tu primer viaje o echa un vistazo primero.", createTrip: "Crear mi primer viaje", exploreFirst: "Explorar primero",
+        back: "Atrás", next: "Siguiente", skip: "Omitir", restart: "Empezar de nuevo",
+        contextKicker: "DESPUÉS / COACH MARKS", contextTitle: "Las sugerencias aparecen dentro de la app", contextCopy: "Sin tutorial largo: primero una acción del usuario y después una sugerencia en el contexto correcto.",
+        homeTag: "HOME / 01", homeHintTitle: "Empieza creando tu primer viaje", homeHintBody: "Aparece en Home vacío después de «Explorar primero». Una vez.", createTripShort: "Crear viaje", emptyTitle: "Tus viajes aparecerán aquí", emptyBody: "Crea un viaje desde cero o elige una ruta preparada.",
+        tripTag: "TRIP / 02", tripHintTitle: "Añade tu primer lugar", tripHintBody: "Aparece después de crear el primer viaje si aún no tiene lugares.",
+        settingsTag: "SETTINGS / REPLAY", settingsHintTitle: "Repetir sin reiniciar los datos", settingsHintBody: "Abre las tres pantallas de onboarding sin convertir al usuario en nuevo.", settingsTitle: "Ajustes", showTutorial: "Mostrar tutorial", appearance: "Apariencia", support: "Ayuda", about: "Acerca de", themeRow: "Tema", languageRow: "Idioma", languageValue: "Español", account: "Cuenta personal · Ramingo", version: "Versión de la app",
+        rulesKicker: "COMPORTAMIENTO / APROBACIÓN", rulesTitle: "Comportamiento para aprobar", ruleOne: "Después de instalar, mostrar solo 3 pantallas de bienvenida.", ruleTwo: "«Explorar primero» lleva a Home y la sugerencia destaca «Crear viaje».", ruleThree: "Después del primer viaje, si no hay lugares, destacar «Añadir lugar».", ruleFour: "«Mostrar tutorial» en Ajustes reabre el flujo sin reiniciar los datos.",
+        footer: "Esta es una plantilla visual. La app Android no cambia.", skipToast: "Onboarding omitido → el usuario llega a Home.", createToast: "Aquí se abrirá la creación del primer viaje.", exploreToast: "La sugerencia de Home vacío aparecerá después de explorar.", hintToast: "Sugerencia mostrada en el contexto correcto.", replayToast: "Tutorial reabierto. Los datos y las banderas se conservan."
+      },
+      de: {
+        brandSub: "Android · Freigabevorlage", languageLabel: "Sprache", themeLabel: "Thema",
+        system: "System", light: "Hell", dark: "Dunkel",
+        heroKicker: "ONBOARDING / ERSTER START", heroTitle: "Ramingo richtig kennenlernen",
+        heroCopy: "Drei kurze Screens zeigen, wie Ramingo beim Erstellen einer Reise hilft. Danach lernt der Nutzer im Kontext durch zwei dezente Hinweise in den echten App-Screens.",
+        metaOne: "3 Screens", metaTwo: "2 kontextuelle Hinweise", metaThree: "RU · EN · ES · DE", templateOnly: "Nur Vorlage", noCode: "Android-Code bleibt unverändert",
+        flowLabel: "WELCOME FLOW", flowTitle: "Drei Schritte zur ersten Reise",
+        flowCopy: "Wähle links einen Screen oder drücke Weiter. Das Telefon nutzt die echte Ramingo-Sprache: aktuelles Logo, Karten, Karte, Tage und Buttons.",
+        stepOneTitle: "Alles an einem Ort planen", stepOneBody: "Route, Orte, Unterkünfte und Notizen",
+        stepTwoTitle: "Deine Route zusammenstellen", stepTwoBody: "Städte und Orte auf der Karte",
+        stepThreeTitle: "Mit der Planung beginnen", stepThreeBody: "Reise erstellen oder zuerst umsehen",
+        noteTitle: "Screen-Logik", noteOne: "Der erste Screen erklärt den Wert von Ramingo über eine vertraute Reiseoberfläche. Das Ergebnis ist vor der ersten Aktion sichtbar.",
+        noteTwo: "Der zweite Screen zeigt, wie eine Reise entsteht: Karte, Tage und echte Routenelemente. Eine kurze Erklärung, kein langes Tutorial.",
+        noteThree: "Der letzte Screen bietet zwei klare Wege: sofort eine Reise erstellen oder zuerst umsehen. Hier gibt es kein Überspringen.",
+        previewLabel: "LIVE-VORSCHAU", planState: "01 / PLAN", buildState: "02 / ROUTE", startState: "03 / START",
+        planEyebrow: "01 / PLAN", planTitle: "Die ganze Reise an einem Ort planen", planBody: "Routen, Orte, Unterkünfte und Notizen — alles in einer Reise.",
+        myTrips: "Meine Reisen", all: "Alle · 0", upcoming: "Anstehend", italyTrip: "Winter in Italien", tripDates: "19. Dez — 3. Jan · 10 Tage", route: "Rom → Florenz → Pisa",
+        buildEyebrow: "02 / ROUTE", tripHome: "Übersicht", buildTitle: "Deine Route zusammenstellen", buildBody: "Füge Städte und Orte hinzu und forme den Weg auf der Karte.", dayOne: "Tag 1", dayTwo: "Tag 2", placeOne: "Kolosseum", placeOneMeta: "Sehenswürdigkeit · 10:00", placeTwo: "Hotel im Zentrum", placeTwoMeta: "Unterkunft · Nacht", addPlace: "Ort hinzufügen",
+        startEyebrow: "03 / START", startTitle: "Bereit für die nächste Reise?", startBody: "Erstelle deine erste Reise oder sieh dich zuerst um.", createTrip: "Erste Reise erstellen", exploreFirst: "Zuerst umsehen",
+        back: "Zurück", next: "Weiter", skip: "Überspringen", restart: "Neu starten",
+        contextKicker: "NACH DEM ONBOARDING / COACH MARKS", contextTitle: "Hinweise erscheinen direkt in der App", contextCopy: "Kein langes Tutorial: Erst handelt der Nutzer, dann erscheint ein Hinweis im passenden Kontext.",
+        homeTag: "HOME / 01", homeHintTitle: "Mit der ersten Reise beginnen", homeHintBody: "Wird auf dem leeren Home nach „Zuerst umsehen“ einmal angezeigt.", createTripShort: "Reise erstellen", emptyTitle: "Hier erscheinen deine Reisen", emptyBody: "Erstelle eine Reise von Grund auf oder wähle eine fertige Route.",
+        tripTag: "TRIP / 02", tripHintTitle: "Ersten Ort hinzufügen", tripHintBody: "Erscheint nach der ersten Reise, wenn noch keine Orte vorhanden sind.",
+        settingsTag: "SETTINGS / REPLAY", settingsHintTitle: "Ohne Daten-Reset erneut öffnen", settingsHintBody: "Öffnet die drei Onboarding-Screens, macht den Nutzer aber nicht neu.", settingsTitle: "Einstellungen", showTutorial: "Tutorial anzeigen", appearance: "Darstellung", support: "Support", about: "Über die App", themeRow: "Thema", languageRow: "Sprache", languageValue: "Deutsch", account: "Persönliches Konto · Ramingo", version: "App-Version",
+        rulesKicker: "VERHALTEN / FREIGABE", rulesTitle: "Verhalten zur Freigabe", ruleOne: "Nach der Installation werden nur 3 Willkommens-Screens gezeigt.", ruleTwo: "„Zuerst umsehen“ führt zum Home, wo der Hinweis „Reise erstellen“ hervorhebt.", ruleThree: "Nach der ersten Reise wird „Ort hinzufügen“ hervorgehoben, wenn noch keine Orte existieren.", ruleFour: "„Tutorial anzeigen“ in den Einstellungen öffnet den Flow erneut, ohne Daten zurückzusetzen.",
+        footer: "Dies ist eine visuelle Vorlage. Die Android-App wird nicht geändert.", skipToast: "Onboarding übersprungen → der Nutzer landet im Home.", createToast: "Hier öffnet sich die Erstellung der ersten Reise.", exploreToast: "Der Hinweis für den leeren Home erscheint nach dem Umsehen.", hintToast: "Hinweis im passenden Kontext angezeigt.", replayToast: "Tutorial erneut geöffnet. Daten und Hinweis-Flags bleiben erhalten."
+      }
+    };
+
+    let language = "ru";
+    let theme = "light";
+    let screenIndex = 0;
+    let toastTimer;
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const t = (key) => copy[language][key] || copy.en[key] || key;
+    const logo = (className) => '<img class="' + (className || "") + '" src="assets/ramingo-mark.png" alt="">';
+    const escapeAttr = (value) => String(value).replace(/"/g, "&quot;");
+
+    function renderPhone() {
+      const content = $("#phone-content");
+      const screens = [renderPlan, renderBuild, renderStart];
+      content.innerHTML = screens[screenIndex]();
+      $("#preview-state").textContent = [t("planState"), t("buildState"), t("startState")][screenIndex];
+      $("#preview-caption").textContent = [t("noteOne"), t("noteTwo"), t("noteThree")][screenIndex];
+      $("#step-note").textContent = [t("noteOne"), t("noteTwo"), t("noteThree")][screenIndex];
+      $("#step-output").textContent = String(screenIndex + 1).padStart(2, "0") + " / 03";
+      $("#desktop-prev").disabled = screenIndex === 0;
+      $("#desktop-next").disabled = screenIndex === 2;
+      $("#desktop-skip").disabled = screenIndex === 2;
+      $$(".step-button").forEach((button, index) => {
+        const active = index === screenIndex;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+    }
+
+    function renderPlan() {
+      return [
+        '<div class="scene scene-plan">',
+          '<div class="appbar"><div class="app-brand">', logo(), '<strong>Ramingo</strong></div><button class="app-link" type="button" data-action="skip">', t("skip"), '</button></div>',
+          '<div class="scene-body plan-body">',
+            '<div class="screen-kicker">', t("planEyebrow"), '</div>',
+            '<div class="feature-preview">',
+              '<div class="mini-appbar">', logo(), '<span>Ramingo</span><span>⚙</span></div>',
+              '<div class="mini-home-title">', t("myTrips"), '</div>',
+              '<div class="filter-row"><span class="filter active">', t("all"), '</span><span class="filter">', t("upcoming"), ' · 0</span></div>',
+              '<div class="trip-cover" style="margin-top:10px"><div class="trip-cover-content"><span class="trip-badge">', t("upcoming"), '</span><strong>', t("italyTrip"), '</strong><small>', t("tripDates"), '</small></div></div>',
+              '<div class="route-chip">', t("route"), '</div>',
+            '</div>',
+            '<div class="copy-block"><h2>', t("planTitle"), '</h2><p>', t("planBody"), '</p></div>',
+          '</div>',
+          '<div class="progress-dots" aria-label="1 of 3"><i class="is-active"></i><i></i><i></i></div>',
+          '<div class="phone-actions"><button class="phone-button outline" type="button" data-action="skip">', t("skip"), '</button><button class="phone-button primary" type="button" data-action="next">', t("next"), '</button></div>',
+        '</div>'
+      ].join("");
+    }
+
+    function renderBuild() {
+      return [
+        '<div class="scene build-scene">',
+          '<div class="appbar"><button class="icon-button" type="button" aria-label="', escapeAttr(t("back")), '" data-action="prev">‹</button><div class="build-title"><strong>', t("italyTrip"), '</strong><span>', t("tripHome"), '</span></div><button class="top-more" type="button" aria-label="More">⋮</button></div>',
+          '<div class="scene-body build-body">',
+            '<div class="trip-heading"><div><small>', t("buildEyebrow"), '</small><strong>', t("italyTrip"), '</strong></div><span class="gear">⚙</span></div>',
+            '<div class="trip-cover large"><div class="trip-cover-content"><span class="trip-badge">', t("dayOne"), '</span><strong>', t("italyTrip"), '</strong><small>', t("tripDates"), '</small></div></div>',
+            '<div class="map-preview" role="img" aria-label="', escapeAttr(t("buildBody")), '">',
+              '<svg class="route-line" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true"><path d="M 15 70 C 68 12, 100 91, 155 47 S 240 26, 285 76"></path></svg>',
+              '<div class="map-pin pin-one"><span>1</span></div><div class="map-pin pin-two"><span>2</span></div><div class="map-pin pin-three"><span>3</span></div>',
+            '</div>',
+            '<div class="day-tabs"><span class="day-tab active">', t("dayOne"), '</span><span class="day-tab">', t("dayTwo"), '</span></div>',
+            '<div class="places"><div class="place-row"><span class="place-icon">⌖</span><span><strong>', t("placeOne"), '</strong><small>', t("placeOneMeta"), '</small></span><span class="place-arrow">›</span></div><div class="place-row"><span class="place-icon">⌂</span><span><strong>', t("placeTwo"), '</strong><small>', t("placeTwoMeta"), '</small></span><span class="place-arrow">›</span></div></div>',
+            '<div class="build-copy"><h2>', t("buildTitle"), '</h2><p>', t("buildBody"), '</p></div>',
+          '</div>',
+          '<div class="phone-actions"><button class="phone-button outline" type="button" data-action="prev">', t("back"), '</button><button class="phone-button ghost" type="button" data-action="skip">', t("skip"), '</button><button class="phone-button primary" type="button" data-action="next">', t("next"), '</button></div>',
+        '</div>'
+      ].join("");
+    }
+
+    function renderStart() {
+      return [
+        '<div class="scene scene-start">',
+          '<div class="appbar"><div class="app-brand">', logo(), '<strong>Ramingo</strong></div><span></span></div>',
+          '<div class="scene-body start-body">',
+            '<div class="start-orb">✦</div>',
+            '<h2>', t("startTitle"), '</h2><p>', t("startBody"), '</p>',
+            '<div class="start-trip"><div class="trip-cover compact"><div class="trip-cover-content"><span class="trip-badge">', t("upcoming"), '</span><strong>', t("italyTrip"), '</strong><small>', t("tripDates"), '</small></div></div><div class="route-chip">', t("route"), '</div></div>',
+          '</div>',
+          '<div class="progress-dots" aria-label="3 of 3"><i></i><i></i><i class="is-active"></i></div>',
+          '<div class="start-actions"><button class="phone-button primary" type="button" data-action="create">', t("createTrip"), '</button><button class="text-button" type="button" data-action="explore">', t("exploreFirst"), '</button><button class="phone-button outline" type="button" data-action="prev">', t("back"), '</button></div>',
+        '</div>'
+      ].join("");
+    }
+
+    function renderContexts() {
+      $("#context-grid").innerHTML = [
+        '<article class="context-item"><div class="context-label">', t("homeTag"), '</div><h3>', t("homeHintTitle"), '</h3><p class="context-copy">', t("homeHintBody"), '</p><div class="mini-stage"><div class="mini-phone"><div class="mini-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="mini-brand">', logo(), '<span>Ramingo</span><span>⚙</span></div><div class="mini-title">', t("myTrips"), '</div><div class="mini-filters"><i>', t("all"), '</i><i>', t("upcoming"), ' · 0</i></div><div class="empty-icon">✦</div><strong class="empty-title">', t("emptyTitle"), '</strong><p class="empty-body">', t("emptyBody"), '</p><button class="mini-target" type="button" data-action="hint">＋ ', t("createTripShort"), '<span>›</span></button><div class="coach-bubble"><span class="coach-number">1</span><span><strong>', t("homeHintTitle"), '</strong><small>', t("homeHintBody"), '</small></span><span class="coach-close">×</span></div></div></div></div><button class="action-button context-action" type="button" data-action="hint">', t("createTripShort"), ' →</button></article>',
+        '<article class="context-item"><div class="context-label">', t("tripTag"), '</div><h3>', t("tripHintTitle"), '</h3><p class="context-copy">', t("tripHintBody"), '</p><div class="mini-stage"><div class="mini-phone"><div class="mini-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="mini-trip-bar"><span>‹ &nbsp;', t("tripHome"), '</span><strong>⋮</strong></div><div class="mini-cover"><div class="trip-cover mini-cover"><div class="trip-cover-content"><span class="trip-badge">', t("upcoming"), '</span><strong>', t("italyTrip"), '</strong><small>', t("tripDates"), '</small></div></div></div><div class="mini-map"><svg class="route-line" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true"><path d="M 15 70 C 68 12, 100 91, 155 47 S 240 26, 285 76"></path></svg><div class="map-pin pin-one"><span>1</span></div><div class="map-pin pin-two"><span>2</span></div><div class="map-pin pin-three"><span>3</span></div></div><div class="mini-day"><span>', t("dayOne"), '</span><span>', t("dayTwo"), '</span></div><button class="mini-target mini-add" type="button" data-action="hint">＋ ', t("addPlace"), '<span>›</span></button><div class="coach-bubble"><span class="coach-number">2</span><span><strong>', t("tripHintTitle"), '</strong><small>', t("tripHintBody"), '</small></span><span class="coach-close">×</span></div></div></div></div><button class="action-button context-action" type="button" data-action="hint">', t("addPlace"), ' →</button></article>',
+        '<article class="context-item"><div class="context-label">', t("settingsTag"), '</div><h3>', t("settingsHintTitle"), '</h3><p class="context-copy">', t("settingsHintBody"), '</p><div class="mini-stage"><div class="mini-phone"><div class="mini-screen settings-screen"><div class="mini-status"><span>9:41</span><span>● 5G&nbsp; ▰</span></div><div class="settings-backdrop"></div><div class="settings-sheet"><div class="sheet-handle"></div><div class="settings-title">', t("settingsTitle"), '<span>×</span></div><div class="profile-row"><span class="profile-avatar">R</span><span><strong>Ramingo</strong><small>', t("account"), '</small></span></div><div class="settings-group-label">', t("appearance"), '</div><div class="settings-list"><div class="settings-row"><span class="settings-icon">◐</span><span><strong>', t("themeRow"), '</strong><small>', t("system"), '</small></span><span>›</span></div><div class="settings-row"><span class="settings-icon">◎</span><span><strong>', t("languageRow"), '</strong><small>', t("languageValue"), '</small></span><span>›</span></div></div><div class="settings-group-label">', t("support"), '</div><div class="settings-list"><button class="settings-row highlight" type="button" data-action="replay"><span class="settings-icon">?</span><span><strong>', t("showTutorial"), '</strong><small>', t("settingsHintBody"), '</small></span><span>›</span></button><div class="settings-row"><span class="settings-icon">✎</span><span><strong>', t("support"), '</strong><small>Ramingo</small></span><span>›</span></div></div><div class="settings-group-label">', t("about"), '</div><div class="settings-list"><div class="settings-row"><span class="settings-icon">ⓘ</span><span><strong>', t("version"), '</strong><small>0.2.39</small></span><span>›</span></div></div></div></div></div></div><button class="action-button context-action" type="button" data-action="replay">', t("showTutorial"), ' →</button></article>'
+      ].join("");
+    }
+
+    function setLanguage(nextLanguage) {
+      language = nextLanguage;
+      document.documentElement.lang = language;
+      $$("[data-i18n]").forEach((element) => {
+        const key = element.dataset.i18n;
+        if (copy[language][key]) element.textContent = copy[language][key];
+      });
+      $$("[data-language]").forEach((button) => {
+        const active = button.dataset.language === language;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      renderPhone();
+      renderContexts();
+    }
+
+    function setTheme(nextTheme) {
+      theme = nextTheme;
+      document.documentElement.dataset.theme = theme;
+      $$("[data-theme-choice]").forEach((button) => {
+        const active = button.dataset.themeChoice === theme;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    }
+
+    function setScreen(nextScreen) {
+      screenIndex = Math.max(0, Math.min(2, nextScreen));
+      renderPhone();
+    }
+
+    function showToast(message) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.add("is-visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 3000);
+    }
+
+    function handleAction(action) {
+      if (action === "next") setScreen(screenIndex + 1);
+      if (action === "prev") setScreen(screenIndex - 1);
+      if (action === "skip") { showToast(t("skipToast")); setScreen(2); }
+      if (action === "create") showToast(t("createToast"));
+      if (action === "explore") showToast(t("exploreToast"));
+      if (action === "hint") showToast(t("hintToast"));
+      if (action === "replay") {
+        setScreen(0);
+        $("#flow").scrollIntoView({ behavior: "smooth", block: "start" });
+        showToast(t("replayToast"));
+      }
+    }
+
+    document.addEventListener("click", (event) => {
+      const screenButton = event.target.closest("[data-screen]");
+      if (screenButton) setScreen(Number(screenButton.dataset.screen));
+      const actionButton = event.target.closest("[data-action]");
+      if (actionButton) handleAction(actionButton.dataset.action);
+      const languageButton = event.target.closest("[data-language]");
+      if (languageButton) setLanguage(languageButton.dataset.language);
+      const themeButton = event.target.closest("[data-theme-choice]");
+      if (themeButton) setTheme(themeButton.dataset.themeChoice);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") setScreen(screenIndex + 1);
+      if (event.key === "ArrowLeft") setScreen(screenIndex - 1);
+    });
+
+    setTheme("light");
+    setLanguage("ru");
+    setScreen(0);
+  </script>
+</body>
+</html>

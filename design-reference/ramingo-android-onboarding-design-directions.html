@@ -1,0 +1,1551 @@
+<!doctype html>
+<html lang="ru" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Ramingo — пять направлений дизайна</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --ink: #16152a;
+      --muted: #77748c;
+      --soft: #9e9ab1;
+      --purple: #6d59e9;
+      --purple-deep: #5141c7;
+      --purple-soft: #eeeaff;
+      --violet-line: #d7d0ff;
+      --surface: #ffffff;
+      --page: #f2f1f8;
+      --shadow: 0 30px 80px rgba(44, 35, 103, .13);
+      --radius-xl: 38px;
+      --radius-lg: 26px;
+      --radius-md: 18px;
+      --display: 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font-family: var(--display);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, a { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+
+    body[data-resolved-theme="dark"] {
+      --ink: #f5f2ff;
+      --muted: #aaa7bd;
+      --soft: #7f7c96;
+      --surface: #211e36;
+      --page: #14121f;
+      --purple-soft: #2c2750;
+      --violet-line: #4d4484;
+      --shadow: 0 30px 80px rgba(0, 0, 0, .34);
+    }
+
+    .page-shell { overflow: hidden; }
+    .intro {
+      position: relative;
+      isolation: isolate;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 42px 48px 38px;
+      min-height: 468px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 82% 18%, rgba(166, 149, 255, .72), transparent 24%),
+        radial-gradient(circle at 12% 80%, rgba(111, 91, 235, .52), transparent 30%),
+        linear-gradient(125deg, #262044 0%, #4536a4 46%, #7a61ef 100%);
+      border-radius: 0 0 48px 48px;
+      box-shadow: 0 24px 64px rgba(55, 43, 154, .22);
+    }
+    .intro::before,
+    .intro::after {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      border: 1px solid rgba(255,255,255,.17);
+      border-radius: 999px;
+      pointer-events: none;
+    }
+    .intro::before { width: 690px; height: 690px; right: -170px; top: -260px; }
+    .intro::after { width: 440px; height: 440px; left: -170px; bottom: -280px; }
+    .intro-inner { max-width: 1220px; margin: 0 auto; }
+    .eyebrow, .direction-kicker, .micro-label, .screen-label, .phone-status, .device-index {
+      font-family: var(--mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,.72);
+    }
+    .brand-mark, .r-logo {
+      display: inline-grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(145deg, #9e8cff, #6048d5);
+      box-shadow: 0 8px 18px rgba(68, 45, 189, .25);
+    }
+    .brand-mark { width: 30px; height: 30px; border-radius: 10px; font-size: 16px; }
+    .intro-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      gap: 70px;
+      align-items: end;
+      margin-top: 58px;
+    }
+    .intro h1 {
+      max-width: 750px;
+      margin: 0;
+      font-size: clamp(42px, 6vw, 82px);
+      line-height: .96;
+      letter-spacing: -.065em;
+    }
+    .intro-lead {
+      max-width: 640px;
+      margin: 28px 0 0;
+      color: rgba(255,255,255,.72);
+      font-size: 16px;
+      line-height: 1.65;
+    }
+    .intro-aside {
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 24px;
+      background: rgba(25, 17, 69, .2);
+      backdrop-filter: blur(20px);
+    }
+    .intro-aside strong { display: block; font-size: 20px; line-height: 1.15; }
+    .intro-aside p { margin: 10px 0 0; color: rgba(255,255,255,.68); font-size: 13px; line-height: 1.55; }
+    .control-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+    .control-group { display: flex; gap: 4px; padding: 4px; border: 1px solid rgba(255,255,255,.2); border-radius: 14px; background: rgba(255,255,255,.1); }
+    .control-button {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 11px;
+      color: rgba(255,255,255,.65);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .control-button[aria-pressed="true"] { color: #31265f; background: #fff; box-shadow: 0 5px 14px rgba(22, 13, 87, .18); }
+
+    .direction-nav {
+      position: sticky;
+      z-index: 20;
+      top: 12px;
+      display: flex;
+      gap: 7px;
+      max-width: 1220px;
+      margin: 20px auto -4px;
+      padding: 8px;
+      border: 1px solid rgba(120, 108, 180, .16);
+      border-radius: 19px;
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+      box-shadow: 0 14px 30px rgba(55, 43, 126, .08);
+      backdrop-filter: blur(18px);
+    }
+    .direction-nav a {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 12px 10px;
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      transition: .2s ease;
+    }
+    .direction-nav a:hover, .direction-nav a:focus-visible { color: var(--ink); background: var(--purple-soft); outline: none; }
+    .direction-nav span { color: var(--purple); font-family: var(--mono); font-size: 10px; }
+
+    main { max-width: 1440px; margin: 0 auto; padding: 24px 48px 80px; }
+    .direction {
+      position: relative;
+      margin: 28px auto 74px;
+      padding: 38px;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .direction-top { position: relative; z-index: 2; display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 20px; align-items: start; margin-bottom: 30px; }
+    .direction-number { font-family: var(--mono); font-size: 13px; opacity: .52; padding-top: 6px; }
+    .direction-kicker { margin: 0 0 10px; font-size: 10px; opacity: .66; }
+    .direction h2 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: .98; letter-spacing: -.055em; }
+    .direction-intro { max-width: 600px; margin: 14px 0 0; font-size: 14px; line-height: 1.6; opacity: .7; }
+    .concept-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; max-width: 300px; }
+    .concept-tag { padding: 8px 10px; border: 1px solid currentColor; border-radius: 99px; font-family: var(--mono); font-size: 9px; opacity: .66; }
+    .screen-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; font-size: 9px; opacity: .54; }
+    .screen-label::after { content: '↗'; font-family: var(--display); font-size: 15px; }
+    .phone-deck { position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: center; gap: 22px; }
+    .phone-figure { min-width: 0; }
+    .phone {
+      position: relative;
+      width: 254px;
+      height: 520px;
+      padding: 10px;
+      border: 7px solid #201f2a;
+      border-radius: 37px;
+      background: #201f2a;
+      box-shadow: 0 24px 38px rgba(27, 21, 67, .22), inset 0 0 0 1px rgba(255,255,255,.15);
+    }
+    .phone::before { content: ''; position: absolute; z-index: 3; top: 9px; left: 50%; width: 72px; height: 17px; transform: translateX(-50%); border-radius: 0 0 12px 12px; background: #201f2a; }
+    .phone-screen { height: 100%; overflow: hidden; border-radius: 24px; background: #f9f8fd; color: #19182c; }
+    .phone-top { display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 7px 14px 0; color: #7d7b8f; font-family: var(--mono); font-size: 8px; font-weight: 500; }
+    .phone-status { display: flex; align-items: center; gap: 4px; font-size: 7px; letter-spacing: .01em; }
+    .phone-status::before { content: '○'; font-size: 9px; }
+    .phone-status::after { content: '▰'; font-size: 7px; }
+    .phone-body { padding: 12px 14px 18px; }
+    .phone-appbar { display: flex; align-items: center; justify-content: space-between; min-height: 34px; margin-bottom: 17px; }
+    .brand-lockup { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; letter-spacing: -.04em; }
+    .r-logo { width: 30px; height: 30px; border-radius: 10px; font-size: 16px; }
+    .appbar-action { color: var(--purple); font-size: 11px; font-weight: 800; }
+    .appbar-icon { color: var(--purple); font-size: 16px; line-height: 1; }
+    .app-title { margin: 0; font-size: 20px; line-height: 1.05; letter-spacing: -.06em; }
+    .app-subtitle { margin: 8px 0 0; color: #9894a8; font-size: 10px; line-height: 1.45; }
+    .micro-label { color: #938da8; font-size: 8px; }
+    .phone-section { margin-top: 17px; }
+    .phone-section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 11px; font-weight: 800; }
+    .pill-row { display: flex; gap: 5px; overflow: hidden; margin: 13px 0; }
+    .pill { flex: 0 0 auto; padding: 6px 9px; border-radius: 99px; color: #777387; background: #f1eff7; font-size: 8px; font-weight: 800; }
+    .pill.active { color: #fff; background: var(--purple); }
+    .trip-card { position: relative; overflow: hidden; min-height: 146px; padding: 14px; border-radius: 19px; color: #fff; background: linear-gradient(140deg, #5248b0, #24274a 67%); box-shadow: 0 12px 22px rgba(63, 52, 166, .2); }
+    .trip-card::after { content: ''; position: absolute; width: 145px; height: 145px; right: -36px; bottom: -72px; border: 1px solid rgba(255,255,255,.32); border-radius: 50%; box-shadow: 0 0 0 16px rgba(255,255,255,.07), 0 0 0 32px rgba(255,255,255,.05); }
+    .trip-badge { display: inline-block; padding: 5px 7px; border-radius: 99px; background: rgba(255,255,255,.14); font-family: var(--mono); font-size: 7px; }
+    .trip-card h4 { position: absolute; left: 14px; bottom: 31px; margin: 0; font-size: 18px; letter-spacing: -.05em; }
+    .trip-card small { position: absolute; left: 14px; bottom: 15px; color: rgba(255,255,255,.65); font-size: 8px; }
+    .route-chip { display: flex; align-items: center; gap: 5px; margin-top: 8px; padding: 9px 10px; border: 1px solid #e5e1f0; border-radius: 13px; background: rgba(255,255,255,.72); color: #625f77; font-size: 8px; font-weight: 800; }
+    .route-chip span { color: var(--purple); }
+    .action-button {
+      display: flex; align-items: center; justify-content: center; width: 100%; min-height: 43px; padding: 10px 12px;
+      border: 0; border-radius: 13px; color: #fff; background: var(--purple); font-size: 10px; font-weight: 800; box-shadow: 0 9px 17px rgba(104, 84, 227, .22);
+    }
+    .action-button.ghost { color: var(--purple); background: #fff; border: 1px solid #ded9ef; box-shadow: none; }
+    .phone-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 24px; }
+    .progress-dots { display: flex; justify-content: center; gap: 5px; margin-top: 17px; }
+    .progress-dots span { width: 6px; height: 6px; border-radius: 50%; background: #d4cdf9; }
+    .progress-dots span.active { width: 21px; border-radius: 99px; background: var(--purple); }
+    .empty-illustration { display: grid; place-items: center; width: 62px; height: 62px; margin: 64px auto 18px; border: 1px solid #d5cdfd; border-radius: 20px; color: var(--purple); background: #f7f4ff; font-size: 27px; box-shadow: 0 13px 22px rgba(112, 88, 219, .11); }
+    .empty-copy { text-align: center; }
+    .empty-copy h4 { margin: 0; font-size: 14px; line-height: 1.25; letter-spacing: -.04em; }
+    .empty-copy p { margin: 9px auto 0; max-width: 190px; color: #938fa5; font-size: 9px; line-height: 1.5; }
+    .mini-map { position: relative; overflow: hidden; min-height: 148px; border-radius: 17px; background: #dfece3; }
+    .mini-map::before { content: ''; position: absolute; inset: -25px; background: repeating-linear-gradient(28deg, transparent 0 22px, rgba(91, 132, 117, .18) 23px 25px, transparent 26px 53px), repeating-linear-gradient(108deg, transparent 0 37px, rgba(255,255,255,.62) 38px 41px, transparent 42px 70px); transform: rotate(-5deg); }
+    .mini-map::after { content: ''; position: absolute; width: 150%; height: 3px; left: -18%; top: 60%; transform: rotate(-17deg); background: var(--purple); box-shadow: 0 0 0 2px rgba(255,255,255,.45); }
+    .map-pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); color: #fff; background: var(--purple); box-shadow: 0 4px 8px rgba(51, 44, 120, .2); }
+    .map-pin b { transform: rotate(45deg); font-family: var(--mono); font-size: 8px; }
+    .pin-one { left: 28%; top: 55%; }
+    .pin-two { left: 60%; top: 26%; }
+    .pin-three { right: 15%; bottom: 18%; }
+    .day-tabs { display: flex; gap: 7px; margin: 10px 0 12px; }
+    .day-tab { padding: 6px 9px; border-radius: 99px; color: #8f8a9d; background: #f0eef8; font-size: 8px; font-weight: 800; }
+    .day-tab.active { color: #fff; background: var(--purple); }
+    .place-row { display: flex; align-items: center; gap: 8px; min-height: 45px; margin-top: 7px; padding: 7px 8px; border: 1px solid #e6e2ed; border-radius: 12px; background: #fff; }
+    .place-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; color: var(--purple); background: #f0edff; font-size: 12px; }
+    .place-row strong { display: block; font-size: 9px; }
+    .place-row small { display: block; margin-top: 3px; color: #a19dac; font-size: 7px; }
+    .place-arrow { margin-left: auto; color: #a7a2b3; }
+    .section-rule { height: 1px; margin: 15px 0; background: #e8e4ef; }
+
+    /* 01 — Aurora */
+    .aurora { color: #211c49; background: linear-gradient(135deg, #ebe8ff 0%, #f8f6ff 44%, #dff5f2 100%); }
+    .aurora::before { content: ''; position: absolute; width: 660px; height: 660px; right: -150px; top: 100px; border: 1px solid rgba(123, 104, 224, .18); border-radius: 50%; box-shadow: 0 0 0 44px rgba(123, 104, 224, .06), 0 0 0 88px rgba(123, 104, 224, .04); }
+    .aurora-stage { position: relative; z-index: 1; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 28px; align-items: end; }
+    .aurora-note { align-self: center; padding: 14px; border: 1px solid rgba(111, 88, 225, .2); border-radius: 18px; background: rgba(255,255,255,.43); box-shadow: 0 14px 24px rgba(95, 75, 194, .08); }
+    .aurora-note strong { display: block; font-size: 12px; line-height: 1.3; }
+    .aurora-note p { margin: 8px 0 0; color: #777191; font-size: 10px; line-height: 1.45; }
+    .aurora-deck { gap: 18px; align-items: flex-end; }
+    .aurora-phone { border-color: #f4f3fb; background: #f4f3fb; box-shadow: 0 28px 42px rgba(76, 54, 174, .22), inset 0 0 0 1px rgba(105, 86, 211, .18); }
+    .aurora-phone::before { background: #f4f3fb; }
+    .aurora-phone.aurora-main { transform: translateY(-16px); }
+    .aurora-phone .phone-screen { background: linear-gradient(160deg, #fcfbff, #f4f1ff); }
+    .aurora-phone .trip-card { background: linear-gradient(145deg, #8575f4, #2d2c69 70%); }
+    .aurora-phone .empty-illustration { margin-top: 84px; }
+    .aurora-phone .mini-map { background: #d9ecee; }
+
+    /* 02 — Atlas */
+    .atlas { color: #f7faff; background: #131d39; }
+    .atlas::before { content: ''; position: absolute; inset: 0; opacity: .5; background-image: linear-gradient(rgba(106, 136, 190, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(106, 136, 190, .08) 1px, transparent 1px); background-size: 42px 42px; }
+    .atlas .direction-kicker, .atlas .direction-intro, .atlas .concept-tag, .atlas .direction-number { color: #b8c9ed; }
+    .atlas .concept-tag { border-color: rgba(187, 206, 244, .32); }
+    .atlas-stage { position: relative; z-index: 1; min-height: 590px; padding: 22px; border: 1px solid rgba(170, 194, 240, .17); border-radius: 25px; background: radial-gradient(circle at 76% 18%, rgba(107, 126, 217, .34), transparent 21%), linear-gradient(145deg, #1b2b52, #0e172e); overflow: hidden; }
+    .atlas-stage::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(108deg, transparent 0 45px, rgba(154, 187, 228, .1) 46px 48px, transparent 49px 92px), repeating-linear-gradient(28deg, transparent 0 68px, rgba(154, 187, 228, .08) 69px 71px, transparent 72px 130px); transform: scale(1.1) rotate(-3deg); }
+    .atlas-route-line { position: absolute; z-index: 0; left: 10%; right: 12%; top: 50%; height: 4px; transform: rotate(-11deg); border-radius: 9px; background: linear-gradient(90deg, transparent, #91aaff 14%, #6f55e9 68%, transparent); box-shadow: 0 0 22px rgba(112, 122, 247, .56); }
+    .atlas-coord { position: absolute; z-index: 1; color: rgba(202, 219, 249, .46); font-family: var(--mono); font-size: 9px; }
+    .atlas-coord.c1 { right: 30px; top: 28px; }
+    .atlas-coord.c2 { left: 35px; bottom: 25px; }
+    .atlas-deck { position: relative; z-index: 2; align-items: flex-end; gap: 24px; }
+    .atlas-phone { width: 244px; height: 510px; border-color: #0b1121; background: #0b1121; border-radius: 29px; box-shadow: 0 30px 42px rgba(0,0,0,.3), inset 0 0 0 1px rgba(164, 186, 234, .2); }
+    .atlas-phone::before { background: #0b1121; }
+    .atlas-phone .phone-screen { background: #f5f8ff; }
+    .atlas-phone .phone-body { padding-left: 13px; padding-right: 13px; }
+    .atlas-phone .mini-map { min-height: 230px; border-radius: 12px; background: #d5e6e3; }
+    .atlas-phone .route-chip { border-radius: 8px; }
+    .atlas-phone .trip-card { border-radius: 11px; background: linear-gradient(140deg, #273e78, #162341); }
+    .atlas-phone .place-row { border-radius: 8px; }
+    .atlas-main { transform: translateY(-15px); }
+    .atlas-main .phone-top, .atlas-main .phone-appbar { color: #f4f7ff; }
+    .atlas-main .phone-screen { background: #121d39; color: #f6f8ff; }
+    .atlas-main .phone-top { color: #879ac5; }
+    .atlas-main .phone-appbar { margin-bottom: 13px; }
+    .atlas-main .appbar-action, .atlas-main .appbar-icon { color: #a6b7f9; }
+    .atlas-main .mini-map { min-height: 236px; background: #243b59; }
+    .atlas-main .mini-map::before { opacity: .42; background: repeating-linear-gradient(28deg, transparent 0 25px, rgba(180, 210, 216, .25) 26px 28px, transparent 29px 60px), repeating-linear-gradient(108deg, transparent 0 36px, rgba(180, 210, 216, .16) 37px 40px, transparent 41px 70px); }
+    .atlas-main .map-pin { background: #927cff; }
+    .atlas-main .route-chip { border-color: rgba(196, 210, 244, .18); background: rgba(255,255,255,.08); color: #cfdbfb; }
+    .atlas-main .phone-section-title { color: #f4f7ff; }
+    .atlas-main .micro-label { color: #8b9bc3; }
+    .atlas-main .action-button { background: #826cf4; }
+    .atlas-main .map-pin { box-shadow: 0 0 0 7px rgba(130, 108, 244, .18), 0 8px 12px rgba(0,0,0,.28); }
+    .atlas-main .pin-one { left: 16%; top: 70%; }
+    .atlas-main .pin-two { left: 52%; top: 37%; }
+    .atlas-main .pin-three { right: 13%; bottom: 21%; }
+    .atlas .screen-label { color: #bdcae8; }
+
+    /* 03 — Nocturne */
+    .nocturne { color: #f6f2ff; background: radial-gradient(circle at 68% 18%, #30215b 0%, transparent 28%), #0e0d18; }
+    .nocturne::after { content: ''; position: absolute; width: 550px; height: 550px; right: -100px; bottom: -230px; border: 1px solid rgba(250, 190, 106, .22); border-radius: 50%; box-shadow: 0 0 0 58px rgba(250,190,106,.04), 0 0 0 116px rgba(250,190,106,.03); }
+    .nocturne .direction-kicker, .nocturne .direction-intro, .nocturne .concept-tag, .nocturne .direction-number { color: #bbb4d2; }
+    .nocturne .concept-tag { border-color: rgba(251, 202, 126, .3); }
+    .nocturne-deck { position: relative; z-index: 1; padding: 10px 0 8px; gap: 25px; }
+    .nocturne-deck::before { content: ''; position: absolute; z-index: -1; left: 8%; right: 8%; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, rgba(247, 194, 112, .55), transparent); }
+    .nocturne-phone { border-color: #282330; background: #282330; box-shadow: 0 30px 45px rgba(0,0,0,.46), inset 0 0 0 1px rgba(255,255,255,.08); }
+    .nocturne-phone::before { background: #282330; }
+    .nocturne-phone .phone-screen { color: #f7f2ff; background: #151320; }
+    .nocturne-phone .phone-top { color: #8f8a9f; }
+    .nocturne-phone .phone-appbar { margin-bottom: 18px; }
+    .nocturne-phone .appbar-action, .nocturne-phone .appbar-icon { color: #efbd74; }
+    .nocturne-phone .micro-label { color: #9891ac; }
+    .nocturne-phone .app-title { color: #fbf8ff; }
+    .nocturne-phone .app-subtitle, .nocturne-phone .empty-copy p { color: #918a9e; }
+    .nocturne-phone .trip-card { min-height: 169px; border: 1px solid rgba(248, 195, 116, .25); background: linear-gradient(145deg, #39296a, #19172c 76%); box-shadow: 0 14px 28px rgba(0,0,0,.27); }
+    .nocturne-phone .trip-card::after { border-color: rgba(249, 198, 121, .34); }
+    .nocturne-phone .trip-badge { color: #facb88; background: rgba(250, 200, 125, .12); }
+    .nocturne-phone .route-chip { border-color: #332e43; background: #211e2c; color: #beb5ca; }
+    .nocturne-phone .pill { color: #9c96aa; background: #242130; }
+    .nocturne-phone .pill.active, .nocturne-phone .day-tab.active { color: #1a1620; background: #f4bf75; }
+    .nocturne-phone .day-tab { color: #9c96aa; background: #242130; }
+    .nocturne-phone .place-row { border-color: #332e43; background: #1d1a28; }
+    .nocturne-phone .place-icon { color: #f4bf75; background: #31283a; }
+    .nocturne-phone .place-row small { color: #8d8799; }
+    .nocturne-phone .empty-illustration { border-color: rgba(243, 191, 117, .34); color: #f4bf75; background: #292037; box-shadow: 0 0 0 10px rgba(244, 191, 117, .05), 0 14px 26px rgba(0,0,0,.28); }
+    .nocturne-phone .action-button { color: #211925; background: #f4bf75; box-shadow: 0 10px 22px rgba(244, 191, 117, .18); }
+    .nocturne-phone .action-button.ghost { color: #f4bf75; border-color: #3d3448; background: #211e2d; }
+    .nocturne-phone .progress-dots span { background: #493b51; }
+    .nocturne-phone .progress-dots span.active { background: #f4bf75; }
+    .nocturne-main { transform: translateY(-17px); }
+    .nocturne-cover { position: relative; overflow: hidden; min-height: 157px; padding: 15px; border: 1px solid rgba(244, 190, 116, .23); border-radius: 15px; background: radial-gradient(circle at 76% 18%, #f0bb73 0 9px, transparent 10px), radial-gradient(circle at 35% 35%, rgba(169, 145, 220, .5) 0 18px, transparent 19px), linear-gradient(145deg, #332653, #111120 80%); }
+    .nocturne-cover::before { content: ''; position: absolute; width: 240px; height: 180px; right: -78px; top: 22px; border: 1px solid rgba(236, 189, 118, .35); border-radius: 50%; transform: rotate(-22deg); box-shadow: 0 0 0 18px rgba(236,189,118,.04); }
+    .nocturne-cover strong { position: relative; display: block; margin-top: 72px; color: #fff; font-size: 18px; letter-spacing: -.05em; }
+    .nocturne-cover small { position: relative; display: block; margin-top: 4px; color: #b1a5c1; font-size: 8px; }
+    .nocturne-timeline { position: relative; margin: 20px 0 0 8px; padding-left: 18px; border-left: 1px solid rgba(244, 191, 117, .34); }
+    .nocturne-timeline-item { position: relative; padding-bottom: 17px; }
+    .nocturne-timeline-item::before { content: ''; position: absolute; left: -23px; top: 2px; width: 8px; height: 8px; border: 2px solid #f4bf75; border-radius: 50%; background: #151320; }
+    .nocturne-timeline-item strong { display: block; font-size: 11px; }
+    .nocturne-timeline-item small { display: block; margin-top: 4px; color: #918a9e; font-size: 8px; }
+
+    /* 04 — Bento */
+    .bento { color: #221b43; background: #eeeef6; }
+    .bento::before { content: ''; position: absolute; inset: 0; opacity: .45; background-image: linear-gradient(#dfddea 1px, transparent 1px), linear-gradient(90deg, #dfddea 1px, transparent 1px); background-size: 26px 26px; mask-image: linear-gradient(to bottom, #000, transparent 88%); }
+    .bento .concept-tag { border-color: #aaa2cf; }
+    .bento-board { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; align-items: end; }
+    .bento-tile { padding: 12px; border-radius: 20px; background: #fff; box-shadow: 0 15px 28px rgba(45, 35, 106, .09); }
+    .bento-tile.note { align-self: start; min-height: 96px; color: #645a86; background: #dad3ff; }
+    .bento-tile.note strong { display: block; font-size: 12px; line-height: 1.25; letter-spacing: -.04em; }
+    .bento-tile.note p { margin: 7px 0 0; font-size: 9px; line-height: 1.4; }
+    .bento-phone { width: 245px; height: 514px; border-color: #1d1b29; background: #1d1b29; border-radius: 28px; }
+    .bento-phone::before { background: #1d1b29; }
+    .bento-phone .phone-screen { background: #fbfbfe; }
+    .bento-phone .phone-body { padding: 12px; }
+    .bento-phone .phone-appbar { margin-bottom: 13px; }
+    .bento-main { transform: translateY(-14px); }
+    .bento-grid { display: grid; grid-template-columns: 1.15fr .85fr; grid-auto-rows: 88px; gap: 8px; }
+    .bento-module { position: relative; overflow: hidden; padding: 10px; border-radius: 14px; background: #f0edff; }
+    .bento-module.wide { grid-column: 1 / -1; grid-row: span 2; min-height: 184px; color: #fff; background: linear-gradient(145deg, #6d5ce7, #28295f); }
+    .bento-module.lilac { color: #5146a8; background: #e7e2ff; }
+    .bento-module.mint { color: #34726f; background: #dff4ee; }
+    .bento-module.yellow { color: #8d672b; background: #fff0c8; }
+    .bento-module strong { display: block; font-size: 10px; line-height: 1.2; }
+    .bento-module small { display: block; margin-top: 5px; font-size: 7px; line-height: 1.3; opacity: .75; }
+    .bento-module .module-number { position: absolute; right: 10px; top: 9px; font-family: var(--mono); font-size: 9px; opacity: .55; }
+    .bento-module.wide::after { content: ''; position: absolute; width: 170px; height: 170px; right: -48px; bottom: -86px; border: 1px solid rgba(255,255,255,.32); border-radius: 50%; box-shadow: 0 0 0 17px rgba(255,255,255,.06); }
+    .bento-mini-map { position: absolute; inset: 50px 0 0; background: repeating-linear-gradient(24deg, transparent 0 18px, rgba(255,255,255,.17) 19px 21px, transparent 22px 42px); }
+    .bento-mini-map::after { content: ''; position: absolute; left: 20%; top: 42%; width: 90%; height: 2px; transform: rotate(-14deg); background: #fff; }
+    .bento-phone .action-button { border-radius: 10px; }
+    .bento-phone .trip-card { min-height: 128px; border-radius: 14px; background: #28265f; }
+    .bento-phone .place-row { border-radius: 10px; }
+    .bento-phone .mini-map { min-height: 130px; border-radius: 12px; }
+    .bento-phone .empty-illustration { width: 54px; height: 54px; margin-top: 60px; border-radius: 16px; }
+    .bento-stack { display: grid; gap: 10px; align-self: start; padding-top: 54px; }
+    .bento-stack .bento-tile { min-height: 76px; }
+    .bento-stack .bento-tile strong { display: block; font-size: 10px; }
+    .bento-stack .bento-tile p { margin: 7px 0 0; color: #8e89a4; font-size: 8px; line-height: 1.35; }
+
+    /* 05 — Postcard */
+    .postcard { color: #332448; background: #f4e9db; }
+    .postcard::before { content: ''; position: absolute; inset: 0; opacity: .45; background-image: radial-gradient(#c9bba9 1px, transparent 1px); background-size: 18px 18px; }
+    .postcard-top { position: relative; z-index: 1; }
+    .postcard .direction-kicker, .postcard .direction-number { color: #967f72; }
+    .postcard .direction-intro { color: #806c68; }
+    .postcard .concept-tag { border-color: #c29d91; color: #85635e; }
+    .postcard-deck { position: relative; z-index: 1; gap: 26px; padding: 16px 22px 25px; border: 1px dashed #d0aea0; border-radius: 8px; background: rgba(255,251,244,.42); }
+    .postcard-deck::before { content: ''; position: absolute; top: 24px; left: 7%; right: 7%; border-top: 1px dashed rgba(156, 119, 115, .45); }
+    .postcard-phone { width: 242px; height: 514px; border-color: #4b2e54; background: #4b2e54; border-radius: 25px; box-shadow: 0 24px 30px rgba(92, 55, 53, .18); }
+    .postcard-phone::before { background: #4b2e54; }
+    .postcard-phone .phone-screen { border-radius: 14px; background: #fffaf1; }
+    .postcard-phone .phone-top { color: #99837e; }
+    .postcard-phone .phone-body { padding: 13px; }
+    .postcard-phone .phone-appbar { margin-bottom: 15px; }
+    .postcard-phone .r-logo { border-radius: 8px; background: #6b4bdf; box-shadow: none; }
+    .postcard-phone .appbar-action, .postcard-phone .appbar-icon { color: #6b4bdf; }
+    .postcard-phone .trip-card { border-radius: 5px 18px 5px 18px; background: linear-gradient(140deg, #8d6df0, #35284e 78%); box-shadow: none; }
+    .postcard-phone .trip-card::after { border-radius: 50%; }
+    .postcard-phone .trip-badge { border-radius: 3px; }
+    .postcard-phone .route-chip { border-color: #eaded1; border-radius: 5px; background: #fff; color: #765e62; }
+    .postcard-phone .pill { border-radius: 4px; background: #f3e9dd; }
+    .postcard-phone .pill.active, .postcard-phone .day-tab.active { color: #fff; background: #6b4bdf; }
+    .postcard-phone .day-tab { border-radius: 4px; background: #f3e9dd; }
+    .postcard-phone .place-row { border-color: #eaded1; border-radius: 5px 12px 5px 12px; background: #fff; }
+    .postcard-phone .place-icon { border-radius: 5px; color: #6b4bdf; background: #eee8ff; }
+    .postcard-phone .action-button { border-radius: 5px 14px 5px 14px; background: #6b4bdf; box-shadow: none; }
+    .postcard-phone .action-button.ghost { color: #6b4bdf; border-color: #d8cbed; }
+    .postcard-phone .empty-illustration { border-radius: 5px 16px 5px 16px; border-color: #dbcdf3; background: #f4efff; }
+    .postcard-phone .mini-map { border-radius: 5px 18px 5px 18px; }
+    .postcard-main { transform: rotate(-1.5deg) translateY(-13px); }
+    .postcard-side-left { transform: rotate(-3deg); }
+    .postcard-side-right { transform: rotate(2deg); }
+    .postcard-stamp { position: absolute; z-index: 3; top: 28px; right: 22px; display: grid; place-items: center; width: 83px; height: 83px; transform: rotate(10deg); border: 2px solid #b96f68; border-radius: 50%; color: #b96f68; font-family: var(--mono); font-size: 9px; text-align: center; opacity: .75; }
+    .postcard-note { position: absolute; z-index: 3; left: 22px; bottom: 12px; transform: rotate(-4deg); padding: 9px 12px; border: 1px solid #dec6b6; background: #fff5e7; color: #92756b; font-family: var(--mono); font-size: 8px; box-shadow: 5px 7px 0 rgba(112, 75, 74, .08); }
+
+    /* Guided walkthrough — a real usage tutorial, separate from the five art directions. */
+    .guide {
+      position: relative;
+      max-width: 1220px;
+      margin: 50px auto 62px;
+      padding: 34px 38px 38px;
+      overflow: hidden;
+      border: 1px solid #ded9ef;
+      border-radius: 35px;
+      color: #221b4b;
+      background: linear-gradient(145deg, #fbfaff 0%, #f7f6fb 58%, #f1effa 100%);
+      box-shadow: 0 25px 65px rgba(69, 54, 168, .11);
+    }
+    .guide::before { content: ''; position: absolute; width: 420px; height: 420px; right: -120px; top: -210px; border: 1px solid rgba(103, 85, 215, .14); border-radius: 50%; box-shadow: 0 0 0 30px rgba(103, 85, 215, .035), 0 0 0 60px rgba(103, 85, 215, .025); }
+    .guide-heading { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px; align-items: end; margin-bottom: 26px; }
+    .guide-kicker { margin: 0 0 9px; color: #7566ca; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .guide h2 { margin: 0; font-size: clamp(30px, 4vw, 48px); line-height: .98; letter-spacing: -.06em; }
+    .guide-intro { max-width: 620px; margin: 12px 0 0; color: #7f7899; font-size: 13px; line-height: 1.6; }
+    .guide-counter { display: flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid #ddd6ff; border-radius: 99px; color: #7063b4; background: rgba(255,255,255,.6); font-family: var(--mono); font-size: 10px; }
+    .guide-layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 328px; gap: 54px; align-items: center; }
+    .guide-steps { display: grid; gap: 0; max-width: 560px; }
+    .guide-step { display: grid; grid-template-columns: 50px minmax(0, 1fr) 28px; gap: 15px; align-items: center; min-height: 86px; padding: 14px 4px; border: 0; border-top: 1px solid #e3ddf4; color: #322952; background: transparent; text-align: left; transition: .2s ease; }
+    .guide-step:last-of-type { border-bottom: 1px solid #e3ddf4; }
+    .guide-step:hover, .guide-step:focus-visible { color: #27175f; background: rgba(255,255,255,.5); outline: none; }
+    .guide-step[aria-pressed="true"] { color: #24135f; }
+    .guide-step-number { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid #c9c0fb; border-radius: 12px; color: #7968e1; font-family: var(--mono); font-size: 10px; font-weight: 500; }
+    .guide-step[aria-pressed="true"] .guide-step-number { color: #fff; background: #6d59e9; border-color: #6d59e9; box-shadow: 0 7px 14px rgba(106, 86, 224, .22); }
+    .guide-step strong { display: block; font-size: 14px; letter-spacing: -.03em; }
+    .guide-step small { display: block; margin-top: 5px; color: #8e87a4; font-size: 10px; line-height: 1.4; }
+    .guide-step-arrow { color: #aaa1c6; font-size: 20px; transition: transform .2s ease; }
+    .guide-step[aria-pressed="true"] .guide-step-arrow { color: #6d59e9; transform: translateX(4px); }
+    .guide-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 19px; }
+    .guide-control { min-height: 42px; padding: 10px 14px; border: 1px solid #d7d0f2; border-radius: 12px; color: #6758cb; background: rgba(255,255,255,.72); font-size: 10px; font-weight: 800; }
+    .guide-control.primary { color: #fff; border-color: #6d59e9; background: #6d59e9; box-shadow: 0 9px 18px rgba(106, 86, 224, .19); }
+    .guide-control:disabled { cursor: default; opacity: .46; }
+    .guide-feedback { min-height: 25px; margin-top: 15px; color: #786aaf; font-size: 10px; line-height: 1.45; }
+    .guide-preview { position: relative; display: flex; justify-content: center; padding: 18px 0 22px; }
+    .guide-preview::before { content: ''; position: absolute; width: 320px; height: 320px; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(126,107,236,.18), rgba(126,107,236,0) 68%); }
+    .guide-phone { position: relative; z-index: 1; width: 286px; height: 584px; border-color: #242136; background: #242136; border-radius: 38px; box-shadow: 0 28px 42px rgba(65, 48, 139, .24), inset 0 0 0 1px rgba(255,255,255,.15); }
+    .guide-phone::before { background: #242136; }
+    .guide-phone .phone-screen { position: relative; background: #f9f8fd; }
+    .guide-scene { position: relative; height: 100%; overflow: hidden; }
+    .guide-scene[hidden] { display: none; }
+    .guide-scene .phone-top { height: 30px; }
+    .guide-scene .phone-body { padding: 14px 16px 20px; }
+    .guide-scene .phone-appbar { margin-bottom: 18px; }
+    .guide-scene .app-title { font-size: 22px; }
+    .guide-scene .app-subtitle { max-width: 220px; }
+    .guide-empty-mark { display: grid; place-items: center; width: 66px; height: 66px; margin: 84px auto 18px; border: 1px solid #d2c9ff; border-radius: 20px; color: #6d59e9; background: #f2efff; font-size: 27px; }
+    .guide-scene .empty-copy { text-align: center; }
+    .guide-scene .empty-copy h4 { font-size: 15px; }
+    .guide-scene .empty-copy p { max-width: 215px; font-size: 9px; }
+    .guide-scene .guide-scene-action { position: absolute; left: 16px; right: 16px; bottom: 24px; width: auto; margin: 0; }
+    .guide-target { position: absolute; z-index: 3; pointer-events: none; border: 2px solid #8d7bff; border-radius: 16px; box-shadow: 0 0 0 6px rgba(141,123,255,.19), 0 0 0 11px rgba(141,123,255,.07); animation: guidePulse 2s ease-in-out infinite; }
+    .guide-tooltip { position: absolute; z-index: 4; left: 18px; right: 18px; display: grid; grid-template-columns: 27px 1fr; gap: 8px; padding: 11px 12px; border: 1px solid #a99bff; border-radius: 14px; color: #352b72; background: rgba(255,255,255,.96); box-shadow: 0 13px 24px rgba(71, 56, 155, .16); }
+    .guide-tooltip::after { content: ''; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; transform: translateX(-50%) rotate(45deg); border-right: 1px solid #a99bff; border-bottom: 1px solid #a99bff; background: #fff; }
+    .guide-tooltip-number { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; color: #fff; background: #6d59e9; font-family: var(--mono); font-size: 9px; font-weight: 500; }
+    .guide-tooltip strong { display: block; font-size: 10px; line-height: 1.2; }
+    .guide-tooltip p { margin: 4px 0 0; color: #8b83a0; font-size: 8px; line-height: 1.35; }
+    .guide-scene[data-guide-scene="1"] .guide-target { left: 13px; right: 13px; bottom: 24px; height: 51px; }
+    .guide-scene[data-guide-scene="1"] .guide-tooltip { bottom: 89px; }
+    .guide-scene[data-guide-scene="2"] .guide-target { left: 13px; right: 13px; bottom: 25px; height: 51px; }
+    .guide-scene[data-guide-scene="2"] .guide-tooltip { bottom: 90px; }
+    .guide-scene[data-guide-scene="3"] .guide-target { left: 14px; right: 14px; top: 234px; height: 118px; }
+    .guide-scene[data-guide-scene="3"] .guide-tooltip { top: 115px; }
+    .guide-scene[data-guide-scene="3"] .guide-tooltip::after { top: -7px; bottom: auto; border-top: 1px solid #a99bff; border-left: 1px solid #a99bff; border-right: 0; border-bottom: 0; }
+    .guide-scene[data-guide-scene="4"] .guide-target { left: 13px; right: 13px; top: 288px; height: 59px; }
+    .guide-scene[data-guide-scene="4"] .guide-tooltip { top: 139px; }
+    .guide-scene[data-guide-scene="4"] .guide-tooltip::after { top: 160px; bottom: auto; border-top: 1px solid #a99bff; border-left: 1px solid #a99bff; border-right: 0; border-bottom: 0; }
+    .guide-screen-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+    .guide-screen-heading h3 { margin: 0; font-size: 20px; letter-spacing: -.06em; }
+    .guide-screen-heading-title { margin: 0; font-size: 15px; letter-spacing: -.05em; }
+    .guide-screen-heading span { color: #8f88a4; font-family: var(--mono); font-size: 8px; }
+    .guide-trip-preview { position: relative; overflow: hidden; min-height: 143px; padding: 13px; border-radius: 16px; color: #fff; background: linear-gradient(140deg, #6f5be5, #262750 75%); }
+    .guide-trip-preview::after { content: ''; position: absolute; width: 150px; height: 150px; right: -35px; bottom: -82px; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; box-shadow: 0 0 0 18px rgba(255,255,255,.06); }
+    .guide-trip-preview strong { position: absolute; left: 13px; bottom: 30px; font-size: 17px; letter-spacing: -.05em; }
+    .guide-trip-preview small { position: absolute; left: 13px; bottom: 14px; color: rgba(255,255,255,.65); font-size: 8px; }
+    .guide-scene .guide-place-list { margin-top: 13px; }
+    .guide-scene .guide-place-list .place-row { min-height: 43px; }
+    .guide-settings-card { padding: 13px; border: 1px solid #e6e1ee; border-radius: 16px; background: #fff; }
+    .guide-profile { display: flex; align-items: center; gap: 9px; padding-bottom: 13px; }
+    .guide-avatar { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 10px; color: #fff; background: #7965e9; font-weight: 800; }
+    .guide-profile strong { display: block; font-size: 10px; }
+    .guide-profile small { display: block; margin-top: 3px; color: #9b95a8; font-size: 7px; }
+    .guide-settings-label { margin: 12px 0 6px; color: #705fdb; font-family: var(--mono); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+    .guide-setting-row { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 43px; padding: 0; border-top: 1px solid #eeeaf3; border-right: 0; border-bottom: 0; border-left: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
+    .guide-setting-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: #6d59e9; background: #f0edff; font-size: 11px; }
+    .guide-setting-row strong { display: block; font-size: 9px; }
+    .guide-setting-row small { display: block; margin-top: 2px; color: #a09aad; font-size: 7px; }
+    .guide-setting-row .place-arrow { margin-left: auto; }
+    @keyframes guidePulse { 0%, 100% { opacity: .82; transform: scale(1); } 50% { opacity: 1; transform: scale(1.015); } }
+
+    /* The onboarding reference uses the current Ramingo UI itself: Manrope, soft gray canvas,
+       white cards, purple actions and the same compact Android chrome as the app. */
+    .guide-current-design {
+      color: var(--ink);
+      background: var(--surface);
+      border-color: color-mix(in srgb, var(--ink) 11%, transparent);
+      box-shadow: 0 22px 54px rgba(42, 34, 108, .1), inset 0 1px 0 rgba(255,255,255,.65);
+    }
+    .guide-current-design::before { display: none; }
+    .guide-current-design .guide-heading { margin-bottom: 30px; }
+    .guide-current-design .guide-kicker { color: var(--purple); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; }
+    .guide-current-design h2 { color: var(--ink); letter-spacing: -.065em; }
+    .guide-current-design .guide-intro { color: var(--muted); max-width: 670px; }
+    .guide-current-design .guide-counter { color: var(--purple); border-color: var(--violet-line); background: var(--purple-soft); }
+    .guide-current-design .guide-layout { grid-template-columns: minmax(0, 1fr) 318px; gap: 48px; align-items: start; }
+    .guide-current-design .guide-steps { max-width: 590px; }
+    .guide-current-design .guide-step { min-height: 82px; grid-template-columns: 48px minmax(0, 1fr) 28px; gap: 14px; color: var(--ink); border-color: color-mix(in srgb, var(--ink) 10%, transparent); }
+    .guide-current-design .guide-step:hover,
+    .guide-current-design .guide-step:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--purple-soft) 48%, transparent); }
+    .guide-current-design .guide-step[aria-pressed="true"] { color: var(--ink); background: color-mix(in srgb, var(--purple-soft) 62%, transparent); }
+    .guide-current-design .guide-step-number { width: 36px; height: 36px; border-color: var(--violet-line); color: var(--purple); border-radius: 12px; }
+    .guide-current-design .guide-step strong { font-size: 14px; }
+    .guide-current-design .guide-step small { color: var(--muted); }
+    .guide-current-design .guide-step-arrow { color: var(--soft); }
+    .guide-current-design .guide-step[aria-pressed="true"] .guide-step-arrow { color: var(--purple); }
+    .guide-current-design .guide-actions { margin-top: 22px; }
+    .guide-current-design .guide-control { color: var(--purple); border-color: var(--violet-line); background: var(--surface); border-radius: 12px; }
+    .guide-current-design .guide-control.primary { color: #fff; border-color: var(--purple); background: var(--purple); box-shadow: 0 8px 16px rgba(108,92,231,.18); }
+    .guide-current-design .guide-feedback { color: var(--muted); }
+    .guide-current-design .guide-preview { padding: 0; }
+    .guide-current-design .guide-preview::before { width: 270px; height: 270px; background: radial-gradient(circle, color-mix(in srgb, var(--purple) 13%, transparent), transparent 70%); }
+    .guide-current-design .guide-phone {
+      width: 286px;
+      height: 584px;
+      padding: 8px;
+      border: 7px solid #1c1c22;
+      border-radius: 38px;
+      background: #1c1c22;
+      box-shadow: 0 25px 40px rgba(24, 23, 36, .24), inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+    .guide-current-design .guide-phone::before { top: 10px; width: 10px; height: 10px; border-radius: 50%; background: #08080b; }
+    .guide-current-design .guide-phone .phone-screen { border-radius: 26px; background: #f4f4f7; color: #17171d; }
+    .guide-current-design .guide-scene { height: 100%; overflow: hidden; background: #f4f4f7; color: #17171d; }
+    .guide-current-design .guide-scene[hidden] { display: none; }
+    .guide-current-design .phone-top { height: 27px; padding: 8px 12px 0; color: #767680; font-family: var(--display); font-size: 8px; font-weight: 700; }
+    .guide-current-design .phone-status { font-family: var(--display); font-size: 7px; letter-spacing: 0; }
+    .guide-current-design .phone-status::before { content: '●'; font-size: 6px; }
+    .guide-current-design .phone-status::after { content: '▰'; font-size: 6px; }
+    .guide-current-design .guide-welcome-scene,
+    .guide-current-design .guide-home-scene,
+    .guide-current-design .guide-build-scene,
+    .guide-current-design .guide-start-scene,
+    .guide-current-design .guide-settings-scene { display: flex; flex-direction: column; }
+    .guide-current-design .guide-welcome-shell { display: flex; flex: 1; flex-direction: column; padding: 0 13px 13px; }
+    .guide-current-design .guide-welcome-appbar,
+    .guide-current-design .guide-native-appbar { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
+    .guide-current-design .guide-brand-lockup { display: flex; align-items: center; gap: 7px; color: #17171d; font-size: 13px; font-weight: 800; letter-spacing: -.04em; }
+    .guide-current-design .guide-brand-lockup img { width: 27px; height: 27px; border-radius: 9px; }
+    .guide-current-design .guide-skip-button,
+    .guide-current-design .guide-icon-button { border: 0; color: #7d73d7; background: transparent; font: inherit; font-size: 9px; font-weight: 800; }
+    .guide-current-design .guide-icon-button { display: grid; place-items: center; width: 28px; height: 28px; color: #17171d; font-size: 17px; }
+    .guide-current-design .guide-welcome-preview { position: relative; overflow: hidden; height: 181px; margin-top: 6px; padding: 10px; border: 1px solid #d3ccff; border-radius: 19px; background: linear-gradient(145deg, #f0edff 0%, #fff 66%); box-shadow: 0 11px 22px rgba(94, 78, 197, .08); }
+    .guide-current-design .guide-mini-bar { display: flex; align-items: center; justify-content: space-between; color: #8e8b9a; font-size: 6px; font-weight: 700; }
+    .guide-current-design .guide-mini-brand { display: flex; align-items: center; gap: 5px; color: #17171d; font-size: 8px; font-weight: 800; }
+    .guide-current-design .guide-mini-brand img { width: 17px; height: 17px; border-radius: 6px; }
+    .guide-current-design .guide-mini-heading { margin: 13px 0 6px; color: #17171d; font-size: 16px; letter-spacing: -.06em; }
+    .guide-current-design .guide-mini-pills { display: flex; gap: 4px; }
+    .guide-current-design .guide-mini-pill { padding: 4px 6px; border-radius: 99px; color: #8c8996; background: #fff; font-size: 5px; font-weight: 800; }
+    .guide-current-design .guide-mini-pill.active { color: #fff; background: var(--purple); }
+    .guide-current-design .guide-mini-trip { position: relative; height: 76px; margin-top: 8px; overflow: hidden; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #5a4f9f 0%, #20253d 80%); }
+    .guide-current-design .guide-mini-trip::before { content: ''; position: absolute; inset: 0; background: linear-gradient(145deg, transparent 35%, rgba(255,255,255,.16) 36%, transparent 60%), radial-gradient(circle at 78% 15%, rgba(255,220,142,.85) 0 5%, transparent 6%); opacity: .8; }
+    .guide-current-design .guide-mini-trip strong { position: absolute; left: 9px; bottom: 21px; z-index: 1; font-size: 11px; letter-spacing: -.04em; }
+    .guide-current-design .guide-mini-trip small { position: absolute; left: 9px; bottom: 9px; z-index: 1; color: rgba(255,255,255,.68); font-size: 5px; }
+    .guide-current-design .guide-mini-route { position: absolute; right: 9px; bottom: 8px; z-index: 1; color: rgba(255,255,255,.76); font-size: 5px; }
+    .guide-current-design .guide-welcome-copy { padding: 15px 5px 0; text-align: center; }
+    .guide-current-design .guide-welcome-copy .micro-label { color: var(--purple); font-size: 7px; }
+    .guide-current-design .guide-welcome-copy h3 { margin: 7px auto 0; color: #17171d; font-size: 20px; line-height: 1.05; letter-spacing: -.065em; }
+    .guide-current-design .guide-welcome-copy p { max-width: 225px; margin: 8px auto 0; color: #8b8b96; font-size: 8px; line-height: 1.45; }
+    .guide-current-design .guide-page-dots { display: flex; justify-content: center; gap: 5px; margin-top: auto; padding-top: 11px; }
+    .guide-current-design .guide-page-dot { width: 6px; height: 6px; border-radius: 50%; background: #cbc7df; }
+    .guide-current-design .guide-page-dot.active { width: 18px; border-radius: 99px; background: var(--purple); }
+    .guide-current-design .guide-screen-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 7px; margin-top: 10px; }
+    .guide-current-design .guide-screen-button,
+    .guide-current-design .guide-primary-button { min-height: 38px; border-radius: 12px; padding: 9px 8px; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+    .guide-current-design .guide-screen-button { border: 1px solid #e0dced; color: var(--purple); background: #fff; }
+    .guide-current-design .guide-primary-button { border: 1px solid var(--purple); color: #fff; background: var(--purple); box-shadow: 0 7px 13px rgba(108,92,231,.18); }
+    .guide-current-design .guide-home-shell,
+    .guide-current-design .guide-build-shell,
+    .guide-current-design .guide-start-shell { display: flex; flex: 1; flex-direction: column; padding: 0 13px 14px; }
+    .guide-current-design .guide-home-appbar { min-height: 40px; }
+    .guide-current-design .guide-home-appbar .guide-brand-lockup { position: absolute; left: 50%; transform: translateX(-50%); }
+    .guide-current-design .guide-home-title { margin: 13px 0 9px; color: #17171d; font-size: 20px; line-height: 1; letter-spacing: -.06em; }
+    .guide-current-design .guide-filter-row { display: flex; gap: 6px; overflow: hidden; }
+    .guide-current-design .guide-filter-pill { flex-shrink: 0; padding: 7px 10px; border: 1px solid #e0dfe6; border-radius: 99px; color: #777681; background: #fff; font-size: 7px; font-weight: 800; }
+    .guide-current-design .guide-filter-pill.active { color: #fff; border-color: var(--purple); background: var(--purple); }
+    .guide-current-design .guide-empty-card { display: flex; flex-direction: column; align-items: center; margin-top: 14px; padding: 18px 13px 16px; border-radius: 20px; background: #fff; box-shadow: 0 8px 20px rgba(37, 34, 57, .06); }
+    .guide-current-design .guide-empty-icon { display: grid; place-items: center; width: 49px; height: 49px; border-radius: 16px; color: var(--purple); background: #f1efff; font-size: 23px; }
+    .guide-current-design .guide-empty-card h3 { margin: 12px 0 0; color: #17171d; font-size: 13px; line-height: 1.15; text-align: center; letter-spacing: -.04em; }
+    .guide-current-design .guide-empty-card p { max-width: 190px; margin: 6px 0 0; color: #90909a; font-size: 7px; line-height: 1.45; text-align: center; }
+    .guide-current-design .guide-empty-card .guide-focus { width: 100%; margin-top: 13px; }
+    .guide-current-design .guide-empty-card .guide-primary-button { width: 100%; }
+    .guide-current-design .guide-build-appbar,
+    .guide-current-design .guide-start-appbar { min-height: 40px; }
+    .guide-current-design .guide-build-appbar .guide-brand-lockup,
+    .guide-current-design .guide-start-appbar .guide-brand-lockup { position: absolute; left: 50%; transform: translateX(-50%); }
+    .guide-current-design .guide-build-kicker,
+    .guide-current-design .guide-start-kicker { margin-top: 9px; color: var(--purple); font-size: 7px; }
+    .guide-current-design .guide-build-title,
+    .guide-current-design .guide-start-title { margin: 6px 0 0; color: #17171d; font-size: 20px; line-height: 1.02; letter-spacing: -.06em; }
+    .guide-current-design .guide-build-copy,
+    .guide-current-design .guide-start-copy { margin: 7px 0 0; color: #90909a; font-size: 8px; line-height: 1.4; }
+    .guide-current-design .guide-map { position: relative; height: 142px; margin-top: 13px; overflow: hidden; border-radius: 18px; background: #e9f0eb; }
+    .guide-current-design .guide-map::before { content: ''; position: absolute; inset: -20px; background: repeating-linear-gradient(28deg, transparent 0 24px, rgba(150,177,163,.32) 25px 27px, transparent 28px 53px), repeating-linear-gradient(112deg, transparent 0 36px, rgba(255,255,255,.78) 37px 40px, transparent 41px 76px), linear-gradient(145deg, #d8e7dc, #f4f2ea 48%, #cee4d2); opacity: .96; }
+    .guide-current-design .guide-map::after { content: ''; position: absolute; width: 230px; height: 5px; left: 31px; top: 72px; transform: rotate(-24deg); border-radius: 99px; background: var(--purple); box-shadow: 0 0 0 2px rgba(255,255,255,.75); }
+    .guide-current-design .guide-map-pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 23px; height: 23px; border: 2px solid #fff; border-radius: 50%; color: #fff; background: var(--purple); font-size: 8px; font-weight: 800; box-shadow: 0 3px 7px rgba(57,48,122,.25); }
+    .guide-current-design .guide-map-pin.pin-1 { left: 37px; top: 97px; }
+    .guide-current-design .guide-map-pin.pin-2 { left: 113px; top: 74px; }
+    .guide-current-design .guide-map-pin.pin-3 { right: 29px; top: 30px; }
+    .guide-current-design .guide-route-row { display: flex; gap: 5px; margin-top: 9px; overflow: hidden; }
+    .guide-current-design .guide-route-chip { flex-shrink: 0; padding: 6px 8px; border-radius: 9px; color: #676474; background: #fff; font-size: 7px; font-weight: 800; }
+    .guide-current-design .guide-route-chip.active { color: #fff; background: var(--purple); }
+    .guide-current-design .guide-start-preview { position: relative; height: 130px; margin-top: 13px; overflow: hidden; border-radius: 18px; color: #fff; background: linear-gradient(145deg, #50498c 0%, #1c2439 80%); }
+    .guide-current-design .guide-start-preview::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 78% 15%, rgba(255,220,142,.82) 0 6%, transparent 7%), linear-gradient(125deg, transparent 38%, rgba(255,255,255,.16) 39%, transparent 61%); }
+    .guide-current-design .guide-start-preview strong { position: absolute; left: 12px; bottom: 34px; z-index: 1; font-size: 15px; letter-spacing: -.05em; }
+    .guide-current-design .guide-start-preview small { position: absolute; left: 12px; bottom: 17px; z-index: 1; color: rgba(255,255,255,.72); font-size: 7px; }
+    .guide-current-design .guide-start-preview .guide-start-route { position: absolute; left: 12px; bottom: 7px; z-index: 1; color: rgba(255,255,255,.56); font-size: 6px; }
+    .guide-current-design .guide-start-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 8px; }
+    .guide-current-design .guide-start-summary span { padding: 7px 4px; border-radius: 10px; color: #777681; background: #fff; font-size: 6px; font-weight: 800; text-align: center; }
+    .guide-current-design .guide-start-summary b { display: block; margin-bottom: 2px; color: var(--purple); font-size: 11px; }
+    .guide-current-design .guide-start-actions { display: grid; gap: 6px; margin-top: 12px; }
+    .guide-current-design .guide-start-actions .guide-screen-button { min-height: 32px; border: 0; background: transparent; }
+    .guide-current-design .guide-start-actions .guide-primary-button { min-height: 40px; }
+    .guide-current-design .guide-focus { position: relative; }
+    .guide-current-design .guide-focus > .guide-target { position: absolute; z-index: 3; inset: -6px; pointer-events: none; border: 2px solid #8e7cff; border-radius: 15px; box-shadow: 0 0 0 5px rgba(141,123,255,.18), 0 0 0 9px rgba(141,123,255,.07); animation: guidePulse 2s ease-in-out infinite; }
+    .guide-current-design .guide-tooltip { position: relative; left: auto; right: auto; top: auto; bottom: auto; display: grid; grid-template-columns: 25px minmax(0,1fr); gap: 7px; margin: 12px 0 0; padding: 9px 10px; border: 1px solid #a99bff; border-radius: 13px; color: #352b72; background: #fff; box-shadow: 0 10px 20px rgba(71,56,155,.13); }
+    .guide-current-design .guide-tooltip::after { top: -7px; bottom: auto; border-top: 1px solid #a99bff; border-left: 1px solid #a99bff; border-right: 0; border-bottom: 0; background: #fff; }
+    .guide-current-design .guide-tooltip-number { width: 23px; height: 23px; border-radius: 8px; color: #fff; background: var(--purple); font-size: 9px; }
+    .guide-current-design .guide-tooltip strong { color: #352b72; font-size: 9px; }
+    .guide-current-design .guide-tooltip p { margin: 3px 0 0; color: #8b83a0; font-size: 7px; line-height: 1.35; }
+    .guide-current-design .guide-settings-scene { background: #a9a9ae; }
+    .guide-current-design .guide-settings-dim { flex: 0 0 42px; background: rgba(18,18,24,.2); }
+    .guide-current-design .guide-account-sheet { flex: 1; overflow: hidden; padding: 6px 13px 9px; border-radius: 21px 21px 0 0; background: #f7f5ff; }
+    .guide-current-design .guide-sheet-handle { width: 37px; height: 4px; margin: 0 auto 7px; border-radius: 99px; background: #9996a5; }
+    .guide-current-design .guide-account-profile { display: flex; align-items: center; gap: 8px; }
+    .guide-current-design .guide-account-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #6c5ce7, #9384ef); font-size: 17px; font-weight: 800; }
+    .guide-current-design .guide-account-profile strong { display: block; color: #17171d; font-size: 10px; }
+    .guide-current-design .guide-account-profile small { display: block; margin-top: 2px; color: #8d8b97; font-size: 6px; }
+    .guide-current-design .guide-account-close { margin-left: auto; color: #8d8b97; font-size: 18px; }
+    .guide-current-design .guide-account-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 9px; }
+    .guide-current-design .guide-account-stat { padding: 6px 3px; border: 1px solid #dedee6; border-radius: 11px; color: #8d8b97; background: #fff; font-size: 6px; text-align: center; }
+    .guide-current-design .guide-account-stat b { display: block; margin-bottom: 2px; color: var(--purple); font-size: 14px; }
+    .guide-current-design .guide-settings-label { margin: 8px 0 4px; color: var(--purple); font-size: 6px; letter-spacing: .09em; }
+    .guide-current-design .guide-settings-group { overflow: hidden; border: 1px solid #dedee6; border-radius: 12px; background: #fff; }
+    .guide-current-design .guide-setting-row { display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 8px; border-top: 1px solid #ecebf0; color: #17171d; background: transparent; }
+    .guide-current-design .guide-settings-group > .guide-setting-row:first-child { border-top: 0; }
+    .guide-current-design .guide-setting-row strong { color: #17171d; font-size: 8px; }
+    .guide-current-design .guide-setting-row small { color: #94929e; font-size: 6px; }
+    .guide-current-design .guide-setting-icon { width: 19px; height: 19px; border-radius: 7px; color: var(--purple); background: #f0eeff; font-size: 9px; }
+    .guide-current-design .guide-setting-row .place-arrow { margin-left: auto; color: #8d8b97; font-size: 12px; }
+    .guide-current-design .guide-settings-group .guide-focus { margin: 0; }
+    .guide-current-design .guide-settings-group .guide-focus > .guide-target { inset: 2px 5px; border-radius: 10px; }
+    .guide-current-design .guide-settings-group .guide-tooltip { margin: 9px 7px; }
+    .guide-current-design .guide-hints { position: relative; z-index: 1; margin-top: 34px; padding-top: 25px; border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); }
+    .guide-current-design .guide-hints-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+    .guide-current-design .guide-hints-heading p { margin: 0 0 5px; color: var(--purple); font-family: var(--mono); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+    .guide-current-design .guide-hints-heading h3 { margin: 0; color: var(--ink); font-size: 21px; letter-spacing: -.055em; }
+    .guide-current-design .guide-hints-heading span { max-width: 320px; color: var(--muted); font-size: 10px; line-height: 1.45; text-align: right; }
+    .guide-current-design .guide-hint-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+    .guide-current-design .guide-hint-card { padding: 14px; border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); border-radius: 18px; background: color-mix(in srgb, var(--surface) 88%, var(--purple-soft)); }
+    .guide-current-design .guide-hint-meta { display: flex; justify-content: space-between; color: var(--purple); font-family: var(--mono); font-size: 7px; letter-spacing: .08em; }
+    .guide-current-design .guide-hint-surface { position: relative; height: 94px; margin-top: 11px; overflow: hidden; border-radius: 13px; background: #f4f4f7; }
+    .guide-current-design .guide-hint-surface .guide-hint-mini-title { margin: 12px 10px 7px; color: #17171d; font-size: 13px; letter-spacing: -.05em; }
+    .guide-current-design .guide-hint-pill { display: inline-block; margin-left: 10px; padding: 5px 8px; border-radius: 99px; color: #fff; background: var(--purple); font-size: 6px; font-weight: 800; }
+    .guide-current-design .guide-hint-action { position: absolute; left: 10px; right: 10px; bottom: 10px; min-height: 27px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: var(--purple); font-size: 7px; font-weight: 800; }
+    .guide-current-design .guide-hint-action.ghost { color: var(--purple); border: 1px solid #dedee6; background: #fff; }
+    .guide-current-design .guide-hint-surface .guide-focus > .guide-target { inset: -4px; border-radius: 11px; }
+    .guide-current-design .guide-hint-card h4 { margin: 12px 0 0; color: var(--ink); font-size: 11px; line-height: 1.2; }
+    .guide-current-design .guide-hint-card p { margin: 5px 0 0; color: var(--muted); font-size: 8px; line-height: 1.4; }
+    .guide-current-design .guide-hint-settings { padding: 10px; border-radius: 13px; background: #f7f5ff; }
+    .guide-current-design .guide-hint-settings .guide-setting-row { min-height: 34px; padding: 0; border: 0; }
+    .guide-current-design .guide-hint-settings .guide-setting-row strong { font-size: 8px; }
+    .guide-current-design .guide-reopen-note { margin: 14px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .guide-current-design .guide-reopen-note strong { color: var(--ink); }
+    body[data-resolved-theme="dark"] .guide-current-design {
+      color: var(--ink);
+      background: var(--surface);
+    }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-phone .phone-screen,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-scene,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-hint-surface { background: #0f1017; color: #f5f6fa; }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-brand-lockup,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-icon-button,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-home-title,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-build-title,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-start-title,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-empty-card h3,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-account-profile strong,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-setting-row strong { color: #f5f6fa; }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-welcome-preview,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-empty-card,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-filter-pill,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-route-chip,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-start-summary span,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-screen-button,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-tooltip,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-account-sheet,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-account-stat,
+    body[data-resolved-theme="dark"] .guide-current-design .guide-settings-group { background: #20222e; color: #f5f6fa; border-color: #3a3d4c; }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-setting-row { border-color: #3a3d4c; }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-setting-icon { background: #322c58; }
+    body[data-resolved-theme="dark"] .guide-current-design .guide-tooltip strong { color: #f5f6fa; }
+    @media (max-width: 760px) {
+      .guide-current-design .guide-layout { grid-template-columns: 1fr; gap: 26px; }
+      .guide-current-design .guide-preview { order: 2; }
+      .guide-current-design .guide-phone { width: 280px; height: 572px; }
+      .guide-current-design .guide-hint-grid { grid-template-columns: 1fr; }
+      .guide-current-design .guide-hints-heading { display: block; }
+      .guide-current-design .guide-hints-heading span { display: block; margin-top: 8px; text-align: left; }
+    }
+
+    .demo-footer { max-width: 1220px; margin: -34px auto 0; padding: 24px 0 0; color: var(--muted); border-top: 1px solid color-mix(in srgb, var(--muted) 22%, transparent); font-size: 12px; line-height: 1.6; }
+    .demo-status { min-height: 26px; margin-top: 8px; color: var(--purple); font-weight: 700; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* System theme is used only when the preview control is set to System. */
+    @media (prefers-color-scheme: dark) {
+      body[data-theme="system"] { --ink: #f5f2ff; --muted: #aaa7bd; --soft: #7f7c96; --surface: #211e36; --page: #14121f; --purple-soft: #2c2750; --violet-line: #4d4484; --shadow: 0 30px 80px rgba(0,0,0,.34); }
+    }
+    @media (max-width: 1120px) {
+      .intro, main { padding-left: 26px; padding-right: 26px; }
+      .direction-nav { margin-left: 26px; margin-right: 26px; }
+      .direction { padding: 28px; }
+      .direction-top { grid-template-columns: 54px minmax(0, 1fr); }
+      .concept-tags { grid-column: 2; justify-content: flex-start; max-width: none; }
+      .aurora-stage { grid-template-columns: 1fr; }
+      .aurora-note { display: none; }
+      .bento-board { grid-template-columns: 1fr; justify-items: center; }
+      .bento-tile.note { display: none; }
+      .bento-stack { display: none; }
+      .guide-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 26px; }
+    }
+    @media (max-width: 760px) {
+      .intro { min-height: auto; padding: 27px 19px 28px; border-radius: 0 0 30px 30px; }
+      .intro-grid { grid-template-columns: 1fr; gap: 28px; margin-top: 42px; }
+      .intro h1 { font-size: 49px; }
+      .intro-lead { margin-top: 18px; font-size: 14px; }
+      .intro-aside { max-width: 460px; }
+      .direction-nav { position: relative; top: auto; overflow-x: auto; margin: 15px 13px 0; border-radius: 15px; }
+      .direction-nav a { flex: 0 0 auto; min-width: 112px; }
+      main { padding: 10px 12px 40px; }
+      .direction { margin: 24px auto 42px; padding: 22px 15px 18px; border-radius: 25px; }
+      .guide { margin: 34px 0 42px; padding: 24px 16px 28px; border-radius: 25px; }
+      .guide-heading { grid-template-columns: 1fr; gap: 14px; }
+      .guide-counter { justify-self: start; }
+      .guide-layout { grid-template-columns: 1fr; gap: 20px; }
+      .guide-steps { max-width: none; }
+      .guide-preview { order: 2; }
+      .guide-phone { width: 260px; height: 530px; }
+      .guide-step { grid-template-columns: 42px minmax(0, 1fr) 24px; gap: 11px; }
+      .guide-actions { gap: 6px; }
+      .guide-control { min-height: 44px; padding: 10px 11px; }
+      .direction-top { grid-template-columns: 38px 1fr; gap: 11px; margin-bottom: 22px; }
+      .direction h2 { font-size: 34px; }
+      .direction-intro { font-size: 12px; }
+      .concept-tags { gap: 5px; }
+      .concept-tag { font-size: 8px; padding: 7px 8px; }
+      .phone-deck, .atlas-deck, .nocturne-deck, .postcard-deck { overflow-x: auto; justify-content: flex-start; padding-left: 4px; padding-right: 4px; padding-bottom: 18px; scroll-snap-type: x mandatory; }
+      .phone-figure { flex: 0 0 234px; scroll-snap-align: start; }
+      .phone { width: 234px; height: 480px; border-width: 6px; border-radius: 32px; }
+      .phone-screen { border-radius: 21px; }
+      .phone-body { padding-left: 12px; padding-right: 12px; }
+      .phone-figure .screen-label { padding: 0 2px; }
+      .aurora-stage { gap: 9px; }
+      .atlas-stage { min-height: auto; padding: 13px; }
+      .atlas-phone { width: 230px; height: 480px; }
+      .atlas-main { transform: translateY(0); }
+      .nocturne-main { transform: translateY(0); }
+      .bento-board { display: block; }
+      .bento-phone { width: 230px; height: 480px; margin: 0 auto; }
+      .postcard-deck { padding-top: 14px; }
+      .postcard-main, .postcard-side-left, .postcard-side-right { transform: none; }
+      .postcard-stamp, .postcard-note { display: none; }
+      .demo-footer { margin-top: -12px; padding: 0 5px; }
+    }
+    @media (max-width: 420px) {
+      .intro h1 { font-size: 42px; }
+      .control-button { padding: 8px 9px; }
+    }
+  </style>
+</head>
+<body data-theme="system" data-resolved-theme="light">
+  <div class="page-shell">
+    <header class="intro">
+      <div class="intro-inner">
+        <div class="eyebrow"><span class="brand-mark">R</span><span data-copy="labLabel">Ramingo / дизайн-лаборатория</span></div>
+        <div class="intro-grid">
+          <div>
+            <h1 data-copy="pageTitle">Пять новых направлений для Ramingo</h1>
+            <p class="intro-lead" data-copy="pageLead">Не пять перекрашенных экранов, а пять разных способов рассказать одну историю: желание поехать → маршрут → первая поездка.</p>
+          </div>
+          <aside class="intro-aside">
+            <strong data-copy="compareTitle">Сравнивай как арт-дирекцию</strong>
+            <p data-copy="compareBody">Внутри каждого варианта сохранены настоящие фрагменты Ramingo — trip card, карта, дни, места и Settings. Меняется композиция, настроение и ритм интерфейса.</p>
+            <div class="control-row">
+              <div class="control-group" aria-label="Язык">
+                <button class="control-button" data-lang="ru" aria-pressed="true">RU</button>
+                <button class="control-button" data-lang="en" aria-pressed="false">EN</button>
+                <button class="control-button" data-lang="es" aria-pressed="false">ES</button>
+                <button class="control-button" data-lang="de" aria-pressed="false">DE</button>
+              </div>
+              <div class="control-group" aria-label="Тема">
+                <button class="control-button" data-theme-choice="system" aria-pressed="true" data-copy="system">Система</button>
+                <button class="control-button" data-theme-choice="light" aria-pressed="false" data-copy="light">Светлая</button>
+                <button class="control-button" data-theme-choice="dark" aria-pressed="false" data-copy="dark">Тёмная</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </header>
+
+    <nav class="direction-nav" aria-label="Направления дизайна">
+      <a href="#guide"><span>00</span><b data-copy="guideNav">Обучение</b></a>
+      <a href="#direction-aurora"><span>01</span><b data-copy="auroraNav">Aurora</b></a>
+      <a href="#direction-atlas"><span>02</span><b data-copy="atlasNav">Atlas</b></a>
+      <a href="#direction-nocturne"><span>03</span><b data-copy="nocturneNav">Nocturne</b></a>
+      <a href="#direction-bento"><span>04</span><b data-copy="bentoNav">Bento</b></a>
+      <a href="#direction-postcard"><span>05</span><b data-copy="postcardNav">Postcard</b></a>
+    </nav>
+
+    <section class="guide guide-current-design" id="guide" aria-labelledby="guide-title">
+      <div class="guide-heading">
+        <div>
+          <p class="guide-kicker" data-copy="guideKicker">Обучение / 3 экрана + подсказки</p>
+          <h2 id="guide-title" data-copy="guideTitle">Первый запуск Ramingo</h2>
+          <p class="guide-intro" data-copy="guideIntro">Три коротких экрана объясняют ценность Ramingo, а две подсказки появляются уже внутри приложения — только в нужный момент.</p>
+        </div>
+        <div class="guide-counter"><span class="guide-current">1</span><span data-copy="guideProgress">экран из 3</span></div>
+      </div>
+      <div class="guide-layout">
+        <div class="guide-steps">
+          <button class="guide-step" type="button" data-guide-select="1" data-guide-status="guideAction1Status" aria-pressed="true">
+            <span class="guide-step-number">01</span><span><strong data-copy="guideStep1Title">Планируй в одном месте</strong><small data-copy="guideStep1Desc">Маршрут, места, жильё и заметки — внутри одной поездки.</small></span><span class="guide-step-arrow">→</span>
+          </button>
+          <button class="guide-step" type="button" data-guide-select="2" data-guide-status="guideAction2Status" aria-pressed="false">
+            <span class="guide-step-number">02</span><span><strong data-copy="guideStep2Title">Собери свой маршрут</strong><small data-copy="guideStep2Desc">Добавляй города и места и выстраивай путь по карте.</small></span><span class="guide-step-arrow">→</span>
+          </button>
+          <button class="guide-step" type="button" data-guide-select="3" data-guide-status="guideAction3Status" aria-pressed="false">
+            <span class="guide-step-number">03</span><span><strong data-copy="guideStep3Title">Начни планировать</strong><small data-copy="guideStep3Desc">Создай первую поездку или сначала посмотри приложение.</small></span><span class="guide-step-arrow">→</span>
+          </button>
+          <div class="guide-actions">
+            <button class="guide-control" type="button" data-guide-prev disabled data-copy="guideBack">Назад</button>
+            <button class="guide-control primary" type="button" data-guide-next data-copy="guideNext">Далее</button>
+            <button class="guide-control" type="button" data-guide-skip data-copy="guideSkip">Пропустить</button>
+            <button class="guide-control" type="button" data-guide-restart data-copy="guideRestart">Начать сначала</button>
+          </div>
+          <div class="guide-feedback" aria-live="polite" data-guide-feedback-key="guideDefault" data-copy="guideDefault">Выбери экран слева или нажми «Далее».</div>
+        </div>
+
+        <div class="guide-preview">
+          <div class="phone guide-phone">
+            <div class="phone-screen">
+              <div class="guide-scene guide-welcome-scene" data-guide-scene="1">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="guide-welcome-shell">
+                  <div class="guide-welcome-appbar">
+                    <div class="guide-brand-lockup"><img src="assets/ramingo-mark.png" alt="" aria-hidden="true"><span>Ramingo</span></div>
+                    <button class="guide-skip-button" type="button" data-guide-screen-skip data-copy="skip">Пропустить</button>
+                  </div>
+                  <div class="guide-welcome-preview" aria-hidden="true">
+                    <div class="guide-mini-bar"><span>Планирование без хаоса</span><span>9:41</span></div>
+                    <div class="guide-mini-brand"><img src="assets/ramingo-mark.png" alt=""><span>Ramingo</span><span style="margin-left:auto;color:#6c5ce7">⚙</span></div>
+                    <h4 class="guide-mini-heading" data-copy="myTrips">Мои путешествия</h4>
+                    <div class="guide-mini-pills"><span class="guide-mini-pill active" data-copy="allTrips">Все · 2</span><span class="guide-mini-pill" data-copy="upcomingCount">Предстоящие · 2</span></div>
+                    <div class="guide-mini-trip"><strong data-copy="winterItaly">Зимняя Италия</strong><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small><span class="guide-mini-route" data-copy="route">Рим → Флоренция → Пиза</span></div>
+                  </div>
+                  <div class="guide-welcome-copy">
+                    <div class="micro-label" data-copy="planLabel">01 / План</div>
+                    <h3 data-copy="planHeadline">Планируй всю поездку в одном месте</h3>
+                    <p data-copy="planSub">Маршрут, места, жильё и заметки — всё внутри одной поездки.</p>
+                  </div>
+                  <div class="guide-page-dots" aria-hidden="true"><span class="guide-page-dot active"></span><span class="guide-page-dot"></span><span class="guide-page-dot"></span></div>
+                  <div class="guide-screen-actions">
+                    <button class="guide-screen-button" type="button" data-guide-screen-skip data-copy="skip">Пропустить</button>
+                    <div class="guide-focus"><button class="guide-primary-button" type="button" data-guide-screen-next="2" data-guide-status="guideAction2Status" data-copy="next">Далее</button><span class="guide-target"></span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="guide-scene guide-build-scene" data-guide-scene="2" hidden>
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="guide-build-shell">
+                  <div class="guide-native-appbar guide-build-appbar">
+                    <button class="guide-icon-button" type="button" data-guide-screen-prev="1" aria-label="Назад">‹</button>
+                    <div class="guide-brand-lockup"><img src="assets/ramingo-mark.png" alt="" aria-hidden="true"><span>Ramingo</span></div>
+                    <button class="guide-icon-button" type="button" aria-label="Добавить">＋</button>
+                  </div>
+                  <div class="guide-build-kicker" data-copy="buildLabel">02 / Собирай</div>
+                  <h3 class="guide-build-title" data-copy="buildHeadline">Собери свой маршрут</h3>
+                  <p class="guide-build-copy" data-copy="buildSub">Добавляй города и места и организуй поездку по дням.</p>
+                  <div class="guide-map" aria-hidden="true"><span class="guide-map-pin pin-1">1</span><span class="guide-map-pin pin-2">2</span><span class="guide-map-pin pin-3">3</span></div>
+                  <div class="guide-route-row"><span class="guide-route-chip active">Рим</span><span class="guide-route-chip">Флоренция</span><span class="guide-route-chip">Пиза</span></div>
+                  <div class="guide-start-summary"><span><b>03</b><span data-copy="placesShort">Места</span></span><span><b>03</b><span data-copy="daysShort">Дни</span></span><span><b>01</b><span data-copy="notesShort">Заметки</span></span></div>
+                  <div class="guide-page-dots" aria-hidden="true"><span class="guide-page-dot"></span><span class="guide-page-dot active"></span><span class="guide-page-dot"></span></div>
+                  <div class="guide-screen-actions">
+                    <button class="guide-screen-button" type="button" data-guide-screen-prev="1" data-copy="guideBack">Назад</button>
+                    <div class="guide-focus"><button class="guide-primary-button" type="button" data-guide-screen-next="3" data-guide-status="guideAction3Status" data-copy="next">Далее</button><span class="guide-target"></span></div>
+                  </div>
+                  <button class="guide-screen-button" type="button" data-guide-screen-skip data-copy="skip">Пропустить</button>
+                </div>
+              </div>
+
+              <div class="guide-scene guide-start-scene" data-guide-scene="3" hidden>
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="guide-start-shell">
+                  <div class="guide-native-appbar guide-start-appbar">
+                    <button class="guide-icon-button" type="button" data-guide-screen-prev="2" aria-label="Назад">‹</button>
+                    <div class="guide-brand-lockup"><img src="assets/ramingo-mark.png" alt="" aria-hidden="true"><span>Ramingo</span></div>
+                    <span class="guide-icon-button" aria-hidden="true">⋮</span>
+                  </div>
+                  <div class="guide-start-kicker" data-copy="startLabel">03 / Поехали</div>
+                  <h3 class="guide-start-title" data-copy="startHeadline">Готовы к следующему путешествию?</h3>
+                  <p class="guide-start-copy" data-copy="startSub">Создай свою первую поездку и начни планировать.</p>
+                  <div class="guide-start-preview" aria-hidden="true"><strong data-copy="winterItaly">Зимняя Италия</strong><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small><span class="guide-start-route" data-copy="route">Рим → Флоренция → Пиза</span></div>
+                  <div class="guide-start-summary"><span><b>03</b><span data-copy="placesShort">Места</span></span><span><b>10</b><span data-copy="daysShort">Дни</span></span><span><b>02</b><span data-copy="notesShort">Заметки</span></span></div>
+                  <div class="guide-page-dots" aria-hidden="true"><span class="guide-page-dot"></span><span class="guide-page-dot"></span><span class="guide-page-dot active"></span></div>
+                  <div class="guide-start-actions">
+                    <div class="guide-focus"><button class="guide-primary-button guide-action" type="button" data-guide-action-status="guideCreateStatus" data-copy="createFirstTrip">Создать мою первую поездку</button><span class="guide-target"></span></div>
+                    <button class="guide-screen-button guide-action" type="button" data-guide-action-status="guideExploreStatus" data-copy="exploreFirst">Сначала посмотреть</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-hints">
+        <div class="guide-hints-heading">
+          <div><p data-copy="guideHintsKicker">После onboarding / coach marks</p><h3 data-copy="guideHintsTitle">Подсказки появляются внутри приложения</h3></div>
+          <span data-copy="guideHintsIntro">Никакого длинного tutorial: сначала действие пользователя, потом одна подсказка в правильном контексте.</span>
+        </div>
+        <div class="guide-hint-grid">
+          <article class="guide-hint-card">
+            <div class="guide-hint-meta"><span>HOME</span><span>01</span></div>
+            <div class="guide-hint-surface"><div class="guide-hint-mini-title" data-copy="myTrips">Мои путешествия</div><span class="guide-hint-pill" data-copy="allTrips">Все · 0</span><div class="guide-focus"><button class="guide-hint-action" type="button" data-guide-hint-status="guideHintHomeStatus" data-copy="guideHomeCreate">Создать путешествие</button><span class="guide-target"></span></div></div>
+            <h4 data-copy="guideHomeHintTitle">Начните с создания первой поездки</h4>
+            <p data-copy="guideHomeHintBody">Подсказка появляется после «Сначала посмотреть» на пустом Home и показывается один раз.</p>
+          </article>
+          <article class="guide-hint-card">
+            <div class="guide-hint-meta"><span>TRIP</span><span>02</span></div>
+            <div class="guide-hint-surface"><div class="guide-hint-mini-title" data-copy="winterItaly">Зимняя Италия</div><span class="guide-hint-pill" data-copy="day1">День 1</span><div class="guide-focus"><button class="guide-hint-action ghost" type="button" data-guide-hint-status="guideHintPlaceStatus" data-copy="addPlace">Добавить место</button><span class="guide-target"></span></div></div>
+            <h4 data-copy="guidePlaceHintTitle">Добавьте первое место</h4>
+            <p data-copy="guidePlaceHintBody">Подсказка показывается после создания первой поездки — только если мест ещё нет.</p>
+          </article>
+          <article class="guide-hint-card">
+            <div class="guide-hint-meta"><span>SETTINGS</span><span>REPLAY</span></div>
+            <div class="guide-hint-surface guide-hint-settings"><div class="guide-setting-row"><span class="guide-setting-icon">?</span><div><strong data-copy="guideShowTour">Показать обучение</strong><small data-copy="guideShowTourSub">Открыть onboarding ещё раз</small></div><span class="place-arrow">›</span></div></div>
+            <h4 data-copy="guideSettingsHintTitle">Повторный запуск без сброса данных</h4>
+            <p data-copy="guideSettingsHintBody">Этот пункт открывает три onboarding-экрана, но не делает пользователя новым.</p>
+          </article>
+        </div>
+        <p class="guide-reopen-note"><strong data-copy="guideReopenLabel">Важно:</strong> <span data-copy="guideReopenBody">флаги подсказок не сбрасываются при повторном открытии onboarding из Settings.</span></p>
+      </div>
+    </section>
+
+    <main>
+      <!-- 01 -->
+      <section class="direction aurora" id="direction-aurora" aria-labelledby="aurora-title">
+        <div class="direction-top">
+          <div class="direction-number">01</div>
+          <div>
+            <p class="direction-kicker" data-copy="auroraKicker">Направление 01 / мягкий свет</p>
+            <h2 id="aurora-title" data-copy="auroraName">Aurora — воздух и мягкость</h2>
+            <p class="direction-intro" data-copy="auroraDesc">Лёгкая, почти воздушная подача. Контент будто лежит на световом поле: меньше тяжёлых рамок, больше глубины и спокойного движения.</p>
+          </div>
+          <div class="concept-tags"><span class="concept-tag" data-copy="auroraTag1">свет</span><span class="concept-tag" data-copy="auroraTag2">слои</span><span class="concept-tag" data-copy="auroraTag3">спокойствие</span></div>
+        </div>
+        <div class="aurora-stage">
+          <aside class="aurora-note">
+            <strong data-copy="auroraNoteTitle">История начинается с мечты</strong>
+            <p data-copy="auroraNoteBody">Большой воздух вокруг CTA оставляет фокус на следующем шаге.</p>
+          </aside>
+          <div class="phone-deck aurora-deck">
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="planLabel">01 / План</span><span data-copy="welcomeLabel">Welcome</span></figcaption>
+              <div class="phone aurora-phone aurora-main">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><button class="appbar-action prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button></div>
+                    <div class="micro-label" data-copy="welcomeOverline">Твой маршрут начинается здесь</div>
+                    <h3 class="app-title" data-copy="planHeadline">Планируй всё путешествие в одном месте</h3>
+                    <p class="app-subtitle" data-copy="planSub">Маршрут, места, жильё и заметки — всё внутри одной поездки.</p>
+                    <div class="trip-card phone-section"><span class="trip-badge" data-copy="upcoming">Предстоящая</span><h4 data-copy="winterItaly">Зимняя Италия</h4><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small></div>
+                    <div class="route-chip"><span>⌁</span><span data-copy="route">Рим → Флоренция → Пиза</span></div>
+                    <div class="progress-dots"><span class="active"></span><span></span><span></span></div>
+                    <div class="phone-actions"><button class="action-button ghost prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button><button class="action-button prototype-action" data-action-status="nextStatus" data-copy="next">Далее</button></div>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="buildLabel">02 / Собирай</span><span data-copy="emptyLabel">Empty state</span></figcaption>
+              <div class="phone aurora-phone">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⚙</span></div>
+                    <h3 class="app-title" data-copy="myTrips">Мои поездки</h3>
+                    <div class="pill-row"><span class="pill active" data-copy="allTrips">Все · 0</span><span class="pill" data-copy="upcomingCount">Предстоящие · 0</span></div>
+                    <div class="empty-illustration">✦</div>
+                    <div class="empty-copy"><h4 data-copy="emptyTitle">Здесь появятся ваши поездки</h4><p data-copy="emptySub">Создайте первую поездку с нуля или выберите готовый маршрут.</p></div>
+                    <div class="phone-section"><button class="action-button prototype-action" data-action-status="createStatus" data-copy="createTrip">Создать поездку</button></div>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="startLabel">03 / Поехали</span><span data-copy="tripLabel">Trip detail</span></figcaption>
+              <div class="phone aurora-phone">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><span class="appbar-icon">‹</span><div class="micro-label" data-copy="tripLabel">Поездка</div><span class="appbar-icon">⋮</span></div>
+                    <div class="trip-card"><span class="trip-badge" data-copy="day1">День 1</span><h4 data-copy="futureTrip">Твоя будущая поездка</h4><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small></div>
+                    <div class="day-tabs"><span class="day-tab active" data-copy="day1">День 1</span><span class="day-tab" data-copy="day2">День 2</span><span class="day-tab" data-copy="day3">День 3</span></div>
+                    <div class="place-row"><span class="place-icon">⌖</span><div><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div><span class="place-arrow">›</span></div>
+                    <div class="place-row"><span class="place-icon">⌂</span><div><strong data-copy="centerHotel">Отель в центре</strong><small data-copy="hotelMeta">Размещение · ночь</small></div><span class="place-arrow">›</span></div>
+                    <div class="place-row"><span class="place-icon">✎</span><div><strong data-copy="dayNote">Заметка на день</strong><small data-copy="noteMeta">Добавь идею или список</small></div><span class="place-arrow">›</span></div>
+                  </div>
+                </div>
+              </div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- 02 -->
+      <section class="direction atlas" id="direction-atlas" aria-labelledby="atlas-title">
+        <div class="direction-top">
+          <div class="direction-number">02</div>
+          <div>
+            <p class="direction-kicker" data-copy="atlasKicker">Направление 02 / маршрут в центре</p>
+            <h2 id="atlas-title" data-copy="atlasName">Atlas — сначала карта</h2>
+            <p class="direction-intro" data-copy="atlasDesc">Для тех, кто мыслит точками на карте. География становится главным героем, а onboarding ведёт пользователя от первого pin к собранному маршруту.</p>
+          </div>
+          <div class="concept-tags"><span class="concept-tag" data-copy="atlasTag1">география</span><span class="concept-tag" data-copy="atlasTag2">маршрут</span><span class="concept-tag" data-copy="atlasTag3">точность</span></div>
+        </div>
+        <div class="atlas-stage">
+          <span class="atlas-coord c1">41.9028° N / 12.4964° E</span><span class="atlas-coord c2">RAMINGO / FIELD MAP 01</span><span class="atlas-route-line"></span>
+          <div class="phone-deck atlas-deck">
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="planLabel">01 / План</span><span data-copy="atlasScreen1">Map first</span></figcaption>
+              <div class="phone atlas-phone atlas-main">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⌁</span></div>
+                    <div class="micro-label" data-copy="routeOverview">Путешествие / маршрут</div>
+                    <h3 class="app-title" data-copy="atlasHeadline">Увидеть больше. Запомнить всё.</h3>
+                    <div class="mini-map phone-section"><span class="map-pin pin-one"><b>1</b></span><span class="map-pin pin-two"><b>2</b></span><span class="map-pin pin-three"><b>3</b></span></div>
+                    <div class="route-chip"><span>●</span><span data-copy="route">Рим → Флоренция → Пиза</span></div>
+                    <div class="phone-section-title"><span data-copy="placesOnRoute">Места на маршруте</span><span class="micro-label">03</span></div>
+                    <button class="action-button prototype-action" data-action-status="addPlaceStatus" data-copy="addPlace">Добавить место</button>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="buildLabel">02 / Собирай</span><span data-copy="atlasScreen2">Route builder</span></figcaption>
+              <div class="phone atlas-phone">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><span class="appbar-icon">‹</span><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⋮</span></div>
+                    <h3 class="app-title" data-copy="buildHeadline">Собери свой маршрут</h3>
+                    <p class="app-subtitle" data-copy="buildSub">Добавляй точки прямо на карте и двигайся дальше.</p>
+                    <div class="mini-map phone-section"><span class="map-pin pin-one"><b>1</b></span><span class="map-pin pin-two"><b>2</b></span></div>
+                    <div class="route-chip"><span>01</span><span data-copy="colosseum">Колизей</span><span style="margin-left:auto">10:00</span></div>
+                    <div class="route-chip"><span>02</span><span data-copy="centerHotel">Отель в центре</span><span style="margin-left:auto">14:00</span></div>
+                    <div class="phone-section"><button class="action-button prototype-action" data-action-status="nextStatus" data-copy="next">Далее</button></div>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <figure class="phone-figure">
+              <figcaption class="screen-label"><span data-copy="startLabel">03 / Поехали</span><span data-copy="atlasScreen3">Trip map</span></figcaption>
+              <div class="phone atlas-phone">
+                <div class="phone-screen">
+                  <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                  <div class="phone-body">
+                    <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⚙</span></div>
+                    <div class="mini-map"><span class="map-pin pin-one"><b>1</b></span><span class="map-pin pin-two"><b>2</b></span><span class="map-pin pin-three"><b>3</b></span></div>
+                    <div class="day-tabs"><span class="day-tab active" data-copy="day1">День 1</span><span class="day-tab" data-copy="day2">День 2</span></div>
+                    <h3 class="app-title" style="margin-top:16px" data-copy="futureTrip">Твоя будущая поездка</h3>
+                    <p class="app-subtitle" data-copy="routeSub">Три города. Один красивый маршрут.</p>
+                    <div class="phone-section"><button class="action-button prototype-action" data-action-status="exploreStatus" data-copy="exploreRoute">Открыть маршрут</button></div>
+                  </div>
+                </div>
+              </div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- 03 -->
+      <section class="direction nocturne" id="direction-nocturne" aria-labelledby="nocturne-title">
+        <div class="direction-top">
+          <div class="direction-number">03</div>
+          <div>
+            <p class="direction-kicker" data-copy="nocturneKicker">Направление 03 / вечерний режим</p>
+            <h2 id="nocturne-title" data-copy="nocturneName">Nocturne — поездка как кино</h2>
+            <p class="direction-intro" data-copy="nocturneDesc">Тёмная, кинематографичная версия с тёплым золотым акцентом. Чуть меньше интерфейса, чуть больше атмосферы и ощущения личного travel-журнала.</p>
+          </div>
+          <div class="concept-tags"><span class="concept-tag" data-copy="nocturneTag1">ночь</span><span class="concept-tag" data-copy="nocturneTag2">кино</span><span class="concept-tag" data-copy="nocturneTag3">ритуал</span></div>
+        </div>
+        <div class="phone-deck nocturne-deck">
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="planLabel">01 / План</span><span data-copy="nocturneScreen1">Night welcome</span></figcaption>
+            <div class="phone nocturne-phone nocturne-main">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><button class="appbar-action prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button></div>
+                  <div class="micro-label" data-copy="nocturneOverline">Глава первая / желание</div>
+                  <h3 class="app-title" data-copy="nocturneHeadline">Куда отправимся дальше?</h3>
+                  <p class="app-subtitle" data-copy="nocturneSub">Сохрани идею сегодня — собери поездку завтра.</p>
+                  <div class="nocturne-cover phone-section"><strong data-copy="winterItaly">Зимняя Италия</strong><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small></div>
+                  <div class="progress-dots"><span class="active"></span><span></span><span></span></div>
+                  <div class="phone-actions"><button class="action-button ghost prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button><button class="action-button prototype-action" data-action-status="nextStatus" data-copy="next">Далее</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="buildLabel">02 / Собирай</span><span data-copy="nocturneScreen2">Travel ritual</span></figcaption>
+            <div class="phone nocturne-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">✦</span></div>
+                  <div class="micro-label" data-copy="day1">День 1 / Рим</div>
+                  <h3 class="app-title" data-copy="nocturneBuildHeadline">Один день. Три истории.</h3>
+                  <div class="nocturne-timeline phone-section">
+                    <div class="nocturne-timeline-item"><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div>
+                    <div class="nocturne-timeline-item"><strong data-copy="centerHotel">Отель в центре</strong><small data-copy="hotelMeta">Размещение · ночь</small></div>
+                    <div class="nocturne-timeline-item"><strong data-copy="dayNote">Заметка на день</strong><small data-copy="noteMeta">Добавь идею или список</small></div>
+                  </div>
+                  <div class="phone-section"><button class="action-button prototype-action" data-action-status="addPlaceStatus" data-copy="addPlace">Добавить место</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="startLabel">03 / Поехали</span><span data-copy="nocturneScreen3">The trip film</span></figcaption>
+            <div class="phone nocturne-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><span class="appbar-icon">‹</span><div class="micro-label" data-copy="tripLabel">Поездка</div><span class="appbar-icon">⋮</span></div>
+                  <div class="nocturne-cover"><strong data-copy="futureTrip">Твоя будущая поездка</strong><small data-copy="route">Рим → Флоренция → Пиза</small></div>
+                  <div class="phone-section-title" style="margin-top:20px"><span data-copy="day1">День 1</span><span class="micro-label">10:00—21:30</span></div>
+                  <div class="place-row"><span class="place-icon">⌖</span><div><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div><span class="place-arrow">›</span></div>
+                  <div class="place-row"><span class="place-icon">✎</span><div><strong data-copy="dayNote">Заметка на день</strong><small data-copy="noteMeta">Добавь идею или список</small></div><span class="place-arrow">›</span></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 04 -->
+      <section class="direction bento" id="direction-bento" aria-labelledby="bento-title">
+        <div class="direction-top">
+          <div class="direction-number">04</div>
+          <div>
+            <p class="direction-kicker" data-copy="bentoKicker">Направление 04 / модульная система</p>
+            <h2 id="bento-title" data-copy="bentoName">Bento — всё на одной доске</h2>
+            <p class="direction-intro" data-copy="bentoDesc">Собранный, почти редакционный интерфейс. Каждый элемент — самостоятельная плитка, а главный экран быстро показывает состояние поездки без лишней глубины.</p>
+          </div>
+          <div class="concept-tags"><span class="concept-tag" data-copy="bentoTag1">плитки</span><span class="concept-tag" data-copy="bentoTag2">ритм</span><span class="concept-tag" data-copy="bentoTag3">ясность</span></div>
+        </div>
+        <div class="bento-board">
+          <div class="bento-tile note"><strong data-copy="bentoNoteTitle">Один экран — одно решение</strong><p data-copy="bentoNoteBody">Компоненты можно переставлять, не ломая логику продукта.</p></div>
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="planLabel">01 / План</span><span data-copy="bentoScreen1">Trip dashboard</span></figcaption>
+            <div class="phone bento-phone bento-main">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⚙</span></div>
+                  <div class="bento-grid">
+                    <div class="bento-module wide"><span class="module-number">01</span><strong data-copy="winterItaly">Зимняя Италия</strong><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small><div class="bento-mini-map"><span class="map-pin pin-one"><b>1</b></span><span class="map-pin pin-two"><b>2</b></span></div></div>
+                    <div class="bento-module lilac"><span class="module-number">03</span><strong data-copy="placesShort">Места</strong><small data-copy="placesCount">3 добавлено</small></div>
+                    <div class="bento-module mint"><span class="module-number">04</span><strong data-copy="daysShort">Дни</strong><small data-copy="daysCount">10 дней</small></div>
+                    <div class="bento-module yellow"><span class="module-number">05</span><strong data-copy="notesShort">Заметки</strong><small data-copy="notesCount">2 идеи</small></div>
+                  </div>
+                  <div class="phone-section"><button class="action-button prototype-action" data-action-status="openTripStatus" data-copy="openTrip">Открыть поездку</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="buildLabel">02 / Собирай</span><span data-copy="bentoScreen2">Add a block</span></figcaption>
+            <div class="phone bento-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><span class="appbar-icon">‹</span><h3 class="app-title" style="font-size:15px" data-copy="tripLabel">Поездка</h3><span class="appbar-icon">＋</span></div>
+                  <div class="micro-label" data-copy="chooseBlock">Добавь следующий блок</div>
+                  <div class="bento-grid phone-section">
+                    <div class="bento-module mint"><span class="module-number">+</span><strong data-copy="placeBlock">Место</strong><small data-copy="placeBlockSub">город или точка</small></div>
+                    <div class="bento-module yellow"><span class="module-number">+</span><strong data-copy="stayBlock">Жильё</strong><small data-copy="stayBlockSub">где остановиться</small></div>
+                    <div class="bento-module lilac"><span class="module-number">+</span><strong data-copy="noteBlock">Заметка</strong><small data-copy="noteBlockSub">мысль на потом</small></div>
+                    <div class="bento-module wide"><span class="module-number">+</span><strong data-copy="routeBlock">Маршрут</strong><small data-copy="routeBlockSub">соедини города в поездку</small><div class="bento-mini-map"></div></div>
+                  </div>
+                  <div class="phone-section"><button class="action-button prototype-action" data-action-status="nextStatus" data-copy="next">Далее</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure">
+            <figcaption class="screen-label"><span data-copy="startLabel">03 / Поехали</span><span data-copy="bentoScreen3">Trip overview</span></figcaption>
+            <div class="phone bento-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⋮</span></div>
+                  <h3 class="app-title" data-copy="futureTrip">Твоя будущая поездка</h3>
+                  <div class="bento-module wide phone-section" style="min-height:155px"><strong data-copy="route">Рим → Флоренция → Пиза</strong><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small><div class="bento-mini-map"></div></div>
+                  <div class="phone-section-title"><span data-copy="todayPlan">Сегодня в плане</span><span class="micro-label">03</span></div>
+                  <div class="place-row"><span class="place-icon">⌖</span><div><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div><span class="place-arrow">›</span></div>
+                  <div class="place-row"><span class="place-icon">✎</span><div><strong data-copy="dayNote">Заметка на день</strong><small data-copy="noteMeta">Добавь идею или список</small></div><span class="place-arrow">›</span></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <div class="bento-stack"><div class="bento-tile"><strong data-copy="bentoStackTitle">Малые блоки, большой контекст</strong><p data-copy="bentoStackBody">Состояние поездки видно с первого взгляда.</p></div><div class="bento-tile"><strong data-copy="bentoStackTitle2">Подходит для роста</strong><p data-copy="bentoStackBody2">Новые сущности добавляются как новые плитки.</p></div></div>
+        </div>
+      </section>
+
+      <!-- 05 -->
+      <section class="direction postcard" id="direction-postcard" aria-labelledby="postcard-title">
+        <div class="direction-top postcard-top">
+          <div class="direction-number">05</div>
+          <div>
+            <p class="direction-kicker" data-copy="postcardKicker">Направление 05 / личный дневник</p>
+            <h2 id="postcard-title" data-copy="postcardName">Postcard — путешествие от руки</h2>
+            <p class="direction-intro" data-copy="postcardDesc">Тёплая редакционная метафора: заметки, штампы, маршрутная линия и немного несовершенства. Ramingo ощущается как личный travel-журнал.</p>
+          </div>
+          <div class="concept-tags"><span class="concept-tag" data-copy="postcardTag1">бумага</span><span class="concept-tag" data-copy="postcardTag2">память</span><span class="concept-tag" data-copy="postcardTag3">личное</span></div>
+        </div>
+        <span class="postcard-stamp" data-copy="postcardStamp">TRAVEL<br>NOTES<br>01</span>
+        <div class="postcard-deck">
+          <span class="postcard-note" data-copy="postcardNote">собери поездку<br>своим почерком</span>
+          <figure class="phone-figure postcard-side-left">
+            <figcaption class="screen-label"><span data-copy="planLabel">01 / План</span><span data-copy="postcardScreen1">First note</span></figcaption>
+            <div class="phone postcard-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><button class="appbar-action prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button></div>
+                  <div class="micro-label" data-copy="postcardOverline">Лист 01 / идея</div>
+                  <h3 class="app-title" data-copy="postcardHeadline">Куда зовёт тебя следующий маршрут?</h3>
+                  <p class="app-subtitle" data-copy="postcardSub">Начни с одного места. Остальное сложится по дороге.</p>
+                  <div class="trip-card phone-section"><span class="trip-badge" data-copy="ideaBadge">идея поездки</span><h4 data-copy="winterItaly">Зимняя Италия</h4><small data-copy="dateRange">19 дек — 3 янв · 10 дней</small></div>
+                  <div class="route-chip"><span>✦</span><span data-copy="saveIdea">Сохранить идею</span></div>
+                  <div class="progress-dots"><span class="active"></span><span></span><span></span></div>
+                  <div class="phone-actions"><button class="action-button ghost prototype-action" data-action-status="skipStatus" data-copy="skip">Пропустить</button><button class="action-button prototype-action" data-action-status="nextStatus" data-copy="next">Далее</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure postcard-main">
+            <figcaption class="screen-label"><span data-copy="buildLabel">02 / Собирай</span><span data-copy="postcardScreen2">Route notes</span></figcaption>
+            <div class="phone postcard-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><span class="appbar-icon">‹</span><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">＋</span></div>
+                  <div class="micro-label" data-copy="routeOverview">Маршрут / лист 02</div>
+                  <h3 class="app-title" data-copy="postcardBuildHeadline">Нарисуй день</h3>
+                  <div class="mini-map phone-section"><span class="map-pin pin-one"><b>1</b></span><span class="map-pin pin-two"><b>2</b></span><span class="map-pin pin-three"><b>3</b></span></div>
+                  <div class="day-tabs"><span class="day-tab active" data-copy="day1">День 1</span><span class="day-tab" data-copy="day2">День 2</span><span class="day-tab" data-copy="day3">День 3</span></div>
+                  <div class="place-row"><span class="place-icon">⌖</span><div><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div><span class="place-arrow">›</span></div>
+                  <div class="place-row"><span class="place-icon">✎</span><div><strong data-copy="dayNote">Заметка на день</strong><small data-copy="noteMeta">Добавь идею или список</small></div><span class="place-arrow">›</span></div>
+                  <div class="phone-section"><button class="action-button prototype-action" data-action-status="addPlaceStatus" data-copy="addPlace">Добавить место</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+          <figure class="phone-figure postcard-side-right">
+            <figcaption class="screen-label"><span data-copy="startLabel">03 / Поехали</span><span data-copy="postcardScreen3">Postcard back</span></figcaption>
+            <div class="phone postcard-phone">
+              <div class="phone-screen">
+                <div class="phone-top"><span>9:41</span><span class="phone-status">5G&nbsp; 87%</span></div>
+                <div class="phone-body">
+                  <div class="phone-appbar"><div class="brand-lockup"><span class="r-logo">R</span>Ramingo</div><span class="appbar-icon">⋮</span></div>
+                  <div class="micro-label" data-copy="postcardOverline">Лист 03 / готово</div>
+                  <h3 class="app-title" data-copy="futureTrip">Твоя будущая поездка</h3>
+                  <div class="route-chip phone-section"><span>⌁</span><span data-copy="route">Рим → Флоренция → Пиза</span></div>
+                  <div class="section-rule"></div>
+                  <div class="phone-section-title"><span data-copy="day1">День 1</span><span class="micro-label">19 DEC</span></div>
+                  <div class="place-row"><span class="place-icon">⌖</span><div><strong data-copy="colosseum">Колизей</strong><small data-copy="colosseumMeta">Достопримечательность · 10:00</small></div><span class="place-arrow">›</span></div>
+                  <div class="place-row"><span class="place-icon">⌂</span><div><strong data-copy="centerHotel">Отель в центре</strong><small data-copy="hotelMeta">Размещение · ночь</small></div><span class="place-arrow">›</span></div>
+                  <div class="phone-section"><button class="action-button prototype-action" data-action-status="openTripStatus" data-copy="openTrip">Открыть поездку</button></div>
+                </div>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer class="demo-footer">
+      <div data-copy="footerNote">Это визуальные шаблоны для согласования направления. Они не меняют Android-приложение и не являются финальной реализацией.</div>
+      <div class="demo-status" aria-live="polite" data-copy="initialStatus">Готово к сравнению. Нажми на действие внутри любого экрана.</div>
+    </footer>
+  </div>
+
+  <script>
+    const dictionary = {
+      ru: {
+        labLabel: 'Ramingo / дизайн-лаборатория', pageTitle: 'Пять новых направлений для Ramingo', pageLead: 'Не пять перекрашенных экранов, а пять разных способов рассказать одну историю: желание поехать → маршрут → первая поездка.', compareTitle: 'Сравнивай как арт-дирекцию', compareBody: 'Внутри каждого варианта сохранены настоящие фрагменты Ramingo — trip card, карта, дни, места и Settings. Меняется композиция, настроение и ритм интерфейса.', system: 'Система', light: 'Светлая', dark: 'Тёмная',
+        auroraNav: 'Aurora', atlasNav: 'Atlas', nocturneNav: 'Nocturne', bentoNav: 'Bento', postcardNav: 'Postcard',
+        auroraKicker: 'Направление 01 / мягкий свет', auroraName: 'Aurora — воздух и мягкость', auroraDesc: 'Лёгкая, почти воздушная подача. Контент будто лежит на световом поле: меньше тяжёлых рамок, больше глубины и спокойного движения.', auroraTag1: 'свет', auroraTag2: 'слои', auroraTag3: 'спокойствие', auroraNoteTitle: 'История начинается с мечты', auroraNoteBody: 'Большой воздух вокруг CTA оставляет фокус на следующем шаге.',
+        atlasKicker: 'Направление 02 / маршрут в центре', atlasName: 'Atlas — сначала карта', atlasDesc: 'Для тех, кто мыслит точками на карте. География становится главным героем, а onboarding ведёт пользователя от первого pin к собранному маршруту.', atlasTag1: 'география', atlasTag2: 'маршрут', atlasTag3: 'точность', atlasScreen1: 'Map first', atlasScreen2: 'Route builder', atlasScreen3: 'Trip map',
+        nocturneKicker: 'Направление 03 / вечерний режим', nocturneName: 'Nocturne — поездка как кино', nocturneDesc: 'Тёмная, кинематографичная версия с тёплым золотым акцентом. Чуть меньше интерфейса, чуть больше атмосферы и ощущения личного travel-журнала.', nocturneTag1: 'ночь', nocturneTag2: 'кино', nocturneTag3: 'ритуал', nocturneScreen1: 'Night welcome', nocturneScreen2: 'Travel ritual', nocturneScreen3: 'The trip film', nocturneOverline: 'Глава первая / желание', nocturneHeadline: 'Куда отправимся дальше?', nocturneSub: 'Сохрани идею сегодня — собери поездку завтра.', nocturneBuildHeadline: 'Один день. Три истории.',
+        bentoKicker: 'Направление 04 / модульная система', bentoName: 'Bento — всё на одной доске', bentoDesc: 'Собранный, почти редакционный интерфейс. Каждый элемент — самостоятельная плитка, а главный экран быстро показывает состояние поездки без лишней глубины.', bentoTag1: 'плитки', bentoTag2: 'ритм', bentoTag3: 'ясность', bentoScreen1: 'Trip dashboard', bentoScreen2: 'Add a block', bentoScreen3: 'Trip overview', bentoNoteTitle: 'Один экран — одно решение', bentoNoteBody: 'Компоненты можно переставлять, не ломая логику продукта.', bentoStackTitle: 'Малые блоки, большой контекст', bentoStackBody: 'Состояние поездки видно с первого взгляда.', bentoStackTitle2: 'Подходит для роста', bentoStackBody2: 'Новые сущности добавляются как новые плитки.', chooseBlock: 'Добавь следующий блок', placeBlock: 'Место', placeBlockSub: 'город или точка', stayBlock: 'Жильё', stayBlockSub: 'где остановиться', noteBlock: 'Заметка', noteBlockSub: 'мысль на потом', routeBlock: 'Маршрут', routeBlockSub: 'соедини города в поездку', placesShort: 'Места', placesCount: '3 добавлено', daysShort: 'Дни', daysCount: '10 дней', notesShort: 'Заметки', notesCount: '2 идеи', todayPlan: 'Сегодня в плане', openTrip: 'Открыть поездку',
+        postcardKicker: 'Направление 05 / личный дневник', postcardName: 'Postcard — путешествие от руки', postcardDesc: 'Тёплая редакционная метафора: заметки, штампы, маршрутная линия и немного несовершенства. Ramingo ощущается как личный travel-журнал.', postcardTag1: 'бумага', postcardTag2: 'память', postcardTag3: 'личное', postcardStamp: 'TRAVEL\nNOTES\n01', postcardNote: 'собери поездку\nсвоим почерком', postcardScreen1: 'First note', postcardScreen2: 'Route notes', postcardScreen3: 'Postcard back', postcardOverline: 'Лист 01 / идея', postcardHeadline: 'Куда зовёт тебя следующий маршрут?', postcardSub: 'Начни с одного места. Остальное сложится по дороге.', ideaBadge: 'идея поездки', saveIdea: 'Сохранить идею', postcardBuildHeadline: 'Нарисуй день',
+        planLabel: '01 / План', buildLabel: '02 / Собирай', startLabel: '03 / Поехали', welcomeLabel: 'Welcome', welcomeOverline: 'Твой маршрут начинается здесь', emptyLabel: 'Empty state', tripLabel: 'Поездка', routeOverview: 'Путешествие / маршрут', route: 'Рим → Флоренция → Пиза', winterItaly: 'Зимняя Италия', futureTrip: 'Твоя будущая поездка', dateRange: '19 дек — 3 янв · 10 дней', upcoming: 'Предстоящая', upcomingCount: 'Предстоящие · 0', allTrips: 'Все · 0', myTrips: 'Мои поездки', planHeadline: 'Планируй всё путешествие в одном месте', planSub: 'Маршрут, места, жильё и заметки — всё внутри одной поездки.', emptyTitle: 'Здесь появятся ваши поездки', emptySub: 'Создайте первую поездку с нуля или выберите готовый маршрут.', createTrip: 'Создать поездку', skip: 'Пропустить', next: 'Далее', addPlace: 'Добавить место', placesOnRoute: 'Места на маршруте', atlasHeadline: 'Увидеть больше. Запомнить всё.', buildHeadline: 'Собери свой маршрут', buildSub: 'Добавляй точки прямо на карте и двигайся дальше.', routeSub: 'Три города. Один красивый маршрут.', exploreRoute: 'Открыть маршрут', colosseum: 'Колизей', colosseumMeta: 'Достопримечательность · 10:00', centerHotel: 'Отель в центре', hotelMeta: 'Размещение · ночь', dayNote: 'Заметка на день', noteMeta: 'Добавь идею или список', day1: 'День 1', day2: 'День 2', day3: 'День 3', footerNote: 'Это визуальные шаблоны для согласования направления. Они не меняют Android-приложение и не являются финальной реализацией.', initialStatus: 'Готово к сравнению. Нажми на действие внутри любого экрана.', skipStatus: 'Демо: шаг пропущен — состояние приложения не меняется.', nextStatus: 'Демо: следующий шаг выбран.', createStatus: 'Демо: кнопка создания поездки нажата.', addPlaceStatus: 'Демо: открывается добавление первого места.', exploreStatus: 'Демо: открывается маршрут поездки.', openTripStatus: 'Демо: открывается обзор поездки.'
+      },
+      en: {
+        labLabel: 'Ramingo / design lab', pageTitle: 'Five new directions for Ramingo', pageLead: 'Not five recolored screens, but five ways to tell one story: desire to go → route → first trip.', compareTitle: 'Compare them like art direction', compareBody: 'Every option keeps real Ramingo fragments — trip card, map, days, places and Settings. The composition, mood and interface rhythm change.', system: 'System', light: 'Light', dark: 'Dark', auroraNav: 'Aurora', atlasNav: 'Atlas', nocturneNav: 'Nocturne', bentoNav: 'Bento', postcardNav: 'Postcard',
+        auroraKicker: 'Direction 01 / soft light', auroraName: 'Aurora — air and softness', auroraDesc: 'A light, almost weightless approach. Content sits on a field of light: fewer heavy frames, more depth and calm motion.', auroraTag1: 'light', auroraTag2: 'layers', auroraTag3: 'calm', auroraNoteTitle: 'Every story starts as a dream', auroraNoteBody: 'Open space around the CTA keeps focus on the next step.', atlasKicker: 'Direction 02 / route first', atlasName: 'Atlas — map first', atlasDesc: 'For people who think in map points. Geography becomes the hero, moving the user from the first pin to a complete route.', atlasTag1: 'geography', atlasTag2: 'route', atlasTag3: 'precision', atlasScreen1: 'Map first', atlasScreen2: 'Route builder', atlasScreen3: 'Trip map', nocturneKicker: 'Direction 03 / evening mode', nocturneName: 'Nocturne — the trip as a film', nocturneDesc: 'A dark, cinematic version with a warm gold accent. Less interface, more atmosphere and the feeling of a personal travel journal.', nocturneTag1: 'night', nocturneTag2: 'cinema', nocturneTag3: 'ritual', nocturneScreen1: 'Night welcome', nocturneScreen2: 'Travel ritual', nocturneScreen3: 'The trip film', nocturneOverline: 'Chapter one / desire', nocturneHeadline: 'Where shall we go next?', nocturneSub: 'Save the idea today — build the trip tomorrow.', nocturneBuildHeadline: 'One day. Three stories.', bentoKicker: 'Direction 04 / modular system', bentoName: 'Bento — everything on one board', bentoDesc: 'A tidy, editorial interface. Every element is its own tile, while the home screen shows trip status without extra depth.', bentoTag1: 'tiles', bentoTag2: 'rhythm', bentoTag3: 'clarity', bentoScreen1: 'Trip dashboard', bentoScreen2: 'Add a block', bentoScreen3: 'Trip overview', bentoNoteTitle: 'One screen — one decision', bentoNoteBody: 'Components can move without breaking product logic.', bentoStackTitle: 'Small blocks, big context', bentoStackBody: 'Trip status is visible at a glance.', bentoStackTitle2: 'Built to grow', bentoStackBody2: 'New entities arrive as new tiles.', chooseBlock: 'Add the next block', placeBlock: 'Place', placeBlockSub: 'city or spot', stayBlock: 'Stay', stayBlockSub: 'where to sleep', noteBlock: 'Note', noteBlockSub: 'thought for later', routeBlock: 'Route', routeBlockSub: 'connect cities into a trip', placesShort: 'Places', placesCount: '3 added', daysShort: 'Days', daysCount: '10 days', notesShort: 'Notes', notesCount: '2 ideas', todayPlan: 'Today’s plan', openTrip: 'Open trip', postcardKicker: 'Direction 05 / personal journal', postcardName: 'Postcard — travel by hand', postcardDesc: 'A warm editorial metaphor: notes, stamps, route lines and a little imperfection. Ramingo feels like a personal travel journal.', postcardTag1: 'paper', postcardTag2: 'memory', postcardTag3: 'personal', postcardStamp: 'TRAVEL\nNOTES\n01', postcardNote: 'build a trip\nin your own hand', postcardScreen1: 'First note', postcardScreen2: 'Route notes', postcardScreen3: 'Postcard back', postcardOverline: 'Page 01 / idea', postcardHeadline: 'Where is your next route calling?', postcardSub: 'Start with one place. The rest will follow.', ideaBadge: 'trip idea', saveIdea: 'Save the idea', postcardBuildHeadline: 'Draw the day', planLabel: '01 / Plan', buildLabel: '02 / Build', startLabel: '03 / Go', welcomeLabel: 'Welcome', emptyLabel: 'Empty state', tripLabel: 'Trip', routeOverview: 'Trip / route', route: 'Rome → Florence → Pisa', winterItaly: 'Winter Italy', futureTrip: 'Your future trip', dateRange: 'Dec 19 — Jan 3 · 10 days', upcoming: 'Upcoming', upcomingCount: 'Upcoming · 0', allTrips: 'All · 0', myTrips: 'My trips', planHeadline: 'Plan the whole trip in one place', planSub: 'Route, places, stays and notes — inside one trip.', emptyTitle: 'Your trips will appear here', emptySub: 'Create a trip from scratch or pick a ready-made route.', createTrip: 'Create a trip', skip: 'Skip', next: 'Next', addPlace: 'Add a place', placesOnRoute: 'Places on route', atlasHeadline: 'See more. Remember everything.', buildHeadline: 'Build your route', buildSub: 'Drop points on the map and keep moving.', routeSub: 'Three cities. One beautiful route.', exploreRoute: 'Open route', colosseum: 'Colosseum', colosseumMeta: 'Sight · 10:00', centerHotel: 'Hotel in the center', hotelMeta: 'Stay · night', dayNote: 'Note for the day', noteMeta: 'Add an idea or list', day1: 'Day 1', day2: 'Day 2', day3: 'Day 3', footerNote: 'These are visual templates for direction approval. They do not change the Android app and are not final implementation.', initialStatus: 'Ready to compare. Tap an action inside any screen.', skipStatus: 'Demo: step skipped — app state stays unchanged.', nextStatus: 'Demo: next step selected.', createStatus: 'Demo: create-trip button tapped.', addPlaceStatus: 'Demo: first-place flow opens.', exploreStatus: 'Demo: trip route opens.', openTripStatus: 'Demo: trip overview opens.'
+      },
+      es: {
+        labLabel: 'Ramingo / laboratorio de diseño', pageTitle: 'Cinco nuevas direcciones para Ramingo', pageLead: 'No son cinco pantallas recoloreadas, sino cinco formas de contar la misma historia: ganas de viajar → ruta → primer viaje.', compareTitle: 'Compáralas como dirección de arte', compareBody: 'Cada opción conserva fragmentos reales de Ramingo: tarjeta de viaje, mapa, días, lugares y Settings. Cambian la composición, el ambiente y el ritmo.', system: 'Sistema', light: 'Claro', dark: 'Oscuro', auroraNav: 'Aurora', atlasNav: 'Atlas', nocturneNav: 'Nocturne', bentoNav: 'Bento', postcardNav: 'Postcard', auroraKicker: 'Dirección 01 / luz suave', auroraName: 'Aurora — aire y suavidad', auroraDesc: 'Una propuesta ligera y casi etérea. El contenido vive sobre un campo de luz: menos marcos pesados, más profundidad y calma.', auroraTag1: 'luz', auroraTag2: 'capas', auroraTag3: 'calma', auroraNoteTitle: 'Toda historia empieza como un sueño', auroraNoteBody: 'El espacio alrededor del CTA mantiene el foco en el siguiente paso.', atlasKicker: 'Dirección 02 / ruta central', atlasName: 'Atlas — primero el mapa', atlasDesc: 'Para quienes piensan en puntos del mapa. La geografía es protagonista y el onboarding lleva del primer pin a una ruta completa.', atlasTag1: 'geografía', atlasTag2: 'ruta', atlasTag3: 'precisión', atlasScreen1: 'Primero el mapa', atlasScreen2: 'Crear ruta', atlasScreen3: 'Mapa del viaje', nocturneKicker: 'Dirección 03 / modo noche', nocturneName: 'Nocturne — el viaje como película', nocturneDesc: 'Una versión oscura y cinematográfica con un acento dorado. Menos interfaz, más atmósfera y sensación de diario de viaje.', nocturneTag1: 'noche', nocturneTag2: 'cine', nocturneTag3: 'ritual', nocturneScreen1: 'Bienvenida nocturna', nocturneScreen2: 'Ritual de viaje', nocturneScreen3: 'La película del viaje', nocturneOverline: 'Capítulo uno / deseo', nocturneHeadline: '¿Adónde vamos después?', nocturneSub: 'Guarda la idea hoy — crea el viaje mañana.', nocturneBuildHeadline: 'Un día. Tres historias.', bentoKicker: 'Dirección 04 / sistema modular', bentoName: 'Bento — todo en un tablero', bentoDesc: 'Una interfaz ordenada y editorial. Cada elemento es una tarjeta y la pantalla inicial muestra el estado del viaje de un vistazo.', bentoTag1: 'tarjetas', bentoTag2: 'ritmo', bentoTag3: 'claridad', bentoScreen1: 'Panel del viaje', bentoScreen2: 'Añadir bloque', bentoScreen3: 'Resumen del viaje', bentoNoteTitle: 'Una pantalla — una decisión', bentoNoteBody: 'Los componentes se pueden mover sin romper la lógica.', bentoStackTitle: 'Bloques pequeños, contexto grande', bentoStackBody: 'El estado del viaje se ve de un vistazo.', bentoStackTitle2: 'Listo para crecer', bentoStackBody2: 'Las nuevas entidades llegan como nuevas tarjetas.', chooseBlock: 'Añade el siguiente bloque', placeBlock: 'Lugar', placeBlockSub: 'ciudad o punto', stayBlock: 'Alojamiento', stayBlockSub: 'dónde dormir', noteBlock: 'Nota', noteBlockSub: 'idea para después', routeBlock: 'Ruta', routeBlockSub: 'conecta ciudades en un viaje', placesShort: 'Lugares', placesCount: '3 añadidos', daysShort: 'Días', daysCount: '10 días', notesShort: 'Notas', notesCount: '2 ideas', todayPlan: 'Plan de hoy', openTrip: 'Abrir viaje', postcardKicker: 'Dirección 05 / diario personal', postcardName: 'Postcard — viajar a mano', postcardDesc: 'Una metáfora editorial cálida: notas, sellos, líneas de ruta y un poco de imperfección. Ramingo se siente como un diario de viaje personal.', postcardTag1: 'papel', postcardTag2: 'memoria', postcardTag3: 'personal', postcardStamp: 'TRAVEL\nNOTES\n01', postcardNote: 'crea un viaje\ncon tu estilo', postcardScreen1: 'Primera nota', postcardScreen2: 'Notas de ruta', postcardScreen3: 'Reverso de postal', postcardOverline: 'Página 01 / idea', postcardHeadline: '¿Adónde te llama tu próxima ruta?', postcardSub: 'Empieza con un lugar. El resto vendrá después.', ideaBadge: 'idea de viaje', saveIdea: 'Guardar idea', postcardBuildHeadline: 'Dibuja el día', planLabel: '01 / Plan', buildLabel: '02 / Crea', startLabel: '03 / Vamos', welcomeLabel: 'Bienvenida', emptyLabel: 'Estado vacío', tripLabel: 'Viaje', routeOverview: 'Viaje / ruta', route: 'Roma → Florencia → Pisa', winterItaly: 'Italia de invierno', futureTrip: 'Tu próximo viaje', dateRange: '19 dic — 3 ene · 10 días', upcoming: 'Próximo', upcomingCount: 'Próximos · 0', allTrips: 'Todos · 0', myTrips: 'Mis viajes', planHeadline: 'Planifica todo el viaje en un solo lugar', planSub: 'Ruta, lugares, alojamientos y notas — dentro de un viaje.', emptyTitle: 'Aquí aparecerán tus viajes', emptySub: 'Crea un viaje desde cero o elige una ruta preparada.', createTrip: 'Crear viaje', skip: 'Omitir', next: 'Siguiente', addPlace: 'Añadir lugar', placesOnRoute: 'Lugares en la ruta', atlasHeadline: 'Ver más. Recordarlo todo.', buildHeadline: 'Crea tu ruta', buildSub: 'Añade puntos al mapa y sigue avanzando.', routeSub: 'Tres ciudades. Una ruta preciosa.', exploreRoute: 'Abrir ruta', colosseum: 'Coliseo', colosseumMeta: 'Lugar · 10:00', centerHotel: 'Hotel céntrico', hotelMeta: 'Alojamiento · noche', dayNote: 'Nota del día', noteMeta: 'Añade una idea o lista', day1: 'Día 1', day2: 'Día 2', day3: 'Día 3', footerNote: 'Son plantillas visuales para aprobar una dirección. No cambian la app Android y no son una implementación final.', initialStatus: 'Listo para comparar. Pulsa una acción dentro de cualquier pantalla.', skipStatus: 'Demo: paso omitido; el estado no cambia.', nextStatus: 'Demo: siguiente paso seleccionado.', createStatus: 'Demo: botón de crear viaje pulsado.', addPlaceStatus: 'Demo: se abre el primer lugar.', exploreStatus: 'Demo: se abre la ruta.', openTripStatus: 'Demo: se abre el resumen del viaje.'
+      },
+      de: {
+        labLabel: 'Ramingo / Designlabor', pageTitle: 'Fünf neue Richtungen für Ramingo', pageLead: 'Keine fünf umgefärbten Screens, sondern fünf Wege für dieselbe Geschichte: Reiselust → Route → erste Reise.', compareTitle: 'Wie Art Direction vergleichen', compareBody: 'Jede Variante behält echte Ramingo-Elemente: Reisekarte, Karte, Tage, Orte und Settings. Nur Komposition, Stimmung und Rhythmus wechseln.', system: 'System', light: 'Hell', dark: 'Dunkel', auroraNav: 'Aurora', atlasNav: 'Atlas', nocturneNav: 'Nocturne', bentoNav: 'Bento', postcardNav: 'Postcard', auroraKicker: 'Richtung 01 / weiches Licht', auroraName: 'Aurora — Luft und Leichtigkeit', auroraDesc: 'Eine leichte, fast schwerelose Variante. Inhalte liegen auf einem Lichtfeld: weniger harte Rahmen, mehr Tiefe und Ruhe.', auroraTag1: 'licht', auroraTag2: 'layer', auroraTag3: 'ruhe', auroraNoteTitle: 'Jede Geschichte beginnt als Traum', auroraNoteBody: 'Viel Raum um den CTA hält den Fokus auf dem nächsten Schritt.', atlasKicker: 'Richtung 02 / Route im Zentrum', atlasName: 'Atlas — zuerst die Karte', atlasDesc: 'Für Menschen, die in Kartenpunkten denken. Die Geografie wird zum Helden und führt vom ersten Pin zur fertigen Route.', atlasTag1: 'geografie', atlasTag2: 'route', atlasTag3: 'präzision', atlasScreen1: 'Karte zuerst', atlasScreen2: 'Route bauen', atlasScreen3: 'Reisekarte', nocturneKicker: 'Richtung 03 / Abendmodus', nocturneName: 'Nocturne — die Reise als Film', nocturneDesc: 'Eine dunkle, filmische Version mit warmem Goldakzent. Weniger UI, mehr Atmosphäre und das Gefühl eines persönlichen Reisetagebuchs.', nocturneTag1: 'nacht', nocturneTag2: 'kino', nocturneTag3: 'ritual', nocturneScreen1: 'Nacht-Willkommen', nocturneScreen2: 'Reiseritual', nocturneScreen3: 'Der Reisefilm', nocturneOverline: 'Kapitel eins / Wunsch', nocturneHeadline: 'Wohin geht es als Nächstes?', nocturneSub: 'Heute die Idee speichern — morgen die Reise bauen.', nocturneBuildHeadline: 'Ein Tag. Drei Geschichten.', bentoKicker: 'Richtung 04 / modulares System', bentoName: 'Bento — alles auf einem Board', bentoDesc: 'Eine klare, fast redaktionelle Oberfläche. Jedes Element ist eine Kachel und der Startscreen zeigt den Reisestatus ohne unnötige Tiefe.', bentoTag1: 'kacheln', bentoTag2: 'rhythmus', bentoTag3: 'klarheit', bentoScreen1: 'Reise-Dashboard', bentoScreen2: 'Block hinzufügen', bentoScreen3: 'Reiseübersicht', bentoNoteTitle: 'Ein Screen — eine Entscheidung', bentoNoteBody: 'Komponenten lassen sich verschieben, ohne die Logik zu brechen.', bentoStackTitle: 'Kleine Blöcke, großer Kontext', bentoStackBody: 'Der Reisestatus ist sofort sichtbar.', bentoStackTitle2: 'Bereit zum Wachsen', bentoStackBody2: 'Neue Elemente kommen als neue Kacheln hinzu.', chooseBlock: 'Nächsten Block hinzufügen', placeBlock: 'Ort', placeBlockSub: 'Stadt oder Punkt', stayBlock: 'Unterkunft', stayBlockSub: 'wo du schläfst', noteBlock: 'Notiz', noteBlockSub: 'Gedanke für später', routeBlock: 'Route', routeBlockSub: 'Städte zur Reise verbinden', placesShort: 'Orte', placesCount: '3 hinzugefügt', daysShort: 'Tage', daysCount: '10 Tage', notesShort: 'Notizen', notesCount: '2 Ideen', todayPlan: 'Heute geplant', openTrip: 'Reise öffnen', postcardKicker: 'Richtung 05 / persönliches Tagebuch', postcardName: 'Postcard — Reisen mit der Hand', postcardDesc: 'Eine warme redaktionelle Metapher: Notizen, Stempel, Routenlinie und etwas Unperfektes. Ramingo fühlt sich wie ein persönliches Reisetagebuch an.', postcardTag1: 'papier', postcardTag2: 'erinnerung', postcardTag3: 'persönlich', postcardStamp: 'TRAVEL\nNOTES\n01', postcardNote: 'baue die reise\nin deiner handschrift', postcardScreen1: 'Erste Notiz', postcardScreen2: 'Routennotizen', postcardScreen3: 'Postkartenrückseite', postcardOverline: 'Seite 01 / Idee', postcardHeadline: 'Wohin ruft deine nächste Route?', postcardSub: 'Beginne mit einem Ort. Der Rest folgt unterwegs.', ideaBadge: 'Reiseidee', saveIdea: 'Idee speichern', postcardBuildHeadline: 'Zeichne den Tag', planLabel: '01 / Plan', buildLabel: '02 / Bauen', startLabel: '03 / Los', welcomeLabel: 'Willkommen', emptyLabel: 'Leerzustand', tripLabel: 'Reise', routeOverview: 'Reise / Route', route: 'Rom → Florenz → Pisa', winterItaly: 'Winter in Italien', futureTrip: 'Deine nächste Reise', dateRange: '19. Dez. — 3. Jan. · 10 Tage', upcoming: 'Bevorstehend', upcomingCount: 'Bevorstehend · 0', allTrips: 'Alle · 0', myTrips: 'Meine Reisen', planHeadline: 'Plane die ganze Reise an einem Ort', planSub: 'Route, Orte, Unterkünfte und Notizen — in einer Reise.', emptyTitle: 'Hier erscheinen deine Reisen', emptySub: 'Erstelle eine Reise oder wähle eine fertige Route.', createTrip: 'Reise erstellen', skip: 'Überspringen', next: 'Weiter', addPlace: 'Ort hinzufügen', placesOnRoute: 'Orte auf der Route', atlasHeadline: 'Mehr sehen. Alles behalten.', buildHeadline: 'Baue deine Route', buildSub: 'Setze Punkte auf die Karte und geh weiter.', routeSub: 'Drei Städte. Eine schöne Route.', exploreRoute: 'Route öffnen', colosseum: 'Kolosseum', colosseumMeta: 'Sehenswürdigkeit · 10:00', centerHotel: 'Hotel im Zentrum', hotelMeta: 'Unterkunft · Nacht', dayNote: 'Notiz für den Tag', noteMeta: 'Idee oder Liste ergänzen', day1: 'Tag 1', day2: 'Tag 2', day3: 'Tag 3', footerNote: 'Das sind visuelle Vorlagen zur Richtungsfreigabe. Sie ändern die Android-App nicht und sind keine finale Implementierung.', initialStatus: 'Bereit zum Vergleichen. Tippe auf eine Aktion in einem Screen.', skipStatus: 'Demo: Schritt übersprungen; der Zustand bleibt unverändert.', nextStatus: 'Demo: nächster Schritt ausgewählt.', createStatus: 'Demo: Reise-erstellen geklickt.', addPlaceStatus: 'Demo: erster Ort wird geöffnet.', exploreStatus: 'Demo: Reiseroute wird geöffnet.', openTripStatus: 'Demo: Reiseübersicht wird geöffnet.'
+      }
+    };
+
+    dictionary.en.welcomeOverline = 'Your route starts here';
+    dictionary.es.welcomeOverline = 'Tu ruta empieza aquí';
+    dictionary.de.welcomeOverline = 'Deine Route beginnt hier';
+
+    Object.assign(dictionary.ru, {
+      guideKicker: 'Обучение / реальный walkthrough', guideTitle: 'Как пользоваться Ramingo', guideIntro: 'Четыре коротких шага поверх настоящего интерфейса: создай поездку, добавь место, собери день и знай, где повторить подсказки.', guideProgress: 'шаг из 4', guideStep1Title: 'Создай поездку', guideStep1Desc: 'Начни с пустого экрана и задай направление.', guideStep2Title: 'Добавь место', guideStep2Desc: 'Сохрани первую точку прямо в поездке.', guideStep3Title: 'Собери день', guideStep3Desc: 'Открой день и расставь места по порядку.', guideStep4Title: 'Вернись к подсказкам', guideStep4Desc: 'В Settings можно снова открыть обучение.', guideBack: 'Назад', guideNext: 'Следующий шаг', guideSkip: 'Пропустить обучение', guideRestart: 'Начать сначала', guideDefault: 'Выбери шаг слева или нажми «Следующий шаг».', guideAction1Status: 'Шаг 1: поездка создана — теперь добавь в неё первое место.', guideAction2Status: 'Шаг 2: место добавлено — теперь собери свой первый день.', guideAction3Status: 'Шаг 3: день открыт — меняй порядок мест под свой темп.', guideAction4Status: 'Шаг 4: обучение можно повторить в любой момент.', guideHomeOverline: 'Главный экран / начало', guideHomeTitle: 'Собери первую поездку', guideHomeSub: 'Ramingo хранит маршрут, места и планы в одном месте.', guideHomeEmptyTitle: 'Здесь пока пусто', guideHomeEmptySub: 'Создай поездку, чтобы начать планирование.', guideTip1Title: 'Начни отсюда', guideTip1Body: 'Нажми «Создать поездку», чтобы задать название и даты.', guideTripOverline: 'Поездка / обзор', guideTripTitle: 'Зимняя Италия', guideTripDate: '10 дней', guideTip2Title: 'Добавляй точки', guideTip2Body: 'Сохрани город, достопримечательность или жильё в текущую поездку.', guideDayOverline: 'День 1 / Рим', guideDayTitle: 'Собери свой день', guideDaySub: 'Расставь места в том порядке, в котором хочешь их увидеть.', guideOpenDay: 'Открыть день', guideTip3Title: 'Планируй по дням', guideTip3Body: 'Переключай дни и меняй порядок мест под свой темп.', guideSettingsTitle: 'Настройки', guideProfileLabel: 'Личный аккаунт', guideAppearance: 'Внешний вид', guideTheme: 'Тема', guideLanguage: 'Язык', guideSupport: 'Поддержка', guideShowTour: 'Показать обучение', guideShowTourSub: 'Открыть подсказки ещё раз', guideTip4Title: 'Можно повторить', guideTip4Body: 'Открой Settings → «Показать обучение», если захочешь пройти walkthrough ещё раз.', ruLanguage: 'Русский'
+    });
+    Object.assign(dictionary.en, {
+      guideKicker: 'Tutorial / real walkthrough', guideTitle: 'How to use Ramingo', guideIntro: 'Four short steps over the real interface: create a trip, add a place, build a day and learn where to replay the hints.', guideProgress: 'of 4', guideStep1Title: 'Create a trip', guideStep1Desc: 'Start from the empty state and set a direction.', guideStep2Title: 'Add a place', guideStep2Desc: 'Save the first point inside your trip.', guideStep3Title: 'Build a day', guideStep3Desc: 'Open a day and put places in order.', guideStep4Title: 'Return to the hints', guideStep4Desc: 'Open the tutorial again from Settings.', guideBack: 'Back', guideNext: 'Next step', guideSkip: 'Skip tutorial', guideRestart: 'Start again', guideDefault: 'Choose a step on the left or press “Next step”.', guideAction1Status: 'Step 1: trip created — now add its first place.', guideAction2Status: 'Step 2: place added — now build your first day.', guideAction3Status: 'Step 3: day opened — reorder places at your pace.', guideAction4Status: 'Step 4: the tutorial can be replayed anytime.', guideHomeOverline: 'Home / start', guideHomeTitle: 'Build your first trip', guideHomeSub: 'Ramingo keeps your route, places and plans together.', guideHomeEmptyTitle: 'It is empty here for now', guideHomeEmptySub: 'Create a trip to start planning.', guideTip1Title: 'Start here', guideTip1Body: 'Tap “Create a trip” to set a name and dates.', guideTripOverline: 'Trip / overview', guideTripTitle: 'Winter Italy', guideTripDate: '10 days', guideTip2Title: 'Add points', guideTip2Body: 'Save a city, sight or stay to the current trip.', guideDayOverline: 'Day 1 / Rome', guideDayTitle: 'Build your day', guideDaySub: 'Put places in the order you want to see them.', guideOpenDay: 'Open day', guideTip3Title: 'Plan by day', guideTip3Body: 'Switch days and reorder places at your own pace.', guideSettingsTitle: 'Settings', guideProfileLabel: 'Personal account', guideAppearance: 'Appearance', guideTheme: 'Theme', guideLanguage: 'Language', guideSupport: 'Support', guideShowTour: 'Show tutorial', guideShowTourSub: 'Open the hints again', guideTip4Title: 'Replay anytime', guideTip4Body: 'Open Settings → “Show tutorial” whenever you want to run the walkthrough again.', ruLanguage: 'Russian'
+    });
+    Object.assign(dictionary.es, {
+      guideKicker: 'Tutorial / walkthrough real', guideTitle: 'Cómo usar Ramingo', guideIntro: 'Cuatro pasos sobre la interfaz real: crea un viaje, añade un lugar, prepara un día y descubre dónde repetir las pistas.', guideProgress: 'de 4', guideStep1Title: 'Crea un viaje', guideStep1Desc: 'Empieza desde el estado vacío y elige una dirección.', guideStep2Title: 'Añade un lugar', guideStep2Desc: 'Guarda el primer punto dentro del viaje.', guideStep3Title: 'Prepara un día', guideStep3Desc: 'Abre un día y ordena tus lugares.', guideStep4Title: 'Vuelve a las pistas', guideStep4Desc: 'Abre el tutorial otra vez desde Settings.', guideBack: 'Atrás', guideNext: 'Siguiente paso', guideSkip: 'Omitir tutorial', guideRestart: 'Empezar de nuevo', guideDefault: 'Elige un paso a la izquierda o pulsa «Siguiente paso».', guideAction1Status: 'Paso 1: viaje creado; ahora añade el primer lugar.', guideAction2Status: 'Paso 2: lugar añadido; ahora prepara tu primer día.', guideAction3Status: 'Paso 3: día abierto; ordena los lugares a tu ritmo.', guideAction4Status: 'Paso 4: puedes repetir el tutorial en cualquier momento.', guideHomeOverline: 'Inicio / comienzo', guideHomeTitle: 'Crea tu primer viaje', guideHomeSub: 'Ramingo reúne ruta, lugares y planes en un solo sitio.', guideHomeEmptyTitle: 'Aquí todavía está vacío', guideHomeEmptySub: 'Crea un viaje para empezar a planificar.', guideTip1Title: 'Empieza aquí', guideTip1Body: 'Pulsa «Crear viaje» para indicar nombre y fechas.', guideTripOverline: 'Viaje / resumen', guideTripTitle: 'Italia de invierno', guideTripDate: '10 días', guideTip2Title: 'Añade puntos', guideTip2Body: 'Guarda una ciudad, lugar o alojamiento en el viaje.', guideDayOverline: 'Día 1 / Roma', guideDayTitle: 'Prepara tu día', guideDaySub: 'Ordena los lugares como quieres visitarlos.', guideOpenDay: 'Abrir día', guideTip3Title: 'Planifica por días', guideTip3Body: 'Cambia de día y ordena lugares a tu ritmo.', guideSettingsTitle: 'Ajustes', guideProfileLabel: 'Cuenta personal', guideAppearance: 'Apariencia', guideTheme: 'Tema', guideLanguage: 'Idioma', guideSupport: 'Ayuda', guideShowTour: 'Mostrar tutorial', guideShowTourSub: 'Abrir las pistas de nuevo', guideTip4Title: 'Repítelo cuando quieras', guideTip4Body: 'Abre Settings → «Mostrar tutorial» para recorrer el walkthrough otra vez.', ruLanguage: 'Ruso'
+    });
+    Object.assign(dictionary.de, {
+      guideKicker: 'Tutorial / echter Walkthrough', guideTitle: 'So funktioniert Ramingo', guideIntro: 'Vier kurze Schritte über der echten Oberfläche: Reise erstellen, Ort hinzufügen, Tag planen und Tutorial wiederfinden.', guideProgress: 'von 4', guideStep1Title: 'Reise erstellen', guideStep1Desc: 'Starte im Leerzustand und wähle eine Richtung.', guideStep2Title: 'Ort hinzufügen', guideStep2Desc: 'Speichere den ersten Punkt in deiner Reise.', guideStep3Title: 'Tag planen', guideStep3Desc: 'Öffne einen Tag und ordne die Orte.', guideStep4Title: 'Hinweise wieder öffnen', guideStep4Desc: 'Starte das Tutorial in den Einstellungen erneut.', guideBack: 'Zurück', guideNext: 'Nächster Schritt', guideSkip: 'Tutorial überspringen', guideRestart: 'Neu starten', guideDefault: 'Wähle links einen Schritt oder drücke „Nächster Schritt“.', guideAction1Status: 'Schritt 1: Reise erstellt — füge jetzt den ersten Ort hinzu.', guideAction2Status: 'Schritt 2: Ort hinzugefügt — plane jetzt deinen ersten Tag.', guideAction3Status: 'Schritt 3: Tag geöffnet — ordne die Orte in deinem Tempo.', guideAction4Status: 'Schritt 4: Das Tutorial kann jederzeit wiederholt werden.', guideHomeOverline: 'Startseite / Anfang', guideHomeTitle: 'Erstelle deine erste Reise', guideHomeSub: 'Ramingo sammelt Route, Orte und Pläne an einem Ort.', guideHomeEmptyTitle: 'Hier ist es noch leer', guideHomeEmptySub: 'Erstelle eine Reise, um zu planen.', guideTip1Title: 'Hier starten', guideTip1Body: 'Tippe auf „Reise erstellen“, um Name und Daten festzulegen.', guideTripOverline: 'Reise / Übersicht', guideTripTitle: 'Winter in Italien', guideTripDate: '10 Tage', guideTip2Title: 'Punkte hinzufügen', guideTip2Body: 'Speichere eine Stadt, Sehenswürdigkeit oder Unterkunft in der Reise.', guideDayOverline: 'Tag 1 / Rom', guideDayTitle: 'Plane deinen Tag', guideDaySub: 'Ordne die Orte in der Reihenfolge, in der du sie sehen möchtest.', guideOpenDay: 'Tag öffnen', guideTip3Title: 'Nach Tagen planen', guideTip3Body: 'Wechsle die Tage und sortiere Orte in deinem Tempo.', guideSettingsTitle: 'Einstellungen', guideProfileLabel: 'Persönliches Konto', guideAppearance: 'Darstellung', guideTheme: 'Thema', guideLanguage: 'Sprache', guideSupport: 'Support', guideShowTour: 'Tutorial anzeigen', guideShowTourSub: 'Hinweise erneut öffnen', guideTip4Title: 'Jederzeit wiederholen', guideTip4Body: 'Öffne Einstellungen → „Tutorial anzeigen“, um den Walkthrough erneut zu starten.', ruLanguage: 'Russisch'
+    });
+    dictionary.ru.guideNav = 'Обучение';
+    dictionary.en.guideNav = 'Tutorial';
+    dictionary.es.guideNav = 'Tutorial';
+    dictionary.de.guideNav = 'Tutorial';
+    dictionary.ru.guideKicker = 'Наш дизайн Ramingo / обучение';
+    dictionary.en.guideKicker = 'Our Ramingo design / tutorial';
+    dictionary.es.guideKicker = 'Nuestro diseño Ramingo / tutorial';
+    dictionary.de.guideKicker = 'Unser Ramingo-Design / Tutorial';
+    dictionary.ru.guideStep4Desc = 'В настройках можно снова открыть обучение.';
+    dictionary.ru.guideTip4Body = 'Открой «Настройки» → «Показать обучение», если захочешь пройти walkthrough ещё раз.';
+    dictionary.en.guideTip4Body = 'Open Settings → “Show tutorial” whenever you want to run the walkthrough again.';
+    dictionary.es.guideStep4Desc = 'Abre el tutorial otra vez desde Ajustes.';
+    dictionary.es.guideTip4Body = 'Abre Ajustes → «Mostrar tutorial» para recorrer el walkthrough otra vez.';
+    dictionary.de.guideStep4Desc = 'Starte das Tutorial in den Einstellungen erneut.';
+    dictionary.de.guideTip4Body = 'Öffne Einstellungen → „Tutorial anzeigen“, um den Walkthrough erneut zu starten.';
+    dictionary.ru.guideSkipStatus = 'Демо: обучение пропущено — его можно открыть позже в настройках.';
+    dictionary.en.guideSkipStatus = 'Demo: tutorial skipped — open it later from Settings.';
+    dictionary.es.guideSkipStatus = 'Demo: tutorial omitido; puedes abrirlo después desde Settings.';
+    dictionary.de.guideSkipStatus = 'Demo: Tutorial übersprungen — du kannst es später in den Einstellungen öffnen.';
+
+    Object.assign(dictionary.ru, {
+      guideKicker: 'Обучение / 3 экрана + подсказки', guideTitle: 'Первый запуск Ramingo', guideIntro: 'Три коротких экрана объясняют ценность Ramingo, а две подсказки появляются уже внутри приложения — только в нужный момент.', guideProgress: 'экран из 3',
+      guideStep1Title: 'Планируй в одном месте', guideStep1Desc: 'Маршрут, места, жильё и заметки — внутри одной поездки.', guideStep2Title: 'Собери свой маршрут', guideStep2Desc: 'Добавляй города и места и выстраивай путь по карте.', guideStep3Title: 'Начни планировать', guideStep3Desc: 'Создай первую поездку или сначала посмотри приложение.',
+      guideBack: 'Назад', guideNext: 'Далее', guideSkip: 'Пропустить', guideRestart: 'Начать сначала', guideDefault: 'Выбери экран слева или нажми «Далее».', guideAction1Status: 'Экран 1 выбран: всё необходимое для поездки в одном месте.', guideAction2Status: 'Экран 2 выбран: маршрут собирается из городов и мест.', guideAction3Status: 'Экран 3 выбран: можно создать первую поездку или сначала посмотреть приложение.',
+      startHeadline: 'Готовы к следующему путешествию?', startSub: 'Создай свою первую поездку и начни планировать.', createFirstTrip: 'Создать мою первую поездку', exploreFirst: 'Сначала посмотреть', guideCreateStatus: 'Демо: открывается существующий flow создания первой поездки.', guideExploreStatus: 'Демо: открывается Home; там можно показать подсказку создания поездки.',
+      guideHintsKicker: 'После onboarding / coach marks', guideHintsTitle: 'Подсказки появляются внутри приложения', guideHintsIntro: 'Никакого длинного tutorial: сначала действие пользователя, потом одна подсказка в правильном контексте.', guideHomeCreate: 'Создать путешествие', guideHintHomeStatus: 'Демо: подсказка создания поездки отмечена как просмотренная после нажатия.', guideHomeHintTitle: 'Начните с создания первой поездки', guideHomeHintBody: 'Подсказка появляется после «Сначала посмотреть» на пустом Home и показывается один раз.', guideHintPlaceStatus: 'Демо: подсказка добавления места отмечена после создания первой поездки.', guidePlaceHintTitle: 'Добавьте первое место', guidePlaceHintBody: 'Подсказка показывается после создания первой поездки — только если мест ещё нет.', guideSettingsHintTitle: 'Повторный запуск без сброса данных', guideSettingsHintBody: 'Этот пункт открывает три onboarding-экрана, но не делает пользователя новым.', guideReopenLabel: 'Важно:', guideReopenBody: 'флаги подсказок не сбрасываются при повторном открытии onboarding из Settings.', guideShowTour: 'Показать обучение', guideShowTourSub: 'Открыть onboarding ещё раз'
+    });
+    Object.assign(dictionary.en, {
+      guideKicker: 'Tutorial / 3 screens + hints', guideTitle: 'Your first Ramingo run', guideIntro: 'Three short screens explain the value of Ramingo; two contextual hints appear later inside the app, only when they are useful.', guideProgress: 'of 3',
+      guideStep1Title: 'Plan in one place', guideStep1Desc: 'Keep your route, places, stays and notes inside one trip.', guideStep2Title: 'Build your route', guideStep2Desc: 'Add cities and places and shape the route on the map.', guideStep3Title: 'Start planning', guideStep3Desc: 'Create your first trip or explore the app first.',
+      guideBack: 'Back', guideNext: 'Next', guideSkip: 'Skip', guideRestart: 'Start again', guideDefault: 'Choose a screen on the left or press “Next”.', guideAction1Status: 'Screen 1 selected: everything for the trip stays in one place.', guideAction2Status: 'Screen 2 selected: build the route from cities and places.', guideAction3Status: 'Screen 3 selected: create your first trip or explore the app first.',
+      startHeadline: 'Ready for your next trip?', startSub: 'Create your first trip and start planning.', createFirstTrip: 'Create my first trip', exploreFirst: 'Explore first', guideCreateStatus: 'Demo: the existing create-trip flow would open.', guideExploreStatus: 'Demo: Home would open and the create-trip hint could appear there.',
+      guideHintsKicker: 'After onboarding / coach marks', guideHintsTitle: 'Hints appear inside the app', guideHintsIntro: 'No long tutorial: the user acts first, then one hint appears in the right context.', guideHomeCreate: 'Create trip', guideHintHomeStatus: 'Demo: the create-trip hint is marked seen after the tap.', guideHomeHintTitle: 'Start by creating your first trip', guideHomeHintBody: 'Shown once on empty Home after “Explore first”.', guideHintPlaceStatus: 'Demo: the add-place hint is marked seen after the first trip is created.', guidePlaceHintTitle: 'Add your first place', guidePlaceHintBody: 'Shown after the first trip is created, only while it has no places.', guideSettingsHintTitle: 'Replay without resetting data', guideSettingsHintBody: 'This entry opens the three onboarding screens without making the user new.', guideReopenLabel: 'Important:', guideReopenBody: 'contextual hint flags are not reset when onboarding is reopened from Settings.', guideShowTour: 'Show tutorial', guideShowTourSub: 'Open onboarding again'
+    });
+    Object.assign(dictionary.es, {
+      guideKicker: 'Tutorial / 3 pantallas + pistas', guideTitle: 'Primer inicio de Ramingo', guideIntro: 'Tres pantallas breves explican el valor de Ramingo; dos pistas contextuales aparecen después dentro de la app, solo cuando ayudan.', guideProgress: 'de 3',
+      guideStep1Title: 'Planifica en un solo lugar', guideStep1Desc: 'Guarda ruta, lugares, alojamientos y notas dentro de un viaje.', guideStep2Title: 'Crea tu ruta', guideStep2Desc: 'Añade ciudades y lugares y organiza la ruta en el mapa.', guideStep3Title: 'Empieza a planificar', guideStep3Desc: 'Crea tu primer viaje o explora la app primero.',
+      guideBack: 'Atrás', guideNext: 'Siguiente', guideSkip: 'Omitir', guideRestart: 'Empezar de nuevo', guideDefault: 'Elige una pantalla a la izquierda o pulsa «Siguiente».', guideAction1Status: 'Pantalla 1 seleccionada: todo lo necesario queda en un solo viaje.', guideAction2Status: 'Pantalla 2 seleccionada: crea la ruta con ciudades y lugares.', guideAction3Status: 'Pantalla 3 seleccionada: crea tu viaje o explora la app primero.',
+      startHeadline: '¿Listo para tu próximo viaje?', startSub: 'Crea tu primer viaje y empieza a planificar.', createFirstTrip: 'Crear mi primer viaje', exploreFirst: 'Explorar primero', guideCreateStatus: 'Demo: se abriría el flujo existente para crear un viaje.', guideExploreStatus: 'Demo: se abriría Inicio y podría aparecer la pista para crear un viaje.',
+      guideHintsKicker: 'Después del onboarding / coach marks', guideHintsTitle: 'Las pistas aparecen dentro de la app', guideHintsIntro: 'Sin un tutorial largo: primero actúa la persona y después aparece una sola pista en el contexto correcto.', guideHomeCreate: 'Crear viaje', guideHintHomeStatus: 'Demo: la pista de crear viaje se marca como vista tras pulsarla.', guideHomeHintTitle: 'Empieza creando tu primer viaje', guideHomeHintBody: 'Aparece una vez en Inicio vacío después de «Explorar primero».', guideHintPlaceStatus: 'Demo: la pista de añadir lugar se marca tras crear el primer viaje.', guidePlaceHintTitle: 'Añade tu primer lugar', guidePlaceHintBody: 'Aparece después de crear el primer viaje, solo si aún no hay lugares.', guideSettingsHintTitle: 'Repetir sin borrar datos', guideSettingsHintBody: 'Esta opción abre las tres pantallas de onboarding sin convertirte en usuario nuevo.', guideReopenLabel: 'Importante:', guideReopenBody: 'las pistas contextuales no se reinician al volver a abrir el onboarding desde Ajustes.', guideShowTour: 'Mostrar tutorial', guideShowTourSub: 'Abrir onboarding otra vez'
+    });
+    Object.assign(dictionary.de, {
+      guideKicker: 'Tutorial / 3 Screens + Hinweise', guideTitle: 'Dein erster Ramingo-Start', guideIntro: 'Drei kurze Screens erklären den Wert von Ramingo; zwei kontextbezogene Hinweise erscheinen später nur dann, wenn sie helfen.', guideProgress: 'von 3',
+      guideStep1Title: 'An einem Ort planen', guideStep1Desc: 'Route, Orte, Unterkünfte und Notizen bleiben in einer Reise.', guideStep2Title: 'Route bauen', guideStep2Desc: 'Füge Städte und Orte hinzu und ordne die Route auf der Karte.', guideStep3Title: 'Planung starten', guideStep3Desc: 'Erstelle deine erste Reise oder erkunde die App zuerst.',
+      guideBack: 'Zurück', guideNext: 'Weiter', guideSkip: 'Überspringen', guideRestart: 'Neu starten', guideDefault: 'Wähle links einen Screen oder drücke „Weiter“.', guideAction1Status: 'Screen 1 gewählt: Alles für die Reise bleibt an einem Ort.', guideAction2Status: 'Screen 2 gewählt: Baue die Route aus Städten und Orten.', guideAction3Status: 'Screen 3 gewählt: Erstelle deine erste Reise oder erkunde die App zuerst.',
+      startHeadline: 'Bereit für deine nächste Reise?', startSub: 'Erstelle deine erste Reise und beginne mit der Planung.', createFirstTrip: 'Meine erste Reise erstellen', exploreFirst: 'Zuerst erkunden', guideCreateStatus: 'Demo: Der bestehende Flow zum Erstellen einer Reise würde geöffnet.', guideExploreStatus: 'Demo: Home würde geöffnet und der Hinweis zum Erstellen könnte erscheinen.',
+      guideHintsKicker: 'Nach dem Onboarding / Coach Marks', guideHintsTitle: 'Hinweise erscheinen in der App', guideHintsIntro: 'Kein langes Tutorial: Erst handelt die Person, dann erscheint ein passender Hinweis.', guideHomeCreate: 'Reise erstellen', guideHintHomeStatus: 'Demo: Der Hinweis zum Erstellen wird nach dem Tippen als gesehen markiert.', guideHomeHintTitle: 'Starte mit deiner ersten Reise', guideHomeHintBody: 'Erscheint einmal auf dem leeren Home nach „Zuerst erkunden“.', guideHintPlaceStatus: 'Demo: Der Hinweis zum Hinzufügen eines Ortes wird nach der ersten Reise als gesehen markiert.', guidePlaceHintTitle: 'Füge deinen ersten Ort hinzu', guidePlaceHintBody: 'Erscheint nach der ersten Reise, solange noch keine Orte vorhanden sind.', guideSettingsHintTitle: 'Erneut öffnen ohne Datenverlust', guideSettingsHintBody: 'Dieser Eintrag öffnet die drei Onboarding-Screens, ohne den Nutzer zurückzusetzen.', guideReopenLabel: 'Wichtig:', guideReopenBody: 'Kontext-Hinweise werden beim erneuten Öffnen des Onboardings aus den Einstellungen nicht zurückgesetzt.', guideShowTour: 'Tutorial anzeigen', guideShowTourSub: 'Onboarding erneut öffnen'
+    });
+
+    const state = { lang: 'ru', theme: 'system' };
+    const root = document.documentElement;
+    const body = document.body;
+    const status = document.querySelector('.demo-status');
+    const guideScenes = [...document.querySelectorAll('[data-guide-scene]')];
+    const guideSteps = [...document.querySelectorAll('[data-guide-select]')];
+    const guideCurrent = document.querySelector('.guide-current');
+    const guideFeedback = document.querySelector('.guide-feedback');
+    const guideNext = document.querySelector('[data-guide-next]');
+    const guidePrev = document.querySelector('[data-guide-prev]');
+    let guideIndex = 1;
+
+    function resolvedTheme() {
+      if (state.theme !== 'system') return state.theme;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function renderGuide(nextIndex, feedbackKey = 'guideDefault') {
+      guideIndex = Math.max(1, Math.min(3, nextIndex));
+      guideScenes.forEach((scene) => { scene.hidden = Number(scene.dataset.guideScene) !== guideIndex; });
+      guideSteps.forEach((step) => { step.setAttribute('aria-pressed', String(Number(step.dataset.guideSelect) === guideIndex)); });
+      if (guideCurrent) guideCurrent.textContent = String(guideIndex);
+      if (guidePrev) guidePrev.disabled = guideIndex === 1;
+      if (guideNext) guideNext.disabled = guideIndex === 3;
+      if (guideFeedback) {
+        guideFeedback.dataset.guideFeedbackKey = feedbackKey;
+        guideFeedback.textContent = dictionary[state.lang][feedbackKey] || '';
+      }
+    }
+
+    function applyLanguage() {
+      const copy = dictionary[state.lang];
+      root.lang = state.lang;
+      document.querySelectorAll('[data-copy]').forEach((node) => {
+        const key = node.dataset.copy;
+        if (copy[key] !== undefined) node.textContent = copy[key];
+      });
+      document.querySelectorAll('[data-lang]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.lang === state.lang));
+      });
+      document.querySelectorAll('[data-theme-choice]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.themeChoice === state.theme));
+      });
+      if (status && !status.dataset.interacted) status.textContent = copy.initialStatus;
+      if (guideFeedback) {
+        const guideKey = guideFeedback.dataset.guideFeedbackKey || 'guideDefault';
+        guideFeedback.textContent = copy[guideKey] || '';
+      }
+    }
+
+    function applyTheme() {
+      body.dataset.theme = state.theme;
+      body.dataset.resolvedTheme = resolvedTheme();
+    }
+
+    document.querySelectorAll('[data-lang]').forEach((button) => {
+      button.addEventListener('click', () => { state.lang = button.dataset.lang; applyLanguage(); });
+    });
+    document.querySelectorAll('[data-theme-choice]').forEach((button) => {
+      button.addEventListener('click', () => { state.theme = button.dataset.themeChoice; applyTheme(); applyLanguage(); });
+    });
+    document.querySelectorAll('.prototype-action').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.actionStatus;
+        status.dataset.interacted = 'true';
+        status.textContent = dictionary[state.lang][key] || '';
+      });
+    });
+    guideSteps.forEach((step) => {
+      step.addEventListener('click', () => renderGuide(Number(step.dataset.guideSelect), step.dataset.guideStatus));
+    });
+    document.querySelectorAll('[data-guide-screen-next]').forEach((button) => {
+      button.addEventListener('click', () => renderGuide(Number(button.dataset.guideScreenNext), button.dataset.guideStatus || 'guideDefault'));
+    });
+    document.querySelectorAll('[data-guide-screen-prev]').forEach((button) => {
+      button.addEventListener('click', () => renderGuide(Number(button.dataset.guideScreenPrev), 'guideDefault'));
+    });
+    document.querySelectorAll('[data-guide-screen-skip]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (guideFeedback) {
+          guideFeedback.dataset.guideFeedbackKey = 'guideSkipStatus';
+          guideFeedback.textContent = dictionary[state.lang].guideSkipStatus || '';
+        }
+      });
+    });
+    document.querySelectorAll('[data-guide-hint-status]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (guideFeedback) {
+          const key = button.dataset.guideHintStatus;
+          guideFeedback.dataset.guideFeedbackKey = key;
+          guideFeedback.textContent = dictionary[state.lang][key] || '';
+        }
+      });
+    });
+    guideNext?.addEventListener('click', () => renderGuide(guideIndex + 1, guideSteps[guideIndex]?.dataset.guideStatus || 'guideDefault'));
+    guidePrev?.addEventListener('click', () => renderGuide(guideIndex - 1, guideSteps[guideIndex - 2]?.dataset.guideStatus || 'guideDefault'));
+    document.querySelector('[data-guide-restart]')?.addEventListener('click', () => renderGuide(1, 'guideDefault'));
+    document.querySelector('[data-guide-skip]')?.addEventListener('click', () => renderGuide(guideIndex, 'guideSkipStatus'));
+    document.querySelectorAll('.guide-action').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.guideActionStatus;
+        if (guideFeedback && key) {
+          guideFeedback.dataset.guideFeedbackKey = key;
+          guideFeedback.textContent = dictionary[state.lang][key] || '';
+        }
+      });
+    });
+    const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    if (media) media.addEventListener?.('change', () => { if (state.theme === 'system') applyTheme(); });
+    applyTheme();
+    applyLanguage();
+    renderGuide(1, 'guideDefault');
+  </script>
+</body>
+</html>
