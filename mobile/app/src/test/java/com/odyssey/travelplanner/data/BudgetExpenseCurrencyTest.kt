@@ -42,14 +42,29 @@ class BudgetExpenseCurrencyTest {
     }
 
     @Test
-    fun legacyExpenseWithoutSnapshotKeepsPreviousBehavior() {
-        val legacyExpense = expense.copy(inputCurrency = "", inputCurrencyRate = null)
+    fun webExpenseWithoutSnapshotUsesEurAsItsBase() {
+        val legacyExpense = expense.copy(amount = 100.0, inputCurrency = "", inputCurrencyRate = null)
 
+        assertEquals(100.0, legacyExpense.amountIn("EUR", currentRate = 1.0 / 50.0), absoluteTolerance = 0.000_001)
         assertEquals(
-            195.69471624266146,
-            legacyExpense.amountIn("EUR", currentRate = 1.0 / 50.0),
+            10_000.0,
+            legacyExpense.amountIn("RUB", currentRate = 1.0, normalizedBudgetRate = 100.0),
             absoluteTolerance = 0.000_001,
         )
+    }
+
+    @Test
+    fun aggregateAccommodationExpenseSuppressesAutomaticAccommodationRows() {
+        val aggregate = BudgetExpense(
+            id = "expense-aggregate",
+            name = "Жильё всего",
+            amount = 1_200.0,
+            category = "Жильё",
+            scope = "общий",
+            paidBy = "Общее",
+        )
+
+        assertEquals(true, isAccommodationTotalExpense(aggregate))
     }
 
     @Test

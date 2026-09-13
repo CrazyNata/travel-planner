@@ -106,6 +106,9 @@ private fun citiesMatch(left: String, right: String): Boolean {
     val normalizedLeft = normalizedCity(left)
     val normalizedRight = normalizedCity(right)
     if (normalizedLeft.isBlank() || normalizedRight.isBlank()) return false
+    val leftCatalogKey = cityCatalogEntry(left)?.key
+    val rightCatalogKey = cityCatalogEntry(right)?.key
+    if (leftCatalogKey != null && leftCatalogKey == rightCatalogKey) return true
     return normalizedLeft == normalizedRight ||
         normalizedLeft.startsWith("$normalizedRight ") ||
         normalizedRight.startsWith("$normalizedLeft ")
@@ -153,6 +156,59 @@ private fun accommodationDateRange(value: String, fallbackYear: Int?): Pair<Loca
     return if (dates.size >= 2) dates.first() to dates[1] else null
 }
 
+private data class AccommodationStay(
+    val checkIn: LocalDate,
+    val checkOut: LocalDate,
+)
+
+private fun accommodationStaysFor(
+    accommodations: List<Accommodation>,
+    city: String,
+    fallbackYear: Int?,
+): List<AccommodationStay> = accommodations
+    .asSequence()
+    .filter { citiesMatch(it.city, city) }
+    .mapNotNull { accommodation ->
+        accommodationDateRange(accommodation.dates, fallbackYear)?.let { (checkIn, checkOut) ->
+            AccommodationStay(checkIn, checkOut)
+        }
+    }
+    .toList()
+
+internal fun accommodationStartDate(value: String, fallbackYear: Int?): LocalDate? =
+    accommodationDateRange(value, fallbackYear)?.first
+
+/**
+ * New trips are normally shown by check-in date. Once a traveler drags cards,
+ * the stored order is authoritative and any newly added cards are appended in
+ * date order after it. This keeps legacy payloads readable without losing the
+ * explicit order introduced by the drag-and-drop UI.
+ */
+internal fun accommodationsInDisplayOrder(
+    accommodations: List<Accommodation>,
+    explicitOrder: List<String> = emptyList(),
+    fallbackYear: Int? = null,
+): List<Accommodation> {
+    val indexed = accommodations.withIndex().toList()
+    val byId = indexed.associateBy { it.value.id }
+    val explicitlyOrdered = explicitOrder
+        .asSequence()
+        .mapNotNull { byId[it] }
+        .distinctBy { it.value.id }
+        .toList()
+    val explicitlyOrderedIds = explicitlyOrdered.map { it.value.id }.toSet()
+    val remaining = indexed
+        .filterNot { it.value.id in explicitlyOrderedIds }
+        .sortedWith(
+            compareBy<IndexedValue<Accommodation>> {
+                accommodationStartDate(it.value.dates, fallbackYear) == null
+            }
+                .thenBy { accommodationStartDate(it.value.dates, fallbackYear) ?: LocalDate.MAX }
+                .thenBy { it.index },
+        )
+    return (explicitlyOrdered + remaining).map { it.value }
+}
+
 private fun closestAccommodationDate(dates: List<LocalDate>, fallback: LocalDate?): LocalDate? {
     val sorted = dates.sorted()
     if (sorted.isEmpty()) return null
@@ -176,18 +232,36 @@ internal fun routeDateFromAccommodations(
     explicitDate: String = "",
 ): LocalDate? {
     val fallback = startDate?.plusDays(fallbackIndex.toLong())
-    parseRouteDate(explicitDate, startDate?.year)?.let { return it }
-    val fromCheckOut = accommodations
-        .filter { citiesMatch(it.city, from) }
-        .mapNotNull { accommodationDateRange(it.dates, startDate?.year)?.second }
+    val explicit = parseRouteDate(explicitDate, startDate?.year)
+    val fromStays = accommodationStaysFor(accommodations, from, startDate?.year)
+    val toStays = accommodationStaysFor(accommodations, to, startDate?.year)
+    val fromCheckOut = fromStays
+        .map { it.checkOut }
         .let { closestAccommodationDate(it, fallback) }
-    val toCheckIn = accommodations
-        .filter { citiesMatch(it.city, to) }
-        .mapNotNull { accommodationDateRange(it.dates, startDate?.year)?.first }
+    val toCheckIn = toStays
+        .map { it.checkIn }
         .let { closestAccommodationDate(it, fallback) }
-    return fromCheckOut
-        ?: toCheckIn
-        ?: fallback
+    // If both ends of a route are covered by lodging, the transition belongs
+    // to the shared checkout/check-in date. This repairs stale dates left in
+    // older payloads after a stay was moved or extended.
+    if (fromCheckOut != null && toCheckIn != null) {
+        return maxOf(fromCheckOut, toCheckIn)
+    }
+    // With only an origin stay, an explicit date inside that stay is a valid
+    // day trip (for example Milan → Como). Otherwise the checkout is the
+    // reliable date for the transfer.
+    if (fromCheckOut != null) {
+        if (explicit != null && fromStays.any { stay ->
+                !explicit.isBefore(stay.checkIn) && explicit.isBefore(stay.checkOut)
+            }) {
+            return explicit
+        }
+        return fromCheckOut
+    }
+    // A destination check-in is preferable to a stale explicit date when the
+    // origin has no lodging record.
+    if (toCheckIn != null) return toCheckIn
+    return explicit ?: fallback
 }
 
 internal fun tripStartDate(payload: JsonObject): LocalDate? {
@@ -268,6 +342,23 @@ internal fun routeDayIdsInDateOrder(days: JsonArray, startDate: LocalDate?): Lis
 
 internal fun routeDayObjectsInDateOrder(days: JsonArray, startDate: LocalDate?): List<JsonObject> =
     displayOrder(routeDayEntries(days, startDate), startDate).map { it.day }
+
+/** Sorts loaded route cards after their effective lodging-aware dates exist. */
+internal fun routeLegsInDateOrder(
+    legs: List<RouteLeg>,
+    startDate: LocalDate?,
+): List<RouteLeg> = legs
+    .mapIndexed { index, leg ->
+        val date = parseRouteDate(leg.date, startDate?.year)
+            ?: startDate?.plusDays(index.toLong())
+        Triple(leg, date, index)
+    }
+    .sortedWith(
+        compareBy<Triple<RouteLeg, LocalDate?, Int>> { it.second == null }
+            .thenBy { it.second ?: LocalDate.MAX }
+            .thenBy { it.third },
+    )
+    .mapIndexed { index, (leg, _, _) -> leg.copy(dayNumber = index + 1) }
 
 private fun normalizedRouteDay(day: JsonObject, date: LocalDate?, routePosition: Int): JsonObject {
     val roadLeg = day["roadLeg"] as? JsonObject ?: return day

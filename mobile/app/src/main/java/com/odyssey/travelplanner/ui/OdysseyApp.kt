@@ -231,6 +231,7 @@ import com.odyssey.travelplanner.data.classifyAuthFailure
 import com.odyssey.travelplanner.data.SupabaseTripRepository
 import com.odyssey.travelplanner.data.automaticAccommodationBudgetExpense
 import com.odyssey.travelplanner.data.isAutomaticBudgetExpense
+import com.odyssey.travelplanner.data.isAccommodationTotalExpense
 import com.odyssey.travelplanner.data.Sight
 import com.odyssey.travelplanner.data.SightDay
 import com.odyssey.travelplanner.data.SightCatalogEntry
@@ -554,6 +555,11 @@ internal fun localizedRouteSummary(
 internal fun localizedLegsAndCitiesSummary(legsCount: Int, cityCount: Int, language: String): String =
     "$legsCount ${localizedCountWord(legsCount, language, "переезд", "переезда", "переездов", "leg", "legs", "trayecto", "trayectos", "Etappe", "Etappen")} · " +
         "$cityCount ${localizedCountWord(cityCount, language, "город", "города", "городов", "city", "cities", "ciudad", "ciudades", "Stadt", "Städte")}"
+
+private fun localizedDistanceLabel(summary: RouteDistanceSummary, language: String): String {
+    val prefix = if (summary.isApproximate) "≈ " else ""
+    return "$prefix${String.format(mapLocale(language), "%.0f", summary.distanceKm)} ${localized(language, "км", "km", "km", "km")}"
+}
 
 @Composable
 private fun localizedBudgetCategory(value: String): String = when (value.trim().lowercase(Locale.ROOT)) {
@@ -12324,6 +12330,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var openCatalogAfterCitySelection by remember { mutableStateOf(false) }
     var uploadingRestaurantId by remember { mutableStateOf<String?>(null) }
     var selectedCity by remember { mutableStateOf("Все города") }
+    var selectedStatusFilter by remember(overview.id) { mutableStateOf("all") }
     var cityMenuOpen by remember { mutableStateOf(false) }
     var filterMenuOpen by remember { mutableStateOf(false) }
     var priceFilter by remember { mutableStateOf("") }
@@ -12434,8 +12441,28 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
             restaurantsForDisplay.count { restaurant -> cityFilterKey(restaurant.city) == cityFilterKey(option) }
         }
     }
+    val restaurantsInSelectedCity = restaurantsForDisplay.filter { restaurant ->
+        selectedCity == "Все города" || cityFilterKey(restaurant.city) == cityFilterKey(selectedCity)
+    }
+    val statusOptions = listOf(
+        "all" to localized("Все", "All", "Todos", "Alle"),
+        "бронь" to localized("Бронь", "Booked", "Reservados", "Gebucht"),
+        "хочу" to localized("Хочу", "Want", "Quiero", "Möchte"),
+        "были" to localized("Были", "Visited", "Visitados", "Besucht"),
+    )
+    val statusCounts = statusOptions.associate { (statusKey, _) ->
+        statusKey to if (statusKey == "all") {
+            restaurantsInSelectedCity.size
+        } else {
+            restaurantsInSelectedCity.count { restaurant ->
+                restaurant.status.trim().lowercase(Locale.ROOT) == statusKey
+            }
+        }
+    }
     val visibleRestaurants = restaurantsForDisplay.filter { restaurant ->
         val note = restaurant.note.lowercase()
+        val statusMatches = selectedStatusFilter == "all" ||
+            restaurant.status.trim().lowercase(Locale.ROOT) == selectedStatusFilter
         val typeMatches = when (appliedTypeFilter) {
             "Бар" -> note.contains("бар") || note.contains("bar")
             "Кафе" -> note.contains("кафе") || note.contains("cafe")
@@ -12452,6 +12479,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
         }
         val ratingMatches = ratingFilter.isBlank() || (restaurant.rating ?: 0.0) >= (ratingFilter.removeSuffix("+").toDoubleOrNull() ?: 0.0)
         (selectedCity == "Все города" || cityFilterKey(restaurant.city) == cityFilterKey(selectedCity)) &&
+            statusMatches &&
             typeMatches &&
             featureMatches &&
             (priceFilter.isBlank() || restaurant.price == priceFilter) &&
@@ -12568,6 +12596,39 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                             fontWeight = FontWeight.W800,
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
+                        )
+                    }
+                }
+            }
+        }
+        if (overview.restaurants.isNotEmpty()) item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                statusOptions.forEach { (statusKey, label) ->
+                    val active = selectedStatusFilter == statusKey
+                    val count = statusCounts[statusKey] ?: 0
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (active) primaryColor() else secondarySurfaceColor())
+                            .border(1.dp, if (active) primaryColor() else contentBorderColor(), RoundedCornerShape(50))
+                            .clickable { selectedStatusFilter = statusKey }
+                            .padding(horizontal = 13.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "$label · $count",
+                            color = if (active) primaryContentColor() else labelColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
                             style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
                         )
                     }
@@ -16877,15 +16938,31 @@ private fun BudgetContent(
     val peopleCount = (overview.budgetGroups.sumOf { it.people }.takeIf { it > 0 } ?: overview.members.size).coerceAtLeast(1)
     val dayCount = budgetTripDayCount(overview.dates)
     val currencyRate = effectiveCurrencyRate(selectedCurrencyCode)
+    val normalizedBudgetRate = when (selectedCurrencyCode) {
+        "EUR" -> 1.0
+        "RUB" -> 100.0
+        "CZK" -> 25.0
+        else -> {
+            val eurRate = effectiveCurrencyRate("EUR")
+            if (eurRate > 0.0) currencyRate / eurRate else 1.0
+        }
+    }
     val automaticExpenses = overview.accommodations.mapNotNull { accommodation ->
         automaticAccommodationBudgetExpense(accommodation, ::effectiveCurrencyRate)
     }
     // Accommodation expenses are derived from the current lodging cards. If
     // an older build persisted an automatic row, replace it by the fresh
     // derived value so a changed lodging price cannot leave a stale duplicate.
-    val expenses = storedExpenses.filterNot(::isAutomaticBudgetExpense) + automaticExpenses
+    // A manually entered aggregate housing row is authoritative, matching
+    // the web budget and preventing the lodging cards from being counted twice.
+    val hasAccommodationTotal = storedExpenses.any(::isAccommodationTotalExpense)
+    val expenses = if (hasAccommodationTotal) {
+        storedExpenses
+    } else {
+        storedExpenses.filterNot(::isAutomaticBudgetExpense) + automaticExpenses
+    }
     fun displayedExpenseAmount(expense: com.odyssey.travelplanner.data.BudgetExpense): Double =
-        expense.amountIn(selectedCurrencyCode, currencyRate)
+        expense.amountIn(selectedCurrencyCode, currencyRate, normalizedBudgetRate)
     val total = expenses.sumOf(::displayedExpenseAmount)
 
     fun storedExpenseRate(expense: com.odyssey.travelplanner.data.BudgetExpense): Double? =
@@ -17136,6 +17213,7 @@ private fun BudgetContent(
             currencySymbol = currencySymbol,
             currencyCode = selectedCurrencyCode,
             currentConversionRate = currencyRate,
+            normalizedBudgetRate = normalizedBudgetRate,
             editMode = editMode,
             editable = canEdit,
             deletingExpenseId = deletingExpenseId,
@@ -17816,6 +17894,7 @@ private fun BudgetExpensesCard(
     currencySymbol: String,
     currencyCode: String,
     currentConversionRate: Double,
+    normalizedBudgetRate: Double,
     editMode: Boolean,
     editable: Boolean = true,
     deletingExpenseId: String?,
@@ -17869,7 +17948,7 @@ private fun BudgetExpensesCard(
             BudgetExpenseRow(
                 expense = expense,
                 currencySymbol = currencySymbol,
-                displayedAmount = expense.amountIn(currencyCode, currentConversionRate),
+                displayedAmount = expense.amountIn(currencyCode, currentConversionRate, normalizedBudgetRate),
                 editMode = editable && editMode,
                 deleting = deletingExpenseId == expense.id,
                 showDivider = index < expenses.lastIndex,
@@ -19072,7 +19151,6 @@ private fun AccommodationDeadlineCard(
         }
         val panel = accent.copy(alpha = if (LocalDarkTheme.current) 0.16f else 0.08f)
         val border = accent.copy(alpha = if (LocalDarkTheme.current) 0.55f else 0.28f)
-        val countdownLabel = accommodationDeadlineCountdownLabel(daysRemaining, language)
         val subtitle = when {
             expired -> localized("Бесплатная отмена завершилась", "Free cancellation has ended", "La cancelación gratuita ha terminado", "Kostenlose Stornierung beendet")
             daysRemaining == 0L -> localized("Дедлайн сегодня", "Deadline is today", "La fecha límite es hoy", "Frist ist heute")
@@ -19171,18 +19249,6 @@ private fun AccommodationDeadlineCard(
                     modifier = Modifier.padding(start = 6.dp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!expired) {
-                Text(
-                    text = countdownLabel,
-                    color = accent,
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 9.5.sp,
-                    lineHeight = 13.sp,
-                    style = androidx.compose.ui.text.TextStyle(platformStyle = OdysseyNoFontPadding),
-                    modifier = Modifier.padding(start = 23.dp, top = 2.dp),
                 )
             }
         }
@@ -22744,6 +22810,19 @@ private fun accommodationDateRange(start: String, end: String, original: String)
 }
 
 @Composable
+private fun rememberTripRouteDistanceSummary(overview: TripOverview): RouteDistanceSummary? {
+    var summary by remember(overview.id) { mutableStateOf<RouteDistanceSummary?>(null) }
+    LaunchedEffect(overview.id, overview.routeLegs, overview.cityCoordinates) {
+        summary = loadRouteDistanceSummary(
+            routeLegs = overview.routeLegs,
+            savedCoordinates = overview.cityCoordinates,
+            mapboxAccessToken = BuildConfig.MAPBOX_ACCESS_TOKEN,
+        )
+    }
+    return summary
+}
+
+@Composable
 private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, WeatherSnapshot>) {
     var photoIndex by remember { mutableStateOf(0) }
     var tripDatesWeather by remember { mutableStateOf(false) }
@@ -22755,6 +22834,7 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
         .distinctBy { cityFilterKey(it) }
     val weatherCities = (overview.overviewMapPoints.ifEmpty { routeCities })
         .distinctBy { cityFilterKey(it) }
+    val routeDistanceSummary = rememberTripRouteDistanceSummary(overview)
 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -22826,7 +22906,14 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
                 }
             }
         }
-        item { OverviewMapCard(overview.routeLegs, routeCities, cityCoordinates = overview.cityCoordinates) }
+        item {
+            OverviewMapCard(
+                legs = overview.routeLegs,
+                cities = routeCities,
+                cityCoordinates = overview.cityCoordinates,
+                routeDistanceSummary = routeDistanceSummary,
+            )
+        }
         item {
             OverviewWeatherBlock(
                 weatherCities = weatherCities,
@@ -22869,6 +22956,7 @@ private fun OverviewContent(
     val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val routeDistanceSummary = rememberTripRouteDistanceSummary(overview)
     val hapticFeedback = LocalHapticFeedback.current
     val listState = rememberLazyListState()
     var photoIndex by remember { mutableStateOf(0) }
@@ -23067,7 +23155,12 @@ private fun OverviewContent(
                 ) {
                     when (block) {
                         "photo" -> OverviewPhotoBlock(photos, photoIndex, { photoIndex = (photoIndex - 1 + photos.size) % photos.size }, { photoIndex = (photoIndex + 1) % photos.size })
-                        "map" -> OverviewMapCard(overview.routeLegs, defaultMapCities, cityCoordinates = overview.cityCoordinates)
+                        "map" -> OverviewMapCard(
+                            legs = overview.routeLegs,
+                            cities = defaultMapCities,
+                            cityCoordinates = overview.cityCoordinates,
+                            routeDistanceSummary = routeDistanceSummary,
+                        )
                         "weather" -> OverviewWeatherBlock(
                             weatherCities = weatherCities,
                             photos = photos,
@@ -23682,6 +23775,7 @@ private fun OverviewMapCard(
     legs: List<com.odyssey.travelplanner.data.RouteLeg>,
     cities: List<String>,
     cityCoordinates: Map<String, CityLocation> = emptyMap(),
+    routeDistanceSummary: RouteDistanceSummary? = null,
     mapHeight: Dp = 200.dp,
     footer: @Composable (() -> Unit)? = null,
     routePoints: List<Point> = emptyList(),
@@ -23895,7 +23989,16 @@ private fun OverviewMapCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Text(localized("Общий маршрут", "Full route", "Ruta completa", "Gesamtroute"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp)
-            Text(text = localizedLegsAndCitiesSummary(legs.size, cityCount, language), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)
+            Text(
+                text = buildString {
+                    append(localizedLegsAndCitiesSummary(legs.size, cityCount, language))
+                    routeDistanceSummary?.let { append(" · ").append(localizedDistanceLabel(it, language)) }
+                },
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 14.sp,
+            )
         }
     }
 }

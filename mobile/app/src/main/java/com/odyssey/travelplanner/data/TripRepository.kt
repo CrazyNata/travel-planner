@@ -128,8 +128,26 @@ data class BudgetExpense(
     val inputCurrency: String = "",
     val inputCurrencyRate: Double? = null,
 ) {
-    fun amountIn(currencyCode: String, currentRate: Double): Double {
+    /**
+     * Returns the expense in the selected display currency.
+     *
+     * The web app stores an expense amount normalized to EUR. Android builds
+     * that support per-entry exchange snapshots store the amount in RUB and
+     * keep the input currency/rate alongside it. Keep both formats readable
+     * so the same trip shows the same budget on every platform.
+     */
+    fun amountIn(
+        currencyCode: String,
+        currentRate: Double,
+        normalizedBudgetRate: Double = 1.0,
+    ): Double {
         val storedRate = inputCurrencyRate?.takeIf { it.isFinite() && it > 0.0 }
+        if (storedRate == null || inputCurrency.isBlank()) {
+            // Legacy/web records use EUR-normalized amounts. `currentRate`
+            // belongs to the RUB-backed Android format and must not be used
+            // for these records.
+            return amount * normalizedBudgetRate
+        }
         val conversionRate = if (
             storedRate != null && inputCurrency.trim().equals(currencyCode.trim(), ignoreCase = true)
         ) {
@@ -145,6 +163,13 @@ internal const val AutomaticAccommodationBudgetExpensePrefix = "accommodation:"
 
 internal fun isAutomaticBudgetExpense(expense: BudgetExpense): Boolean =
     expense.id.startsWith(AutomaticAccommodationBudgetExpensePrefix)
+
+internal fun isAccommodationTotalExpense(expense: BudgetExpense): Boolean {
+    val category = expense.category.trim().lowercase(Locale.ROOT)
+    if (category !in setOf("жильё", "жилье", "проживание")) return false
+    val name = expense.name.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
+    return name.matches(Regex("жилье|жильё|проживание|жилье всего|жильё всего|расходы на жилье|расходы на жильё"))
+}
 
 private fun parseBudgetNumericAmount(value: String): Double? {
     val compact = value.trim().replace(Regex("\\s+"), "")
@@ -788,7 +813,8 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                     ?: "legacy-route-$routeIndex",
                 from = from,
                 to = to,
-                date = dayData["date"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                date = dayData["date"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    .ifBlank { roadText("date") },
                 checkIn = listOf(roadText("checkInFrom"), roadText("checkInTo")).filter(String::isNotBlank).joinToString(" - "),
                 checkOut = listOf(roadText("checkOutFrom"), roadText("checkOutTo")).filter(String::isNotBlank).joinToString(" - "),
                 notes = roadText("notes"),
@@ -804,7 +830,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val routeDayCount = days.mapIndexed { dayIndex, day ->
             day.jsonObject["dayNumber"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 } ?: (dayIndex + 1)
         }.maxOrNull() ?: 0
-        val accommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
+        val parsedAccommodations = row.payload["accommodations"]?.jsonArray.orEmpty().mapNotNull { item ->
             val accommodation = item.jsonObject
             val name = accommodation["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             fun accommodationText(key: String) = accommodation[key]?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -855,7 +881,14 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 tripCityId = accommodationText("tripCityId"),
             )
         }
-        val legs = rawLegs.mapIndexed { routeIndex, leg ->
+        val storedAccommodationOrder = row.payload["accommodationOrder"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+        val accommodations = accommodationsInDisplayOrder(
+            accommodations = parsedAccommodations,
+            explicitOrder = storedAccommodationOrder,
+            fallbackYear = routeStartDate?.year,
+        )
+        val legs = routeLegsInDateOrder(rawLegs.mapIndexed { routeIndex, leg ->
             val scheduledDate = routeDateFromAccommodations(
                 from = leg.from,
                 to = leg.to,
@@ -870,7 +903,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 dateMonth = "",
                 weekday = "",
             )
-        }
+        }, routeStartDate)
         val expenses = row.payload["budgetExpenses"]?.jsonArray.orEmpty().mapNotNull { item ->
             val expense = item.jsonObject
             val name = expense["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
@@ -1394,8 +1427,19 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val accommodations = current.payload["accommodations"]?.jsonArray
             ?: kotlinx.serialization.json.JsonArray(emptyList())
         val reordered = reorderAccommodationItems(accommodations, orderedAccommodationIds)
-        if (reordered != accommodations) {
-            updateTripSection(id, "accommodations", reordered, current.revision)
+        val storedOrder = current.payload["accommodationOrder"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+        if (reordered != accommodations || storedOrder != orderedAccommodationIds) {
+            patchTripPayload(
+                id = id,
+                patch = buildJsonObject {
+                    put("accommodations", reordered)
+                    put("accommodationOrder", buildJsonArray {
+                        orderedAccommodationIds.forEach { add(JsonPrimitive(it)) }
+                    })
+                },
+                expectedRevision = current.revision,
+            )
         }
     }
 
@@ -1432,7 +1476,22 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("photos", buildJsonArray { })
             })
         }
-        updateTripSection(id, "accommodations", accommodations, current.revision)
+        val storedOrder = current.payload["accommodationOrder"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+        val newId = accommodations.last().jsonObject["id"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        patchTripPayload(
+            id = id,
+            patch = buildJsonObject {
+                put("accommodations", accommodations)
+                if (storedOrder.isNotEmpty() && newId.isNotBlank()) {
+                    put("accommodationOrder", buildJsonArray {
+                        storedOrder.forEach { add(JsonPrimitive(it)) }
+                        add(JsonPrimitive(newId))
+                    })
+                }
+            },
+            expectedRevision = current.revision,
+        )
     }
 
     override suspend fun addSight(id: String, name: String, city: String, category: String) {
@@ -2502,7 +2561,19 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             if (input.type.isNotBlank()) put("type", input.type.trim())
             if (input.tripCityId.isNotBlank()) put("tripCityId", input.tripCityId.trim())
         }
-        patchTripSectionFromPayload(tripId, "accommodations", TripPayloadCodec.append(current.payload, "accommodations", item), current.revision)
+        val nextPayload = TripPayloadCodec.append(current.payload, "accommodations", item)
+        val storedOrder = current.payload["accommodationOrder"]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonPrimitive.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+        val patch = buildJsonObject {
+            put("accommodations", nextPayload["accommodations"] ?: buildJsonArray { })
+            if (storedOrder.isNotEmpty()) {
+                put("accommodationOrder", buildJsonArray {
+                    storedOrder.forEach { add(JsonPrimitive(it)) }
+                    add(JsonPrimitive(accommodationId))
+                })
+            }
+        }
+        patchTripPayload(tripId, patch, current.revision)
         return accommodationId
     }
 

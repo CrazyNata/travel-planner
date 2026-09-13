@@ -12,6 +12,7 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.net.URLEncoder
 import java.util.Locale
 
@@ -93,7 +94,9 @@ class WeatherRepository {
         tripDates: String = "",
         cityCoordinates: Map<String, CityLocation> = emptyMap(),
     ): Map<String, WeatherSnapshot> {
-        val targetDate = tripDateFrom(tripDates)
+        val tripDateRange = tripDateRangeFrom(tripDates)
+        val targetDate = tripDateRange?.first
+        val tripDatesToLoad = tripDateRange?.let(::datesBetween) ?: emptyList()
         return supervisorScope {
             cities
                 .filter(String::isNotBlank)
@@ -109,19 +112,29 @@ class WeatherRepository {
                             "https://api.open-meteo.com/v1/forecast?latitude=${coordinates.first}&longitude=${coordinates.second}&current=temperature_2m,weather_code&daily=temperature_2m_max,weather_code&forecast_days=16&timezone=auto",
                         ).body()
                         val tripDays = weather.daily.toTripDays().toMutableMap()
-                        var tripWeather = targetDate?.let { tripWeatherAt(weather.daily, it) }
-                        if (tripWeather == null && targetDate?.isBefore(LocalDate.now()) == true) {
-                            tripWeather = loadArchivedTripWeather(coordinates, targetDate)
+                        val missingTripDates = tripDatesToLoad.filterNot { date ->
+                            tripDays.containsKey(date.toString())
                         }
-                        if (tripWeather == null && targetDate?.isAfter(LocalDate.now().plusDays(15)) == true) {
-                            tripWeather = loadClimateTripWeather(coordinates, targetDate)
+                        val today = LocalDate.now()
+                        val archivedDates = missingTripDates.filter { it.isBefore(today) }
+                        if (archivedDates.isNotEmpty()) {
+                            loadArchivedTripWeather(coordinates, archivedDates.first(), archivedDates.last()).forEach { (date, tripWeather) ->
+                                tripDays[date] = WeatherDaySnapshot(
+                                    temperature = tripWeather.temperature,
+                                    condition = tripWeather.condition,
+                                    isEstimate = tripWeather.isEstimate,
+                                )
+                            }
                         }
-                        if (targetDate != null && tripWeather != null) {
-                            tripDays[targetDate.toString()] = WeatherDaySnapshot(
-                                temperature = tripWeather.temperature,
-                                condition = tripWeather.condition,
-                                isEstimate = tripWeather.isEstimate,
-                            )
+                        val climateDates = missingTripDates.filter { it.isAfter(today.plusDays(15)) }
+                        if (climateDates.isNotEmpty()) {
+                            loadClimateTripWeather(coordinates, climateDates.first(), climateDates.last()).forEach { (date, tripWeather) ->
+                                tripDays[date] = WeatherDaySnapshot(
+                                    temperature = tripWeather.temperature,
+                                    condition = tripWeather.condition,
+                                    isEstimate = tripWeather.isEstimate,
+                                )
+                            }
                         }
                         val firstTripDay = targetDate?.let { tripDays[it.toString()] }
                         city to WeatherSnapshot(
@@ -154,34 +167,45 @@ class WeatherRepository {
 
     private suspend fun loadArchivedTripWeather(
         coordinates: Pair<Double, Double>,
-        targetDate: LocalDate,
-    ): TripDayWeather? = runCatching {
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Map<String, TripDayWeather> = runCatching {
         val archive: OpenMeteoArchiveResponse = http.get(
-            "https://archive-api.open-meteo.com/v1/archive?latitude=${coordinates.first}&longitude=${coordinates.second}&start_date=$targetDate&end_date=$targetDate&daily=temperature_2m_max,weather_code&timezone=auto",
+            "https://archive-api.open-meteo.com/v1/archive?latitude=${coordinates.first}&longitude=${coordinates.second}&start_date=$startDate&end_date=$endDate&daily=temperature_2m_max,weather_code&timezone=auto",
         ).body()
-        tripWeatherAt(archive.daily, targetDate)
-    }.getOrNull()
+        archive.daily.toTripWeatherDays()
+    }.getOrDefault(emptyMap())
 
     private suspend fun loadClimateTripWeather(
         coordinates: Pair<Double, Double>,
-        targetDate: LocalDate,
-    ): TripDayWeather? = runCatching {
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Map<String, TripDayWeather> = runCatching {
         val climate: OpenMeteoClimateResponse = http.get(
-            "https://climate-api.open-meteo.com/v1/climate?latitude=${coordinates.first}&longitude=${coordinates.second}&start_date=$targetDate&end_date=$targetDate&models=EC_Earth3P_HR&daily=temperature_2m_mean,precipitation_sum,cloud_cover_mean&timezone=auto",
+            "https://climate-api.open-meteo.com/v1/climate?latitude=${coordinates.first}&longitude=${coordinates.second}&start_date=$startDate&end_date=$endDate&models=EC_Earth3P_HR&daily=temperature_2m_mean,precipitation_sum,cloud_cover_mean&timezone=auto",
         ).body()
-        climateWeatherAt(climate.daily, targetDate)
-    }.getOrNull()
+        climate.daily.toClimateTripWeatherDays()
+    }.getOrDefault(emptyMap())
 }
 
-private fun tripDateFrom(value: String): LocalDate? {
+private fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? {
     val dotted = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").find(value)?.value
     if (dotted != null) {
-        val parts = dotted.split('.')
-        return runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
+        val dates = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").findAll(value).mapNotNull { match ->
+            val parts = match.value.split('.')
+            runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
+        }.toList()
+        val start = dates.firstOrNull() ?: return null
+        return start to dates.getOrElse(1) { start }
     }
 
-    val iso = Regex("\\d{4}-\\d{2}-\\d{2}").find(value)?.value
-    if (iso != null) return runCatching { LocalDate.parse(iso) }.getOrNull()
+    val isoDates = Regex("\\d{4}-\\d{2}-\\d{2}").findAll(value).mapNotNull { match ->
+        runCatching { LocalDate.parse(match.value) }.getOrNull()
+    }.toList()
+    if (isoDates.isNotEmpty()) {
+        val start = isoDates.first()
+        return start to isoDates.getOrElse(1) { start }
+    }
 
     val russianMonths = mapOf(
         "января" to 1, "январь" to 1,
@@ -197,21 +221,24 @@ private fun tripDateFrom(value: String): LocalDate? {
         "ноября" to 11, "ноябрь" to 11,
         "декабря" to 12, "декабрь" to 12,
     )
-    val match = Regex(
+    val dates = Regex(
         "(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})",
         RegexOption.IGNORE_CASE,
-    ).find(value) ?: return null
-    val day = match.groupValues[1].toIntOrNull() ?: return null
-    val month = russianMonths[match.groupValues[2].lowercase(Locale.ROOT)] ?: return null
-    val year = match.groupValues[3].toIntOrNull() ?: return null
-    return runCatching { LocalDate.of(year, month, day) }.getOrNull()
+    ).findAll(value).mapNotNull { match ->
+        val day = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+        val month = russianMonths[match.groupValues[2].lowercase(Locale.ROOT)] ?: return@mapNotNull null
+        val year = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
+        runCatching { LocalDate.of(year, month, day) }.getOrNull()
+    }.toList()
+    val start = dates.firstOrNull() ?: return null
+    return start to dates.getOrElse(1) { start }
 }
 
-private fun tripWeatherAt(daily: OpenMeteoDaily?, targetDate: LocalDate): TripDayWeather? {
-    val index = daily?.time?.indexOf(targetDate.toString())?.takeIf { it >= 0 } ?: return null
-    val temperature = daily.temperature_2m_max.getOrNull(index)?.let { "${it.toInt()}°C" }
-    val condition = daily.weather_code.getOrNull(index)?.let(::conditionFor)
-    return if (temperature == null && condition == null) null else TripDayWeather(temperature, condition)
+private fun datesBetween(range: Pair<LocalDate, LocalDate>, maxDays: Int = 366): List<LocalDate> {
+    val dayCount = ChronoUnit.DAYS.between(range.first, range.second)
+    if (dayCount < 0) return emptyList()
+    val lastOffset = dayCount.coerceAtMost((maxDays - 1).coerceAtLeast(0).toLong())
+    return (0..lastOffset).map { offset -> range.first.plusDays(offset) }
 }
 
 private fun OpenMeteoDaily?.toTripDays(): Map<String, WeatherDaySnapshot> {
@@ -227,17 +254,36 @@ private fun OpenMeteoDaily?.toTripDays(): Map<String, WeatherDaySnapshot> {
     }.toMap()
 }
 
-private fun climateWeatherAt(daily: OpenMeteoDaily?, targetDate: LocalDate): TripDayWeather? {
-    val index = daily?.time?.indexOf(targetDate.toString())?.takeIf { it >= 0 } ?: return null
-    val temperature = daily.temperature_2m_mean.getOrNull(index)?.let { "${it.toInt()}°C" }
-    val precipitation = daily.precipitation_sum.getOrNull(index) ?: 0.0
-    val cloudCover = daily.cloud_cover_mean.getOrNull(index) ?: 0.0
-    val condition = when {
-        precipitation >= 1.0 -> "Дождь"
-        cloudCover >= 65.0 -> "Облачно"
-        else -> "Ясно"
-    }
-    return temperature?.let { TripDayWeather(it, condition, isEstimate = true) }
+private fun OpenMeteoDaily?.toTripWeatherDays(): Map<String, TripDayWeather> {
+    val daily = this ?: return emptyMap()
+    return daily.time.mapIndexedNotNull { index, date ->
+        val temperature = daily.temperature_2m_max.getOrNull(index)?.let { "${it.toInt()}°C" }
+        val condition = daily.weather_code.getOrNull(index)?.let(::conditionFor)
+        if (temperature == null && condition == null) {
+            null
+        } else {
+            date to TripDayWeather(temperature, condition)
+        }
+    }.toMap()
+}
+
+private fun OpenMeteoDaily?.toClimateTripWeatherDays(): Map<String, TripDayWeather> {
+    val daily = this ?: return emptyMap()
+    return daily.time.mapIndexedNotNull { index, date ->
+        val temperature = daily.temperature_2m_mean.getOrNull(index)?.let { "${it.toInt()}°C" }
+        val precipitation = daily.precipitation_sum.getOrNull(index) ?: 0.0
+        val cloudCover = daily.cloud_cover_mean.getOrNull(index) ?: 0.0
+        val condition = when {
+            precipitation >= 1.0 -> "Дождь"
+            cloudCover >= 65.0 -> "Облачно"
+            else -> "Ясно"
+        }
+        if (temperature == null && condition.isBlank()) {
+            null
+        } else {
+            date to TripDayWeather(temperature, condition, isEstimate = true)
+        }
+    }.toMap()
 }
 
 private fun conditionFor(code: Int): String = when (code) {

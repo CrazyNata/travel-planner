@@ -326,6 +326,9 @@ type BudgetExpense = {
   amount: number;
   /** Stored as the EUR-normalized amount for backwards-compatible totals. */
   currency?: BudgetCurrency;
+  /** Android's newer format keeps a RUB-backed amount and its input snapshot. */
+  inputCurrency?: string;
+  inputCurrencyRate?: number;
   category: string;
   scope: BudgetScope;
   paidBy: string;
@@ -348,6 +351,29 @@ function formatBudgetAmount(amount: number, currency: BudgetCurrency) {
   return `${(amount * rate).toLocaleString("ru-RU", {
     maximumFractionDigits: 2,
   })} ${label}`;
+}
+
+function normalizedBudgetExpenseAmount(expense: BudgetExpense) {
+  const inputCurrency = expense.inputCurrency?.trim().toUpperCase();
+  const inputRate = expense.inputCurrencyRate;
+  if (!inputCurrency || !Number.isFinite(inputRate) || (inputRate || 0) <= 0) {
+    return expense.amount;
+  }
+  // Android's currency-aware records keep amount in RUB. When the original
+  // input was EUR, the saved snapshot gives an exact EUR-normalized value;
+  // for other currencies use the same 100 RUB/EUR base as the web budget.
+  return inputCurrency === "EUR"
+    ? expense.amount * (inputRate || 0)
+    : expense.amount / budgetCurrencies.RUB.rate;
+}
+
+function budgetExpenseInputAmount(expense: BudgetExpense, currency: BudgetCurrency) {
+  const inputCurrency = expense.inputCurrency?.trim().toUpperCase();
+  const inputRate = expense.inputCurrencyRate;
+  if (inputCurrency === currency && Number.isFinite(inputRate) && (inputRate || 0) > 0) {
+    return expense.amount * (inputRate || 0);
+  }
+  return normalizedBudgetExpenseAmount(expense) * budgetCurrencies[currency].rate;
 }
 
 const budgetCategories = [
@@ -862,6 +888,7 @@ function cityFlag(city: string) {
       "Кьоджа",
       "Милан",
       "Вальдидентро",
+      "Валдидентро",
       "Флоренция",
       "Венеция",
     ].some((name) => city.includes(name))
@@ -1678,7 +1705,6 @@ function routeDateForDay(
   const explicitDate = /^\d{4}-\d{2}-\d{2}$/.test(roadLeg.date || "")
     ? roadLeg.date || ""
     : "";
-  if (explicitDate) return explicitDate;
 
   const fallbackYear = startDate
     ? new Date(`${startDate}T00:00:00Z`).getUTCFullYear()
@@ -1699,17 +1725,34 @@ function routeDateForDay(
   const staysIn = (city: string) => accommodations.filter((stay) =>
     citiesMatch(stay.city, city),
   );
+  const fromStays = staysIn(roadLeg.from)
+    .map((stay) => accommodationDateParts(stay.dates, fallbackYear))
+    .filter((range) => range.checkIn && range.checkOut);
+  const toStays = staysIn(roadLeg.to)
+    .map((stay) => accommodationDateParts(stay.dates, fallbackYear))
+    .filter((range) => range.checkIn && range.checkOut);
   const fromCheckOut = nearestDate(
-    staysIn(roadLeg.from).map((stay) =>
-      accommodationDateParts(stay.dates, fallbackYear).checkOut,
-    ),
+    fromStays.map((range) => range.checkOut),
   );
   const toCheckIn = nearestDate(
-    staysIn(roadLeg.to).map((stay) =>
-      accommodationDateParts(stay.dates, fallbackYear).checkIn,
-    ),
+    toStays.map((range) => range.checkIn),
   );
-  return fromCheckOut || toCheckIn || fallbackDate;
+  // A direct transfer between two booked stays belongs to the shared
+  // checkout/check-in date. Older payloads can retain a stale road-leg date
+  // after the lodging dates are edited, so the stay boundary wins here.
+  if (fromCheckOut && toCheckIn) return fromCheckOut > toCheckIn ? fromCheckOut : toCheckIn;
+  // Keep explicit dates for day trips that leave during an origin stay. With
+  // no destination stay, this is the only reliable signal for that trip.
+  if (fromCheckOut) {
+    const explicitInsideOriginStay = Boolean(explicitDate) && fromStays.some(
+      (range) => explicitDate >= range.checkIn && explicitDate < range.checkOut,
+    );
+    return explicitInsideOriginStay ? explicitDate : fromCheckOut;
+  }
+  // A destination check-in is more trustworthy than a stale date when the
+  // origin has no accommodation record.
+  if (toCheckIn) return toCheckIn;
+  return explicitDate || fallbackDate;
 }
 
 function formatAccommodationDates(value: string) {
@@ -11498,7 +11541,10 @@ function ExpenseForm({
 }) {
   const [name, setName] = useState(initial?.name || "");
   const [entryCurrency, setEntryCurrency] = useState<BudgetCurrency>(
-    initial?.currency || currency,
+    initial?.currency ||
+      (initial?.inputCurrency === "EUR" || initial?.inputCurrency === "RUB" || initial?.inputCurrency === "CZK"
+        ? initial.inputCurrency
+        : currency),
   );
   const [category, setCategory] = useState(
     () => inferBudgetCategory(initial?.name || "") || initial?.category || "Еда и рестораны",
@@ -11570,7 +11616,7 @@ function ExpenseForm({
                 inputMode="decimal"
                 defaultValue={
                   initial
-                    ? initial.amount * budgetCurrencies[entryCurrency].rate
+                    ? budgetExpenseInputAmount(initial, entryCurrency)
                     : undefined
                 }
                 placeholder="0"
@@ -11710,6 +11756,7 @@ function Budget({
   const expenses = hasAccommodationTotal
     ? normalizedStoredExpenses
     : [...normalizedStoredExpenses, ...automaticExpenses];
+  const expenseAmount = (expense: BudgetExpense) => normalizedBudgetExpenseAmount(expense);
   const hasAutoCategories = normalizedStoredExpenses.some(
     (expense, index) => expense.category !== storedExpenses[index]?.category,
   );
@@ -11717,7 +11764,7 @@ function Budget({
     if (hasAutoCategories) onUpdateTrip({ ...trip, budgetExpenses: normalizedStoredExpenses });
   }, [hasAutoCategories]);
   const currency = trip.budgetCurrency || "EUR";
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalExpenses = expenses.reduce((sum, expense) => sum + expenseAmount(expense), 0);
   const split = trip.budgetSplit || {
     groups: [
       { id: "family", name: "Моя семья", people: 2 },
@@ -11732,7 +11779,7 @@ function Budget({
     onUpdateTrip({ ...trip, budgetExpenses: next });
   };
   const scopeTotal = (scope: BudgetScope) =>
-    expenses.filter((expense) => expense.scope === scope).reduce((sum, expense) => sum + expense.amount, 0);
+    expenses.filter((expense) => expense.scope === scope).reduce((sum, expense) => sum + expenseAmount(expense), 0);
   const formatAmount = (amount: number) => formatBudgetAmount(amount, currency);
   const sharedTotal = scopeTotal("общий");
   const splitPeopleTotal = Math.max(1, split.groups.reduce((sum, group) => sum + group.people, 0));
@@ -11794,11 +11841,11 @@ function Budget({
                   (expense) => expense.category === category,
                 );
                 const total = categoryExpenses.reduce(
-                  (sum, expense) => sum + expense.amount,
+                  (sum, expense) => sum + expenseAmount(expense),
                   0,
                 );
                 const all = expenses.reduce(
-                  (sum, expense) => sum + expense.amount,
+                  (sum, expense) => sum + expenseAmount(expense),
                   0,
                 );
                 return [
@@ -11833,7 +11880,7 @@ function Budget({
                           : "Без даты"}
                       </td>
                       <td data-label="Сумма" className="budget-table-amount">
-                        {formatAmount(expense.amount)}
+                        {formatAmount(expenseAmount(expense))}
                       </td>
                       <td className="budget-table-action">
                         {isAutomaticBudgetExpense(expense) ? (

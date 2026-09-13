@@ -233,6 +233,95 @@ class TripRouteScheduleTest {
         )
     }
 
+    @Test
+    fun staleTransferDateIsReplacedByTheSharedCheckoutAndCheckInDate() {
+        val accommodations = listOf(
+            Accommodation(
+                id = "milan-stay",
+                city = "Милан",
+                name = "Милан",
+                dates = "2026-10-03 – 2026-10-06",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+            Accommodation(
+                id = "valdidentro-stay",
+                city = "Вальдидентро",
+                name = "Вальдидентро",
+                dates = "2026-10-06 – 2026-10-08",
+                price = "",
+                status = "бронь",
+                details = "",
+                photos = emptyList(),
+                bookingUrl = "",
+            ),
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 10, 6),
+            routeDateFromAccommodations(
+                from = "Милан",
+                to = "Валдидентро",
+                accommodations = accommodations,
+                startDate = LocalDate.of(2026, 9, 25),
+                fallbackIndex = 0,
+                explicitDate = "2026-10-04",
+            ),
+        )
+    }
+
+    @Test
+    fun effectiveRouteDatesAreSortedAfterLodgingDatesAreResolved() {
+        val legs = listOf(
+            routeLeg("stale", "2026-10-03", "Мюнхен", "Прага"),
+            routeLeg("transfer", "2026-10-04", "Милан", "Вальдидентро"),
+        )
+
+        val sorted = routeLegsInDateOrder(
+            legs.mapIndexed { index, leg ->
+                leg.copy(
+                    date = routeDateFromAccommodations(
+                        from = leg.from,
+                        to = leg.to,
+                        accommodations = listOf(
+                            accommodation("milan", "Милан", "2026-10-03 – 2026-10-06"),
+                            accommodation("valdidentro", "Вальдидентро", "2026-10-06 – 2026-10-08"),
+                            accommodation("munich", "Мюнхен", "2026-10-08 – 2026-10-09"),
+                        ),
+                        startDate = LocalDate.of(2026, 9, 25),
+                        fallbackIndex = index,
+                        explicitDate = leg.date,
+                    )?.toString().orEmpty(),
+                )
+            },
+            LocalDate.of(2026, 9, 25),
+        )
+
+        assertEquals(listOf("transfer", "stale"), sorted.map { it.dayId })
+        assertEquals(listOf(1, 2), sorted.map { it.dayNumber })
+    }
+
+    @Test
+    fun accommodationCardsUseCheckInOrderUntilAUserOrderExists() {
+        val accommodations = listOf(
+            accommodation("later", "Мюнхен", "2026-10-08 – 2026-10-09"),
+            accommodation("first", "Инцелль", "2026-09-25 – 2026-09-26"),
+        )
+
+        assertEquals(
+            listOf("first", "later"),
+            accommodationsInDisplayOrder(accommodations, fallbackYear = 2026).map { it.id },
+        )
+        assertEquals(
+            listOf("later", "first"),
+            accommodationsInDisplayOrder(accommodations, explicitOrder = listOf("later", "first"), fallbackYear = 2026)
+                .map { it.id },
+        )
+    }
+
     private fun routeDay(id: String, date: String, from: String, to: String) = buildJsonObject {
         put("id", id)
         put("city", to)
@@ -244,4 +333,27 @@ class TripRouteScheduleTest {
             put("completed", buildJsonArray { })
         })
     }
+
+    private fun routeLeg(id: String, date: String, from: String, to: String) = RouteLeg(
+        dayId = id,
+        from = from,
+        to = to,
+        date = date,
+        checkIn = "",
+        checkOut = "",
+        notes = "",
+        mapsUrl = "",
+    )
+
+    private fun accommodation(id: String, city: String, dates: String) = Accommodation(
+        id = id,
+        city = city,
+        name = city,
+        dates = dates,
+        price = "",
+        status = "бронь",
+        details = "",
+        photos = emptyList(),
+        bookingUrl = "",
+    )
 }

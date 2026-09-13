@@ -72,7 +72,9 @@ val cityCatalog: List<CityCatalogEntry> = listOf(
     city("san marino", "Сан-Марино", "San Marino", "San Marino", "San Marino", 43.9424, 12.4578),
     city("chioggia", "Кьоджа", "Chioggia", "Chioggia", "Chioggia", 45.2181, 12.2786),
     city("milan", "Милан", "Milan", "Milán", "Mailand", 45.4642, 9.1900),
-    city("valdidentro", "Вальдидентро", "Valdidentro", "Valdidentro", "Valdidentro", 46.4890, 10.2940),
+    // Keep the legacy spelling used by existing trips resolvable so it still
+    // receives the Italian flag and catalog coordinates.
+    city("valdidentro", "Вальдидентро", "Valdidentro", "Valdidentro", "Valdidentro", 46.4890, 10.2940, "Валдидентро"),
     city("ravensburg", "Равенсбург", "Ravensburg", "Ravensburg", "Ravensburg", 47.7810, 9.6110),
     city("munich", "Мюнхен", "Munich", "Múnich", "München", 48.1351, 11.5820, "muenchen"),
     city("vienna", "Вена", "Vienna", "Viena", "Wien", 48.2082, 16.3738),
