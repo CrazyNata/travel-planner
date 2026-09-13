@@ -5313,6 +5313,7 @@ type GooglePetCatalogPlace = {
   latitude?: unknown;
   longitude?: unknown;
   open_now?: unknown;
+  is_24h?: unknown;
 };
 
 function restaurantPriceFromGoogle(value: unknown) {
@@ -5398,6 +5399,7 @@ async function fetchGooglePetCatalog(
       query: query.trim(),
       limit: 24,
       languageCode: "ru",
+      resolvePhotos: false,
     }),
   });
   if (!response.ok) throw new Error("Google pet catalog request failed");
@@ -5434,6 +5436,7 @@ async function fetchGooglePetCatalog(
       note: String(place.description || "").trim() || undefined,
       phone: String(place.phone || "").trim() || undefined,
       openNow: typeof place.open_now === "boolean" ? place.open_now : undefined,
+      is24h: place.is_24h === true,
     } satisfies PetPlace];
   });
 }

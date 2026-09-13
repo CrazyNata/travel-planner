@@ -48,6 +48,32 @@ function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function isAlwaysOpen(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const openingHours = value as Record<string, unknown>;
+  const periods = Array.isArray(openingHours.periods)
+    ? openingHours.periods.filter((period): period is Record<string, unknown> => Boolean(period) && typeof period === "object")
+    : [];
+
+  // Places API represents a place that is always open with an opening period
+  // starting on Sunday at 00:00 and without a close point.
+  if (periods.some((period) => {
+    const open = period.open;
+    if (!open || typeof open !== "object") return false;
+    const point = open as Record<string, unknown>;
+    return point.day === 0 && point.hour === 0 && point.minute === 0 && !period.close;
+  })) return true;
+
+  // Keep a localized fallback for responses where Google supplies weekday
+  // descriptions but omits the structured period.
+  const descriptions = Array.isArray(openingHours.weekdayDescriptions)
+    ? openingHours.weekdayDescriptions.filter((description): description is string => typeof description === "string")
+    : [];
+  return descriptions.length > 0 && descriptions.every((description) =>
+    /24\s*\/\s*7|24\s*(?:hours?|h|час(?:а|ов)?)|круглосуточ/i.test(description),
+  );
+}
+
 function priceLevelValue(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
   switch (String(value ?? "")) {
@@ -141,6 +167,8 @@ async function fetchPlacesPage(
     "places.nationalPhoneNumber",
     "places.internationalPhoneNumber",
     "places.currentOpeningHours.openNow",
+    "places.regularOpeningHours.periods",
+    "places.regularOpeningHours.weekdayDescriptions",
     "places.photos",
     "places.types",
     "places.primaryType",
@@ -199,6 +227,7 @@ Deno.serve(async (request: Request) => {
       : "restaurants";
   const requestedPetType = String(body?.petType ?? "shop").trim().toLowerCase();
   const petType = requestedPetType === "vet" || requestedPetType === "veterinary" ? "vet" : "shop";
+  const resolvePhotos = body?.resolvePhotos !== false;
 
   const requestedPhotoNames = Array.isArray(body?.photoNames)
     ? body.photoNames
@@ -317,8 +346,9 @@ Deno.serve(async (request: Request) => {
   // Resolve only the first visible batch here. Resolving all 60 photos before
   // returning the catalog made the first screen wait for ten photo batches.
   // Current clients resolve the rest from photoName as cards enter the list.
+  const initialPhotoLimit = resolvePhotos ? Math.min(limit, InitialPhotoLimit) : 0;
   const initialPhotos = await mapWithConcurrency(
-    places.slice(0, Math.min(limit, InitialPhotoLimit)),
+    places.slice(0, initialPhotoLimit),
     PhotoConcurrency,
     async (rawPlace) => {
       const place = rawPlace as Record<string, unknown>;
@@ -384,6 +414,7 @@ Deno.serve(async (request: Request) => {
       open_now: place.currentOpeningHours && typeof place.currentOpeningHours === "object"
         ? Boolean((place.currentOpeningHours as Record<string, unknown>).openNow)
         : null,
+      is_24h: isAlwaysOpen(place.regularOpeningHours),
     };
   });
 
