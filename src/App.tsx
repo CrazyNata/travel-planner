@@ -645,6 +645,26 @@ type StoredTripPayload = {
 const emptyPlaces: string[] = [];
 const emptyRouteDays: DraftDay[] = [];
 
+function formatRussianCount(
+  value: number,
+  one: string,
+  few: string,
+  many: string,
+) {
+  const absoluteValue = Math.abs(value);
+  const lastTwo = absoluteValue % 100;
+  const last = absoluteValue % 10;
+  const word =
+    lastTwo >= 11 && lastTwo <= 14
+      ? many
+      : last === 1
+        ? one
+        : last >= 2 && last <= 4
+          ? few
+          : many;
+  return `${value} ${word}`;
+}
+
 function mapsUrl(from: string, to: string) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
 }
@@ -669,7 +689,7 @@ function formatTripDates(start?: string, end?: string) {
     startMonth === endMonth && startYear === endYear
       ? `${startDate.getUTCDate()}–${endDate.getUTCDate()} ${startMonth} ${startYear}`
       : `${startDate.getUTCDate()} ${startMonth} ${startYear} – ${endDate.getUTCDate()} ${endMonth} ${endYear}`;
-  return `${range} · ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`;
+  return `${range} · ${formatRussianCount(days, "день", "дня", "дней")}`;
 }
 
 function parseTripDateRange(value: string) {
@@ -1335,6 +1355,10 @@ const mapLocations: Record<string, [number, number]> = {
   Инцелль: [12.75, 47.76],
   Инцель: [12.75, 47.76],
   Мюнхен: [11.582, 48.1351],
+  Барселона: [2.1734, 41.3851],
+  Жирона: [2.8214, 41.9794],
+  Фигерас: [2.9616, 42.2662],
+  Ситжес: [1.8114, 41.2373],
   Равенсбург: [9.611, 47.781],
   Верона: [10.9916, 45.4384],
   Рим: [12.4964, 41.9028],
@@ -1445,6 +1469,13 @@ const knownTripCityNames = Array.from(
   ]),
 ).sort((left, right) => right.length - left.length);
 
+const knownTripCountryNames = new Set(
+  accommodationCities
+    .map((city) => city.split(",").slice(1).join(",").trim())
+    .filter(Boolean)
+    .map((country) => country.toLocaleLowerCase("ru")),
+);
+
 function knownTripCity(value: string) {
   const normalized = value.trim().toLocaleLowerCase("ru");
   return knownTripCityNames.find((city) => {
@@ -1457,6 +1488,10 @@ function knownTripCity(value: string) {
   });
 }
 
+function knownTripCountry(value: string) {
+  return knownTripCountryNames.has(value.trim().toLocaleLowerCase("ru"));
+}
+
 function parseTripCities(value?: string) {
   const tokens = (value || "")
     .split(/[·,;]/)
@@ -1465,12 +1500,8 @@ function parseTripCities(value?: string) {
   const result: string[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (!knownTripCity(token)) {
-      result.push(token);
-      continue;
-    }
     const next = tokens[index + 1];
-    if (next && !knownTripCity(next)) {
+    if (knownTripCity(token) && next && knownTripCountry(next)) {
       result.push(`${token}, ${next}`);
       index += 1;
     } else {
@@ -1478,6 +1509,10 @@ function parseTripCities(value?: string) {
     }
   }
   return result;
+}
+
+function parseTripCityValues(values: string[] = []) {
+  return values.flatMap((value) => parseTripCities(value));
 }
 
 function mergeTripCities(...cityLists: string[][]) {
@@ -2123,10 +2158,14 @@ function SightCardImage({ sight }: { sight: StoredSight }) {
 }
 
 function mapLocation(city: string) {
-  const normalizedCity = city.trim().toLocaleLowerCase();
-  return Object.entries(mapLocations).find(([name]) =>
-    normalizedCity.includes(name.toLocaleLowerCase()),
-  )?.[1];
+  return mapLocationEntry(city)?.[1];
+}
+
+function mapLocationEntry(city: string) {
+  const normalizedCity = city.trim().toLocaleLowerCase("ru");
+  return Object.entries(mapLocations)
+    .sort((left, right) => right[0].length - left[0].length)
+    .find(([name]) => normalizedCity.includes(name.toLocaleLowerCase("ru")));
 }
 
 type RouteCoordinate = [number, number];
@@ -5384,6 +5423,8 @@ async function fetchGooglePetCatalog(
 ): Promise<PetPlace[]> {
   const publishableKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
   if (!publishableKey || !city.trim()) return [];
+  const cityCoordinate = mapLocation(city);
+  const maximumCatalogDistanceKm = 25;
   const response = await fetch(googleFunctionUrl("restaurant-enrichment"), {
     method: "POST",
     signal,
@@ -5415,6 +5456,13 @@ async function fetchGooglePetCatalog(
     const photoName = String(place.photo_name || photoNames[0] || "").trim();
     const latitude = typeof place.latitude === "number" ? place.latitude : Number(place.latitude);
     const longitude = typeof place.longitude === "number" ? place.longitude : Number(place.longitude);
+    const coordinate = Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? [longitude, latitude] as [number, number]
+      : undefined;
+    const distanceKm = cityCoordinate && coordinate
+      ? straightLineDistanceMeters(cityCoordinate, coordinate) / 1000
+      : undefined;
+    if (distanceKm !== undefined && distanceKm > maximumCatalogDistanceKm) return [];
     const mapsUrl = String(place.google_maps_url || "").trim() ||
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name}, ${city}`)}`;
     const rating = typeof place.rating === "number" ? place.rating : Number(place.rating);
@@ -5431,13 +5479,28 @@ async function fetchGooglePetCatalog(
       photoUrl: String(place.photo_url || "").trim() || undefined,
       photoName: photoName || undefined,
       mapsUrl,
-      latitude: Number.isFinite(latitude) ? latitude : undefined,
-      longitude: Number.isFinite(longitude) ? longitude : undefined,
+      latitude: coordinate?.[1],
+      longitude: coordinate?.[0],
       note: String(place.description || "").trim() || undefined,
       phone: String(place.phone || "").trim() || undefined,
+      distanceKm,
       openNow: typeof place.open_now === "boolean" ? place.open_now : undefined,
       is24h: place.is_24h === true,
     } satisfies PetPlace];
+  });
+}
+
+function uniquePetCatalogPlaces(places: PetPlace[]) {
+  const seen = new Set<string>();
+  return places.filter((place) => {
+    const normalizedName = place.name.trim().replace(/\s+/g, " ").toLocaleLowerCase("ru");
+    const normalizedAddress = place.address.trim().replace(/\s+/g, " ").toLocaleLowerCase("ru");
+    const key = place.googlePlaceId
+      ? `google:${place.googlePlaceId}`
+      : `local:${normalizedName}|${normalizedAddress}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
@@ -5613,6 +5676,10 @@ function restaurantCitySearchName(city: string) {
     [/зальцбург|salzburg/, "Salzburg"],
     [/мюнхен|munich/, "Munich"],
     [/прага|prague/, "Prague"],
+    [/барселон|barcelona/, "Barcelona"],
+    [/жирон|girona/, "Girona"],
+    [/фигер|figueres/, "Figueres"],
+    [/ситж|sitges/, "Sitges"],
     [/рим|rome/, "Rome"],
     [/флоренц|флоренция|florence/, "Florence"],
     [/венеци|venice/, "Venice"],
@@ -5869,9 +5936,10 @@ function TripMap({
   const displayedRouteDays = routeDays;
   const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
   const activeRoutePoint = routePointIndexFor(displayedRouteDays, activeDay);
-  const fallbackCoordinates = routeCoordinates.length > 1
+  const fallbackCoordinates = routeCoordinates.length
     ? routeCoordinates
-    : location && places.length
+    : location
+      ? places.length
       ? places.map(
           (_, index) =>
             [
@@ -5879,6 +5947,7 @@ function TripMap({
               location[1] + (index % 2 ? 1 : -1) * (index + 1) * 0.006,
             ] as [number, number],
         )
+        : [location]
       : [];
   const previousActiveDay = useRef<number | undefined>(activeDay);
   const shouldFocusStaticMap =
@@ -5909,6 +5978,7 @@ function TripMap({
     let map: Map | undefined;
     let resizeObserver: ResizeObserver | undefined;
     const userCoordinates = browserLocation.state.coordinates;
+    if (!fallbackCoordinates.length && !userCoordinates) return;
 
     // Let the trip shell and data render before parsing the large Mapbox chunk.
     // The map remains available immediately after the first paint without
@@ -5919,7 +5989,7 @@ function TripMap({
       map = new mapboxgl.Map({
         container: container.current,
         style: mapStyle(),
-        center: userCoordinates ?? routeCoordinates[0] ?? location ?? mapLocations["Москва"],
+        center: userCoordinates ?? fallbackCoordinates[0]!,
         zoom: userCoordinates ? 13 : routeCoordinates.length ? 5 : location ? 12 : 3,
         attributionControl: true,
       });
@@ -6119,6 +6189,15 @@ function TripMap({
           focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
           userLocation={browserLocation.state.coordinates}
         />
+        <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
+      </div>
+    );
+  if (!fallbackCoordinates.length && !browserLocation.state.coordinates)
+    return (
+      <div className="map-location-wrap">
+        <div className="map map-unavailable" role="status">
+          Не удалось определить города маршрута для карты.
+        </div>
         <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
       </div>
     );
@@ -7157,6 +7236,7 @@ function CreateTrip({
             progress: 0,
             tone: "stone",
             isDraft: true,
+            publicLinkEnabled: false,
             coverImage,
             overviewMapPoints: parseTripCities(cities),
           });
@@ -7867,7 +7947,12 @@ function RouteTab({
           <footer>
             <span>Общий маршрут</span>
             <b>
-              {draftDays.length} дней
+              {formatRussianCount(
+                draftDays.filter((draftDay) => Boolean(draftDay.roadLeg)).length,
+                "день",
+                "дня",
+                "дней",
+              )}
               {routeTotalsLabel(routeTotals)}
             </b>
           </footer>
@@ -8562,7 +8647,7 @@ function RestaurantPage({
         <aside className="restaurants-map-panel">
           <header>
             <span>Карта ресторанов</span>
-            <b>{visible.length} точек</b>
+            <b>{formatRussianCount(visible.length, "точка", "точки", "точек")}</b>
           </header>
           <RestaurantMap
             places={visible}
@@ -9251,11 +9336,12 @@ function Restaurants({
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [addingRestaurant, setAddingRestaurant] = useState(false);
+  const savedOverviewCities = parseTripCityValues(trip.overviewMapPoints || []);
   const restaurantCities = mergeTripCities(
-    trip.overviewMapPoints?.length
-      ? trip.overviewMapPoints
+    savedOverviewCities.length
+      ? savedOverviewCities
       : parseTripCities(trip.cities),
-    trip.overviewMapPoints?.length
+    savedOverviewCities.length
       ? []
       : (trip.days || []).flatMap((day) =>
         day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
@@ -12455,7 +12541,9 @@ function OverviewEditor({
     savedWeatherCities.length ? savedWeatherCities : routeCities,
   );
   const [mapPoints, setMapPoints] = useState(
-    trip.overviewMapPoints || routeCities,
+    trip.overviewMapPoints?.length
+      ? parseTripCityValues(trip.overviewMapPoints)
+      : routeCities,
   );
   const city = routeCities[cityIndex] || "Город";
   const addMapPoint = () => {
@@ -13006,10 +13094,7 @@ function WeatherDateIcon({ kind }: { kind: WeatherVisualKind }) {
 
 const canonicalWeatherCity = (value?: string) => {
   const normalized = value?.trim().toLocaleLowerCase("ru") || "";
-  const match = Object.keys(mapLocations)
-    .sort((left, right) => right.length - left.length)
-    .find((city) => normalized.includes(city.toLocaleLowerCase("ru")));
-  return match?.toLocaleLowerCase("ru") || normalized;
+  return mapLocationEntry(normalized)?.[0].toLocaleLowerCase("ru") || normalized;
 };
 
 function buildWeatherCityByDate(
@@ -13123,9 +13208,7 @@ function WeatherOverview({
   const weatherCities = cities.reduce<
     { name: string; latitude: number; longitude: number }[]
   >((result, name) => {
-    const match = Object.entries(mapLocations).find(([city]) =>
-      name.includes(city),
-    );
+    const match = mapLocationEntry(name);
     if (!match || result.some((city) => city.name === match[0])) return result;
     result.push({
       name: match[0],
@@ -13310,6 +13393,11 @@ function WeatherOverview({
       {mode === "trip" && !hasSelectedTripForecast && (
         <p className="weather-notice">
           Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.
+        </p>
+      )}
+      {!weatherCities.length && (
+        <p className="weather-notice" role="status">
+          Не удалось определить города поездки для загрузки погоды.
         </p>
       )}
       <div className="weather-grid">
@@ -13545,13 +13633,14 @@ function TripOverview({
       cancelled = true;
     };
   }, [routeKey]);
-  const routeSummary = `${routeDays.length} дней${routeTotalsLabel(routeTotals)}`;
+  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals)}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
+  const savedOverviewMapPoints = parseTripCityValues(trip.overviewMapPoints || []);
   const overviewCities = mergeTripCities(
-    trip.overviewMapPoints?.length
-      ? trip.overviewMapPoints
+    savedOverviewMapPoints.length
+      ? savedOverviewMapPoints
       : parseTripCities(trip.cities),
     routeCities,
   );
@@ -15240,14 +15329,24 @@ const petCatalogSeeds: Omit<PetPlace, "id" | "city" | "address">[] = [
   },
 ];
 
+function petCityLabel(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+  return knownTripCity(raw) || raw.split(/\s+[—–]\s+/)[0].trim() || raw.split(",")[0].trim() || raw;
+}
+
+function petCityKey(value: string) {
+  return petCityLabel(value).toLocaleLowerCase("ru-RU");
+}
+
 function tripPetCities(trip: TripSummary) {
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
   return Array.from(
     new Set(
-      [...routeCities, ...(trip.cities || "").split(/[·,]/)]
-        .map((city) => city.trim())
+      [...routeCities, ...parseTripCities(trip.cities)]
+        .map(petCityLabel)
         .filter(Boolean),
     ),
   );
@@ -15367,15 +15466,24 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
   const [manualOpen, setManualOpen] = useState(false);
   const [editing, setEditing] = useState<PetPlace | undefined>();
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
-  const [liveCatalog, setLiveCatalog] = useState<PetPlace[] | null>(null);
+  const [liveCatalog, setLiveCatalog] = useState<{
+    key: string;
+    places: PetPlace[];
+  } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const saved = trip.petPlaces || [];
   const fallbackCatalog = petCatalogForCities(cities.length ? cities : ["Рим"]);
-  const catalogPending = liveCatalog === null;
-  const catalog = catalogPending ? [] : liveCatalog.length ? liveCatalog : fallbackCatalog;
+  const catalogKey = [selectedCity, selectedType, query, cities.join("|")].join("\u0001");
+  const catalogPending = liveCatalog?.key !== catalogKey;
+  const catalog = catalogPending
+    ? []
+    : liveCatalog?.places.length
+      ? liveCatalog.places
+      : fallbackCatalog;
   const filterCount = Number(radius !== "10") + Number(Boolean(minRating)) + Number(openNow) + Number(aroundTheClock);
   useEffect(() => {
     const controller = new AbortController();
+    const requestKey = catalogKey;
     const citiesToSearch = selectedCity === "Все города"
       ? (cities.length ? cities : ["Рим"]).slice(0, 6)
       : [selectedCity];
@@ -15383,7 +15491,12 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       setCatalogLoading(true);
       const groups: PetPlace[][] = [];
       const publishPartialCatalog = () => {
-        if (!controller.signal.aborted) setLiveCatalog(groups.flat());
+        if (!controller.signal.aborted) {
+          setLiveCatalog({
+            key: requestKey,
+            places: uniquePetCatalogPlaces(groups.flat()),
+          });
+        }
       };
       void Promise.all(
         citiesToSearch.map(async (city, index) => {
@@ -15395,14 +15508,21 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
         })
       )
         .then(async () => {
-          const places = groups.flat();
+          const places = uniquePetCatalogPlaces(groups.flat());
           return enrichPetCatalogPhotos(places, controller.signal);
         })
         .then((places) => {
-          if (!controller.signal.aborted) setLiveCatalog(places);
+          if (!controller.signal.aborted) {
+            setLiveCatalog({
+              key: requestKey,
+              places: uniquePetCatalogPlaces(places),
+            });
+          }
         })
         .catch(() => {
-          if (!controller.signal.aborted) setLiveCatalog([]);
+          if (!controller.signal.aborted) {
+            setLiveCatalog({ key: requestKey, places: [] });
+          }
         })
         .finally(() => {
           if (!controller.signal.aborted) setCatalogLoading(false);
@@ -15412,11 +15532,11 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [selectedCity, selectedType, query, cities.join("|")]);
+  }, [catalogKey]);
   const matches = (place: PetPlace) => {
     const haystack = `${place.name} ${place.city} ${place.address} ${place.note || ""}`.toLocaleLowerCase("ru-RU");
     return place.type === selectedType &&
-      (selectedCity === "Все города" || place.city === selectedCity) &&
+      (selectedCity === "Все города" || petCityKey(place.city) === petCityKey(selectedCity)) &&
       (!query.trim() || haystack.includes(query.trim().toLocaleLowerCase("ru-RU"))) &&
       (!minRating || (place.rating || 0) >= Number(minRating)) &&
       (!radius || place.distanceKm === undefined || place.distanceKm <= Number(radius)) &&
@@ -15424,7 +15544,13 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       (!aroundTheClock || place.is24h === true);
   };
   const visibleSaved = saved.filter(matches);
-  const visibleCatalog = catalog.filter((place) => !saved.some((item) => item.id === place.id || (item.name === place.name && item.city === place.city))).filter(matches);
+  const visibleCatalog = catalog
+    .filter((place) => !saved.some((item) =>
+      item.id === place.id ||
+      (item.googlePlaceId && item.googlePlaceId === place.googlePlaceId) ||
+      (item.name === place.name && petCityKey(item.city) === petCityKey(place.city))
+    ))
+    .filter(matches);
   const savePlace = (place: PetPlace) => {
     const next = saved.some((item) => item.id === place.id) ? saved.map((item) => item.id === place.id ? place : item) : [...saved, place];
     onUpdateTrip({ ...trip, petPlaces: next });
@@ -15439,7 +15565,7 @@ function Pets({ trip, onUpdateTrip }: { trip: TripSummary; onUpdateTrip: (trip: 
       {filterOpen && <div className="pets-filter-panel"><div className="pets-filter-panel-head"><h3>Фильтры</h3><button type="button" className="pets-filter-reset" onClick={() => { setRadius("10"); setMinRating(""); setOpenNow(false); setAroundTheClock(false); }}>Сбросить</button></div><div className="pets-filter-group"><b>Радиус поиска</b><div className="pets-choice-row">{["1", "5", "10", "25"].map((value) => <button type="button" className={radius === value ? "active" : ""} onClick={() => setRadius(value)} key={value}>{value} км</button>)}</div></div><div className="pets-filter-group"><b>Рейтинг от</b><div className="pets-choice-row"><button type="button" className={!minRating ? "active" : ""} onClick={() => setMinRating("")}>Любой</button>{["4.0", "4.5", "4.8"].map((value) => <button type="button" className={minRating === value ? "active" : ""} onClick={() => setMinRating(value)} key={value}>★ {value}</button>)}</div></div><div className="pets-filter-group"><b>Дополнительно</b><div className="pets-choice-row"><button type="button" className={openNow ? "active" : ""} onClick={() => setOpenNow((value) => !value)}>Открыто сейчас</button><button type="button" className={aroundTheClock ? "active" : ""} onClick={() => setAroundTheClock((value) => !value)}>Круглосуточно</button></div></div></div>}
       <div className="pets-type-tabs"><button type="button" className={selectedType === "shop" ? "active" : ""} onClick={() => setSelectedType("shop")}>Зоомагазины</button><button type="button" className={selectedType === "vet" ? "active" : ""} onClick={() => setSelectedType("vet")}>Ветеринары</button></div>
       {visibleSaved.length > 0 && <><h2 className="pets-section-title">Мои места</h2><div className="pets-grid">{visibleSaved.map((place) => <PetCard key={place.id} place={place} saved onPhoto={(url) => setPreview({ url, name: place.name })} onEdit={() => { setEditing(place); setManualOpen(true); }} onDelete={() => onUpdateTrip({ ...trip, petPlaces: saved.filter((item) => item.id !== place.id) })} />)}</div></>}
-      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : catalogLoading ? "Обновляем…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{!visibleCatalog.length && (catalogPending || catalogLoading) ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
+      <div className="pets-section-title-row"><div><h2 className="pets-section-title">Из каталога</h2><small className="pets-catalog-source">{catalogPending || catalogLoading ? "Загружаем Google Places…" : liveCatalog?.places.length ? "Фото, рейтинг и ссылки из Google Maps" : "Каталог временно работает в резервном режиме"}</small></div><span>{catalogPending ? "Загрузка…" : catalogLoading ? "Обновляем…" : `${visibleCatalog.length} мест`}</span></div><div className="pets-grid">{!visibleCatalog.length && (catalogPending || catalogLoading) ? <PetCatalogSkeleton /> : visibleCatalog.map((place) => <PetCard key={place.id} place={place} onPhoto={(url) => setPreview({ url, name: place.name })} onAdd={() => addCatalogPlace(place)} />)}</div>
       {!catalogPending && !catalogLoading && !visibleSaved.length && !visibleCatalog.length && <div className="pets-empty">Ничего не найдено. Попробуйте другой город или запрос.</div>}
       {manualOpen && <PetPlaceForm initial={editing} tripId={trip.id} defaultCity={selectedCity === "Все города" ? cities[0] || "Рим" : selectedCity} onClose={() => { setManualOpen(false); setEditing(undefined); }} onSave={savePlace} />}
       {preview && <div className="pets-photo-backdrop" onClick={() => setPreview(null)}><img src={preview.url} alt={preview.name} /><button type="button" onClick={() => setPreview(null)}>×</button></div>}
@@ -15453,7 +15579,26 @@ function PetCatalogSkeleton({ count = 4 }: { count?: number }) {
 
 function PetCard({ place, saved = false, onPhoto, onAdd, onEdit, onDelete }: { place: PetPlace; saved?: boolean; onPhoto: (url: string) => void; onAdd?: () => void; onEdit?: () => void; onDelete?: () => void }) {
   const mapsUrl = place.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name}, ${place.address || place.city}`)}`;
-  return <article className="pets-card"><button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>{place.photoUrl ? <img src={place.photoUrl} alt="" loading="lazy" decoding="async" /> : <span>♡</span>}</button><div className="pets-card-body"><small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small><h3>{place.name}</h3><span className="pets-card-city">{place.city}</span>{place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}<p>{place.address}</p><small className="pets-card-note">{place.note}</small><div className="pets-card-actions"><a href={mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>{saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}</div></div></article>;
+  const cityLabel = petCityLabel(place.city);
+  return (
+    <article className="pets-card">
+      <button className="pets-card-photo" type="button" onClick={() => place.photoUrl && onPhoto(place.photoUrl)} disabled={!place.photoUrl}>
+        {place.photoUrl ? <img src={place.photoUrl} alt="" loading="lazy" decoding="async" /> : <span>♡</span>}
+      </button>
+      <div className="pets-card-body">
+        <small>{place.type === "vet" ? "ВЕТЕРИНАРНАЯ КЛИНИКА" : "ЗООМАГАЗИН"}</small>
+        <h3>{place.name}</h3>
+        <span className="pets-card-city">{cityLabel}</span>
+        {place.rating !== undefined && <div className="pets-rating">★ <b>{place.rating.toFixed(1)}</b>{place.reviewCount ? <span>({place.reviewCount})</span> : null}</div>}
+        <p>{place.address}</p>
+        <small className="pets-card-note">{place.note}</small>
+        <div className="pets-card-actions">
+          <a href={mapsUrl} target="_blank" rel="noreferrer">↗ Google Карты</a>
+          {saved ? <><button type="button" className="pets-edit-button" onClick={onEdit}>Изменить</button><button type="button" className="pets-delete-button" onClick={onDelete}>Удалить</button></> : <button type="button" className="pets-add-button" onClick={onAdd}>Добавить</button>}
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function Workspace({
