@@ -7862,6 +7862,10 @@ function RouteTab({
     ({ draftDay, sourceIndex }) =>
       Boolean(draftDay.roadLeg) || editingRoadDay === sourceIndex,
   );
+  const routePaths = routeDistancePathsFor(draftDays);
+  const immediateRouteTotals = routePaths
+    ? fallbackRouteTotals(routePaths)
+    : null;
   useEffect(
     () =>
       setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))),
@@ -7869,11 +7873,12 @@ function RouteTab({
   );
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const paths = routeDistancePathsFor(draftDays);
+    const paths = routePaths;
     if (!paths) {
       setRouteTotals(null);
       return;
     }
+    setRouteTotals(null);
     let cancelled = false;
     void loadRouteTotals(paths, token).then((totals) => {
       if (!cancelled) setRouteTotals(totals);
@@ -7965,7 +7970,7 @@ function RouteTab({
                 "дня",
                 "дней",
               )}
-              {routeTotalsLabel(routeTotals)}
+              {routeTotalsLabel(routeTotals || immediateRouteTotals)}
             </b>
           </footer>
         </aside>
@@ -13631,16 +13636,21 @@ function TripOverview({
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const routeDays = (trip.days || []).filter((day) => day.roadLeg);
+  const routePaths = routeDistancePathsFor(routeDays);
+  const immediateRouteTotals = routePaths
+    ? fallbackRouteTotals(routePaths)
+    : null;
   const routeKey = routeDays
     .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}:${day.roadLeg?.mapsUrl || ""}`)
     .join("|");
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const paths = routeDistancePathsFor(routeDays);
+    const paths = routePaths;
     if (!paths) {
       setRouteTotals(null);
       return;
     }
+    setRouteTotals(null);
     let cancelled = false;
     void loadRouteTotals(paths, token).then((totals) => {
       if (!cancelled) setRouteTotals(totals);
@@ -13649,7 +13659,7 @@ function TripOverview({
       cancelled = true;
     };
   }, [routeKey]);
-  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals)}`;
+  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals || immediateRouteTotals)}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
