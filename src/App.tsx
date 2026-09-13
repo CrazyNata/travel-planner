@@ -2551,8 +2551,8 @@ async function loadRouteTotals(
   };
 }
 
-function routeTotalsLabel(routeTotals: RouteTotals | null) {
-  if (!routeTotals) return "";
+function routeTotalsLabel(routeTotals: RouteTotals | null, pending = false) {
+  if (!routeTotals) return pending ? " · расчёт…" : "";
   const distance = `${routeTotals.approximate ? "≈ " : ""}${Math.round(routeTotals.distance / 1000).toLocaleString("ru-RU")} км`;
   const duration = routeTotals.duration > 0
     ? ` · ${Math.round(routeTotals.duration / 3600)} ч`
@@ -7863,9 +7863,6 @@ function RouteTab({
       Boolean(draftDay.roadLeg) || editingRoadDay === sourceIndex,
   );
   const routePaths = routeDistancePathsFor(draftDays);
-  const immediateRouteTotals = routePaths
-    ? fallbackRouteTotals(routePaths)
-    : null;
   useEffect(
     () =>
       setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))),
@@ -7970,7 +7967,7 @@ function RouteTab({
                 "дня",
                 "дней",
               )}
-              {routeTotalsLabel(routeTotals || immediateRouteTotals)}
+              {routeTotalsLabel(routeTotals, Boolean(routePaths))}
             </b>
           </footer>
         </aside>
@@ -13637,9 +13634,6 @@ function TripOverview({
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const routeDays = (trip.days || []).filter((day) => day.roadLeg);
   const routePaths = routeDistancePathsFor(routeDays);
-  const immediateRouteTotals = routePaths
-    ? fallbackRouteTotals(routePaths)
-    : null;
   const routeKey = routeDays
     .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}:${day.roadLeg?.mapsUrl || ""}`)
     .join("|");
@@ -13659,7 +13653,7 @@ function TripOverview({
       cancelled = true;
     };
   }, [routeKey]);
-  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals || immediateRouteTotals)}`;
+  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals, Boolean(routePaths))}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
