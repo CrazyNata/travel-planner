@@ -2152,9 +2152,9 @@ type RouteTotals = {
 // 1. Preserve the ordered origin, waypoints, destination, and travel mode
 //    from the saved Google Maps link.
 // 2. Measure that ordered path with a road/path routing provider.
-// 3. Never mix straight-line segments into the displayed total. If the
-//    routing providers are unavailable, leave the distance blank until a
-//    complete network calculation is available.
+// 3. If a provider fails for a leg, use the ordered map path as a transparent
+//    fallback and mark the whole total as approximate so the distance does
+//    not disappear from the trip overview.
 const routeDistancePolicy = {
   endpointToleranceMeters: 75_000,
   maxConcurrentRequests: 3,
@@ -2323,6 +2323,28 @@ function straightLineDistanceMeters(
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function routePathDistanceMeters(coordinates: RouteCoordinate[]) {
+  return coordinates.slice(1).reduce(
+    (total, coordinate, index) =>
+      total + straightLineDistanceMeters(coordinates[index], coordinate),
+    0,
+  );
+}
+
+function fallbackRouteTotals(paths: RouteDistancePath[]): RouteTotals | null {
+  if (!paths.length) return null;
+  const distance = paths.reduce(
+    (total, path) => total + routePathDistanceMeters(path.coordinates),
+    0,
+  );
+  if (!Number.isFinite(distance) || distance <= 0) return null;
+  return {
+    distance,
+    duration: 0,
+    approximate: true,
+  };
+}
+
 function routeDistancePathsFor(days: DraftDay[]) {
   const routeDays = days.filter((day) => day.roadLeg);
   if (!routeDays.length) return null;
@@ -2433,6 +2455,8 @@ async function loadRouteTotals(
   paths: RouteDistancePath[],
   token: string,
 ): Promise<RouteTotals | null> {
+  const fallbackTotals = fallbackRouteTotals(paths);
+  if (!fallbackTotals) return null;
   const loadRoute = async ({ coordinates, profile }: RouteDistancePath) => {
     if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
     const path = coordinates.map(([longitude, latitude]) =>
@@ -2467,13 +2491,17 @@ async function loadRouteTotals(
       () => worker(),
     ),
   );
-  // A trip total is meaningful only when every leg was routed on the
-  // network. Never silently replace a failed leg with a straight-line sum.
-  if (routes.some((route) => !route)) return null;
-  const exactRoutes = routes as RoutedDistance[];
   return {
-    distance: exactRoutes.reduce((total, route) => total + route.distance, 0),
-    duration: exactRoutes.reduce((total, route) => total + route.duration, 0),
+    distance: paths.reduce(
+      (total, path, index) =>
+        total + (routes[index]?.distance ?? routePathDistanceMeters(path.coordinates)),
+      0,
+    ),
+    duration: routes.reduce(
+      (total, route) => total + (route?.duration || 0),
+      0,
+    ),
+    approximate: routes.some((route) => !route),
   };
 }
 
