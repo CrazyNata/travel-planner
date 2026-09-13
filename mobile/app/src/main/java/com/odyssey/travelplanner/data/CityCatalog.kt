@@ -155,6 +155,7 @@ private val cityFlags = mapOf(
     "мадрид" to "🇪🇸", "madrid" to "🇪🇸",
     "неаполь" to "🇮🇹", "naples" to "🇮🇹", "napoli" to "🇮🇹",
     "париж" to "🇫🇷", "paris" to "🇫🇷",
+    "ницца" to "🇫🇷", "nice" to "🇫🇷", "nizza" to "🇫🇷",
     "сиена" to "🇮🇹", "siena" to "🇮🇹",
     "сан-джиминьяно" to "🇮🇹", "san gimignano" to "🇮🇹",
     "стамбул" to "🇹🇷", "istanbul" to "🇹🇷", "i̇stanbul" to "🇹🇷",

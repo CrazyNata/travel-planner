@@ -14,7 +14,7 @@ enum class OnboardingExitAction {
     EXPLORE,
 }
 
-const val onboardingPageCount: Int = 3
+const val onboardingPageCount: Int = 7
 
 fun normalizeOnboardingPage(index: Int): Int =
     index.coerceIn(0, onboardingPageCount - 1)

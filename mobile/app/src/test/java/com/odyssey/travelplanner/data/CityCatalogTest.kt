@@ -39,6 +39,9 @@ class CityCatalogTest {
         assertEquals("🇫🇮", cityFlag("Helsinki, Finland"))
         assertEquals("🇩🇪", cityFlag("Дрезден"))
         assertEquals("🇩🇪", cityFlag("Dresden"))
+        assertEquals("🇫🇷", cityFlag("Ницца"))
+        assertEquals("🇫🇷", cityFlag("Nice"))
+        assertEquals("🇫🇷", cityFlag("Nizza"))
         assertEquals("📍", cityFlag("test city"))
     }
 

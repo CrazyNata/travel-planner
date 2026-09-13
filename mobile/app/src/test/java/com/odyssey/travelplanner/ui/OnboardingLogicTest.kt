@@ -7,12 +7,12 @@ import kotlin.test.assertTrue
 
 class OnboardingLogicTest {
     @Test
-    fun onboardingUsesExactlyThreePagesAndClampsNavigation() {
-        assertEquals(3, onboardingPageCount)
+    fun onboardingUsesSevenPagesAndClampsNavigation() {
+        assertEquals(7, onboardingPageCount)
         assertEquals(0, normalizeOnboardingPage(-1))
         assertEquals(0, normalizeOnboardingPage(0))
-        assertEquals(2, normalizeOnboardingPage(2))
-        assertEquals(2, normalizeOnboardingPage(3))
+        assertEquals(6, normalizeOnboardingPage(6))
+        assertEquals(6, normalizeOnboardingPage(7))
     }
 
     @Test

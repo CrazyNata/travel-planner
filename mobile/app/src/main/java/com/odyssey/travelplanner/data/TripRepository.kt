@@ -100,6 +100,7 @@ data class Accommodation(
     val bookingUrl: String,
     // Optional fields extend the existing JSON payload without requiring a new table.
     val deadline: String = "",
+    val currency: String = "",
     val rating: Double? = null,
     val source: String = "manual",
     val googlePlaceId: String = "",
@@ -159,24 +160,34 @@ private fun parseBudgetNumericAmount(value: String): Double? {
     return normalized.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
 }
 
-private fun accommodationBudgetCurrency(value: String): String? {
+internal fun accommodationCurrencyCode(value: String): String? {
     val normalized = value.trim().uppercase(Locale.ROOT)
     return when {
         normalized.startsWith("€") || normalized.endsWith("€") || normalized.startsWith("EUR") || normalized.endsWith("EUR") -> "EUR"
         normalized.startsWith("₽") || normalized.endsWith("₽") || normalized.startsWith("RUB") || normalized.endsWith("RUB") -> "RUB"
         normalized.startsWith("KČ") || normalized.endsWith("KČ") || normalized.startsWith("CZK") || normalized.endsWith("CZK") -> "CZK"
-        normalized.any { it in setOf('$', '£', '₺', '¥') } ||
-            listOf("USD", "GBP", "PLN", "CHF", "HUF", "TRY", "JPY").any(normalized::contains) -> null
-        else -> "EUR"
+        normalized.startsWith("$") || normalized.endsWith("$") || normalized.startsWith("USD") || normalized.endsWith("USD") -> "USD"
+        normalized.startsWith("£") || normalized.endsWith("£") || normalized.startsWith("GBP") || normalized.endsWith("GBP") -> "GBP"
+        normalized.startsWith("ZŁ") || normalized.endsWith("ZŁ") || normalized.startsWith("PLN") || normalized.endsWith("PLN") -> "PLN"
+        normalized.startsWith("CHF") || normalized.endsWith("CHF") -> "CHF"
+        normalized.startsWith("FT") || normalized.endsWith("FT") || normalized.startsWith("HUF") || normalized.endsWith("HUF") -> "HUF"
+        normalized.startsWith("₺") || normalized.endsWith("₺") || normalized.startsWith("TRY") || normalized.endsWith("TRY") -> "TRY"
+        normalized.startsWith("¥") || normalized.endsWith("¥") || normalized.startsWith("JPY") || normalized.endsWith("JPY") -> "JPY"
+        else -> null
     }
 }
+
+internal fun accommodationCurrencyForPrice(price: String, currency: String): String =
+    accommodationCurrencyCode(currency)
+        ?: accommodationCurrencyCode(price)
+        ?: "EUR"
 
 internal fun automaticAccommodationBudgetExpense(
     accommodation: Accommodation,
     currencyRate: (String) -> Double,
 ): BudgetExpense? {
     val amount = parseBudgetNumericAmount(accommodation.price) ?: return null
-    val currency = accommodationBudgetCurrency(accommodation.price) ?: return null
+    val currency = accommodationCurrencyForPrice(accommodation.price, accommodation.currency)
     val rate = currencyRate(currency).takeIf { it.isFinite() && it > 0.0 } ?: return null
     return BudgetExpense(
         id = "$AutomaticAccommodationBudgetExpensePrefix${accommodation.id}",
@@ -459,6 +470,7 @@ data class AccommodationInput(
     val phone: String = "",
     val type: String = "",
     val tripCityId: String = "",
+    val currency: String = "",
 )
 
 data class ExpenseInput(
@@ -720,6 +732,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                                 photos = emptyList(),
                                 bookingUrl = "",
                                 deadline = jsonText(accommodation["deadline"]),
+                                currency = jsonText(accommodation["currency"]),
                             )
                         },
                     )
@@ -803,6 +816,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 photos = accommodationPhotoReferences(accommodation),
                 bookingUrl = accommodationText("bookingUrl").ifBlank { accommodationText("externalUrl") },
                 deadline = accommodationText("deadline"),
+                currency = accommodationText("currency"),
                 rating = firstJsonDouble(
                     accommodation,
                     "rating",
@@ -2462,6 +2476,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             put("city", input.city.trim())
             put("dates", input.dates.trim())
             put("price", input.price.trim())
+            put("currency", accommodationCurrencyForPrice(input.price, input.currency))
             put("status", input.status)
             put("details", input.details.trim())
             put("bookingUrl", input.bookingUrl.trim())
@@ -2496,6 +2511,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("city", kotlinx.serialization.json.JsonPrimitive(input.city.trim()))
                 put("dates", kotlinx.serialization.json.JsonPrimitive(input.dates.trim()))
                 put("price", kotlinx.serialization.json.JsonPrimitive(input.price.trim()))
+                put("currency", kotlinx.serialization.json.JsonPrimitive(accommodationCurrencyForPrice(input.price, input.currency)))
                 put("status", kotlinx.serialization.json.JsonPrimitive(input.status))
                 put("details", kotlinx.serialization.json.JsonPrimitive(input.details.trim()))
                 put("bookingUrl", kotlinx.serialization.json.JsonPrimitive(input.bookingUrl.trim()))
