@@ -6761,6 +6761,9 @@ function AccountSettingIcon({
     | "password"
     | "photo"
     | "tutorial"
+    | "feedback"
+    | "info"
+    | "star"
     | "delete";
 }) {
   const paths = {
@@ -6801,6 +6804,19 @@ function AccountSettingIcon({
         <path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" />
       </>
     ),
+    feedback: (
+      <>
+        <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-5 3v-3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+        <path d="M8 10h8M8 13h5" />
+      </>
+    ),
+    info: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 10v6M12 7h.01" />
+      </>
+    ),
+    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.8-5.4 2.8 1-6-4.4-4.3 6.1-.9L12 3Z" />,
     delete: (
       <>
         <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
@@ -7015,6 +7031,21 @@ function Sidebar({
                   </div>
                 </div>
 
+                <p className="settings-label">Внешний вид</p>
+                <div className="settings-list">
+                  <button
+                    className="settings-row"
+                    type="button"
+                    onClick={() => onDarkThemeChange?.(!darkTheme)}
+                    aria-pressed={darkTheme}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="theme" /></span>
+                    <b>Тема</b>
+                    <small>{darkTheme ? "Тёмная" : "Светлая"}</small>
+                    <i>›</i>
+                  </button>
+                </div>
+
                 <p className="settings-label">Настройки аккаунта</p>
                 <div className="settings-list">
                   <button
@@ -7048,18 +7079,6 @@ function Sidebar({
                       ))}
                     </div>
                   )}
-                  <button
-                    className="settings-row"
-                    type="button"
-                    onClick={() => onDarkThemeChange?.(!darkTheme)}
-                    aria-pressed={darkTheme}
-                  >
-                    <span className="settings-icon"><AccountSettingIcon name="theme" /></span>
-                    <b>Тёмная тема</b>
-                    <span className={`settings-toggle ${darkTheme ? "on" : ""}`}>
-                      <i />
-                    </span>
-                  </button>
                   <button
                     className={`settings-row settings-notification-entry ${
                       panel === "notifications" ? "selected" : ""
@@ -7141,21 +7160,6 @@ function Sidebar({
                       </p>
                     </div>
                   )}
-                  {onShowTutorial && (
-                    <button
-                      className="settings-row"
-                      type="button"
-                      onClick={() => {
-                        closeSettings();
-                        close();
-                        onShowTutorial();
-                      }}
-                    >
-                      <span className="settings-icon"><AccountSettingIcon name="tutorial" /></span>
-                      <b>Показать обучение</b>
-                      <i>›</i>
-                    </button>
-                  )}
                   <button
                     className="settings-row"
                     type="button"
@@ -7206,7 +7210,52 @@ function Sidebar({
                   </button>
                 </div>
 
-                <p className="settings-version">Версия приложения · 0.2.18-beta</p>
+                <p className="settings-label">Поддержка</p>
+                <div className="settings-list">
+                  <a
+                    className="settings-row settings-row-link"
+                    href={`mailto:support@ramingo.online?subject=${encodeURIComponent("Ramingo — отзыв")}`}
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="feedback" /></span>
+                    <b>Отправить отзыв</b>
+                    <i>›</i>
+                  </a>
+                  {onShowTutorial && (
+                    <button
+                      className="settings-row"
+                      type="button"
+                      onClick={() => {
+                        closeSettings();
+                        close();
+                        onShowTutorial();
+                      }}
+                    >
+                      <span className="settings-icon"><AccountSettingIcon name="tutorial" /></span>
+                      <b>Показать обучение</b>
+                      <i>›</i>
+                    </button>
+                  )}
+                  <a
+                    className="settings-row settings-row-link"
+                    href="https://play.google.com/store/apps/details?id=com.odyssey.travelplanner"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="settings-icon"><AccountSettingIcon name="star" /></span>
+                    <b>Оценить Ramingo</b>
+                    <i>›</i>
+                  </a>
+                </div>
+
+                <p className="settings-label">О приложении</p>
+                <div className="settings-list">
+                  <div className="settings-row settings-row-static">
+                    <span className="settings-icon"><AccountSettingIcon name="info" /></span>
+                    <b>Версия приложения</b>
+                    <small>0.2.18-beta</small>
+                  </div>
+                </div>
+
                 <button
                   className="settings-logout"
                   type="button"

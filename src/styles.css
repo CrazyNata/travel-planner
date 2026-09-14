@@ -9831,6 +9831,20 @@ body.ramingo-onboarding-open {
   line-height: 1;
 }
 
+.settings-popover .settings-row-link {
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.settings-popover .settings-row-static {
+  cursor: default;
+}
+
+.settings-popover .settings-row-static:hover {
+  background: transparent;
+}
+
 .settings-icon {
   display: grid;
   width: 30px;
