@@ -1212,6 +1212,90 @@ async function saveUserData(key: string, value: unknown) {
   if (error) console.error(`Could not save ${key}.`, error);
 }
 
+function isUserDataObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type EmailNotificationPreferences = {
+  enabled: boolean;
+  paymentReminders: boolean;
+};
+
+const defaultEmailNotificationPreferences: EmailNotificationPreferences = {
+  // Keep the existing email behaviour for accounts created before these
+  // controls existed. An explicit false saved by the user turns it off.
+  enabled: true,
+  paymentReminders: true,
+};
+
+function preferenceIsEnabled(value: unknown, fallback = true) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "false") return false;
+    if (normalized === "true") return true;
+  }
+  return fallback;
+}
+
+function emailNotificationPreferencesFromValue(value: unknown): EmailNotificationPreferences {
+  if (!isUserDataObject(value)) return defaultEmailNotificationPreferences;
+  return {
+    enabled: preferenceIsEnabled(value.email_notifications_enabled),
+    paymentReminders: preferenceIsEnabled(value.email_payment_reminders_enabled),
+  };
+}
+
+async function loadEmailNotificationPreferences(): Promise<EmailNotificationPreferences> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return defaultEmailNotificationPreferences;
+  const { data, error } = await supabase
+    .from("user_data")
+    .select("value")
+    .eq("user_id", session.user.id)
+    .eq("key", "account_profile")
+    .maybeSingle();
+  if (error) throw error;
+  return emailNotificationPreferencesFromValue(data?.value);
+}
+
+async function updateEmailNotificationPreferences(
+  patch: Partial<EmailNotificationPreferences>,
+) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) throw new Error("Not authenticated");
+  const { data: current, error: loadError } = await supabase
+    .from("user_data")
+    .select("value")
+    .eq("user_id", session.user.id)
+    .eq("key", "account_profile")
+    .maybeSingle();
+  if (loadError) throw loadError;
+  const currentValue = isUserDataObject(current?.value) ? current.value : {};
+  const nextValue = {
+    ...currentValue,
+    ...(patch.enabled === undefined
+      ? {}
+      : { email_notifications_enabled: patch.enabled }),
+    ...(patch.paymentReminders === undefined
+      ? {}
+      : { email_payment_reminders_enabled: patch.paymentReminders }),
+  };
+  const { error } = await supabase.from("user_data").upsert(
+    {
+      user_id: session.user.id,
+      key: "account_profile",
+      value: nextValue,
+    },
+    { onConflict: "user_id,key" },
+  );
+  if (error) throw error;
+}
+
 async function loadWebOnboardingCompleted(userId: string) {
   const { data, error } = await supabase
     .from("user_data")
@@ -6669,7 +6753,15 @@ function AccommodationCityPicker({
 function AccountSettingIcon({
   name,
 }: {
-  name: "language" | "theme" | "password" | "photo" | "tutorial" | "delete";
+  name:
+    | "language"
+    | "theme"
+    | "notifications"
+    | "calendar"
+    | "password"
+    | "photo"
+    | "tutorial"
+    | "delete";
 }) {
   const paths = {
     language: (
@@ -6679,6 +6771,17 @@ function AccountSettingIcon({
       </>
     ),
     theme: <path d="M20 15.4A8 8 0 0 1 8.6 4a8.5 8.5 0 1 0 11.4 11.4Z" />,
+    notifications: (
+      <>
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="4" y="5" width="16" height="15" rx="2" />
+        <path d="M8 3v4M16 3v4M4 10h16" />
+      </>
+    ),
     password: (
       <>
         <rect x="5" y="10" width="14" height="10" rx="2" />
@@ -6735,8 +6838,19 @@ function Sidebar({
   onShowTutorial?: () => void;
 }) {
   const [settings, setSettings] = useState(false);
-  const [panel, setPanel] = useState<"language" | "photo" | "password" | null>(null);
+  const [panel, setPanel] = useState<
+    "language" | "notifications" | "photo" | "password" | null
+  >(null);
   const [interfaceLanguage, setInterfaceLanguage] = useState<"ru" | "en" | "es" | "de">("ru");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [notificationPreferences, setNotificationPreferences] = useState<EmailNotificationPreferences>(
+    defaultEmailNotificationPreferences,
+  );
+  const [notificationLoading, setNotificationLoading] = useState(true);
+  const [notificationSaving, setNotificationSaving] = useState<
+    "enabled" | "paymentReminders" | null
+  >(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
   const interfaceLanguages = [
     ["ru", "Русский", "RU"],
     ["en", "English", "EN"],
@@ -6750,6 +6864,7 @@ function Sidebar({
     let active = true;
     void supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) return;
+      if (active) setProfileEmail(data.session.user.email || "");
       const { data: preference, error } = await supabase
         .from("user_data")
         .select("value")
@@ -6773,6 +6888,49 @@ function Sidebar({
       active = false;
     };
   }, []);
+  useEffect(() => {
+    let active = true;
+    void loadEmailNotificationPreferences()
+      .then((preferences) => {
+        if (active) setNotificationPreferences(preferences);
+      })
+      .catch((error) => {
+        console.error("Could not load email notification preferences.", error);
+        if (active) setNotificationError("Не удалось загрузить настройки уведомлений.");
+      })
+      .finally(() => {
+        if (active) setNotificationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const toggleNotificationPreference = async (
+    key: "enabled" | "paymentReminders",
+  ) => {
+    if (notificationLoading || notificationSaving) return;
+    const previous = notificationPreferences;
+    const next = !previous[key];
+    setNotificationPreferences({ ...previous, [key]: next });
+    setNotificationSaving(key);
+    setNotificationError(null);
+    try {
+      await updateEmailNotificationPreferences(
+        key === "enabled" ? { enabled: next } : { paymentReminders: next },
+      );
+    } catch (error) {
+      console.error("Could not save email notification preferences.", error);
+      setNotificationPreferences(previous);
+      setNotificationError("Не удалось сохранить настройки. Попробуйте ещё раз.");
+    } finally {
+      setNotificationSaving(null);
+    }
+  };
+  const notificationStatus = !notificationPreferences.enabled
+    ? "Выключены"
+    : notificationPreferences.paymentReminders
+      ? "Включены"
+      : "Частично";
   const closeSettings = () => {
     setSettings(false);
     setPanel(null);
@@ -6902,6 +7060,87 @@ function Sidebar({
                       <i />
                     </span>
                   </button>
+                  <button
+                    className={`settings-row settings-notification-entry ${
+                      panel === "notifications" ? "selected" : ""
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      setNotificationError(null);
+                      setPanel(panel === "notifications" ? null : "notifications");
+                    }}
+                    aria-expanded={panel === "notifications"}
+                  >
+                    <span className="settings-icon">
+                      <AccountSettingIcon name="notifications" />
+                    </span>
+                    <span className="settings-row-copy">
+                      <b>Уведомления</b>
+                      <small>Email-напоминания о жилье</small>
+                    </span>
+                    <span className="settings-status">{notificationStatus}</span>
+                    <i>{panel === "notifications" ? "⌃" : "›"}</i>
+                  </button>
+                  {panel === "notifications" && (
+                    <div className="settings-panel notification-settings-panel">
+                      <div className="notification-settings-intro">
+                        <b>Email-уведомления</b>
+                        <small>
+                          Письма будут приходить на {profileEmail || "email вашего аккаунта"}.
+                        </small>
+                      </div>
+                      <div className="notification-setting-row">
+                        <span className="settings-icon"><AccountSettingIcon name="notifications" /></span>
+                        <span className="notification-setting-copy">
+                          <b>Все email-уведомления</b>
+                          <small>Разрешить письма от Ramingo</small>
+                        </span>
+                        <button
+                          className={`settings-toggle ${notificationPreferences.enabled ? "on" : ""}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={notificationPreferences.enabled}
+                          aria-label="Все email-уведомления"
+                          disabled={notificationLoading || notificationSaving !== null}
+                          onClick={() => void toggleNotificationPreference("enabled")}
+                        >
+                          <i />
+                        </button>
+                      </div>
+                      <div className="notification-setting-row">
+                        <span className="settings-icon"><AccountSettingIcon name="calendar" /></span>
+                        <span className="notification-setting-copy">
+                          <b>Оплата жилья</b>
+                          <small>За 3 дня и в день дедлайна</small>
+                        </span>
+                        <button
+                          className={`settings-toggle ${notificationPreferences.paymentReminders ? "on" : ""}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={notificationPreferences.paymentReminders}
+                          aria-label="Напоминания об оплате жилья"
+                          disabled={notificationLoading || notificationSaving !== null}
+                          onClick={() => void toggleNotificationPreference("paymentReminders")}
+                        >
+                          <i />
+                        </button>
+                      </div>
+                      {notificationLoading && (
+                        <small className="notification-settings-state">Загружаем настройки…</small>
+                      )}
+                      {notificationSaving && (
+                        <small className="notification-settings-state">Сохраняем…</small>
+                      )}
+                      {notificationError && (
+                        <small className="notification-settings-error" role="alert">
+                          {notificationError}
+                        </small>
+                      )}
+                      <p className="notification-settings-note">
+                        Сейчас доступны напоминания об оплате жилья: за 3 дня до дедлайна и в день оплаты.
+                      </p>
+                    </div>
+                  )}
                   {onShowTutorial && (
                     <button
                       className="settings-row"

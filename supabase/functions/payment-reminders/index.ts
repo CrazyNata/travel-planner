@@ -23,12 +23,35 @@ type TripRow = {
   payload: unknown;
 };
 
+type UserDataRow = {
+  user_id: string;
+  value: unknown;
+};
+
 const PROJECT_SITE_URL = "https://ramingo.online";
 const DEFAULT_TIME_ZONE = "Europe/Prague";
 const REMINDER_HEADER = "x-payment-reminders-secret";
 
 const isJsonObject = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+function preferenceIsEnabled(value: unknown, fallback = true) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "false") return false;
+    if (normalized === "true") return true;
+  }
+  return fallback;
+}
+
+function emailNotificationsEnabled(value: unknown) {
+  if (!isJsonObject(value)) return true;
+  return (
+    preferenceIsEnabled(value.email_notifications_enabled) &&
+    preferenceIsEnabled(value.email_payment_reminders_enabled)
+  );
+}
 
 const stringValue = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -323,6 +346,21 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const { data: profileRows, error: profileError } = await admin
+    .from("user_data")
+    .select("user_id,value")
+    .eq("key", "account_profile");
+  if (profileError) {
+    // Preferences are optional for older accounts. Keep the historical
+    // default (enabled) if the lookup is temporarily unavailable.
+    console.error("payment-reminders: profile lookup failed", profileError);
+  }
+  const emailNotificationsByOwner = new Map(
+    ((profileRows || []) as UserDataRow[]).map((row) => [
+      row.user_id,
+      emailNotificationsEnabled(row.value),
+    ]),
+  );
   const { data, error } = await admin
     .from("trips")
     .select("id,owner_id,payload");
@@ -334,6 +372,7 @@ Deno.serve(async (request) => {
   const remindersByOwner = new Map<string, PaymentReminder[]>();
   let paidSkipped = 0;
   let invalidSkipped = 0;
+  let skippedByPreferences = 0;
   for (const row of (data || []) as TripRow[]) {
     if (!row.owner_id || !isJsonObject(row.payload)) {
       invalidSkipped += 1;
@@ -344,6 +383,10 @@ Deno.serve(async (request) => {
       .map((stay, index) => reminderFromStay(row, row.payload as JsonObject, stay, index, today));
     const paidCount = accommodationsFromPayload(row.payload).filter(accommodationIsPaid).length;
     paidSkipped += paidCount;
+    if (emailNotificationsByOwner.get(row.owner_id) === false) {
+      skippedByPreferences += tripReminders.filter((reminder) => reminder !== null).length;
+      continue;
+    }
     for (const reminder of tripReminders) {
       if (!reminder) continue;
       const ownerReminders = remindersByOwner.get(row.owner_id) || [];
@@ -369,6 +412,7 @@ Deno.serve(async (request) => {
       })),
       paidSkipped,
       invalidSkipped,
+      skippedByPreferences,
     });
   }
 
@@ -416,6 +460,7 @@ Deno.serve(async (request) => {
     skippedWithoutEmail,
     paidSkipped,
     invalidSkipped,
+    skippedByPreferences,
     failures: failures.length,
   }, failures.length ? 502 : 200);
 });

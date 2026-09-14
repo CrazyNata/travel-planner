@@ -11392,6 +11392,188 @@ body.ramingo-onboarding-open {
 .settings-row b { font-size: 12px; }
 .settings-row small { font-size: 10px; }
 .settings-row > i { font-size: 20px; }
+
+.settings-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.settings-row-copy b,
+.settings-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-notification-entry {
+  position: relative;
+  background: linear-gradient(90deg, #fff, #fbfaff) !important;
+}
+
+.settings-notification-entry::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #7661e5;
+  content: "";
+}
+
+.settings-notification-entry.selected,
+.settings-notification-entry:hover {
+  background: #faf8ff !important;
+}
+
+.settings-notification-entry .settings-icon {
+  background: #f0edff;
+}
+
+.settings-status {
+  margin-left: auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #5d4bd5;
+  background: #eeeafd;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.notification-settings-panel {
+  gap: 0 !important;
+  padding: 0 10px 10px !important;
+  background: #fbfafd !important;
+}
+
+.notification-settings-intro {
+  display: grid;
+  gap: 3px;
+  padding: 10px 0 8px;
+}
+
+.notification-settings-intro b {
+  color: #35313f;
+  font-size: 11px;
+}
+
+.notification-settings-intro small,
+.notification-setting-copy small,
+.notification-settings-note,
+.notification-settings-state,
+.notification-settings-error {
+  color: #92909d;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.notification-setting-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 7px;
+  min-height: 49px;
+  border-top: 1px solid #e9e6ed;
+}
+
+.notification-setting-row .settings-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #f0edff;
+  color: #765ee0;
+}
+
+.notification-setting-row .settings-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.notification-setting-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.notification-setting-copy b {
+  overflow: hidden;
+  color: #35313f;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-setting-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-setting-row .settings-toggle {
+  grid-column: auto;
+  width: 38px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.notification-setting-row .settings-toggle:disabled {
+  cursor: wait;
+  opacity: .58;
+}
+
+.notification-settings-state,
+.notification-settings-error {
+  display: block;
+  padding: 6px 0 0;
+}
+
+.notification-settings-error {
+  color: #c64f56;
+}
+
+.notification-settings-note {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #e9e6ed;
+}
+
+.settings-popover.dark .settings-notification-entry {
+  background: linear-gradient(90deg, #2b2737, #302b3e) !important;
+}
+
+.settings-popover.dark .settings-notification-entry.selected,
+.settings-popover.dark .settings-notification-entry:hover,
+.settings-popover.dark .notification-settings-panel {
+  background: #332e40 !important;
+}
+
+.settings-popover.dark .settings-status {
+  color: #c0b7ff;
+  background: #40366d;
+}
+
+.settings-popover.dark .notification-settings-intro b,
+.settings-popover.dark .notification-setting-copy b {
+  color: #f7f5fb;
+}
+
+.settings-popover.dark .notification-setting-row,
+.settings-popover.dark .notification-settings-note {
+  border-color: #403b4e;
+}
+
+.settings-popover.dark .notification-settings-intro small,
+.settings-popover.dark .notification-setting-copy small,
+.settings-popover.dark .notification-settings-note,
+.settings-popover.dark .notification-settings-state {
+  color: #aaa5b5;
+}
+
 .settings-icon { width: 24px; height: 24px; border-radius: 8px; font-size: 15px; }
 .settings-icon svg {
   width: 16px;
