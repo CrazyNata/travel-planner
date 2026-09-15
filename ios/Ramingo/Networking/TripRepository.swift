@@ -6,6 +6,8 @@ struct TripRow: Decodable, Sendable {
     let ownerID: String?
     let revision: Int?
 
+    var payloadObject: [String: JSONValue] { payload.objectValue ?? [:] }
+
     enum CodingKeys: String, CodingKey {
         case id
         case payload
@@ -331,7 +333,7 @@ final class TripRepository {
         fields: [String: JSONValue],
     ) async throws {
         let current = try await loadRow(id: id)
-        var values = current.payload.array(section)
+        var values = current.payloadObject.array(section)
         guard let index = itemIndex(in: values, itemID: itemID), var object = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Элемент не найден.")
         }
@@ -346,7 +348,7 @@ final class TripRepository {
         itemID: String,
     ) async throws -> (TripRow, JSONValue?) {
         let current = try await loadRow(id: id)
-        let values = current.payload.array(section)
+        let values = current.payloadObject.array(section)
         let removed = values.first { arrayItemID($0) == itemID }
         let remaining = values.filter { arrayItemID($0) != itemID }
         guard removed != nil else {
@@ -480,7 +482,7 @@ final class TripRepository {
         if nextItem["id"]?.stringValue?.isEmpty != false {
             nextItem["id"] = .string(UUID().uuidString.lowercased())
         }
-        var values = current.payload.array(section)
+        var values = current.payloadObject.array(section)
         values.append(.object(nextItem))
         try await patchArray(id: id, section: section, current: current, values: values)
     }
@@ -556,7 +558,7 @@ final class TripRepository {
                 "completed": .array([]),
             ]),
         ]
-        var values = current.payload.array("days")
+        var values = current.payloadObject.array("days")
         values.append(.object(day))
         try await patchArray(id: id, section: "days", current: current, values: values)
     }
@@ -583,7 +585,7 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("Укажите оба города маршрута.")
         }
         let current = try await loadRow(id: id)
-        let values = current.payload.array("days")
+        let values = current.payloadObject.array("days")
         guard let index = itemIndex(in: values, itemID: dayID), var day = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Переезд не найден.")
         }
@@ -611,7 +613,7 @@ final class TripRepository {
     func reorderRouteLegs(id: String, orderedDayIDs: [String]) async throws {
         guard !orderedDayIDs.isEmpty else { return }
         let current = try await loadRow(id: id)
-        let days = current.payload.array("days")
+        let days = current.payloadObject.array("days")
         let routeItems = days.filter { value in
             let road = value.objectValue?.object("roadLeg") ?? [:]
             return !road.text("from").isEmpty && !road.text("to").isEmpty
@@ -642,7 +644,7 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("Порядок жилья содержит дубликаты.")
         }
         let current = try await loadRow(id: id)
-        let accommodations = current.payload.array("accommodations")
+        let accommodations = current.payloadObject.array("accommodations")
         guard !accommodations.isEmpty else { return }
 
         let accommodationIDs = accommodations.map(arrayItemID)
@@ -655,7 +657,7 @@ final class TripRepository {
 
         let byID = Dictionary(uniqueKeysWithValues: accommodations.map { (arrayItemID($0), $0) })
         let reordered = orderedAccommodationIDs.compactMap { byID[$0] }
-        let storedOrder = current.payload.array("accommodationOrder").compactMap(\.stringValue)
+        let storedOrder = current.payloadObject.array("accommodationOrder").compactMap(\.stringValue)
         guard reordered != accommodations || storedOrder != orderedAccommodationIDs else { return }
         try await patchPayload(
             id: id,
@@ -677,7 +679,7 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("Укажите название группы и количество участников.")
         }
         let current = try await loadRow(id: id)
-        var split = current.payload.object("budgetSplit")
+        var split = current.payloadObject.object("budgetSplit")
         var groups = split["groups"]?.arrayValue ?? []
         groups.append(.object([
             "id": .string(UUID().uuidString.lowercased()),
@@ -694,7 +696,7 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("Укажите название группы и количество участников.")
         }
         let current = try await loadRow(id: id)
-        var split = current.payload.object("budgetSplit")
+        var split = current.payloadObject.object("budgetSplit")
         var groups = split["groups"]?.arrayValue ?? []
         guard let index = groups.firstIndex(where: { group in
             let object = group.objectValue ?? [:]
@@ -712,7 +714,7 @@ final class TripRepository {
 
     func deleteBudgetGroup(id: String, groupID: String) async throws {
         let current = try await loadRow(id: id)
-        let groups = current.payload.object("budgetSplit").array("groups")
+        let groups = current.payloadObject.object("budgetSplit").array("groups")
         let remaining = groups.filter { group in
             let object = group.objectValue ?? [:]
             return object.text("id", fallback: object.text("name")) != groupID
@@ -720,7 +722,7 @@ final class TripRepository {
         guard remaining.count != groups.count else {
             throw SupabaseClientError.server(status: 404, message: "Группа бюджета не найдена.")
         }
-        var split = current.payload.object("budgetSplit")
+        var split = current.payloadObject.object("budgetSplit")
         split["groups"] = .array(remaining)
         try await patchPayload(id: id, patch: ["budgetSplit": .object(split)], expectedRevision: current.revision ?? 0)
     }
@@ -760,23 +762,21 @@ final class TripRepository {
         guard role == "Редактор" || role == "Читатель" else {
             throw SupabaseClientError.invalidInput("Недопустимая роль участника.")
         }
-        try await client.invokeFunction(
-            "send-invite",
-            body: [
-                "email": .string(cleanEmail),
-                "name": .string(cleanName),
-                "role": .string(role),
-                "tripId": .string(id),
-                "redirectTo": .string("https://ramingo.online/mobile/invite?tripId=\(id)"),
-            ],
-        )
+        let body: [String: JSONValue] = [
+            "email": .string(cleanEmail),
+            "name": .string(cleanName),
+            "role": .string(role),
+            "tripId": .string(id),
+            "redirectTo": .string("https://ramingo.online/mobile/invite?tripId=\(id)"),
+        ]
+        try await client.invokeFunction("send-invite", body: body)
     }
 
     func addCatalogItem(id: String, entry: CatalogEntry, walkDay: Int) async throws {
         let current = try await loadRow(id: id)
         let section = entry.kind.tripSection
         var item = entry.tripPayload(walkDay: max(walkDay, 1))
-        var values = current.payload.array(section)
+        var values = current.payloadObject.array(section)
         if section == "sights" {
             item["walkOrder"] = .number(Double(values.count))
         }
@@ -796,7 +796,7 @@ final class TripRepository {
     func reorderSights(id: String, orderedSightIDs: [String]) async throws {
         guard !orderedSightIDs.isEmpty else { return }
         let current = try await loadRow(id: id)
-        let sights = current.payload.array("sights")
+        let sights = current.payloadObject.array("sights")
         let sightIDs = sights.map(arrayItemID)
         guard orderedSightIDs.count == sightIDs.count,
               orderedSightIDs.count == Set(orderedSightIDs).count,
@@ -824,14 +824,14 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("Дни изменились. Обновите экран и повторите попытку.")
         }
         let current = try await loadRow(id: id)
-        let dayValues = current.payload.array("sightDays")
+        let dayValues = current.payloadObject.array("sightDays")
         guard !dayValues.isEmpty else { return }
         let byID = Dictionary(uniqueKeysWithValues: dayValues.enumerated().map { index, value in
             ((value.objectValue ?? [:]).text("id", fallback: "sights-day-\(index + 1)"), value)
         })
         guard currentDayIDs.allSatisfy({ byID[$0] != nil }) else { return }
         let nextDays = orderedDayIDs.compactMap { byID[$0] }
-        var nextSights = current.payload.array("sights")
+        var nextSights = current.payloadObject.array("sights")
         let dayIndexByID = Dictionary(uniqueKeysWithValues: orderedDayIDs.enumerated().map { ($1, $0 + 1) })
         let oldDayIDByIndex = Dictionary(uniqueKeysWithValues: currentDayIDs.enumerated().map { ($0 + 1, $1) })
         nextSights = nextSights.map { value in
@@ -859,7 +859,7 @@ final class TripRepository {
             throw SupabaseClientError.invalidInput("День достопримечательностей не указан.")
         }
         let current = try await loadRow(id: id)
-        var notesByDay = current.payload.object("sightNotes")
+        var notesByDay = current.payloadObject.object("sightNotes")
         let cleaned = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.isEmpty {
             notesByDay.removeValue(forKey: dayID)
@@ -873,7 +873,7 @@ final class TripRepository {
         let dayNumber = max(walkDay, 1)
         let current = try await loadRow(id: id)
         var patch = [String: JSONValue]()
-        let sights = current.payload.array("sights")
+        let sights = current.payloadObject.array("sights")
         let remainingSights = sights.compactMap { value -> JSONValue? in
             guard var object = value.objectValue else { return value }
             guard let itemDay = object.integer("walkDay") else { return value }
@@ -883,7 +883,7 @@ final class TripRepository {
         }
         if remainingSights != sights { patch["sights"] = .array(remainingSights) }
 
-        let days = current.payload.array("sightDays")
+        let days = current.payloadObject.array("sightDays")
         if dayNumber <= days.count {
             let removedDayID = arrayItemID(days[dayNumber - 1])
             var remainingDays = days
@@ -891,7 +891,7 @@ final class TripRepository {
             patch["sightDays"] = .array(remainingDays)
             patch["sightDaysVersion"] = .number(1)
             if !removedDayID.isEmpty {
-                var notes = current.payload.object("sightNotes")
+                var notes = current.payloadObject.object("sightNotes")
                 notes.removeValue(forKey: removedDayID)
                 patch["sightNotes"] = .object(notes)
             }
@@ -907,14 +907,14 @@ final class TripRepository {
         try await client.uploadStorageObject(path: path, data: data)
         let reference = "storage://trip-photos/\(path)"
         do {
-            var photos = current.payload.array("coverPhotos")
+            var photos = current.payloadObject.array("coverPhotos")
             photos.append(.object([
                 "id": .string(UUID().uuidString.lowercased()),
                 "image": .string(reference),
                 "city": .string(city.trimmed),
             ]))
             var patch: [String: JSONValue] = ["coverPhotos": .array(photos)]
-            if current.payload.text("coverImage").isEmpty {
+            if current.payloadObject.text("coverImage").isEmpty {
                 patch["coverImage"] = .string(reference)
             }
             try await patchPayload(id: id, patch: patch, expectedRevision: current.revision ?? 0)
@@ -926,8 +926,8 @@ final class TripRepository {
 
     func deleteCoverPhoto(id: String, photoID: String) async throws {
         let current = try await loadRow(id: id)
-        let photos = current.payload.array("coverPhotos")
-        if photos.isEmpty, photoID == "legacy", let reference = current.payload.text("coverImage").nonEmpty {
+        let photos = current.payloadObject.array("coverPhotos")
+        if photos.isEmpty, photoID == "legacy", let reference = current.payloadObject.text("coverImage").nonEmpty {
             try await patchPayload(id: id, patch: ["coverImage": .string("")], expectedRevision: current.revision ?? 0)
             await client.deleteStorageReference(reference)
             return
@@ -939,7 +939,7 @@ final class TripRepository {
         var remaining = photos
         remaining.remove(at: index)
         var patch: [String: JSONValue] = ["coverPhotos": .array(remaining)]
-        if current.payload.text("coverImage") == removed.objectValue?.text("image") {
+        if current.payloadObject.text("coverImage") == removed.objectValue?.text("image") {
             let nextCover = remaining.first.flatMap { $0.objectValue?.text("image").nonEmpty }
             patch["coverImage"] = nextCover.map(JSONValue.string) ?? .string("")
         }
@@ -956,7 +956,7 @@ final class TripRepository {
         guard !data.isEmpty else { throw SupabaseClientError.invalidInput("Не удалось прочитать изображение.") }
         guard let userID = client.currentUser?.id else { throw SupabaseClientError.cancelled }
         let current = try await loadRow(id: id)
-        let values = current.payload.array(section)
+        let values = current.payloadObject.array(section)
         guard let index = itemIndex(in: values, itemID: itemID), var item = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Элемент не найден.")
         }
@@ -986,7 +986,7 @@ final class TripRepository {
         guard !data.isEmpty else { throw SupabaseClientError.invalidInput("Не удалось прочитать изображение.") }
         guard let userID = client.currentUser?.id else { throw SupabaseClientError.cancelled }
         let current = try await loadRow(id: id)
-        let values = current.payload.array(section)
+        let values = current.payloadObject.array(section)
         guard let index = itemIndex(in: values, itemID: itemID), var item = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Элемент не найден.")
         }
@@ -1025,7 +1025,7 @@ final class TripRepository {
     func moveItemPhoto(id: String, section: String, itemID: String, photoIndex: Int, direction: Int) async throws {
         guard direction == -1 || direction == 1 else { return }
         let current = try await loadRow(id: id)
-        var values = current.payload.array(section)
+        var values = current.payloadObject.array(section)
         guard let index = itemIndex(in: values, itemID: itemID), var item = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Элемент не найден.")
         }
@@ -1040,7 +1040,7 @@ final class TripRepository {
 
     func deleteItemPhoto(id: String, section: String, itemID: String, photoIndex: Int) async throws {
         let current = try await loadRow(id: id)
-        var values = current.payload.array(section)
+        var values = current.payloadObject.array(section)
         guard let index = itemIndex(in: values, itemID: itemID), var item = values[index].objectValue else {
             throw SupabaseClientError.server(status: 404, message: "Элемент не найден.")
         }
@@ -1131,9 +1131,9 @@ final class TripRepository {
                     photoPosition: object.integer("photoPosition"),
                 )
             },
-            sightNotes: payload.object("sightNotes").compactMapValues { $0.stringValue },
             restaurants: restaurants(from: payload),
             petPlaces: pets(from: payload),
+            sightNotes: payload.object("sightNotes").compactMapValues { $0.stringValue },
             canEdit: role == "Владелец" || role == "Редактор",
             currentUserRole: role,
         )
@@ -1177,7 +1177,7 @@ final class TripRepository {
     }
 
     private func accommodations(from payload: [String: JSONValue]) -> [Accommodation] {
-        let parsed = payload.array("accommodations").compactMap { value in
+        let parsed = payload.array("accommodations").compactMap { value -> Accommodation? in
             let object = value.objectValue ?? [:]
             guard let name = object.text("name").nonEmpty else { return nil }
             return Accommodation(
@@ -1249,7 +1249,7 @@ final class TripRepository {
     }
 
     private func sights(from payload: [String: JSONValue]) -> [Sight] {
-        let parsed = payload.array("sights").enumerated().compactMap { index, value in
+        let parsed = payload.array("sights").enumerated().compactMap { index, value -> Sight? in
             let object = value.objectValue ?? [:]
             guard let name = object.text("name").nonEmpty else { return nil }
             let lngLat = object.array("lnglat").compactMap(\.doubleValue)
