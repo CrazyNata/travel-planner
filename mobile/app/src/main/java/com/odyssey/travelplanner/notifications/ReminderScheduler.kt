@@ -40,6 +40,7 @@ private const val ACTION_EXACT_ALARM_PERMISSION_STATE_CHANGED =
 internal enum class ReminderKind {
     TRIP,
     FREE_CANCELLATION,
+    PAYMENT,
 }
 
 internal data class ReminderTrip(
@@ -72,6 +73,7 @@ internal object ReminderPlanner {
 
     private val tripReminderDays = listOf(30L, 14L, 7L, 3L, 1L)
     private val cancellationReminderDays = listOf(7L, 3L, 1L, 0L)
+    private val paymentReminderDays = listOf(3L, 0L)
 
     fun plan(
         trips: List<TripCard>,
@@ -81,6 +83,7 @@ internal object ReminderPlanner {
         zone: ZoneId = ZoneId.systemDefault(),
         tripRemindersEnabled: Boolean = true,
         cancellationRemindersEnabled: Boolean = true,
+        paymentRemindersEnabled: Boolean = true,
         reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> = planReminderTrips(
         trips = trips.map { trip ->
@@ -98,6 +101,7 @@ internal object ReminderPlanner {
         zone = zone,
         tripRemindersEnabled = tripRemindersEnabled,
         cancellationRemindersEnabled = cancellationRemindersEnabled,
+        paymentRemindersEnabled = paymentRemindersEnabled,
         reminderHour = reminderHour,
     )
 
@@ -109,6 +113,7 @@ internal object ReminderPlanner {
         zone: ZoneId = ZoneId.systemDefault(),
         tripRemindersEnabled: Boolean = true,
         cancellationRemindersEnabled: Boolean = true,
+        paymentRemindersEnabled: Boolean = true,
         reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> = trips
         .flatMap {
@@ -120,6 +125,7 @@ internal object ReminderPlanner {
                 zone = zone,
                 tripRemindersEnabled = tripRemindersEnabled,
                 cancellationRemindersEnabled = cancellationRemindersEnabled,
+                paymentRemindersEnabled = paymentRemindersEnabled,
                 reminderHour = reminderHour,
             )
         }
@@ -134,6 +140,7 @@ internal object ReminderPlanner {
         zone: ZoneId = ZoneId.systemDefault(),
         tripRemindersEnabled: Boolean = true,
         cancellationRemindersEnabled: Boolean = true,
+        paymentRemindersEnabled: Boolean = true,
         reminderHour: Int = REMINDER_HOUR,
     ): List<ReminderEvent> {
         if (isFinishedTrip(trip.status)) return emptyList()
@@ -169,6 +176,29 @@ internal object ReminderPlanner {
                         cancellationReminderDays.forEach { daysBefore ->
                             reminderAt(
                                 kind = ReminderKind.FREE_CANCELLATION,
+                                accountId = accountId,
+                                trip = trip,
+                                accommodation = accommodation,
+                                targetDate = deadline,
+                                daysRemaining = daysBefore,
+                                triggerDate = deadline.minusDays(daysBefore),
+                                language = language,
+                                now = now,
+                                zone = zone,
+                                reminderHour = reminderHour,
+                            )?.let(::add)
+                        }
+                    }
+            }
+
+            if (paymentRemindersEnabled) {
+                trip.accommodations
+                    .filterNot { accommodation -> isNonPayableAccommodation(accommodation.status) }
+                    .forEach { accommodation ->
+                        val deadline = parseSingleDate(accommodation.paymentDeadline) ?: return@forEach
+                        paymentReminderDays.forEach { daysBefore ->
+                            reminderAt(
+                                kind = ReminderKind.PAYMENT,
                                 accountId = accountId,
                                 trip = trip,
                                 accommodation = accommodation,
@@ -224,6 +254,7 @@ internal object ReminderPlanner {
         val kindKey = when (kind) {
             ReminderKind.TRIP -> "trip"
             ReminderKind.FREE_CANCELLATION -> "cancellation"
+            ReminderKind.PAYMENT -> "payment"
         }
         val itemKey = accommodation?.id ?: "trip"
         val key = "$accountId:$kindKey:${trip.id}:$itemKey:$daysRemaining"
@@ -280,6 +311,33 @@ internal object ReminderPlanner {
                         "${daysRemaining.toEnglishDays()} left to cancel «$place» for free",
                         "Quedan ${daysRemaining.toSpanishDays()} para cancelar «$place» gratis",
                         "Noch ${daysRemaining.toGermanDays()}, um «$place» kostenlos zu stornieren",
+                    )
+                }
+            }
+
+            ReminderKind.PAYMENT -> {
+                notificationTitle = localized(
+                    language,
+                    "Оплата жилья",
+                    "Accommodation payment",
+                    "Pago del alojamiento",
+                    "Unterkunft bezahlen",
+                )
+                notificationText = if (daysRemaining == 0L) {
+                    localized(
+                        language,
+                        "Сегодня нужно оплатить «$place»",
+                        "Pay for «$place» today",
+                        "Hoy hay que pagar «$place»",
+                        "«$place» heute bezahlen",
+                    )
+                } else {
+                    localized(
+                        language,
+                        "До оплаты «$place» осталось ${daysRemaining.toRussianDays()}",
+                        "${daysRemaining.toEnglishDays()} left to pay for «$place»",
+                        "Faltan ${daysRemaining.toSpanishDays()} para pagar «$place»",
+                        "Noch ${daysRemaining.toGermanDays()}, um «$place» zu bezahlen",
                     )
                 }
             }
@@ -354,6 +412,20 @@ internal object ReminderPlanner {
     private fun isStayedAccommodation(status: String): Boolean {
         val normalized = status.trim().lowercase(Locale.ROOT)
         return listOf("пожил", "stayed", "visited", "past").any(normalized::contains)
+    }
+
+    private fun isNonPayableAccommodation(status: String): Boolean {
+        val normalized = status.trim().lowercase(Locale.ROOT)
+        return isStayedAccommodation(status) || listOf(
+            "опла",
+            "paid",
+            "pagad",
+            "bezahlt",
+            "отмен",
+            "cancel",
+            "cancelad",
+            "storn",
+        ).any(normalized::contains)
     }
 
     private fun Long.toRussianDays(): String = "$this ${russianDayWord(toInt())}"
@@ -460,6 +532,7 @@ internal object ReminderScheduler {
         now: Instant = Instant.now(),
         tripRemindersEnabled: Boolean = true,
         cancellationRemindersEnabled: Boolean = true,
+        paymentRemindersEnabled: Boolean = true,
         reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
     ) {
         val appContext = context.applicationContext
@@ -473,6 +546,7 @@ internal object ReminderScheduler {
                 now = now,
                 tripRemindersEnabled = tripRemindersEnabled,
                 cancellationRemindersEnabled = cancellationRemindersEnabled,
+                paymentRemindersEnabled = paymentRemindersEnabled,
                 reminderHour = reminderHour,
             )
         } else {
@@ -511,6 +585,7 @@ internal object ReminderScheduler {
         now: Instant = Instant.now(),
         tripRemindersEnabled: Boolean = true,
         cancellationRemindersEnabled: Boolean = true,
+        paymentRemindersEnabled: Boolean = true,
         reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
     ) {
         val appContext = context.applicationContext
@@ -534,6 +609,7 @@ internal object ReminderScheduler {
                 now = now,
                 tripRemindersEnabled = tripRemindersEnabled,
                 cancellationRemindersEnabled = cancellationRemindersEnabled,
+                paymentRemindersEnabled = paymentRemindersEnabled,
                 reminderHour = reminderHour,
             )
         } else {
@@ -614,6 +690,7 @@ internal object ReminderScheduler {
             language = profile.language,
             tripRemindersEnabled = profile.tripRemindersEnabled,
             cancellationRemindersEnabled = profile.cancellationRemindersEnabled,
+            paymentRemindersEnabled = profile.paymentRemindersEnabled,
             reminderHour = profile.reminderHour,
         )
     }
@@ -653,6 +730,7 @@ internal object ReminderScheduler {
                 profile.notificationsEnabled && when (intent.getStringExtra(EXTRA_KIND)) {
                     ReminderKind.TRIP.name -> profile.tripRemindersEnabled
                     ReminderKind.FREE_CANCELLATION.name -> profile.cancellationRemindersEnabled
+                    ReminderKind.PAYMENT.name -> profile.paymentRemindersEnabled
                     else -> true
                 }
             }.getOrNull()
@@ -764,7 +842,7 @@ internal object ReminderScheduler {
                     "Напоминания о поездках",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply {
-                    description = "Сроки бесплатной отмены и даты путешествий"
+                    description = "Сроки оплаты, бесплатной отмены и даты путешествий"
                 },
             )
         }

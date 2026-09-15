@@ -72,6 +72,26 @@ class UiLogicTest {
     }
 
     @Test
+    fun sightseeingDaysIncludeTheWholeTripDateRange() {
+        assertEquals(3, routeDurationDays("2026-09-14 – 2026-09-16"))
+        assertEquals(18, routeDurationDays("2026-09-01 – 2026-09-18"))
+    }
+
+    @Test
+    fun budgetCategoryPercentagesAlwaysSumToOneHundred() {
+        val percentages = budgetCategoryPercentages(listOf(26.0, 16.0, 0.0, 0.0, 56.0))
+
+        assertEquals(100, percentages.sum())
+        assertEquals(listOf(27, 16, 0, 0, 57), percentages)
+    }
+
+    @Test
+    fun budgetCategoryPercentagesUseLargestRemainderRounding() {
+        assertEquals(listOf(34, 33, 33), budgetCategoryPercentages(listOf(1.0, 1.0, 1.0)))
+        assertEquals(listOf(0, 0), budgetCategoryPercentages(listOf(0.0, 0.0)))
+    }
+
+    @Test
     fun alreadyRegisteredAuthErrorsAreRecognizedThroughCauseChain() {
         assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("User already registered")))
         assertTrue(isAlreadyRegisteredAuthError(IllegalStateException("request failed", IllegalArgumentException("user_already_exists"))))

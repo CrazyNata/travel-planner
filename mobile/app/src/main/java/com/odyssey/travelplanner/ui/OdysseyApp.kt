@@ -364,7 +364,7 @@ private val Manrope = FontFamily(
 )
 private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 private val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
-private const val NotificationSettingsPageScale = 1.15f
+private const val NotificationSettingsPageScale = 1.10f
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
 private val LocalDeviceLocation = staticCompositionLocalOf<DeviceLocation?> { null }
@@ -1552,6 +1552,9 @@ private data class NotificationSettingsDraft(
     val tripRemindersEnabled: Boolean,
     val cancellationRemindersEnabled: Boolean,
     val reminderHour: Int,
+    val paymentRemindersEnabled: Boolean = true,
+    val emailNotificationsEnabled: Boolean = true,
+    val emailPaymentRemindersEnabled: Boolean = true,
 )
 
 @Composable
@@ -1923,6 +1926,9 @@ fun OdysseyApp(
                                 notificationsEnabled = settings.notificationsEnabled,
                                 tripRemindersEnabled = settings.tripRemindersEnabled,
                                 cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                                paymentRemindersEnabled = settings.paymentRemindersEnabled,
+                                emailNotificationsEnabled = settings.emailNotificationsEnabled,
+                                emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
                                 reminderHour = settings.reminderHour,
                             )
                         },
@@ -1957,6 +1963,9 @@ fun OdysseyApp(
                                 notificationsEnabled = settings.notificationsEnabled,
                                 tripRemindersEnabled = settings.tripRemindersEnabled,
                                 cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                                paymentRemindersEnabled = settings.paymentRemindersEnabled,
+                                emailNotificationsEnabled = settings.emailNotificationsEnabled,
+                                emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
                                 reminderHour = settings.reminderHour,
                             )
                         },
@@ -1997,6 +2006,7 @@ fun OdysseyApp(
                         notificationsEnabled = accountProfile?.notificationsEnabled == true,
                         tripRemindersEnabled = accountProfile?.tripRemindersEnabled ?: true,
                         cancellationRemindersEnabled = accountProfile?.cancellationRemindersEnabled ?: true,
+                        paymentRemindersEnabled = accountProfile?.paymentRemindersEnabled ?: true,
                         reminderHour = accountProfile?.reminderHour ?: ReminderPlanner.REMINDER_HOUR,
                         showAddPlaceHint = accountProfile?.let { it.onboardingCompleted && !it.addPlaceHintSeen } == true,
                         onAddPlaceHintSeen = {
@@ -3842,6 +3852,9 @@ private fun MyTripsScreen(
     var notificationsEnabled by remember { mutableStateOf(accountProfile?.notificationsEnabled ?: false) }
     var tripRemindersEnabled by remember { mutableStateOf(accountProfile?.tripRemindersEnabled ?: true) }
     var cancellationRemindersEnabled by remember { mutableStateOf(accountProfile?.cancellationRemindersEnabled ?: true) }
+    var paymentRemindersEnabled by remember { mutableStateOf(accountProfile?.paymentRemindersEnabled ?: true) }
+    var emailNotificationsEnabled by remember { mutableStateOf(accountProfile?.emailNotificationsEnabled ?: true) }
+    var emailPaymentRemindersEnabled by remember { mutableStateOf(accountProfile?.emailPaymentRemindersEnabled ?: true) }
     var reminderHour by remember { mutableStateOf(accountProfile?.reminderHour ?: ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
@@ -3863,7 +3876,20 @@ private fun MyTripsScreen(
             loading = true
             loadFailed = false
             val client = SupabaseProvider.clientForCurrentAuthFlow()
-            runCatching { SupabaseTripRepository(client).loadTrips() }
+            runCatching {
+                var lastFailure: Throwable? = null
+                repeat(2) { attempt ->
+                    try {
+                        return@runCatching SupabaseTripRepository(client).loadTrips()
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Throwable) {
+                        lastFailure = error
+                        if (attempt == 0) delay(350)
+                    }
+                }
+                throw lastFailure ?: IllegalStateException("Не удалось загрузить путешествия")
+            }
                 .onSuccess {
                     if (it.isNotEmpty() || trips.isEmpty()) {
                         trips = it
@@ -3902,6 +3928,9 @@ private fun MyTripsScreen(
             notificationsEnabled = profile.notificationsEnabled
             tripRemindersEnabled = profile.tripRemindersEnabled
             cancellationRemindersEnabled = profile.cancellationRemindersEnabled
+            paymentRemindersEnabled = profile.paymentRemindersEnabled
+            emailNotificationsEnabled = profile.emailNotificationsEnabled
+            emailPaymentRemindersEnabled = profile.emailPaymentRemindersEnabled
             reminderHour = profile.reminderHour
         }
     }
@@ -3912,7 +3941,7 @@ private fun MyTripsScreen(
         if (sessionRestoreVersion > 0) reloadTrips()
     }
 
-    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language, loading, loadFailed) {
+    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, paymentRemindersEnabled, reminderHour, language, loading, loadFailed) {
         if (!loading && !loadFailed) {
             ReminderScheduler.sync(
                 context,
@@ -3921,6 +3950,7 @@ private fun MyTripsScreen(
                 language,
                 tripRemindersEnabled = tripRemindersEnabled,
                 cancellationRemindersEnabled = cancellationRemindersEnabled,
+                paymentRemindersEnabled = paymentRemindersEnabled,
                 reminderHour = reminderHour,
             )
         }
@@ -4205,6 +4235,8 @@ private fun MyTripsScreen(
                 darkTheme = darkTheme,
                 themePreference = themePreference,
                 notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
+                emailNotificationsEnabled = emailNotificationsEnabled,
+                emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
                 passwordEditorOpen = passwordEditorOpen,
                 newPassword = newPassword,
                 repeatedNewPassword = repeatedNewPassword,
@@ -4282,12 +4314,16 @@ private fun MyTripsScreen(
         }
         if (notificationSettingsOpen) {
             NotificationSettingsScreen(
+                profileEmail = profileEmail,
                 language = language,
                 initialSettings = NotificationSettingsDraft(
                     notificationsEnabled = notificationsEnabled,
                     tripRemindersEnabled = tripRemindersEnabled,
                     cancellationRemindersEnabled = cancellationRemindersEnabled,
+                    paymentRemindersEnabled = paymentRemindersEnabled,
                     reminderHour = reminderHour,
+                    emailNotificationsEnabled = emailNotificationsEnabled,
+                    emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
                 ),
                 onBack = {
                     notificationSettingsOpen = false
@@ -4301,11 +4337,17 @@ private fun MyTripsScreen(
                         themePreference = themePreference,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        paymentRemindersEnabled = settings.paymentRemindersEnabled,
+                        emailNotificationsEnabled = settings.emailNotificationsEnabled,
+                        emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
                         reminderHour = settings.reminderHour,
                     )
                     notificationsEnabled = settings.notificationsEnabled
                     tripRemindersEnabled = settings.tripRemindersEnabled
                     cancellationRemindersEnabled = settings.cancellationRemindersEnabled
+                    paymentRemindersEnabled = settings.paymentRemindersEnabled
+                    emailNotificationsEnabled = settings.emailNotificationsEnabled
+                    emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled
                     reminderHour = settings.reminderHour
                     onNotificationSettingsChanged(settings)
                     ReminderScheduler.sync(
@@ -4315,6 +4357,7 @@ private fun MyTripsScreen(
                         language,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        paymentRemindersEnabled = settings.paymentRemindersEnabled,
                         reminderHour = settings.reminderHour,
                     )
                 },
@@ -4411,6 +4454,9 @@ private fun AccountSettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(false) }
     var tripRemindersEnabled by remember { mutableStateOf(true) }
     var cancellationRemindersEnabled by remember { mutableStateOf(true) }
+    var paymentRemindersEnabled by remember { mutableStateOf(true) }
+    var emailNotificationsEnabled by remember { mutableStateOf(true) }
+    var emailPaymentRemindersEnabled by remember { mutableStateOf(true) }
     var reminderHour by remember { mutableStateOf(ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
@@ -4451,13 +4497,16 @@ private fun AccountSettingsScreen(
             notificationsEnabled = profile.notificationsEnabled
             tripRemindersEnabled = profile.tripRemindersEnabled
             cancellationRemindersEnabled = profile.cancellationRemindersEnabled
+            paymentRemindersEnabled = profile.paymentRemindersEnabled
+            emailNotificationsEnabled = profile.emailNotificationsEnabled
+            emailPaymentRemindersEnabled = profile.emailPaymentRemindersEnabled
             reminderHour = profile.reminderHour
             onThemeSet(profile.themePreference)
         }
         trips = runCatching { SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadTrips() }.getOrDefault(emptyList())
     }
 
-    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language) {
+    LaunchedEffect(trips, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, paymentRemindersEnabled, reminderHour, language) {
         ReminderScheduler.sync(
             context,
             trips,
@@ -4465,6 +4514,7 @@ private fun AccountSettingsScreen(
             language,
             tripRemindersEnabled = tripRemindersEnabled,
             cancellationRemindersEnabled = cancellationRemindersEnabled,
+            paymentRemindersEnabled = paymentRemindersEnabled,
             reminderHour = reminderHour,
         )
     }
@@ -4472,12 +4522,16 @@ private fun AccountSettingsScreen(
     Box(modifier = Modifier.fillMaxSize().background(if (darkTheme) OdysseyDarkBackground else OdysseyBackground)) {
         if (notificationSettingsOpen) {
             NotificationSettingsScreen(
+                profileEmail = profileEmail,
                 language = language,
                 initialSettings = NotificationSettingsDraft(
                     notificationsEnabled = notificationsEnabled,
                     tripRemindersEnabled = tripRemindersEnabled,
                     cancellationRemindersEnabled = cancellationRemindersEnabled,
+                    paymentRemindersEnabled = paymentRemindersEnabled,
                     reminderHour = reminderHour,
+                    emailNotificationsEnabled = emailNotificationsEnabled,
+                    emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
                 ),
                 onBack = { notificationSettingsOpen = false },
                 onSave = { settings ->
@@ -4488,11 +4542,17 @@ private fun AccountSettingsScreen(
                         themePreference = themePreference,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        paymentRemindersEnabled = settings.paymentRemindersEnabled,
+                        emailNotificationsEnabled = settings.emailNotificationsEnabled,
+                        emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
                         reminderHour = settings.reminderHour,
                     )
                     notificationsEnabled = settings.notificationsEnabled
                     tripRemindersEnabled = settings.tripRemindersEnabled
                     cancellationRemindersEnabled = settings.cancellationRemindersEnabled
+                    paymentRemindersEnabled = settings.paymentRemindersEnabled
+                    emailNotificationsEnabled = settings.emailNotificationsEnabled
+                    emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled
                     reminderHour = settings.reminderHour
                     onNotificationSettingsChanged(settings)
                     ReminderScheduler.sync(
@@ -4502,6 +4562,7 @@ private fun AccountSettingsScreen(
                         language,
                         tripRemindersEnabled = settings.tripRemindersEnabled,
                         cancellationRemindersEnabled = settings.cancellationRemindersEnabled,
+                        paymentRemindersEnabled = settings.paymentRemindersEnabled,
                         reminderHour = settings.reminderHour,
                     )
                 },
@@ -4514,6 +4575,8 @@ private fun AccountSettingsScreen(
             darkTheme = darkTheme,
             themePreference = themePreference,
             notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
+            emailNotificationsEnabled = emailNotificationsEnabled,
+            emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
             passwordEditorOpen = passwordEditorOpen,
             newPassword = newPassword,
             repeatedNewPassword = repeatedNewPassword,
@@ -4641,6 +4704,7 @@ private fun AccountSettingsScreen(
 
 @Composable
 private fun NotificationSettingsScreen(
+    profileEmail: String,
     language: String,
     initialSettings: NotificationSettingsDraft,
     onBack: () -> Unit,
@@ -4652,7 +4716,10 @@ private fun NotificationSettingsScreen(
     var notificationsEnabled by remember(initialSettings) { mutableStateOf(initialSettings.notificationsEnabled) }
     var tripRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.tripRemindersEnabled) }
     var cancellationRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.cancellationRemindersEnabled) }
+    var paymentRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.paymentRemindersEnabled) }
     var reminderHour by remember(initialSettings) { mutableStateOf(initialSettings.reminderHour.coerceIn(0, 23)) }
+    var emailNotificationsEnabled by remember(initialSettings) { mutableStateOf(initialSettings.emailNotificationsEnabled) }
+    var emailPaymentRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.emailPaymentRemindersEnabled) }
     var selectedPreset by remember(initialSettings) {
         mutableStateOf(
             when {
@@ -4748,6 +4815,9 @@ private fun NotificationSettingsScreen(
             tripRemindersEnabled = tripRemindersEnabled,
             cancellationRemindersEnabled = cancellationRemindersEnabled,
             reminderHour = reminderHour,
+            paymentRemindersEnabled = paymentRemindersEnabled,
+            emailNotificationsEnabled = emailNotificationsEnabled,
+            emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
         )
         if (draft.notificationsEnabled && !phonePermissionGranted) {
             pendingSave = draft
@@ -4761,6 +4831,9 @@ private fun NotificationSettingsScreen(
     val groupBackground = cardSurfaceColor()
     val divider = contentBorderColor()
     val detailColor = secondaryTextColor()
+    val emailTarget = profileEmail.ifBlank {
+        localized("email вашего аккаунта", "your account email", "el email de su cuenta", "die E-Mail Ihres Kontos")
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -4952,6 +5025,85 @@ private fun NotificationSettingsScreen(
                         }
                     },
                 )
+                AccountSettingsDivider(divider)
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.AccountBalanceWallet,
+                    title = localized("Оплата жилья", "Accommodation payment", "Pago del alojamiento", "Unterkunft bezahlen"),
+                    detail = localized("За 3 дня и в день дедлайна", "3 days before and on the deadline", "3 días antes y el día límite", "3 Tage vorher und am Fristtag"),
+                    checked = paymentRemindersEnabled,
+                    enabled = notificationsEnabled,
+                    onClick = {
+                        if (notificationsEnabled) {
+                            paymentRemindersEnabled = !paymentRemindersEnabled
+                            selectedPreset = -1
+                        }
+                    },
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 13.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, divider, RoundedCornerShape(16.dp))
+                    .background(groupBackground),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(29.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor()),
+                    ) {
+                        Icon(Icons.Outlined.NotificationsNone, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(
+                            localized("Email-уведомления", "Email notifications", "Notificaciones por email", "E-Mail-Benachrichtigungen"),
+                            color = contentTextColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W700,
+                            fontSize = 10.sp,
+                        )
+                        Text(
+                            localized("Письма будут приходить на $emailTarget", "Emails will be sent to $emailTarget", "Los emails se enviarán a $emailTarget", "E-Mails werden an $emailTarget gesendet"),
+                            color = detailColor,
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W500,
+                            fontSize = 9.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+                AccountSettingsDivider(divider)
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.NotificationsNone,
+                    title = localized("Все письма от Ramingo", "All Ramingo emails", "Todos los emails de Ramingo", "Alle Ramingo-E-Mails"),
+                    detail = localized("Разрешить отправку писем", "Allow Ramingo emails", "Permitir emails de Ramingo", "Ramingo-E-Mails erlauben"),
+                    checked = emailNotificationsEnabled,
+                    onClick = {
+                        emailNotificationsEnabled = !emailNotificationsEnabled
+                        selectedPreset = -1
+                    },
+                )
+                AccountSettingsDivider(divider)
+                NotificationSettingsRow(
+                    icon = Icons.Outlined.AccountBalanceWallet,
+                    title = localized("Оплата жилья по e-mail", "Accommodation payment by email", "Pago del alojamiento por email", "Unterkunftszahlung per E-Mail"),
+                    detail = localized("За 3 дня и в день дедлайна", "3 days before and on the deadline", "3 días antes y el día límite", "3 Tage vorher und am Fristtag"),
+                    checked = emailPaymentRemindersEnabled,
+                    enabled = emailNotificationsEnabled,
+                    onClick = {
+                        if (emailNotificationsEnabled) {
+                            emailPaymentRemindersEnabled = !emailPaymentRemindersEnabled
+                            selectedPreset = -1
+                        }
+                    },
+                )
             }
 
             Row(
@@ -5039,10 +5191,12 @@ private fun NotificationSettingsScreen(
                                     1 -> {
                                         tripRemindersEnabled = false
                                         cancellationRemindersEnabled = true
+                                        paymentRemindersEnabled = true
                                     }
                                     else -> {
                                         tripRemindersEnabled = true
                                         cancellationRemindersEnabled = true
+                                        paymentRemindersEnabled = true
                                     }
                                 }
                             }
@@ -5072,7 +5226,7 @@ private fun NotificationSettingsScreen(
         AlertDialog(
             onDismissRequest = { helpOpen = false },
             title = { Text(localized("О напоминаниях", "About reminders", "Sobre los recordatorios", "Über Erinnerungen"), fontFamily = Manrope, fontWeight = FontWeight.W800) },
-            text = { Text(localized("Ramingo напомнит о начале поездки и дедлайнах бесплатной отмены жилья. Настройки сохраняются в профиле аккаунта.", "Ramingo reminds you about trip starts and free-cancellation deadlines. Settings are saved to your account profile.", "Ramingo te recuerda los inicios de viaje y los plazos de cancelación gratuita. Los ajustes se guardan en tu perfil.", "Ramingo erinnert dich an Reisebeginn und Fristen für kostenlose Stornierung. Die Einstellungen werden in deinem Profil gespeichert."), fontFamily = Manrope, fontSize = 13.sp) },
+            text = { Text(localized("Ramingo напомнит о начале поездки, оплате жилья и дедлайнах бесплатной отмены. E-mail-настройки применяются и в веб-версии. Все параметры сохраняются в профиле аккаунта.", "Ramingo reminds you about trip starts, accommodation payments, and free-cancellation deadlines. Email preferences also apply to the web app. All settings are saved to your account profile.", "Ramingo te recuerda los inicios de viaje, los pagos del alojamiento y los plazos de cancelación gratuita. Las preferencias de email también se aplican a la versión web. Todos los ajustes se guardan en tu perfil.", "Ramingo erinnert dich an Reisebeginn, Unterkunftszahlungen und Fristen für kostenlose Stornierung. E-Mail-Einstellungen gelten auch in der Web-App. Alle Einstellungen werden in deinem Profil gespeichert."), fontFamily = Manrope, fontSize = 13.sp) },
             confirmButton = { TextButton(onClick = { helpOpen = false }) { Text(localized("Понятно", "Got it", "Entendido", "Verstanden"), fontFamily = Manrope, fontWeight = FontWeight.W800) } },
         )
     }
@@ -5118,6 +5272,8 @@ private fun AccountSettingsSheet(
     darkTheme: Boolean,
     themePreference: ThemePreference,
     notificationsEnabled: Boolean,
+    emailNotificationsEnabled: Boolean = true,
+    emailPaymentRemindersEnabled: Boolean = true,
     passwordEditorOpen: Boolean,
     newPassword: String,
     repeatedNewPassword: String,
@@ -5166,6 +5322,21 @@ private fun AccountSettingsSheet(
     val context = LocalContext.current
     val sheetBackground = if (darkTheme) OdysseyDarkSurface else Color(0xFFF7F5FF)
     val dividerColor = if (darkTheme) OdysseyDarkBorder else contentBorderColor()
+    val notificationStatus = when {
+        notificationsEnabled || (emailNotificationsEnabled && emailPaymentRemindersEnabled) -> localized(
+            "Включены",
+            "On",
+            "Activadas",
+            "Aktiv",
+        )
+        emailNotificationsEnabled -> localized(
+            "Частично",
+            "Partial",
+            "Parcial",
+            "Teilweise",
+        )
+        else -> localized("Выключены", "Off", "Desactivadas", "Aus")
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -5303,12 +5474,7 @@ private fun AccountSettingsSheet(
                 AccountMenuItem(
                     Icons.Outlined.NotificationsNone,
                     localized("Уведомления", "Notifications", "Notificaciones", "Benachrichtigungen"),
-                    trailing = localized(
-                        if (notificationsEnabled) "Включены" else "Выключены",
-                        if (notificationsEnabled) "On" else "Off",
-                        if (notificationsEnabled) "Activadas" else "Desactivadas",
-                        if (notificationsEnabled) "Aktiv" else "Aus",
-                    ),
+                    trailing = notificationStatus,
                 ) { onNotificationSettingsOpen() }
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(Icons.Outlined.Lock, localized("Сменить пароль", "Change password", "Cambiar contraseña", "Passwort ändern")) { onPasswordEditorToggle() }
@@ -8150,6 +8316,7 @@ private fun TripOverviewScreen(
     notificationsEnabled: Boolean,
     tripRemindersEnabled: Boolean = true,
     cancellationRemindersEnabled: Boolean = true,
+    paymentRemindersEnabled: Boolean = true,
     reminderHour: Int = ReminderPlanner.REMINDER_HOUR,
     initialTab: String = "overview",
     showAddPlaceHint: Boolean = false,
@@ -8229,7 +8396,7 @@ private fun TripOverviewScreen(
         }
     }
 
-    LaunchedEffect(overview, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, reminderHour, language) {
+    LaunchedEffect(overview, notificationsEnabled, tripRemindersEnabled, cancellationRemindersEnabled, paymentRemindersEnabled, reminderHour, language) {
         overview?.let { trip ->
             ReminderScheduler.syncTrip(
                 context,
@@ -8238,6 +8405,7 @@ private fun TripOverviewScreen(
                 language,
                 tripRemindersEnabled = tripRemindersEnabled,
                 cancellationRemindersEnabled = cancellationRemindersEnabled,
+                paymentRemindersEnabled = paymentRemindersEnabled,
                 reminderHour = reminderHour,
             )
         }
@@ -8566,11 +8734,13 @@ private fun SightsContent(
         sights.firstOrNull()?.city,
         overview.overviewMapPoints.firstOrNull(),
     ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
-    val fallbackDayCities = remember(sights, overview.routeLegs, overview.routeDayCount, initialRouteCity) {
+    val tripDayCount = routeDurationDays(overview.dates) ?: 0
+    val fallbackDayCities = remember(sights, overview.routeLegs, overview.routeDayCount, overview.dates, initialRouteCity) {
         val totalDays = maxOf(
             sights.maxOfOrNull { sightRouteDay(it.walkDay) } ?: 1,
             overview.routeDayCount,
             overview.routeLegs.maxOfOrNull { routeLegDayNumber(it, overview.routeLegs) } ?: overview.routeLegs.size,
+            tripDayCount,
             1,
         )
         var lastKnownCity = initialRouteCity
@@ -8582,8 +8752,8 @@ private fun SightsContent(
             dayCity
         }
     }
-    val sightDays = remember(overview.sightDays, fallbackDayCities) {
-        val totalDays = maxOf(overview.sightDays.size, fallbackDayCities.size, 1)
+    val sightDays = remember(overview.sightDays, fallbackDayCities, tripDayCount) {
+        val totalDays = maxOf(overview.sightDays.size, fallbackDayCities.size, tripDayCount, 1)
         (1..totalDays).map { index ->
             val fallbackCity = fallbackDayCities.getOrNull(index - 1).orEmpty()
             overview.sightDays.getOrNull(index - 1)?.let { savedDay ->
@@ -10850,6 +11020,39 @@ private fun SightLocationField(
 }
 
 @Composable
+private fun MapViewLifecycleEffect(mapView: MapView) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, mapView) {
+        var destroyed = false
+        fun destroyMap() {
+            if (!destroyed) {
+                destroyed = true
+                mapView.onDestroy()
+            }
+        }
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> if (!destroyed) mapView.onStart()
+                Lifecycle.Event.ON_STOP -> if (!destroyed) mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> destroyMap()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (!destroyed) {
+                if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    mapView.onStop()
+                }
+                destroyMap()
+            }
+        }
+    }
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun SightLocationPickerSheet(
     city: String,
@@ -10888,6 +11091,7 @@ private fun SightLocationPickerSheet(
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
+    MapViewLifecycleEffect(mapView)
     val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
     val mapClickListener = remember(mapView) {
         object : OnMapClickListener {
@@ -16164,6 +16368,7 @@ private fun RestaurantMapCard(
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
+    MapViewLifecycleEffect(mapView)
     val annotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }
     val numberAnnotationManager = remember(mapView) { mapView.annotations.createPointAnnotationManager() }
 
@@ -17199,15 +17404,19 @@ private fun BudgetContent(
             modifier = Modifier.height(22.dp),
         )
         Spacer(Modifier.height(14.dp))
+        val categoryTotals = categoryStyles.map { categoryStyle ->
+            expenses.filter { expense ->
+                categoryStyle.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT))
+            }.sumOf(::displayedExpenseAmount)
+        }
+        val categoryPercentages = budgetCategoryPercentages(categoryTotals)
         Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            categoryStyles.forEach { categoryStyle ->
-                val categoryTotal = expenses.filter { expense ->
-                    categoryStyle.aliases.contains(expense.category.trim().lowercase(java.util.Locale.ROOT))
-                }.sumOf(::displayedExpenseAmount)
+            categoryStyles.forEachIndexed { index, categoryStyle ->
                 BudgetCategoryRow(
                     style = categoryStyle,
-                    amount = categoryTotal,
+                    amount = categoryTotals[index],
                     total = total,
+                    percent = categoryPercentages[index],
                     currencySymbol = currencySymbol,
                     conversionRate = 1.0,
                 )
@@ -17487,6 +17696,28 @@ private data class BudgetCategoryStyle(
 )
 
 private data class BudgetCurrencyStyle(val code: String, val symbol: String)
+
+internal fun budgetCategoryPercentages(amounts: List<Double>): List<Int> {
+    if (amounts.isEmpty()) return emptyList()
+    val positiveAmounts = amounts.map { it.coerceAtLeast(0.0) }
+    val positiveTotal = positiveAmounts.sum()
+    if (!positiveTotal.isFinite() || positiveTotal <= 0.0) return List(amounts.size) { 0 }
+
+    val rawPercentages = positiveAmounts.map { amount -> amount / positiveTotal * 100.0 }
+    val percentages = rawPercentages.map { it.toInt() }.toMutableList()
+    var remainder = (100 - percentages.sum()).coerceAtLeast(0)
+    val order = rawPercentages.indices.sortedWith(
+        compareByDescending<Int> { index -> rawPercentages[index] - percentages[index] }
+            .thenBy { it },
+    )
+    var orderIndex = 0
+    while (remainder > 0 && order.isNotEmpty()) {
+        percentages[order[orderIndex % order.size]] += 1
+        orderIndex += 1
+        remainder -= 1
+    }
+    return percentages
+}
 
 private fun budgetCurrencyCode(value: String): String = when (value.trim().uppercase(java.util.Locale.ROOT)) {
     "RUB", "₽" -> "RUB"
@@ -17844,9 +18075,8 @@ private fun BudgetMetricCard(label: String, value: String, modifier: Modifier = 
 }
 
 @Composable
-private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total: Double, currencySymbol: String, conversionRate: Double) {
+private fun BudgetCategoryRow(style: BudgetCategoryStyle, amount: Double, total: Double, percent: Int, currencySymbol: String, conversionRate: Double) {
     val fraction = if (total <= 0.0) 0f else (amount / total).toFloat().coerceIn(0f, 1f)
-    val percent = if (total <= 0.0) 0 else (amount / total * 100.0).toInt()
     Column(modifier = Modifier.fillMaxWidth().height(35.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(19.dp)) {
             Box(modifier = Modifier.size(11.dp).clip(RoundedCornerShape(4.dp)).background(style.color))
@@ -22610,7 +22840,7 @@ private fun routeDateParts(date: String, tripDates: String, dayIndex: Int, langu
     return calendar.get(Calendar.DAY_OF_MONTH).toString() to months[calendar.get(Calendar.MONTH)]
 }
 
-private fun routeDurationDays(dates: String): Int? {
+internal fun routeDurationDays(dates: String): Int? {
     parseTripDateRange(dates)?.let { (start, end) ->
         return (ChronoUnit.DAYS.between(start, end).toInt() + 1).takeIf { it > 0 }
     }
@@ -23838,6 +24068,7 @@ private fun OverviewMapCard(
             it.post { labelMapboxAccessibility(it, attributionDescription) }
         }
     }
+    MapViewLifecycleEffect(mapView)
     var mapAttached by remember(mapView) { mutableStateOf(mapView.isAttachedToWindow) }
     val routeAnnotationManager = remember(mapView) { mapView.annotations.createPolylineAnnotationManager() }
     val sightAnnotationManager = remember(mapView) { mapView.annotations.createCircleAnnotationManager() }

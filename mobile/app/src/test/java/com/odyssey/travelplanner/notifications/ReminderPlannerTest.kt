@@ -80,6 +80,84 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun plansAccommodationPaymentRemindersAndSkipsPaidLodging() {
+        val trip = TripCard(
+            id = "trip-payment",
+            title = "Италия",
+            dates = "2026-01-31 – 2026-02-07",
+            status = "Предстоящее",
+            progress = 10,
+            cities = "Рим",
+            coverImage = null,
+            isOwner = true,
+            accommodations = listOf(
+                accommodation(
+                    id = "stay-unpaid",
+                    name = "Casa Roma",
+                    city = "Рим",
+                    deadline = "2026-01-08",
+                    paymentDeadline = "2026-01-04",
+                ),
+                accommodation(
+                    id = "stay-paid",
+                    name = "Hotel Milano",
+                    city = "Милан",
+                    deadline = "2026-01-08",
+                    paymentDeadline = "2026-01-04",
+                    status = "оплачено",
+                ),
+            ),
+        )
+
+        val events = ReminderPlanner.plan(
+            trips = listOf(trip),
+            language = "RU",
+            accountId = "user-payment",
+            now = Instant.parse("2026-01-01T08:00:00Z"),
+            zone = zone,
+        )
+
+        val paymentEvents = events.filter { it.kind == ReminderKind.PAYMENT }
+        assertEquals(2, paymentEvents.size)
+        assertEquals(setOf(3L, 0L), paymentEvents.map { it.daysRemaining }.toSet())
+        assertTrue(paymentEvents.all { it.notificationText.contains("Casa Roma") })
+        assertTrue(events.none { it.notificationText.contains("Hotel Milano") && it.kind == ReminderKind.PAYMENT })
+    }
+
+    @Test
+    fun canDisableAccommodationPaymentReminders() {
+        val trip = TripCard(
+            id = "trip-payment-disabled",
+            title = "Италия",
+            dates = "2026-01-31 – 2026-02-07",
+            status = "Предстоящее",
+            progress = 10,
+            cities = "Рим",
+            coverImage = null,
+            isOwner = true,
+            accommodations = listOf(
+                accommodation(
+                    id = "stay-payment-disabled",
+                    name = "Casa Roma",
+                    city = "Рим",
+                    deadline = "2026-01-08",
+                    paymentDeadline = "2026-01-04",
+                ),
+            ),
+        )
+
+        val events = ReminderPlanner.plan(
+            trips = listOf(trip),
+            language = "RU",
+            now = Instant.parse("2026-01-01T08:00:00Z"),
+            zone = zone,
+            paymentRemindersEnabled = false,
+        )
+
+        assertTrue(events.none { it.kind == ReminderKind.PAYMENT })
+    }
+
+    @Test
     fun canDisableAllReminderCategories() {
         val trip = TripCard(
             id = "trip-empty-settings",
@@ -167,6 +245,7 @@ class ReminderPlannerTest {
         city: String,
         deadline: String,
         status: String = "бронь",
+        paymentDeadline: String = "",
     ) = Accommodation(
         id = id,
         city = city,
@@ -176,7 +255,8 @@ class ReminderPlannerTest {
         status = status,
         details = "",
         photos = emptyList(),
-        bookingUrl = "",
-        deadline = deadline,
-    )
+            bookingUrl = "",
+            deadline = deadline,
+            paymentDeadline = paymentDeadline,
+        )
 }

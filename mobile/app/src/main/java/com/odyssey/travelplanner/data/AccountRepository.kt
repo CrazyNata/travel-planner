@@ -29,6 +29,10 @@ data class AccountProfile(
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val tripRemindersEnabled: Boolean = true,
     val cancellationRemindersEnabled: Boolean = true,
+    val paymentRemindersEnabled: Boolean = true,
+    /** Email preferences are shared with the web app through account_profile.value. */
+    val emailNotificationsEnabled: Boolean = true,
+    val emailPaymentRemindersEnabled: Boolean = true,
     val reminderHour: Int = 9,
     val onboardingCompleted: Boolean = false,
     val createTripHintSeen: Boolean = false,
@@ -60,6 +64,9 @@ class AccountRepository(private val client: SupabaseClient) {
             themePreference = themePreference,
             tripRemindersEnabled = row?.value?.get("trip_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             cancellationRemindersEnabled = row?.value?.get("cancellation_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            paymentRemindersEnabled = row?.value?.get("payment_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            emailNotificationsEnabled = row?.value?.get("email_notifications_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            emailPaymentRemindersEnabled = row?.value?.get("email_payment_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             reminderHour = row?.value?.get("reminder_hour")?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(0, 23) ?: 9,
             onboardingCompleted = row?.value?.get("onboarding_completed")?.jsonPrimitive?.content == "true",
             createTripHintSeen = row?.value?.get("create_trip_hint_seen")?.jsonPrimitive?.content == "true",
@@ -80,6 +87,9 @@ class AccountRepository(private val client: SupabaseClient) {
         onboardingCompleted: Boolean? = null,
         createTripHintSeen: Boolean? = null,
         addPlaceHintSeen: Boolean? = null,
+        paymentRemindersEnabled: Boolean? = null,
+        emailNotificationsEnabled: Boolean? = null,
+        emailPaymentRemindersEnabled: Boolean? = null,
     ) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
@@ -100,6 +110,9 @@ class AccountRepository(private val client: SupabaseClient) {
         }
         tripRemindersEnabled?.let { value["trip_reminders_enabled"] = JsonPrimitive(it) }
         cancellationRemindersEnabled?.let { value["cancellation_reminders_enabled"] = JsonPrimitive(it) }
+        paymentRemindersEnabled?.let { value["payment_reminders_enabled"] = JsonPrimitive(it) }
+        emailNotificationsEnabled?.let { value["email_notifications_enabled"] = JsonPrimitive(it) }
+        emailPaymentRemindersEnabled?.let { value["email_payment_reminders_enabled"] = JsonPrimitive(it) }
         reminderHour?.coerceIn(0, 23)?.let { value["reminder_hour"] = JsonPrimitive(it) }
         onboardingCompleted?.let { value["onboarding_completed"] = JsonPrimitive(it) }
         createTripHintSeen?.let { value["create_trip_hint_seen"] = JsonPrimitive(it) }
@@ -143,6 +156,7 @@ class AccountRepository(private val client: SupabaseClient) {
             themePreference = profile.themePreference,
             tripRemindersEnabled = profile.tripRemindersEnabled,
             cancellationRemindersEnabled = profile.cancellationRemindersEnabled,
+            paymentRemindersEnabled = profile.paymentRemindersEnabled,
             reminderHour = profile.reminderHour,
             onboardingCompleted = onboardingCompleted,
             createTripHintSeen = createTripHintSeen,
