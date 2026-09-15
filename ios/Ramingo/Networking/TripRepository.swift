@@ -175,18 +175,18 @@ enum TripSection: String, CaseIterable, Identifiable {
     case sights
     case restaurants
     case accommodation
+    case pets
     case budget
     case members
     case photos
-    case pets
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .overview: return "Обзор"
+        case .overview: return "Главная"
         case .route: return "Маршрут"
-        case .sights: return "Места"
+        case .sights: return "Достопримечательности"
         case .restaurants: return "Рестораны"
         case .accommodation: return "Жильё"
         case .budget: return "Бюджет"
