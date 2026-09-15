@@ -1,0 +1,196 @@
+name: iOS device IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  device-build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://hxcavgtlucyoqudbrgse.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Show Apple toolchain
+        run: |
+          xcode-select --print-path
+          xcodebuild -version
+
+      - name: Validate public app configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+          import re
+          from urllib.parse import urlsplit
+
+          key = os.environ["SUPABASE_PUBLISHABLE_KEY"]
+          url = os.environ["SUPABASE_URL"]
+          if not key or "REPLACE" in key.upper():
+              raise SystemExit("Configure the SUPABASE_PUBLISHABLE_KEY repository secret with the public client key.")
+          # Only a publishable key or legacy anon JWT may be embedded in an IPA.
+          if not re.fullmatch(r"sb_publishable_[A-Za-z0-9_-]+", key):
+              try:
+                  parts = key.split(".")
+                  if len(parts) != 3 or not re.fullmatch(r"[A-Za-z0-9_.-]+", key):
+                      raise ValueError()
+                  payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+                  if payload.get("role") != "anon":
+                      raise ValueError()
+              except (ValueError, UnicodeDecodeError, AttributeError):
+                  raise SystemExit("Use a Supabase publishable key or anon JWT; administrative and secret keys are forbidden.")
+          parsed = urlsplit(url)
+          if (parsed.scheme != "https" or not parsed.hostname
+                  or parsed.username or parsed.password or parsed.query or parsed.fragment
+                  or parsed.path not in ("", "/")
+                  or not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?/?", url)):
+              raise SystemExit("SUPABASE_URL must be a plain HTTPS project URL.")
+          # xcconfig treats // as a comment, so expand an empty setting between the slashes.
+          config = Path(os.environ["RUNNER_TEMP"]) / "RamingoDevice.xcconfig"
+          config.write_text(
+              "SUPABASE_URL = " + url.replace("://", ":/$()/") + "\n"
+              "SUPABASE_PUBLISHABLE_KEY = " + key + "\n"
+          )
+          config.chmod(0o600)
+          print("Validated Supabase public client configuration; values are omitted.")
+          PY
+
+      - name: Build unsigned iPhone app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/Ramingo.xcodeproj \
+            -scheme Ramingo \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/RamingoDeviceDerivedData" \
+            -xcconfig "$RUNNER_TEMP/RamingoDevice.xcconfig" \
+            ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            CODE_SIGN_ENTITLEMENTS='' \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS=SIDELOAD_BUILD \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.odyssey.ramingo.ios \
+            build 2>&1 | python3 -u -c '
+          import os, sys
+          key = os.environ["SUPABASE_PUBLISHABLE_KEY"]
+          for line in sys.stdin:
+              sys.stdout.write(line.replace(key, "[public client key omitted]"))
+          ' | tee "$RUNNER_TEMP/ramingo-ios-device-build.log"
+
+      - name: Verify device app and package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$RUNNER_TEMP/RamingoDeviceDerivedData/Build/Products/Release-iphoneos/Ramingo.app"
+          export_path="$RUNNER_TEMP/RamingoDeviceExport"
+          test -d "$app_path"
+          test ! -e "$app_path/embedded.mobileprovision"
+          test ! -d "$app_path/_CodeSignature"
+          xcrun lipo -verify_arch arm64 "$app_path/Ramingo"
+          xcrun vtool -show-build "$app_path/Ramingo"
+          mkdir -p "$export_path/Payload"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import subprocess
+          import zipfile
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          app = temp / "RamingoDeviceDerivedData/Build/Products/Release-iphoneos/Ramingo.app"
+          export = temp / "RamingoDeviceExport"
+          with (app / "Info.plist").open("rb") as stream:
+              info = plistlib.load(stream)
+          expected = {
+              "CFBundleIdentifier": "com.odyssey.ramingo.ios",
+              "CFBundleExecutable": "Ramingo",
+              "CFBundleVersion": os.environ["GITHUB_RUN_NUMBER"],
+              "DTPlatformName": "iphoneos",
+              "CFBundleSupportedPlatforms": ["iPhoneOS"],
+              "SUPABASE_URL": os.environ["SUPABASE_URL"],
+              "SUPABASE_PUBLISHABLE_KEY": os.environ["SUPABASE_PUBLISHABLE_KEY"],
+          }
+          for name, value in expected.items():
+              if info.get(name) != value:
+                  raise SystemExit(f"Built Info.plist has an unexpected {name}; value omitted.")
+          entitlements = subprocess.run(
+              ["codesign", "-d", "--entitlements", ":-", str(app)], capture_output=True
+          )
+          if b"com.apple.developer.applesignin" in entitlements.stdout + entitlements.stderr:
+              raise SystemExit("The sideload build must not contain Sign in with Apple entitlements.")
+          version = info["CFBundleShortVersionString"]
+          build = info["CFBundleVersion"]
+          ipa = export / "Ramingo.ipa"
+          subprocess.run(["ditto", str(app), str(export / "Payload/Ramingo.app")], check=True)
+          subprocess.run(
+              ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(export / "Payload"), str(ipa)],
+              check=True,
+          )
+          with zipfile.ZipFile(ipa) as package:
+              executable = package.getinfo("Payload/Ramingo.app/Ramingo")
+              if not (executable.external_attr >> 16) & 0o111:
+                  raise SystemExit("The IPA did not preserve executable permissions.")
+              if "Payload/Ramingo.app/Info.plist" not in package.namelist():
+                  raise SystemExit("The IPA is missing its app Info.plist.")
+          metadata = {
+              "app": "Ramingo",
+              "bundle_id": info["CFBundleIdentifier"],
+              "version": version,
+              "build": build,
+              "commit": os.environ["GITHUB_SHA"],
+              "run_url": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "platform": "iphoneos",
+              "architecture": "arm64",
+              "minimum_ios": info["MinimumOSVersion"],
+              "signing": "unsigned; re-sign on Windows before installation",
+              "sign_in_with_apple": False,
+              "ipa": ipa.name,
+              "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
+              "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
+          }
+          (export / "build-info.json").write_text(json.dumps(metadata, indent=2) + "\n")
+          print(f"Verified {ipa.name}, version {version} build {build}: iPhoneOS arm64, correct public app configuration, unsigned.")
+          PY
+
+      - name: Upload unsigned iPhone IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: ramingo-ios-device-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/RamingoDeviceExport/*.ipa
+            ${{ runner.temp }}/RamingoDeviceExport/build-info.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ramingo-ios-device-log-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ramingo-ios-device-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Remove temporary app configuration
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/RamingoDevice.xcconfig"

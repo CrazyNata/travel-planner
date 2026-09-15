@@ -8,7 +8,9 @@ struct AuthView: View {
     @State private var isSignUp = false
     @State private var isWorking = false
     @State private var showReset = false
+    #if !SIDELOAD_BUILD
     @State private var appleNonce: String?
+    #endif
 
     var body: some View {
         ZStack {
@@ -70,6 +72,7 @@ struct AuthView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(isWorking || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
 
+                    #if !SIDELOAD_BUILD
                     SignInWithAppleButton(.continue) { request in
                         let nonce = SupabaseClient.makeNonce()
                         appleNonce = nonce
@@ -108,6 +111,7 @@ struct AuthView: View {
                     .frame(height: 52)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .disabled(isWorking)
+                    #endif
 
                     HStack {
                         Rectangle().fill(Color.black.opacity(0.1)).frame(height: 1)
