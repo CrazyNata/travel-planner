@@ -12,51 +12,111 @@ struct CreateTripView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Основное") {
-                    TextField("Название поездки", text: $title)
-                    TextField("Города через запятую", text: $cities)
-                }
-                Section("Даты") {
-                    TextField("Начало · ГГГГ-ММ-ДД", text: $startDate)
-                        .textInputAutocapitalization(.never)
-                    TextField("Окончание · ГГГГ-ММ-ДД", text: $endDate)
-                        .textInputAutocapitalization(.never)
-                }
-                Section {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if isSaving { ProgressView() }
-                            Text("Сохранить поездку")
-                                .fontWeight(.semibold)
-                            Spacer()
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Новое путешествие")
+                            .font(AppTheme.font(30, .extrabold))
+                            .foregroundStyle(AppTheme.ink)
+                        Text("Добавьте основу — детали можно заполнить позже")
+                            .font(AppTheme.font(14, .semibold))
+                            .foregroundStyle(AppTheme.muted)
+                            .padding(.top, 8)
+
+                        VStack(spacing: 14) {
+                            TripTextField(title: "Название", placeholder: "Например, Рождественская Италия", text: $title)
+                            TripTextField(title: "Города", placeholder: "Рим, Флоренция, Милан", text: $cities)
                         }
+                        .padding(.top, 28)
+
+                        Text("ДАТЫ")
+                            .font(AppTheme.font(11, .extrabold))
+                            .tracking(1.2)
+                            .foregroundStyle(AppTheme.purple)
+                            .padding(.top, 25)
+
+                        HStack(spacing: 10) {
+                            TripTextField(title: "Начало", placeholder: "ГГГГ-ММ-ДД", text: $startDate)
+                            TripTextField(title: "Окончание", placeholder: "ГГГГ-ММ-ДД", text: $endDate)
+                        }
+                        .padding(.top, 12)
+
+                        if let localError {
+                            Text(localError)
+                                .font(AppTheme.font(13, .bold))
+                                .foregroundStyle(AppTheme.error)
+                                .padding(.top, 12)
+                        }
+
+                        PrimaryActionButton(
+                            title: "Создать путешествие",
+                            isLoading: isSaving,
+                            disabled: isSaving || cities.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ) {
+                            Task { await save() }
+                        }
+                        .padding(.top, 24)
+
+                        Text("После создания откроются маршрут, места, жильё, бюджет и остальные разделы.")
+                            .font(AppTheme.font(12, .semibold))
+                            .foregroundStyle(AppTheme.muted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 13)
                     }
-                    .disabled(isSaving || cities.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 28)
+                    .padding(.bottom, 40)
                 }
-                if let localError {
-                    Section { Text(localError).foregroundStyle(.red) }
-                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("Новая поездка")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                        .font(AppTheme.font(15, .bold))
+                }
             }
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
     private func save() async {
         localError = nil
         isSaving = true
+        defer { isSaving = false }
         do {
             try await model.createTrip(title: title, startDate: startDate, endDate: endDate, cities: cities)
             dismiss()
         } catch {
             localError = error.localizedDescription
         }
-        isSaving = false
+    }
+}
+
+struct TripTextField: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    var axis: Axis = .horizontal
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(AppTheme.font(13, .bold))
+                .foregroundStyle(AppTheme.label)
+            TextField(placeholder, text: $text, axis: axis)
+                .font(AppTheme.font(14, .semibold))
+                .foregroundStyle(AppTheme.ink)
+                .textInputAutocapitalization(.sentences)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+        }
+        .frame(maxWidth: .infinity)
     }
 }

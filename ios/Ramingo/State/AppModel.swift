@@ -54,17 +54,19 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         }
     }
 
-    func signIn(email: String, password: String) async {
+    func signIn(email: String, password: String, remember: Bool = true) async {
         await runAuth {
+            self.client.setSessionPersistence(remember)
             self.session = try await self.client.signIn(email: email, password: password)
             await self.loadProfile()
             try await self.reloadTrips()
         }
     }
 
-    func signUp(email: String, password: String) async {
+    func signUp(email: String, password: String, displayName: String = "", remember: Bool = true) async {
         await runAuth {
-            let result = try await self.client.signUp(email: email, password: password)
+            self.client.setSessionPersistence(remember)
+            let result = try await self.client.signUp(email: email, password: password, displayName: displayName)
             self.session = result ?? self.client.session
             if self.session != nil {
                 await self.loadProfile()
@@ -76,8 +78,9 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         }
     }
 
-    func signInWithGoogle() async {
+    func signInWithGoogle(remember: Bool = true) async {
         await runAuth {
+            self.client.setSessionPersistence(remember)
             self.session = try await self.client.signInWithGoogle()
             await self.loadProfile()
             try await self.reloadTrips()

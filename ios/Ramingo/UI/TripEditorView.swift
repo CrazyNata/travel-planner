@@ -71,6 +71,10 @@ struct TripEditorView: View {
                     itemSection(kind: .pet, items: petItems)
                 }
             }
+            .font(AppTheme.font(14, .semibold))
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .tint(AppTheme.purple)
             .navigationTitle("Редактировать поездку")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

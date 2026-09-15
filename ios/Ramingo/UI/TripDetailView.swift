@@ -5,6 +5,7 @@ import SwiftUI
 
 struct TripDetailView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     let tripID: String
 
     @State private var overview: TripOverview?
@@ -18,32 +19,35 @@ struct TripDetailView: View {
     var body: some View {
         ZStack {
             AppTheme.background.ignoresSafeArea()
-            if isLoading {
-                ProgressView("Загружаем поездку…")
-            } else if let overview {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        TripHeroView(overview: overview, client: model.client)
-                        SectionPicker(selectedSection: $selectedSection)
-                        tripSection(overview)
+            VStack(spacing: 0) {
+                detailTopBar
+                    .padding(.horizontal, 10)
+                if isLoading {
+                    Spacer()
+                    ProgressView("Загружаем поездку…")
+                        .font(AppTheme.font(13, .semibold))
+                        .tint(AppTheme.purple)
+                    Spacer()
+                } else if let overview {
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            TripHeroView(overview: overview, client: model.client)
+                            SectionPicker(selectedSection: $selectedSection)
+                            tripSection(overview)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.top, 10)
+                        .padding(.bottom, 42)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 32)
-                }
-                .refreshable { await load() }
-            } else {
-                ContentUnavailableView("Поездка не найдена", systemImage: "airplane", description: Text("Проверьте подключение и попробуйте ещё раз."))
-            }
-        }
-        .navigationTitle(overview?.title ?? "Поездка")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if overview?.canEdit == true {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Изменить") { showEditor = true }
+                    .refreshable { await load() }
+                } else {
+                    Spacer()
+                    ContentUnavailableView("Поездка не найдена", systemImage: "airplane", description: Text("Проверьте подключение и попробуйте ещё раз."))
+                    Spacer()
                 }
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: tripID) { await load() }
         .sheet(isPresented: $showEditor, onDismiss: { Task { await load() } }) {
             if let overview {
@@ -59,6 +63,56 @@ struct TripDetailView: View {
         } message: {
             Text(localError ?? "")
         }
+    }
+
+    private var detailTopBar: some View {
+        HStack(spacing: 8) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.purple)
+                    .frame(width: 42, height: 42)
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 4)
+            Menu {
+                ForEach(TripSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        Label(section.title, systemImage: section.icon)
+                    }
+                }
+            } label: {
+                VStack(spacing: 1) {
+                    Text(overview?.title ?? "Поездка")
+                        .font(AppTheme.font(10, .bold))
+                        .foregroundStyle(AppTheme.muted)
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text(selectedSection.title)
+                            .font(AppTheme.font(15, .extrabold))
+                            .foregroundStyle(AppTheme.ink)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(AppTheme.purple)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            Spacer(minLength: 4)
+            Button { showEditor = true } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(overview?.canEdit == true ? AppTheme.ink : Color.clear)
+                    .frame(width: 42, height: 42)
+            }
+            .buttonStyle(.plain)
+            .disabled(overview?.canEdit != true)
+        }
+        .frame(height: 54)
     }
 
     @ViewBuilder
@@ -115,19 +169,19 @@ private struct TripHeroView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             RemotePhotoView(reference: overview.coverPhotos.first?.reference, client: client, contentMode: .fill, cornerRadius: 22)
-                .frame(height: 190)
+                .frame(height: 204)
                 .overlay(alignment: .bottomLeading) {
                     LinearGradient(colors: [.clear, .black.opacity(0.64)], startPoint: .top, endPoint: .bottom)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .overlay(alignment: .bottomLeading) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(overview.title)
-                                    .font(.title2.weight(.heavy))
+                                    .font(AppTheme.font(24, .extrabold))
                                     .foregroundStyle(.white)
                                     .lineLimit(2)
                                 if !overview.cities.isEmpty {
                                     Text(overview.cities.joined(separator: " · "))
-                                        .font(.subheadline.weight(.medium))
+                                        .font(AppTheme.font(13, .semibold))
                                         .foregroundStyle(.white.opacity(0.9))
                                 }
                             }
@@ -138,15 +192,16 @@ private struct TripHeroView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(overview.dates.isEmpty ? "Даты не указаны" : overview.dates)
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppTheme.font(13, .bold))
+                        .foregroundStyle(AppTheme.ink)
                     Text(overview.currentUserRole.isEmpty ? overview.status : "\(overview.status) · \(overview.currentUserRole)")
-                        .font(.caption)
+                        .font(AppTheme.font(11, .semibold))
                         .foregroundStyle(AppTheme.muted)
                 }
                 Spacer()
                 Text("\(overview.progress)%")
-                    .font(.title3.weight(.heavy))
-                    .foregroundStyle(AppTheme.purpleDeep)
+                    .font(AppTheme.font(18, .extrabold))
+                    .foregroundStyle(AppTheme.purple)
             }
             ProgressBar(value: overview.progress)
         }
@@ -158,17 +213,22 @@ private struct SectionPicker: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 9) {
                 ForEach(TripSection.allCases) { section in
                     Button {
                         withAnimation(.easeInOut(duration: 0.18)) { selectedSection = section }
                     } label: {
                         Label(section.title, systemImage: section.icon)
-                            .font(.caption.weight(.semibold))
+                            .font(AppTheme.font(12, .bold))
                             .foregroundStyle(selectedSection == section ? .white : AppTheme.purpleDeep)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
+                            .padding(.horizontal, 13)
+                            .frame(height: 38)
                             .background(selectedSection == section ? AppTheme.purple : AppTheme.lavender, in: Capsule())
+                            .overlay {
+                                if selectedSection != section {
+                                    Capsule().stroke(AppTheme.border, lineWidth: 1)
+                                }
+                            }
                     }
                     .buttonStyle(.plain)
                 }

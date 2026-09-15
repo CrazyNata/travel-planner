@@ -96,6 +96,12 @@ private struct PasswordRequest: Encodable {
     let password: String
 }
 
+private struct SignUpRequest: Encodable {
+    let email: String
+    let password: String
+    let data: [String: JSONValue]
+}
+
 private struct RecoveryRequest: Encodable {
     let email: String
     let redirectTo: String
@@ -215,6 +221,8 @@ final class SupabaseClient {
     private let sessionStore = KeychainSessionStore()
     private let urlSession: URLSession
     private(set) var session: AuthSession?
+    private var persistSession = true
+    @MainActor private var googleAuthCoordinator: GoogleAuthCoordinator?
 
     init(configuration: SupabaseConfiguration, urlSession: URLSession = .shared) {
         self.configuration = configuration
@@ -223,6 +231,11 @@ final class SupabaseClient {
     }
 
     var currentUser: AuthUser? { session?.user }
+
+    func setSessionPersistence(_ enabled: Bool) {
+        persistSession = enabled
+        if !enabled { sessionStore.clear() }
+    }
 
     func restoreSession() async throws -> AuthSession? {
         guard let current = session else { return nil }
@@ -246,12 +259,16 @@ final class SupabaseClient {
     }
 
     @discardableResult
-    func signUp(email: String, password: String) async throws -> AuthSession? {
+    func signUp(email: String, password: String, displayName: String = "") async throws -> AuthSession? {
         guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
         let response: AuthResponse = try await send(
             "auth/v1/signup",
             method: "POST",
-            body: PasswordRequest(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password),
+            body: SignUpRequest(
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                password: password,
+                data: ["full_name": .string(displayName.trimmingCharacters(in: .whitespacesAndNewlines))]
+            ),
             authenticated: false,
         )
         guard !response.session.accessToken.isEmpty, !response.session.refreshToken.isEmpty else { return nil }
@@ -505,8 +522,15 @@ final class SupabaseClient {
             URLQueryItem(name: "code_challenge_method", value: "s256"),
         ]
         guard let authorizeURL = components?.url else { throw SupabaseClientError.malformedURL }
-        let callback = try await GoogleAuthCoordinator().start(url: authorizeURL)
-        guard let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else {
+        let coordinator = GoogleAuthCoordinator()
+        googleAuthCoordinator = coordinator
+        defer { googleAuthCoordinator = nil }
+        let callback = try await coordinator.start(url: authorizeURL)
+        let callbackValues = Self.callbackValues(from: callback)
+        if let error = callbackValues["error_description"] ?? callbackValues["error"], !error.isEmpty {
+            throw SupabaseClientError.server(status: 400, message: error)
+        }
+        guard let code = callbackValues["code"], !code.isEmpty else {
             throw SupabaseClientError.oauthCallbackMissingCode
         }
         let response: AuthResponse = try await send(
@@ -574,7 +598,11 @@ final class SupabaseClient {
 
     private func save(_ value: AuthSession) -> AuthSession {
         session = value
-        sessionStore.write(value)
+        if persistSession {
+            sessionStore.write(value)
+        } else {
+            sessionStore.clear()
+        }
         return value
     }
 

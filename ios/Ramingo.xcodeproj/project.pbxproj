@@ -26,6 +26,7 @@
 		A10000000000000000000050 /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003A /* ReminderScheduler.swift */; };
 		A10000000000000000000051 /* TripEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003B /* TripEditorView.swift */; };
 		A10000000000000000000052 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003D /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000053 /* manrope_variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003E /* manrope_variable.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,6 +53,7 @@
 		A1000000000000000000003B /* TripEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripEditorView.swift; sourceTree = "<group>"; };
 		A1000000000000000000003C /* Ramingo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ramingo.entitlements; sourceTree = "<group>"; };
 		A1000000000000000000003D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A1000000000000000000003E /* manrope_variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = manrope_variable.ttf; sourceTree = "<group>"; };
 		A10000000000000000000032 /* Ramingo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ramingo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -97,6 +99,7 @@
 				A10000000000000000000035 /* Assets.xcassets */,
 				A1000000000000000000003C /* Ramingo.entitlements */,
 				A1000000000000000000003D /* PrivacyInfo.xcprivacy */,
+				A10000000000000000000019 /* Fonts */,
 			);
 			path = Ramingo;
 			sourceTree = "<group>";
@@ -160,6 +163,14 @@
 			path = Notifications;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000019 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000003E /* manrope_variable.ttf */,
+			);
+			path = Resources/Fonts;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -221,6 +232,7 @@
 			files = (
 				A1000000000000000000004B /* Assets.xcassets in Resources */,
 				A10000000000000000000052 /* PrivacyInfo.xcprivacy in Resources */,
+				A10000000000000000000053 /* manrope_variable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
