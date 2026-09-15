@@ -102,7 +102,7 @@ jobs:
           test -d "$app_path"
           test ! -e "$app_path/embedded.mobileprovision"
           test ! -d "$app_path/_CodeSignature"
-          xcrun lipo -verify_arch arm64 "$app_path/Ramingo"
+          xcrun lipo "$app_path/Ramingo" -verify_arch arm64
           xcrun vtool -show-build "$app_path/Ramingo"
           mkdir -p "$export_path/Payload"
           python3 - <<'PY'
