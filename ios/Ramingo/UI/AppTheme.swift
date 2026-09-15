@@ -76,18 +76,51 @@ struct RamingoLogo: View {
     var compact = false
 
     var body: some View {
-        HStack(spacing: compact ? 9 : 11) {
-            Text("R")
-                .font(AppTheme.font(compact ? 13 : 19, .extrabold))
-                .foregroundStyle(.white)
-                .frame(width: compact ? 26 : 42, height: compact ? 26 : 36)
-                .background(AppTheme.primaryGradient, in: RoundedRectangle(cornerRadius: compact ? 8 : 12, style: .continuous))
+        HStack(spacing: 9) {
+            RamingoMark()
+                .frame(width: compact ? 32 : 42, height: compact ? 32 : 42)
             Text("Ramingo")
-                .font(AppTheme.font(compact ? 16 : 20, .extrabold))
+                .font(AppTheme.font(compact ? 17 : 20, .extrabold))
                 .foregroundStyle(AppTheme.ink)
+        }
+        .padding(.horizontal, compact ? 8 : 0)
+        .padding(.vertical, compact ? 5 : 0)
+        .background(compact ? AppTheme.surface : Color.clear, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            if compact {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Ramingo")
+    }
+}
+
+struct RamingoMark: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let side = min(proxy.size.width, proxy.size.height)
+            ZStack {
+                RoundedRectangle(cornerRadius: side * 0.28, style: .continuous)
+                    .fill(AppTheme.purple)
+                Circle()
+                    .stroke(Color.white, lineWidth: side * 0.085)
+                    .frame(width: side * 0.65, height: side * 0.65)
+                Path { path in
+                    let c = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                    path.move(to: CGPoint(x: c.x, y: c.y - side * 0.25))
+                    path.addLine(to: CGPoint(x: c.x + side * 0.085, y: c.y))
+                    path.addLine(to: CGPoint(x: c.x, y: c.y + side * 0.25))
+                    path.addLine(to: CGPoint(x: c.x - side * 0.085, y: c.y))
+                    path.closeSubpath()
+                }
+                .fill(Color.white)
+                Circle()
+                    .fill(AppTheme.purple)
+                    .frame(width: side * 0.16, height: side * 0.16)
+            }
+        }
     }
 }
 
@@ -161,14 +194,14 @@ struct StatusPill: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle().fill(statusColor).frame(width: 6, height: 6)
+            Circle().fill(statusColor).frame(width: 7, height: 7)
             Text(text.isEmpty ? "Черновик" : text)
-                .font(AppTheme.font(11, .bold))
+                .font(AppTheme.font(11, .extrabold))
                 .lineLimit(1)
         }
         .foregroundStyle(AppTheme.label)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 5)
         .background(AppTheme.surface.opacity(0.94), in: Capsule())
     }
 

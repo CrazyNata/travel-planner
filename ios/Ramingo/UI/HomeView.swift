@@ -152,63 +152,73 @@ private struct TripCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             RemotePhotoView(reference: trip.coverReference, client: client, contentMode: .fill, cornerRadius: 0)
-                .frame(height: 178)
-                .overlay {
-                    LinearGradient(colors: [.clear, .black.opacity(0.2)], startPoint: .center, endPoint: .bottom)
-                }
+                .frame(height: 205)
                 .overlay(alignment: .topLeading) {
                     StatusPill(text: trip.status)
                         .padding(12)
                 }
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(hex: 0x32323A))
-                        .frame(width: 32, height: 32)
-                        .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color(hex: 0x46464D))
+                        .rotationEffect(.degrees(90))
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.97), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .padding(12)
                 }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(trip.title)
-                    .font(AppTheme.font(20, .extrabold))
+                    .font(AppTheme.font(21, .extrabold))
                     .foregroundStyle(AppTheme.ink)
                     .lineLimit(2)
 
-                HStack(spacing: 7) {
-                    Image(systemName: "calendar")
-                    Text(trip.dates.isEmpty ? "Даты не указаны" : trip.dates)
-                }
+                Text(trip.dates.isEmpty ? "Даты не указаны" : trip.dates)
                 .font(AppTheme.font(13, .semibold))
                 .foregroundStyle(AppTheme.muted)
+                .padding(.top, 7)
 
-                if !trip.cities.isEmpty {
-                    HStack(spacing: 7) {
-                        Image(systemName: "mappin.and.ellipse")
-                        Text(trip.cities).lineLimit(1)
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(AppTheme.track)
+                        LinearGradient(
+                            colors: [AppTheme.purple, Color(hex: 0x8069EE)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: proxy.size.width * CGFloat(max(trip.progress, 3)) / 100)
+                        .clipShape(Capsule())
                     }
-                    .font(AppTheme.font(13, .semibold))
-                    .foregroundStyle(AppTheme.muted)
                 }
+                .frame(height: 6)
+                .padding(.top, 13)
 
-                HStack(spacing: 10) {
-                    ProgressBar(value: trip.progress)
-                    Text("\(trip.progress)%")
-                        .font(AppTheme.font(12, .extrabold))
-                        .foregroundStyle(AppTheme.purple)
-                        .frame(width: 38, alignment: .trailing)
-                }
-                .padding(.top, 2)
+                routeSummary
+                    .padding(.top, 9)
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.top, 15)
+            .padding(.bottom, 17)
         }
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(AppTheme.border.opacity(0.65), lineWidth: 1)
+        .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 5)
+    }
+
+    private var routeSummary: some View {
+        Group {
+            if trip.cities.isEmpty {
+                Text("Маршрут заполнен на \(trip.progress)%")
+                    .font(AppTheme.font(11.5, .extrabold))
+            } else {
+                Text("Маршрут заполнен на \(trip.progress)%")
+                    .font(AppTheme.font(11.5, .extrabold)) +
+                Text(" · \(trip.cities)")
+                    .font(AppTheme.font(11.5, .semibold))
+            }
         }
-        .shadow(color: Color.black.opacity(0.07), radius: 13, x: 0, y: 8)
+        .foregroundStyle(AppTheme.muted)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -246,30 +256,29 @@ private struct NewTripCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 13) {
-                Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(AppTheme.primaryGradient, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Новое путешествие")
-                        .font(AppTheme.font(16, .extrabold))
-                        .foregroundStyle(AppTheme.ink)
-                    Text("Добавить маршрут, места и жильё")
-                        .font(AppTheme.font(12, .semibold))
-                        .foregroundStyle(AppTheme.muted)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
+            VStack(spacing: 0) {
+                Text("+")
+                    .font(AppTheme.font(28, .semibold))
                     .foregroundStyle(AppTheme.purple)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                Text("Новое путешествие")
+                    .font(AppTheme.font(16, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+                    .padding(.top, 10)
+                Text("С нуля или из шаблона")
+                    .font(AppTheme.font(13, .medium))
+                    .foregroundStyle(AppTheme.muted)
+                    .padding(.top, 2)
             }
-            .padding(15)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 34)
+            .padding(.horizontal, 20)
+            .background(AppTheme.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(AppTheme.purple.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [6, 5]))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(AppTheme.border, style: StrokeStyle(lineWidth: 2, dash: [7, 7]))
             }
         }
         .buttonStyle(.plain)
