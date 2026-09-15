@@ -915,8 +915,8 @@ private struct EditableItem: Identifiable {
         description = sight.description
         link = sight.link
         walkDayText = String(sight.walkDay)
-        latitudeText = sight.latitude.map(String.init) ?? ""
-        longitudeText = sight.longitude.map(String.init) ?? ""
+        latitudeText = sight.latitude.map { String($0) } ?? ""
+        longitudeText = sight.longitude.map { String($0) } ?? ""
         photos = sight.photos
         done = sight.done
     }
@@ -945,8 +945,8 @@ private struct EditableItem: Identifiable {
         bookingPropertyID = accommodation.bookingPropertyID
         externalURL = accommodation.externalURL
         address = accommodation.address
-        latitudeText = accommodation.latitude.map(String.init) ?? ""
-        longitudeText = accommodation.longitude.map(String.init) ?? ""
+        latitudeText = accommodation.latitude.map { String($0) } ?? ""
+        longitudeText = accommodation.longitude.map { String($0) } ?? ""
         reviewCountText = accommodation.reviewCount.map(String.init) ?? ""
         photoReference = accommodation.photoReference
         website = accommodation.website
@@ -964,7 +964,7 @@ private struct EditableItem: Identifiable {
         paidBy = expense.paidBy
         date = expense.date
         inputCurrency = expense.inputCurrency
-        inputCurrencyRateText = expense.inputCurrencyRate.map(String.init) ?? ""
+        inputCurrencyRateText = expense.inputCurrencyRate.map { String($0) } ?? ""
     }
 
     init(_ pet: PetPlace) {
@@ -974,8 +974,8 @@ private struct EditableItem: Identifiable {
         phone = pet.phone
         mapsURL = pet.mapsURL
         website = pet.website
-        latitudeText = pet.latitude.map(String.init) ?? ""
-        longitudeText = pet.longitude.map(String.init) ?? ""
+        latitudeText = pet.latitude.map { String($0) } ?? ""
+        longitudeText = pet.longitude.map { String($0) } ?? ""
         reviewCountText = pet.reviewCount.map(String.init) ?? ""
         noteForPet = pet.note
         featuresText = pet.features.joined(separator: ", ")

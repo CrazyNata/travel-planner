@@ -140,7 +140,7 @@ struct ReminderScheduler {
         let calendar = Calendar.current
         return trip.accommodations
             .filter { $0.status.isStayed == false }
-            .flatMap { accommodation in
+            .flatMap { accommodation -> [Event] in
                 guard let deadline = extractDates(from: accommodation.deadline).first else { return [] }
                 let name = [accommodation.name, accommodation.city]
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -289,7 +289,7 @@ struct ReminderScheduler {
     }
 
     private static func add(_ request: UNNotificationRequest, to center: UNUserNotificationCenter) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             center.add(request) { error in
                 if let error {
                     continuation.resume(throwing: error)
