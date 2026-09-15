@@ -316,9 +316,10 @@ private val OdysseySurface2 = Color(0xFFF5F5F8)
 private val OdysseyTrack = Color(0xFFEEEEF2)
 private val OdysseyText = Color(0xFF141419)
 private val OdysseyLabel = Color(0xFF3A3A42)
-private val OdysseySubtext = Color(0xFF8A8A95)
+private val OdysseySubtext = Color(0xFF6A6A75)
 private val OdysseyBorder = Color(0xFFE6E6EC)
 private val OdysseyTint = Color(0xFFF1EEFE)
+private val OdysseyLightError = Color(0xFFB3261E)
 private val OdysseyDarkPrimary = Color(0xFFA79BFF)
 private val OdysseyDarkOnPrimary = Color(0xFF18152D)
 private val OdysseyDarkBackground = Color(0xFF141416)
@@ -331,6 +332,7 @@ private val OdysseyDarkSubtext = Color(0xFFD9DBE6)
 private val OdysseyDarkBorder = Color(0xFF697084)
 private val OdysseyDarkTint = Color(0xFF332F50)
 private val OdysseyDarkMuted = Color(0xFFA8ADBC)
+private val OdysseyDarkError = Color(0xFFFF8A80)
 private val OdysseyLightColors = lightColorScheme(
     primary = OdysseyPurple,
     onPrimary = Color.White,
@@ -341,7 +343,7 @@ private val OdysseyLightColors = lightColorScheme(
     surfaceVariant = OdysseySurface2,
     onSurfaceVariant = OdysseySubtext,
     outline = OdysseyBorder,
-    error = Color(0xFFE0524B),
+    error = OdysseyLightError,
 )
 private val OdysseyDarkColors = darkColorScheme(
     primary = OdysseyDarkPrimary,
@@ -353,7 +355,7 @@ private val OdysseyDarkColors = darkColorScheme(
     surfaceVariant = OdysseyDarkSurface2,
     onSurfaceVariant = OdysseyDarkSubtext,
     outline = OdysseyDarkBorder,
-    error = Color(0xFFFF7B76),
+    error = OdysseyDarkError,
 )
 private val Manrope = FontFamily(
     Font(R.font.manrope_regular, FontWeight.W400),
@@ -471,7 +473,29 @@ private fun mapLocale(language: String): Locale = when (normalizeLanguage(langua
 private fun labelMapboxAccessibility(view: View, attributionDescription: String) {
     when {
         view.javaClass.name.endsWith("LogoViewImpl") -> view.contentDescription = "Mapbox"
-        view.javaClass.name.endsWith("AttributionViewImpl") -> view.contentDescription = attributionDescription
+        view.javaClass.name.endsWith("AttributionViewImpl") -> {
+            view.contentDescription = attributionDescription
+            // Mapbox's native attribution control is smaller than Android's
+            // recommended 48 dp touch target on compact phones. Keep the
+            // visual icon unchanged while giving touch and accessibility
+            // services a full-size target.
+            val minimumTargetPx = (48f * view.resources.displayMetrics.density + 0.5f).toInt()
+            view.minimumWidth = maxOf(view.minimumWidth, minimumTargetPx)
+            view.minimumHeight = maxOf(view.minimumHeight, minimumTargetPx)
+            view.layoutParams?.let { params ->
+                var changed = false
+                if (params.width >= 0 && params.width < minimumTargetPx) {
+                    params.width = minimumTargetPx
+                    changed = true
+                }
+                if (params.height >= 0 && params.height < minimumTargetPx) {
+                    params.height = minimumTargetPx
+                    changed = true
+                }
+                if (changed) view.layoutParams = params
+            }
+            view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
     }
     if (view is ViewGroup) {
         repeat(view.childCount) { index -> labelMapboxAccessibility(view.getChildAt(index), attributionDescription) }
@@ -1586,6 +1610,9 @@ private fun tintedSurfaceColor() = if (LocalDarkTheme.current) OdysseyDarkTint e
 
 @Composable
 private fun dangerSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF47282C) else Color(0xFFFFE9E8)
+
+@Composable
+private fun dangerColor() = if (LocalDarkTheme.current) OdysseyDarkError else OdysseyLightError
 
 @Composable
 private fun warningSurfaceColor() = if (LocalDarkTheme.current) Color(0xFF443721) else Color(0xFFFDF5E6)
@@ -5491,7 +5518,7 @@ private fun AccountSettingsSheet(
                 AccountSettingsDivider(dividerColor)
                 AccountMenuItem(Icons.Outlined.Image, localized("Сменить фото", "Change photo", "Cambiar foto", "Foto ändern")) { onPhotoPick() }
                 AccountSettingsDivider(dividerColor)
-                AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), Color(0xFFE85B56)) { onDeleteAccount() }
+                AccountMenuItem(Icons.Outlined.DeleteForever, localized("Удалить аккаунт", "Delete account", "Eliminar cuenta", "Konto löschen"), dangerColor()) { onDeleteAccount() }
             }
 
             Text(localized("ПОДДЕРЖКА", "SUPPORT", "SOPORTE", "SUPPORT"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
@@ -5870,7 +5897,7 @@ private fun AccountIconTile(icon: androidx.compose.ui.graphics.vector.ImageVecto
             .clip(RoundedCornerShape(9.dp))
             .background(if (danger) dangerSurfaceColor() else tintedSurfaceColor()),
     ) {
-        Icon(icon, contentDescription = null, tint = if (danger) Color(0xFFE85B56) else primaryColor(), modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = if (danger) dangerColor() else primaryColor(), modifier = Modifier.size(18.dp))
     }
 }
 
@@ -23071,6 +23098,8 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
     val weatherCities = (overview.overviewMapPoints.ifEmpty { routeCities })
         .distinctBy { cityFilterKey(it) }
     val routeDistanceSummary = rememberTripRouteDistanceSummary(overview)
+    val previousPhotoDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto")
+    val nextPhotoDescription = localized("Следующее фото", "Next photo", "Foto siguiente", "Nächstes Foto")
 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -23108,24 +23137,32 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
                     modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
                 )
                 if (photos.size > 1) {
-                    Text(
-                        text = "‹",
-                        color = primaryContentColor(),
-                        fontSize = 31.sp,
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
-                            .padding(12.dp)
+                            .size(48.dp)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = previousPhotoDescription
+                                role = Role.Button
+                            }
                             .clickable { photoIndex = (photoIndex - 1 + photos.size) % photos.size },
-                    )
-                    Text(
-                        text = "›",
-                        color = Color.White,
-                        fontSize = 31.sp,
+                    ) {
+                        Text("‹", color = primaryContentColor(), fontSize = 31.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .padding(12.dp)
+                            .size(48.dp)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = nextPhotoDescription
+                                role = Role.Button
+                            }
                             .clickable { photoIndex = (photoIndex + 1) % photos.size },
-                    )
+                    ) {
+                        Text("›", color = Color.White, fontSize = 31.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         modifier = Modifier.align(Alignment.TopEnd).padding(14.dp),
@@ -23505,12 +23542,38 @@ private fun OverviewEditableBlock(
 @Composable
 private fun OverviewPhotoBlock(photos: List<CoverPhoto>, photoIndex: Int, onPrevious: () -> Unit, onNext: () -> Unit) {
     val activePhoto = photos.getOrNull(photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)))
+    val previousPhotoDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto")
+    val nextPhotoDescription = localized("Следующее фото", "Next photo", "Foto siguiente", "Nächstes Foto")
     Box(modifier = Modifier.fillMaxWidth().height(270.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xFFCAC7D9))) {
         if (activePhoto != null) AsyncImage(model = activePhoto.imageUrl, contentDescription = activePhoto.city, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
         Text(localizedCityName(activePhoto?.city.orEmpty()), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 24.sp, modifier = Modifier.align(Alignment.BottomStart).padding(16.dp))
         if (photos.size > 1) {
-            Text("‹", color = Color.White, fontSize = 31.sp, modifier = Modifier.align(Alignment.CenterStart).padding(12.dp).clickable(onClick = onPrevious))
-            Text("›", color = Color.White, fontSize = 31.sp, modifier = Modifier.align(Alignment.CenterEnd).padding(12.dp).clickable(onClick = onNext))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(48.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = previousPhotoDescription
+                        role = Role.Button
+                    }
+                    .clickable(onClick = onPrevious),
+            ) {
+                Text("‹", color = Color.White, fontSize = 31.sp, modifier = Modifier.padding(horizontal = 8.dp))
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(48.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = nextPhotoDescription
+                        role = Role.Button
+                    }
+                    .clickable(onClick = onNext),
+            ) {
+                Text("›", color = Color.White, fontSize = 31.sp, modifier = Modifier.padding(horizontal = 8.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {
                 photos.forEachIndexed { index, _ -> Spacer(Modifier.height(6.dp).width(if (index == photoIndex) 18.dp else 6.dp).background(if (index == photoIndex) Color.White else Color(0x99FFFFFF), RoundedCornerShape(3.dp))) }
             }
@@ -24222,10 +24285,18 @@ private fun OverviewMapCard(
             }
         }
         if (footer != null) footer() else Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Text(localized("Общий маршрут", "Full route", "Ruta completa", "Gesamtroute"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 13.sp)
+            Text(
+                localized("Общий маршрут", "Full route", "Ruta completa", "Gesamtroute"),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 text = buildString {
                     append(localizedLegsAndCitiesSummary(legs.size, cityCount, language))
@@ -24235,6 +24306,8 @@ private fun OverviewMapCard(
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W800,
                 fontSize = 14.sp,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
             )
         }
     }
