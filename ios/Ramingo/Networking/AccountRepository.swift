@@ -118,6 +118,9 @@ final class AccountRepository {
                 cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
                 reminderHour: profile.reminderHour,
             )
+            if let previousReference = profile.avatarReference, previousReference != reference {
+                await client.deleteStorageReference(previousReference)
+            }
         } catch {
             try? await client.deleteStorageObject(path: path)
             throw error

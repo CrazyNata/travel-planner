@@ -5,13 +5,14 @@ struct HomeView: View {
     @State private var filter: TripFilter = .active
     @State private var showCreateTrip = false
     @State private var showSettings = false
+    @State private var navigationPath = NavigationPath()
 
     private var visibleTrips: [TripSummary] {
         model.trips.filter { filter == .active ? $0.deletedAt == nil : $0.deletedAt != nil }
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
                 ScrollView {
@@ -71,10 +72,21 @@ struct HomeView: View {
                 }
             }
             .refreshable { try? await model.reloadTrips() }
-            .task { try? await model.reloadTrips() }
+            .task {
+                try? await model.reloadTrips()
+                openPendingTrip()
+            }
+            .onChange(of: model.pendingTripID) { _, _ in
+                openPendingTrip()
+            }
             .sheet(isPresented: $showCreateTrip) { CreateTripView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
         }
+    }
+
+    private func openPendingTrip() {
+        guard let tripID = model.consumePendingTripID(), !tripID.isEmpty else { return }
+        navigationPath.append(tripID)
     }
 
     private var greeting: String {

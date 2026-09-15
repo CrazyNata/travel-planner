@@ -1,21 +1,37 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 
 @MainActor
-final class AppModel: ObservableObject {
+final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     let client: SupabaseClient
+
     private let repository: TripRepository
+    private let accountRepository: AccountRepository
+    private let catalogRepository: CatalogRepository
+    private let weatherRepository: WeatherRepository
+    private let exchangeRateRepository: ExchangeRateRepository
 
     @Published private(set) var session: AuthSession?
     @Published private(set) var trips: [TripSummary] = []
+    @Published private(set) var profile = AccountProfile.defaults
     @Published private(set) var isBootstrapping = true
     @Published var errorMessage: String?
+    @Published var authNotice: String?
+    @Published var pendingTripID: String?
+    @Published var isShowingPasswordRecovery = false
 
-    init() {
+    override init() {
         let client = SupabaseClient(configuration: .load())
         self.client = client
         self.repository = TripRepository(client: client)
+        self.accountRepository = AccountRepository(client: client)
+        self.catalogRepository = CatalogRepository(client: client)
+        self.weatherRepository = WeatherRepository()
+        self.exchangeRateRepository = ExchangeRateRepository()
         self.session = client.session
+        super.init()
+        UNUserNotificationCenter.current().delegate = self
     }
 
     var isConfigured: Bool { client.configuration.isConfigured }
@@ -27,58 +43,176 @@ final class AppModel: ObservableObject {
         guard isConfigured else { return }
         do {
             session = try await client.restoreSession()
-            if session != nil { try await reloadTrips() }
+            if session != nil {
+                await loadProfile()
+                try await reloadTrips()
+            }
         } catch {
             session = nil
+            profile = .defaults
             errorMessage = error.localizedDescription
         }
     }
 
     func signIn(email: String, password: String) async {
-        await self.runAuth {
+        await runAuth {
             self.session = try await self.client.signIn(email: email, password: password)
+            await self.loadProfile()
             try await self.reloadTrips()
         }
     }
 
     func signUp(email: String, password: String) async {
-        await self.runAuth {
+        await runAuth {
             let result = try await self.client.signUp(email: email, password: password)
             self.session = result ?? self.client.session
-            if self.session != nil { try await self.reloadTrips() }
+            if self.session != nil {
+                await self.loadProfile()
+                try await self.reloadTrips()
+            } else {
+                let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.authNotice = "Мы отправили письмо для подтверждения на \(normalizedEmail). Подтвердите e-mail, затем войдите в приложение."
+            }
         }
     }
 
     func signInWithGoogle() async {
-        await self.runAuth {
+        await runAuth {
             self.session = try await self.client.signInWithGoogle()
+            await self.loadProfile()
             try await self.reloadTrips()
         }
     }
 
-    func sendPasswordReset(email: String) async {
-        do {
-            try await client.sendPasswordReset(email: email)
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+    func signInWithApple(identityToken: String, nonce: String) async {
+        await runAuth {
+            self.session = try await self.client.signInWithApple(identityToken: identityToken, nonce: nonce)
+            await self.loadProfile()
+            try await self.reloadTrips()
         }
     }
 
+    func updateDisplayName(_ name: String) async {
+        guard let user = try? await client.updateUserDisplayName(name) else { return }
+        if let current = session {
+            session = AuthSession(
+                accessToken: current.accessToken,
+                refreshToken: current.refreshToken,
+                expiresAt: current.expiresAt,
+                user: user,
+            )
+        }
+    }
+
+    @discardableResult
+    func sendPasswordReset(email: String) async -> Bool {
+        do {
+            try await client.sendPasswordReset(email: email)
+            errorMessage = nil
+            authNotice = "Ссылка для сброса пароля отправлена на указанный e-mail. Откройте её на этом iPhone."
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func changePassword(_ password: String) async throws {
+        try await accountRepository.changePassword(password)
+    }
+
     func signOut() async {
+        await ReminderScheduler.cancelAll()
         await client.signOut()
         session = nil
+        profile = .defaults
         trips = []
+        pendingTripID = nil
+        isShowingPasswordRecovery = false
+    }
+
+    func deleteAccount() async throws {
+        try await accountRepository.deleteAccount()
+        await signOut()
+    }
+
+    func loadProfile() async {
+        guard session != nil else {
+            profile = .defaults
+            return
+        }
+        profile = (try? await accountRepository.loadProfile()) ?? .defaults
+    }
+
+    func updateProfile(_ next: AccountProfile) async throws {
+        try await accountRepository.updateProfile(
+            avatarReference: next.avatarReference,
+            notificationsEnabled: next.notificationsEnabled,
+            language: next.language,
+            darkTheme: next.darkTheme,
+            tripRemindersEnabled: next.tripRemindersEnabled,
+            cancellationRemindersEnabled: next.cancellationRemindersEnabled,
+            reminderHour: next.reminderHour,
+        )
+        profile = next
+        await syncReminders()
+    }
+
+    func setNotificationsEnabled(_ enabled: Bool) async throws {
+        if enabled {
+            let granted = try await ReminderScheduler.requestAuthorization()
+            guard granted else { throw AppModelError.notificationsDenied }
+        }
+        let next = AccountProfile(
+            avatarReference: profile.avatarReference,
+            notificationsEnabled: enabled,
+            language: profile.language,
+            darkTheme: profile.darkTheme,
+            tripRemindersEnabled: profile.tripRemindersEnabled,
+            cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            reminderHour: profile.reminderHour,
+        )
+        try await updateProfile(next)
+        if !enabled { await ReminderScheduler.cancelAll() }
+    }
+
+    func uploadProfilePhoto(data: Data) async throws {
+        let reference = try await accountRepository.uploadProfilePhoto(data: data)
+        profile = AccountProfile(
+            avatarReference: reference,
+            notificationsEnabled: profile.notificationsEnabled,
+            language: profile.language,
+            darkTheme: profile.darkTheme,
+            tripRemindersEnabled: profile.tripRemindersEnabled,
+            cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            reminderHour: profile.reminderHour,
+        )
     }
 
     func reloadTrips() async throws {
         try await ensureSession()
         trips = try await repository.loadTrips()
+        await syncReminders()
     }
 
     func overview(for tripID: String) async throws -> TripOverview? {
         try await ensureSession()
         return try await repository.loadOverview(id: tripID)
+    }
+
+    func weather(for overview: TripOverview) async -> [String: WeatherSnapshot] {
+        await weatherRepository.loadCurrent(
+            cities: overview.cities,
+            tripDates: overview.dates,
+            coordinates: overview.cityCoordinates,
+        )
+    }
+
+    func exchangeRates(for overview: TripOverview) async throws -> ExchangeRateSnapshot {
+        let currencies = Set(
+            [overview.budgetCurrency] + overview.budgetExpenses.map(\.inputCurrency),
+        )
+        return try await exchangeRateRepository.loadRubRates(quotes: currencies)
     }
 
     func createTrip(title: String, startDate: String, endDate: String, cities: String) async throws {
@@ -87,8 +221,233 @@ final class AppModel: ObservableObject {
         try await reloadTrips()
     }
 
+    func updateTripDetails(id: String, title: String, dates: String, cities: String) async throws {
+        try await ensureSession()
+        try await repository.updateTripDetails(id: id, title: title, dates: dates, cities: cities)
+    }
+
+    func updateTripField(id: String, key: String, value: JSONValue) async throws {
+        try await ensureSession()
+        try await repository.updateTripField(id: id, key: key, value: value)
+    }
+
+    func addTripArrayItem(id: String, section: String, item: [String: JSONValue]) async throws {
+        try await ensureSession()
+        try await repository.addTripArrayItem(id: id, section: section, item: item)
+    }
+
+    func updateTripArrayItem(id: String, section: String, itemID: String, fields: [String: JSONValue]) async throws {
+        try await ensureSession()
+        try await repository.updateTripArrayItem(id: id, section: section, itemID: itemID, fields: fields)
+    }
+
+    func deleteTripItem(id: String, section: String, itemID: String) async throws {
+        try await ensureSession()
+        try await repository.deleteTripItem(id: id, section: section, itemID: itemID)
+    }
+
+    func addRouteLeg(
+        id: String,
+        from: String,
+        to: String,
+        checkIn: String,
+        checkOut: String,
+        notes: String,
+        mapsURL: String,
+        date: String,
+        dateDay: String,
+        dateMonth: String,
+        weekday: String,
+        distance: String,
+        travelTime: String,
+    ) async throws {
+        try await ensureSession()
+        try await repository.addRouteLeg(
+            id: id,
+            from: from,
+            to: to,
+            checkIn: checkIn,
+            checkOut: checkOut,
+            notes: notes,
+            mapsURL: mapsURL,
+            date: date,
+            dateDay: dateDay,
+            dateMonth: dateMonth,
+            weekday: weekday,
+            distance: distance,
+            travelTime: travelTime,
+        )
+    }
+
+    func updateRouteLegDetails(
+        id: String,
+        dayID: String,
+        from: String,
+        to: String,
+        checkIn: String,
+        checkOut: String,
+        notes: String,
+        mapsURL: String,
+        date: String,
+        dateDay: String,
+        dateMonth: String,
+        weekday: String,
+        distance: String,
+        travelTime: String,
+    ) async throws {
+        try await ensureSession()
+        try await repository.updateRouteLegDetails(
+            id: id,
+            dayID: dayID,
+            from: from,
+            to: to,
+            checkIn: checkIn,
+            checkOut: checkOut,
+            notes: notes,
+            mapsURL: mapsURL,
+            date: date,
+            dateDay: dateDay,
+            dateMonth: dateMonth,
+            weekday: weekday,
+            distance: distance,
+            travelTime: travelTime,
+        )
+    }
+
+    func reorderRouteLegs(id: String, orderedDayIDs: [String]) async throws {
+        try await ensureSession()
+        try await repository.reorderRouteLegs(id: id, orderedDayIDs: orderedDayIDs)
+    }
+
+    func reorderAccommodations(id: String, orderedAccommodationIDs: [String]) async throws {
+        try await ensureSession()
+        try await repository.reorderAccommodations(id: id, orderedAccommodationIDs: orderedAccommodationIDs)
+    }
+
+    func reorderSights(id: String, orderedSightIDs: [String]) async throws {
+        try await ensureSession()
+        try await repository.reorderSights(id: id, orderedSightIDs: orderedSightIDs)
+    }
+
+    func reorderSightDays(id: String, currentDayIDs: [String], orderedDayIDs: [String]) async throws {
+        try await ensureSession()
+        try await repository.reorderSightDays(id: id, currentDayIDs: currentDayIDs, orderedDayIDs: orderedDayIDs)
+    }
+
+    func updateSightNotes(id: String, dayID: String, notes: String) async throws {
+        try await ensureSession()
+        try await repository.updateSightNotes(id: id, dayID: dayID, notes: notes)
+    }
+
+    func deleteSightDay(id: String, walkDay: Int) async throws {
+        try await ensureSession()
+        try await repository.deleteSightDay(id: id, walkDay: walkDay)
+    }
+
+    func addCatalogItem(id: String, entry: CatalogEntry, walkDay: Int) async throws {
+        try await ensureSession()
+        try await repository.addCatalogItem(id: id, entry: entry, walkDay: walkDay)
+    }
+
+    func searchCatalog(
+        kind: CatalogCategory,
+        city: String,
+        query: String,
+        language: String,
+        petType: String,
+    ) async throws -> [CatalogEntry] {
+        try await ensureSession()
+        return try await catalogRepository.search(kind: kind, city: city, query: query, language: language, petType: petType)
+    }
+
+    func addBudgetGroup(id: String, name: String, people: Int) async throws {
+        try await ensureSession()
+        try await repository.addBudgetGroup(id: id, name: name, people: people)
+    }
+
+    func updateBudgetGroup(id: String, groupID: String, name: String, people: Int) async throws {
+        try await ensureSession()
+        try await repository.updateBudgetGroup(id: id, groupID: groupID, name: name, people: people)
+    }
+
+    func deleteBudgetGroup(id: String, groupID: String) async throws {
+        try await ensureSession()
+        try await repository.deleteBudgetGroup(id: id, groupID: groupID)
+    }
+
+    func updateMemberRole(id: String, memberID: String, role: String) async throws {
+        try await ensureSession()
+        try await repository.updateMemberRole(id: id, memberID: memberID, role: role)
+    }
+
+    func removeMember(id: String, memberID: String) async throws {
+        try await ensureSession()
+        try await repository.removeMember(id: id, memberID: memberID)
+    }
+
+    func inviteMember(id: String, name: String, email: String, role: String) async throws {
+        try await ensureSession()
+        try await repository.inviteMember(id: id, name: name, email: email, role: role)
+    }
+
+    func addCoverPhoto(id: String, data: Data, city: String) async throws {
+        try await ensureSession()
+        try await repository.addCoverPhoto(id: id, data: data, city: city)
+    }
+
+    func deleteCoverPhoto(id: String, photoID: String) async throws {
+        try await ensureSession()
+        try await repository.deleteCoverPhoto(id: id, photoID: photoID)
+    }
+
+    func addItemPhoto(id: String, section: String, itemID: String, data: Data) async throws {
+        try await ensureSession()
+        try await repository.addItemPhoto(id: id, section: section, itemID: itemID, data: data)
+    }
+
+    func replaceItemCoverPhoto(id: String, section: String, itemID: String, data: Data) async throws {
+        try await ensureSession()
+        try await repository.replaceItemCoverPhoto(id: id, section: section, itemID: itemID, data: data)
+    }
+
+    func moveItemPhoto(id: String, section: String, itemID: String, photoIndex: Int, direction: Int) async throws {
+        try await ensureSession()
+        try await repository.moveItemPhoto(id: id, section: section, itemID: itemID, photoIndex: photoIndex, direction: direction)
+    }
+
+    func deleteItemPhoto(id: String, section: String, itemID: String, photoIndex: Int) async throws {
+        try await ensureSession()
+        try await repository.deleteItemPhoto(id: id, section: section, itemID: itemID, photoIndex: photoIndex)
+    }
+
     func resolvePhoto(_ reference: String) async -> URL? {
         try? await client.resolvePhoto(reference)
+    }
+
+    func consumePendingTripID() -> String? {
+        defer { pendingTripID = nil }
+        return pendingTripID
+    }
+
+    func handleDeepLink(_ url: URL) {
+        let containsSession = url.absoluteString.contains("access_token=")
+        if !containsSession, let tripID = Self.tripID(from: url), !tripID.isEmpty {
+            pendingTripID = tripID
+        }
+        guard containsSession else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let result = try await self.client.handleAuthCallback(url) else { return }
+                self.session = result.session
+                await self.loadProfile()
+                try await self.reloadTrips()
+                if let tripID = result.tripID, !tripID.isEmpty { self.pendingTripID = tripID }
+                if result.isRecovery { self.isShowingPasswordRecovery = true }
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func ensureSession() async throws {
@@ -98,12 +457,70 @@ final class AppModel: ObservableObject {
         guard session != nil else { throw SupabaseClientError.cancelled }
     }
 
+    private func syncReminders() async {
+        guard session != nil else { return }
+        guard profile.notificationsEnabled else {
+            await ReminderScheduler.cancelAll()
+            return
+        }
+        let activeTrips = trips.filter { $0.deletedAt == nil }
+        var overviews = [TripOverview]()
+        for trip in activeTrips {
+            if let overview = try? await repository.loadOverview(id: trip.id) {
+                overviews.append(overview)
+            }
+        }
+        await ReminderScheduler.sync(trips: overviews, profile: profile)
+    }
+
     private func runAuth(_ operation: @escaping () async throws -> Void) async {
         errorMessage = nil
+        authNotice = nil
         do {
             try await operation()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void,
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void,
+    ) {
+        let tripID = response.notification.request.content.userInfo["tripID"] as? String
+        Task { @MainActor [weak self] in
+            if let tripID, !tripID.isEmpty { self?.pendingTripID = tripID }
+        }
+        completionHandler()
+    }
+
+    private static func tripID(from url: URL) -> String? {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryValue = components?.queryItems?.first(where: { ["tripID", "tripId", "trip_id"].contains($0.name) })?.value
+        if let queryValue { return queryValue }
+        guard let fragment = components?.fragment,
+              let fragmentComponents = URLComponents(string: "?\(fragment)")
+        else { return nil }
+        return fragmentComponents.queryItems?.first(where: { ["tripID", "tripId", "trip_id"].contains($0.name) })?.value
+    }
+}
+
+enum AppModelError: LocalizedError {
+    case notificationsDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .notificationsDenied:
+            return "Уведомления запрещены в настройках iPhone. Разрешите их для Ramingo и повторите попытку."
         }
     }
 }

@@ -11,10 +11,12 @@ struct RamingoApp: App {
                 .tint(AppTheme.purple)
                 .task { await model.bootstrap() }
                 .onOpenURL { url in
-                    // Supabase OAuth is completed by ASWebAuthenticationSession.
-                    // Keeping the handler here lets future universal links route
-                    // into a trip without changing the Android or web clients.
-                    _ = url
+                    model.handleDeepLink(url)
+                }
+                .preferredColorScheme(model.profile.darkTheme ? .dark : nil)
+                .sheet(isPresented: $model.isShowingPasswordRecovery) {
+                    PasswordRecoveryView()
+                        .environmentObject(model)
                 }
         }
     }

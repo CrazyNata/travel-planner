@@ -102,6 +102,26 @@ private struct RecoveryRequest: Encodable {
     enum CodingKeys: String, CodingKey { case email; case redirectTo = "redirect_to" }
 }
 
+private struct IDTokenRequest: Encodable {
+    let provider: String
+    let idToken: String
+    let nonce: String
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case idToken = "id_token"
+        case nonce
+    }
+}
+
+private struct PasswordUpdateRequest: Encodable {
+    let password: String
+}
+
+private struct UserMetadataUpdateRequest: Encodable {
+    let data: [String: JSONValue]
+}
+
 private struct PKCERequest: Encodable {
     let authCode: String
     let codeVerifier: String
@@ -119,6 +139,7 @@ enum SupabaseClientError: LocalizedError {
     case server(status: Int, message: String)
     case cancelled
     case oauthCallbackMissingCode
+    case invalidInput(String)
 
     var errorDescription: String? {
         switch self {
@@ -132,8 +153,16 @@ enum SupabaseClientError: LocalizedError {
             return "Авторизация отменена."
         case .oauthCallbackMissingCode:
             return "Supabase не вернул код авторизации."
+        case .invalidInput(let message):
+            return message
         }
     }
+}
+
+struct AuthCallbackResult: Sendable {
+    let session: AuthSession
+    let isRecovery: Bool
+    let tripID: String?
 }
 
 final class KeychainSessionStore {
@@ -231,12 +260,212 @@ final class SupabaseClient {
 
     func sendPasswordReset(email: String) async throws {
         guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedEmail.isEmpty else { throw SupabaseClientError.invalidInput("Укажите e-mail.") }
         try await sendVoid(
             "auth/v1/recover",
             method: "POST",
-            body: RecoveryRequest(email: email, redirectTo: "https://ramingo.online/mobile/reset"),
+            body: RecoveryRequest(email: normalizedEmail, redirectTo: "ramingo://auth-callback"),
             authenticated: false,
         )
+    }
+
+    @discardableResult
+    func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
+        guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
+        guard !identityToken.isEmpty, !nonce.isEmpty else {
+            throw SupabaseClientError.invalidInput("Не удалось получить подтверждение Apple.")
+        }
+        let response: AuthResponse = try await send(
+            "auth/v1/token?grant_type=id_token",
+            method: "POST",
+            body: IDTokenRequest(provider: "apple", idToken: identityToken, nonce: nonce),
+            authenticated: false,
+        )
+        guard !response.session.accessToken.isEmpty, !response.session.refreshToken.isEmpty else {
+            throw SupabaseClientError.server(status: 401, message: "Supabase не вернул активную сессию Apple.")
+        }
+        return save(response.session)
+    }
+
+    @discardableResult
+    func updateUserDisplayName(_ name: String) async throws -> AuthUser {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { throw SupabaseClientError.invalidInput("Имя не указано.") }
+        guard session != nil else { throw SupabaseClientError.cancelled }
+        let user: AuthUser = try await send(
+            "auth/v1/user",
+            method: "PUT",
+            body: UserMetadataUpdateRequest(data: ["full_name": .string(cleanName)]),
+            authenticated: true,
+        )
+        if let current = session {
+            _ = save(AuthSession(
+                accessToken: current.accessToken,
+                refreshToken: current.refreshToken,
+                expiresAt: current.expiresAt,
+                user: user,
+            ))
+        }
+        return user
+    }
+
+    func updatePassword(_ password: String) async throws {
+        guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
+        guard password.count >= 6 else {
+            throw SupabaseClientError.invalidInput("Пароль должен содержать минимум 6 символов.")
+        }
+        guard session != nil else { throw SupabaseClientError.cancelled }
+        try await sendVoid(
+            "auth/v1/user",
+            method: "PUT",
+            body: PasswordUpdateRequest(password: password),
+            authenticated: true,
+        )
+    }
+
+    func handleAuthCallback(_ url: URL) async throws -> AuthCallbackResult? {
+        let values = Self.callbackValues(from: url)
+        if let error = values["error_description"] ?? values["error"], !error.isEmpty {
+            throw SupabaseClientError.server(status: 400, message: error)
+        }
+        guard let accessToken = values["access_token"],
+              let refreshToken = values["refresh_token"],
+              !accessToken.isEmpty,
+              !refreshToken.isEmpty
+        else {
+            return nil
+        }
+
+        let expiresIn = values["expires_in"].flatMap { Double($0) }
+        let authenticatedSession = try await establishSession(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: expiresIn,
+        )
+        return AuthCallbackResult(
+            session: authenticatedSession,
+            isRecovery: values["type"]?.lowercased() == "recovery",
+            tripID: values["tripID"] ?? values["tripId"] ?? values["trip_id"],
+        )
+    }
+
+    @discardableResult
+    func establishSession(
+        accessToken: String,
+        refreshToken: String,
+        expiresIn: TimeInterval? = nil,
+    ) async throws -> AuthSession {
+        guard !accessToken.isEmpty, !refreshToken.isEmpty else {
+            throw SupabaseClientError.oauthCallbackMissingCode
+        }
+        let provisional = AuthSession(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresAt: expiresIn.map { Date(timeIntervalSinceNow: $0) },
+            user: nil,
+        )
+        session = provisional
+        do {
+            let user: AuthUser = try await send(
+                "auth/v1/user",
+                method: "GET",
+                body: nil as EmptyBody?,
+                authenticated: true,
+            )
+            return save(AuthSession(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresAt: provisional.expiresAt,
+                user: user,
+            ))
+        } catch {
+            session = nil
+            sessionStore.clear()
+            throw error
+        }
+    }
+
+    func invokeRPC(_ function: String, body: [String: JSONValue]) async throws {
+        try await sendVoid(
+            "rest/v1/rpc/\(function)",
+            method: "POST",
+            body: body,
+            authenticated: true,
+        )
+    }
+
+    func invokeFunction<Body: Encodable>(_ function: String, body: Body) async throws {
+        try await sendVoid(
+            "functions/v1/\(function)",
+            method: "POST",
+            body: body,
+            authenticated: true,
+        )
+    }
+
+    func invokeFunctionResponse<T: Decodable, Body: Encodable>(
+        _ function: String,
+        body: Body,
+    ) async throws -> T {
+        try await send(
+            "functions/v1/\(function)",
+            method: "POST",
+            body: body,
+            authenticated: true,
+        )
+    }
+
+    func uploadStorageObject(path: String, data: Data) async throws {
+        guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
+        guard !data.isEmpty else { throw SupabaseClientError.invalidInput("Не удалось прочитать изображение.") }
+        let encodedPath = Self.encodePath(path)
+        guard let url = makeURL("storage/v1/object/trip-photos/\(encodedPath)") else {
+            throw SupabaseClientError.malformedURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue("false", forHTTPHeaderField: "x-upsert")
+        if let accessToken = session?.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (responseData, response) = try await urlSession.upload(for: request, from: data)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseClientError.server(status: 0, message: "Не удалось загрузить изображение.")
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SupabaseClientError.server(status: httpResponse.statusCode, message: Self.errorMessage(responseData))
+        }
+    }
+
+    func deleteStorageObject(path: String) async throws {
+        guard configuration.isConfigured else { throw SupabaseClientError.notConfigured }
+        let encodedPath = Self.encodePath(path)
+        guard let url = makeURL("storage/v1/object/trip-photos/\(encodedPath)") else {
+            throw SupabaseClientError.malformedURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue(configuration.publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let accessToken = session?.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseClientError.server(status: 0, message: "Не удалось удалить изображение.")
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SupabaseClientError.server(status: httpResponse.statusCode, message: Self.errorMessage(data))
+        }
+    }
+
+    func deleteStorageReference(_ reference: String) async {
+        guard let path = Self.storagePath(from: reference) else { return }
+        try? await deleteStorageObject(path: path)
     }
 
     @discardableResult
@@ -421,11 +650,51 @@ final class SupabaseClient {
 
     private static func storagePath(from value: String) -> String? {
         if value.hasPrefix("trip-photos/") { return String(value.dropFirst("trip-photos/".count)) }
-        if let url = URL(string: value), let range = url.path.range(of: "/trip-photos/") {
-            return String(url.path[range.upperBound...])
+        if let url = URL(string: value) {
+            if url.scheme == "storage", url.host == "trip-photos" {
+                return url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            }
+            if let range = url.path.range(of: "/trip-photos/") {
+                return String(url.path[range.upperBound...])
+            }
+            // Catalog images and other HTTPS URLs are not objects in our
+            // private bucket. Never turn an external URL into a Storage path
+            // during photo replacement or deletion.
+            if url.scheme != nil { return nil }
         }
         if value.contains("/"), !value.hasPrefix("places/") { return value }
         return nil
+    }
+
+    private static func callbackValues(from url: URL) -> [String: String] {
+        var values = [String: String]()
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        (components?.queryItems ?? []).forEach { item in
+            if let value = item.value { values[item.name] = value }
+        }
+        if let fragment = components?.fragment,
+           let fragmentComponents = URLComponents(string: "?\(fragment)") {
+            fragmentComponents.queryItems?.forEach { item in
+                if let value = item.value { values[item.name] = value }
+            }
+        }
+        return values
+    }
+
+    private static func encodePath(_ path: String) -> String {
+        path.split(separator: "/", omittingEmptySubsequences: false)
+            .map { component in
+                String(component).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String(component)
+            }
+            .joined(separator: "/")
+    }
+
+    static func makeNonce() -> String {
+        (0..<32).map { _ in String(format: "%02x", UInt8.random(in: 0...255)) }.joined()
+    }
+
+    static func hashNonce(_ nonce: String) -> String {
+        Data(SHA256.hash(data: Data(nonce.utf8))).base64URLEncodedString()
     }
 
     private static func makeCodeVerifier() -> String {

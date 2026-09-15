@@ -917,7 +917,7 @@ private struct EditableItem: Identifiable {
         walkDayText = String(sight.walkDay)
         latitudeText = sight.latitude.map(String.init) ?? ""
         longitudeText = sight.longitude.map(String.init) ?? ""
-        photos = sight.photo.isEmpty ? [] : [sight.photo]
+        photos = sight.photos
         done = sight.done
     }
 

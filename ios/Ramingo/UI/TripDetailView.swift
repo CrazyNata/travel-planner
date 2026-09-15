@@ -1,3 +1,4 @@
+import Foundation
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -10,6 +11,9 @@ struct TripDetailView: View {
     @State private var selectedSection: TripSection = .overview
     @State private var isLoading = true
     @State private var localError: String?
+    @State private var showEditor = false
+    @State private var weatherByCity: [String: WeatherSnapshot] = [:]
+    @State private var exchangeRates: ExchangeRateSnapshot?
 
     var body: some View {
         ZStack {
@@ -33,7 +37,20 @@ struct TripDetailView: View {
         }
         .navigationTitle(overview?.title ?? "Поездка")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if overview?.canEdit == true {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Изменить") { showEditor = true }
+                }
+            }
+        }
         .task(id: tripID) { await load() }
+        .sheet(isPresented: $showEditor, onDismiss: { Task { await load() } }) {
+            if let overview {
+                TripEditorView(tripID: tripID, initial: overview)
+                    .environmentObject(model)
+            }
+        }
         .alert("Не удалось загрузить поездку", isPresented: Binding(
             get: { localError != nil },
             set: { if !$0 { localError = nil } },
@@ -48,7 +65,7 @@ struct TripDetailView: View {
     private func tripSection(_ overview: TripOverview) -> some View {
         switch selectedSection {
         case .overview:
-            OverviewSection(overview: overview)
+            OverviewSection(overview: overview, weather: weatherByCity)
         case .route:
             RouteSection(legs: overview.routeLegs)
         case .sights:
@@ -58,7 +75,7 @@ struct TripDetailView: View {
         case .accommodation:
             AccommodationSection(accommodations: overview.accommodations, client: model.client)
         case .budget:
-            BudgetSection(overview: overview)
+            BudgetSection(overview: overview, exchangeRates: exchangeRates)
         case .members:
             MembersSection(members: overview.members)
         case .photos:
@@ -72,7 +89,18 @@ struct TripDetailView: View {
         isLoading = overview == nil
         localError = nil
         do {
-            overview = try await model.overview(for: tripID)
+            guard let fresh = try await model.overview(for: tripID) else {
+                overview = nil
+                weatherByCity = [:]
+                exchangeRates = nil
+                isLoading = false
+                return
+            }
+            overview = fresh
+            async let weather = model.weather(for: fresh)
+            async let rates: ExchangeRateSnapshot? = try? await model.exchangeRates(for: fresh)
+            weatherByCity = await weather
+            exchangeRates = await rates
         } catch {
             localError = error.localizedDescription
         }
@@ -151,6 +179,7 @@ private struct SectionPicker: View {
 
 private struct OverviewSection: View {
     let overview: TripOverview
+    let weather: [String: WeatherSnapshot]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -158,6 +187,19 @@ private struct OverviewSection: View {
                 StatTile(value: "\(overview.cities.count)", label: "города", icon: "mappin.and.ellipse")
                 StatTile(value: "\(overview.routeLegs.count)", label: "переезда", icon: "car.fill")
                 StatTile(value: "\(overview.sights.count)", label: "места", icon: "building.columns.fill")
+            }
+
+            if !weather.isEmpty {
+                SectionHeading("Погода", subtitle: "Сейчас и на даты поездки")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(overview.cities.filter { weather[$0] != nil }, id: \.self) { city in
+                            if let snapshot = weather[city] {
+                                WeatherCard(city: city, snapshot: snapshot)
+                            }
+                        }
+                    }
+                }
             }
 
             if !overview.cityCoordinates.isEmpty {
@@ -177,6 +219,32 @@ private struct OverviewSection: View {
                 }
             }
         }
+    }
+}
+
+private struct WeatherCard: View {
+    let city: String
+    let snapshot: WeatherSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(city)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            Text(snapshot.tripTemperature ?? snapshot.temperature)
+                .font(.title3.weight(.heavy))
+            Text(snapshot.tripCondition ?? snapshot.condition)
+                .font(.caption)
+                .foregroundStyle(AppTheme.muted)
+            if snapshot.tripIsEstimate {
+                Text("ориентировочно")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .frame(width: 138, alignment: .leading)
+        .padding(14)
+        .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -361,6 +429,7 @@ private struct AccommodationSection: View {
 
 private struct BudgetSection: View {
     let overview: TripOverview
+    let exchangeRates: ExchangeRateSnapshot?
 
     private var total: Double { overview.budgetExpenses.reduce(0) { $0 + $1.amount } }
 
@@ -378,6 +447,30 @@ private struct BudgetSection: View {
                     Text("\(overview.budgetExpenses.count) трат")
                         .font(.caption)
                         .foregroundStyle(AppTheme.muted)
+                }
+            }
+            if let exchangeRates,
+               overview.budgetCurrency.uppercased() != "RUB",
+               let rubPerUnit = exchangeRates.rates[overview.budgetCurrency.uppercased()],
+               rubPerUnit > 0 {
+                RamingoCard {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .foregroundStyle(AppTheme.purple)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Онлайн-курс")
+                                .font(.subheadline.weight(.semibold))
+                            Text("1 \(overview.budgetCurrency.uppercased()) ≈ \(String(format: "%.2f", 1 / rubPerUnit)) ₽")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.muted)
+                            if !exchangeRates.date.isEmpty {
+                                Text("Frankfurter · \(exchangeRates.date)")
+                                    .font(.caption2)
+                                    .foregroundStyle(AppTheme.muted)
+                            }
+                        }
+                        Spacer()
+                    }
                 }
             }
             if overview.budgetExpenses.isEmpty {
@@ -441,7 +534,7 @@ private struct PhotosSection: View {
 
     private var references: [String] {
         var values = overview.coverPhotos.map(\.reference)
-        values += overview.sights.map(\.photo)
+        values += overview.sights.flatMap(\.photos)
         values += overview.accommodations.flatMap(\.photos)
         values += overview.restaurants.flatMap(\.photos)
         values += overview.petPlaces.map(\.photo)

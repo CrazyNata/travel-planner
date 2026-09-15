@@ -22,8 +22,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Ramingo использует геолокацию, чтобы показать ваше положение на карте поездки.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ramingo использует выбранные фотографии для альбомов поездок.</string>
 	<key>SUPABASE_URL</key>
