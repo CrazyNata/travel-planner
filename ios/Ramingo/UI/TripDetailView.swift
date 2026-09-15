@@ -1120,7 +1120,8 @@ private struct AndroidPhotosScreen: View {
         values += overview.accommodations.flatMap(\.photos)
         values += overview.restaurants.flatMap(\.photos)
         values += overview.petPlaces.map(\.photo)
-        return values.filter { !$0.isEmpty }.uniqued()
+        var seen = Set<String>()
+        return values.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
     var body: some View {
