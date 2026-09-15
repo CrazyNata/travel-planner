@@ -13,6 +13,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.util.Locale
 import java.util.UUID
 
 @Serializable
@@ -33,6 +34,8 @@ data class AccountProfile(
     /** Email preferences are shared with the web app through account_profile.value. */
     val emailNotificationsEnabled: Boolean = true,
     val emailPaymentRemindersEnabled: Boolean = true,
+    /** Optional recipient for reminder emails; blank means the authenticated account email. */
+    val emailRecipient: String? = null,
     val reminderHour: Int = 9,
     val onboardingCompleted: Boolean = false,
     val createTripHintSeen: Boolean = false,
@@ -42,6 +45,15 @@ data class AccountProfile(
 ) {
     val darkTheme: Boolean
         get() = themePreference == ThemePreference.DARK
+}
+
+private val NotificationEmailPattern = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
+
+internal fun normalizeNotificationEmail(value: String): String? {
+    val normalized = value.trim().lowercase(Locale.ROOT)
+    return normalized.takeIf {
+        it.length <= 254 && NotificationEmailPattern.matches(it)
+    }
 }
 
 class AccountRepository(private val client: SupabaseClient) {
@@ -67,6 +79,7 @@ class AccountRepository(private val client: SupabaseClient) {
             paymentRemindersEnabled = row?.value?.get("payment_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             emailNotificationsEnabled = row?.value?.get("email_notifications_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
             emailPaymentRemindersEnabled = row?.value?.get("email_payment_reminders_enabled")?.jsonPrimitive?.content?.let { it == "true" } ?: true,
+            emailRecipient = row?.value?.get("email_recipient")?.jsonPrimitive?.contentOrNull?.let(::normalizeNotificationEmail),
             reminderHour = row?.value?.get("reminder_hour")?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(0, 23) ?: 9,
             onboardingCompleted = row?.value?.get("onboarding_completed")?.jsonPrimitive?.content == "true",
             createTripHintSeen = row?.value?.get("create_trip_hint_seen")?.jsonPrimitive?.content == "true",
@@ -90,6 +103,7 @@ class AccountRepository(private val client: SupabaseClient) {
         paymentRemindersEnabled: Boolean? = null,
         emailNotificationsEnabled: Boolean? = null,
         emailPaymentRemindersEnabled: Boolean? = null,
+        emailRecipient: String? = null,
     ) {
         val userId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val existing = client.from("user_data").select {
@@ -113,6 +127,11 @@ class AccountRepository(private val client: SupabaseClient) {
         paymentRemindersEnabled?.let { value["payment_reminders_enabled"] = JsonPrimitive(it) }
         emailNotificationsEnabled?.let { value["email_notifications_enabled"] = JsonPrimitive(it) }
         emailPaymentRemindersEnabled?.let { value["email_payment_reminders_enabled"] = JsonPrimitive(it) }
+        emailRecipient?.let {
+            val normalized = normalizeNotificationEmail(it)
+                ?: throw IllegalArgumentException("Укажите корректный e-mail")
+            value["email_recipient"] = JsonPrimitive(normalized)
+        }
         reminderHour?.coerceIn(0, 23)?.let { value["reminder_hour"] = JsonPrimitive(it) }
         onboardingCompleted?.let { value["onboarding_completed"] = JsonPrimitive(it) }
         createTripHintSeen?.let { value["create_trip_hint_seen"] = JsonPrimitive(it) }

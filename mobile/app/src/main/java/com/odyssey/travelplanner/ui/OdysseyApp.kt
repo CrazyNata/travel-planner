@@ -271,6 +271,7 @@ import com.odyssey.travelplanner.data.parseSightLinkCoordinates
 import com.odyssey.travelplanner.data.resolveSightLinkCoordinates
 import com.odyssey.travelplanner.data.catalogCityName
 import com.odyssey.travelplanner.data.normalizeCatalogText
+import com.odyssey.travelplanner.data.normalizeNotificationEmail
 import com.odyssey.travelplanner.data.isPlaceholderSightDescription
 import com.odyssey.travelplanner.data.distanceMeters
 import com.odyssey.travelplanner.notifications.ReminderPlanner
@@ -1579,6 +1580,7 @@ private data class NotificationSettingsDraft(
     val paymentRemindersEnabled: Boolean = true,
     val emailNotificationsEnabled: Boolean = true,
     val emailPaymentRemindersEnabled: Boolean = true,
+    val emailRecipient: String = "",
 )
 
 @Composable
@@ -1956,6 +1958,7 @@ fun OdysseyApp(
                                 paymentRemindersEnabled = settings.paymentRemindersEnabled,
                                 emailNotificationsEnabled = settings.emailNotificationsEnabled,
                                 emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
+                                emailRecipient = settings.emailRecipient,
                                 reminderHour = settings.reminderHour,
                             )
                         },
@@ -1993,6 +1996,7 @@ fun OdysseyApp(
                                 paymentRemindersEnabled = settings.paymentRemindersEnabled,
                                 emailNotificationsEnabled = settings.emailNotificationsEnabled,
                                 emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
+                                emailRecipient = settings.emailRecipient,
                                 reminderHour = settings.reminderHour,
                             )
                         },
@@ -3882,6 +3886,7 @@ private fun MyTripsScreen(
     var paymentRemindersEnabled by remember { mutableStateOf(accountProfile?.paymentRemindersEnabled ?: true) }
     var emailNotificationsEnabled by remember { mutableStateOf(accountProfile?.emailNotificationsEnabled ?: true) }
     var emailPaymentRemindersEnabled by remember { mutableStateOf(accountProfile?.emailPaymentRemindersEnabled ?: true) }
+    var emailRecipient by remember { mutableStateOf(accountProfile?.emailRecipient.orEmpty()) }
     var reminderHour by remember { mutableStateOf(accountProfile?.reminderHour ?: ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
@@ -3958,6 +3963,7 @@ private fun MyTripsScreen(
             paymentRemindersEnabled = profile.paymentRemindersEnabled
             emailNotificationsEnabled = profile.emailNotificationsEnabled
             emailPaymentRemindersEnabled = profile.emailPaymentRemindersEnabled
+            emailRecipient = profile.emailRecipient.orEmpty()
             reminderHour = profile.reminderHour
         }
     }
@@ -4342,6 +4348,7 @@ private fun MyTripsScreen(
         if (notificationSettingsOpen) {
             NotificationSettingsScreen(
                 profileEmail = profileEmail,
+                emailRecipient = emailRecipient.ifBlank { profileEmail },
                 language = language,
                 initialSettings = NotificationSettingsDraft(
                     notificationsEnabled = notificationsEnabled,
@@ -4351,6 +4358,7 @@ private fun MyTripsScreen(
                     reminderHour = reminderHour,
                     emailNotificationsEnabled = emailNotificationsEnabled,
                     emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
+                    emailRecipient = emailRecipient.ifBlank { profileEmail },
                 ),
                 onBack = {
                     notificationSettingsOpen = false
@@ -4367,6 +4375,7 @@ private fun MyTripsScreen(
                         paymentRemindersEnabled = settings.paymentRemindersEnabled,
                         emailNotificationsEnabled = settings.emailNotificationsEnabled,
                         emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
+                        emailRecipient = settings.emailRecipient,
                         reminderHour = settings.reminderHour,
                     )
                     notificationsEnabled = settings.notificationsEnabled
@@ -4375,6 +4384,7 @@ private fun MyTripsScreen(
                     paymentRemindersEnabled = settings.paymentRemindersEnabled
                     emailNotificationsEnabled = settings.emailNotificationsEnabled
                     emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled
+                    emailRecipient = settings.emailRecipient
                     reminderHour = settings.reminderHour
                     onNotificationSettingsChanged(settings)
                     ReminderScheduler.sync(
@@ -4484,6 +4494,7 @@ private fun AccountSettingsScreen(
     var paymentRemindersEnabled by remember { mutableStateOf(true) }
     var emailNotificationsEnabled by remember { mutableStateOf(true) }
     var emailPaymentRemindersEnabled by remember { mutableStateOf(true) }
+    var emailRecipient by remember { mutableStateOf("") }
     var reminderHour by remember { mutableStateOf(ReminderPlanner.REMINDER_HOUR) }
     var passwordEditorOpen by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
@@ -4527,6 +4538,7 @@ private fun AccountSettingsScreen(
             paymentRemindersEnabled = profile.paymentRemindersEnabled
             emailNotificationsEnabled = profile.emailNotificationsEnabled
             emailPaymentRemindersEnabled = profile.emailPaymentRemindersEnabled
+            emailRecipient = profile.emailRecipient.orEmpty()
             reminderHour = profile.reminderHour
             onThemeSet(profile.themePreference)
         }
@@ -4550,6 +4562,7 @@ private fun AccountSettingsScreen(
         if (notificationSettingsOpen) {
             NotificationSettingsScreen(
                 profileEmail = profileEmail,
+                emailRecipient = emailRecipient.ifBlank { profileEmail },
                 language = language,
                 initialSettings = NotificationSettingsDraft(
                     notificationsEnabled = notificationsEnabled,
@@ -4559,6 +4572,7 @@ private fun AccountSettingsScreen(
                     reminderHour = reminderHour,
                     emailNotificationsEnabled = emailNotificationsEnabled,
                     emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
+                    emailRecipient = emailRecipient.ifBlank { profileEmail },
                 ),
                 onBack = { notificationSettingsOpen = false },
                 onSave = { settings ->
@@ -4572,6 +4586,7 @@ private fun AccountSettingsScreen(
                         paymentRemindersEnabled = settings.paymentRemindersEnabled,
                         emailNotificationsEnabled = settings.emailNotificationsEnabled,
                         emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled,
+                        emailRecipient = settings.emailRecipient,
                         reminderHour = settings.reminderHour,
                     )
                     notificationsEnabled = settings.notificationsEnabled
@@ -4580,6 +4595,7 @@ private fun AccountSettingsScreen(
                     paymentRemindersEnabled = settings.paymentRemindersEnabled
                     emailNotificationsEnabled = settings.emailNotificationsEnabled
                     emailPaymentRemindersEnabled = settings.emailPaymentRemindersEnabled
+                    emailRecipient = settings.emailRecipient
                     reminderHour = settings.reminderHour
                     onNotificationSettingsChanged(settings)
                     ReminderScheduler.sync(
@@ -4732,6 +4748,7 @@ private fun AccountSettingsScreen(
 @Composable
 private fun NotificationSettingsScreen(
     profileEmail: String,
+    emailRecipient: String,
     language: String,
     initialSettings: NotificationSettingsDraft,
     onBack: () -> Unit,
@@ -4747,6 +4764,7 @@ private fun NotificationSettingsScreen(
     var reminderHour by remember(initialSettings) { mutableStateOf(initialSettings.reminderHour.coerceIn(0, 23)) }
     var emailNotificationsEnabled by remember(initialSettings) { mutableStateOf(initialSettings.emailNotificationsEnabled) }
     var emailPaymentRemindersEnabled by remember(initialSettings) { mutableStateOf(initialSettings.emailPaymentRemindersEnabled) }
+    var selectedEmailRecipient by remember(initialSettings) { mutableStateOf(initialSettings.emailRecipient) }
     var selectedPreset by remember(initialSettings) {
         mutableStateOf(
             when {
@@ -4763,6 +4781,9 @@ private fun NotificationSettingsScreen(
     var exactAlarmPermissionGranted by remember { mutableStateOf(ReminderScheduler.canScheduleExactAlarms(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     var helpOpen by remember { mutableStateOf(false) }
+    var emailEditorOpen by remember { mutableStateOf(false) }
+    var emailDraft by remember { mutableStateOf(emailRecipient) }
+    var emailError by remember { mutableStateOf<String?>(null) }
     val settingsSavedMessage = localized(
         language,
         "Настройки сохранены",
@@ -4845,12 +4866,27 @@ private fun NotificationSettingsScreen(
             paymentRemindersEnabled = paymentRemindersEnabled,
             emailNotificationsEnabled = emailNotificationsEnabled,
             emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
+            emailRecipient = selectedEmailRecipient,
         )
-        if (draft.notificationsEnabled && !phonePermissionGranted) {
-            pendingSave = draft
+        val normalizedEmail = normalizeNotificationEmail(draft.emailRecipient)
+        if (normalizedEmail == null) {
+            emailDraft = draft.emailRecipient
+            emailError = localized(
+                language,
+                "Укажите корректный e-mail",
+                "Enter a valid email address",
+                "Introduzca un e-mail válido",
+                "Geben Sie eine gültige E-Mail-Adresse ein",
+            )
+            emailEditorOpen = true
+            return
+        }
+        val normalizedDraft = draft.copy(emailRecipient = normalizedEmail)
+        if (normalizedDraft.notificationsEnabled && !phonePermissionGranted) {
+            pendingSave = normalizedDraft
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
-            saveDraft(draft)
+            saveDraft(normalizedDraft)
         }
     }
 
@@ -4858,8 +4894,14 @@ private fun NotificationSettingsScreen(
     val groupBackground = cardSurfaceColor()
     val divider = contentBorderColor()
     val detailColor = secondaryTextColor()
-    val emailTarget = profileEmail.ifBlank {
+    val emailTarget = selectedEmailRecipient.ifBlank { profileEmail }.ifBlank {
         localized("email вашего аккаунта", "your account email", "el email de su cuenta", "die E-Mail Ihres Kontos")
+    }
+
+    fun openEmailEditor() {
+        emailDraft = selectedEmailRecipient.ifBlank { profileEmail }
+        emailError = null
+        emailEditorOpen = true
     }
 
     BoxWithConstraints(
@@ -5105,6 +5147,18 @@ private fun NotificationSettingsScreen(
                             modifier = Modifier.padding(top = 3.dp),
                         )
                     }
+                    TextButton(
+                        onClick = ::openEmailEditor,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            localized("Изменить", "Change", "Cambiar", "Ändern"),
+                            color = primaryColor(),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W800,
+                            fontSize = 9.sp,
+                        )
+                    }
                 }
                 AccountSettingsDivider(divider)
                 NotificationSettingsRow(
@@ -5234,19 +5288,116 @@ private fun NotificationSettingsScreen(
                 }
             }
 
+            Spacer(Modifier.height(104.dp))
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(background)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .imePadding()
+                .padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp)
+                .zIndex(1f),
+        ) {
             message?.let {
-                Text(it, color = if (messageIsError) Color(0xFFE85B56) else Color(0xFF249D72), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+                Text(
+                    it,
+                    color = if (messageIsError) Color(0xFFE85B56) else Color(0xFF249D72),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
             }
             Button(
                 onClick = ::submit,
                 enabled = !isSaving,
                 colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
                 shape = RoundedCornerShape(13.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(48.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
                 Text(if (isSaving) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…") else localized("Сохранить настройки", "Save settings", "Guardar ajustes", "Einstellungen speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
             }
         }
+    }
+
+    if (emailEditorOpen) {
+        AlertDialog(
+            onDismissRequest = {
+                emailEditorOpen = false
+                emailError = null
+            },
+            title = {
+                Text(
+                    localized("Почта для писем", "Email for reminders", "E-mail para recordatorios", "E-Mail für Erinnerungen"),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        localized(
+                            "Укажите адрес, на который будут приходить напоминания Ramingo. Затем нажмите «Сохранить настройки».",
+                            "Choose the address where Ramingo reminders should arrive, then tap “Save settings”.",
+                            "Elige la dirección donde deben llegar los recordatorios de Ramingo y pulsa «Guardar ajustes».",
+                            "Wählen Sie die Adresse, an die Ramingo-Erinnerungen gesendet werden sollen, und tippen Sie danach auf „Einstellungen speichern“.",
+                        ),
+                        fontFamily = Manrope,
+                        fontSize = 12.sp,
+                    )
+                    OutlinedTextField(
+                        value = emailDraft,
+                        onValueChange = {
+                            emailDraft = it
+                            emailError = null
+                        },
+                        label = { Text("E-mail") },
+                        placeholder = { Text("you@example.com") },
+                        singleLine = true,
+                        isError = emailError != null,
+                        supportingText = {
+                            emailError?.let { Text(it) }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val normalized = normalizeNotificationEmail(emailDraft)
+                        if (normalized == null) {
+                            emailError = localized(
+                                language,
+                                "Укажите корректный e-mail",
+                                "Enter a valid email address",
+                                "Introduzca un e-mail válido",
+                                "Geben Sie eine gültige E-Mail-Adresse ein",
+                            )
+                        } else {
+                            selectedEmailRecipient = normalized
+                            emailDraft = normalized
+                            emailError = null
+                            emailEditorOpen = false
+                        }
+                    },
+                ) {
+                    Text(localized("Готово", "Done", "Listo", "Fertig"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        emailEditorOpen = false
+                        emailError = null
+                    },
+                ) {
+                    Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen"), fontFamily = Manrope)
+                }
+            },
+        )
     }
 
     if (helpOpen) {

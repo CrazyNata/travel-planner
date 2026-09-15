@@ -56,6 +56,18 @@ function emailNotificationsEnabled(value: unknown) {
 const stringValue = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
+const emailAddressPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalizedEmailAddress = (value: unknown) => {
+  const email = stringValue(value).toLowerCase();
+  return email.length <= 254 && emailAddressPattern.test(email) ? email : "";
+};
+
+function emailRecipientFromValue(value: unknown) {
+  if (!isJsonObject(value)) return "";
+  return normalizedEmailAddress(value.email_recipient);
+}
+
 const firstString = (...values: unknown[]) => {
   for (const value of values) {
     const text = stringValue(value);
@@ -331,9 +343,9 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  const configuredRecipient = stringValue(
+  const configuredRecipient = normalizedEmailAddress(
     Deno.env.get("PAYMENT_REMINDERS_RECIPIENT"),
-  ).toLowerCase();
+  );
   if (!supabaseUrl || !serviceRoleKey || (!resendApiKey && !dryRun)) {
     console.error("payment-reminders: missing configuration", {
       supabaseUrl: Boolean(supabaseUrl),
@@ -359,6 +371,12 @@ Deno.serve(async (request) => {
     ((profileRows || []) as UserDataRow[]).map((row) => [
       row.user_id,
       emailNotificationsEnabled(row.value),
+    ]),
+  );
+  const emailRecipientByOwner = new Map(
+    ((profileRows || []) as UserDataRow[]).map((row) => [
+      row.user_id,
+      emailRecipientFromValue(row.value),
     ]),
   );
   const { data, error } = await admin
@@ -421,11 +439,11 @@ Deno.serve(async (request) => {
   const failures: string[] = [];
   const remindersByRecipient = new Map<string, PaymentReminder[]>();
   for (const [ownerId, reminders] of remindersByOwner) {
-    let recipient = configuredRecipient;
+    let recipient = configuredRecipient || emailRecipientByOwner.get(ownerId) || "";
     let userLookupFailed = false;
     if (!recipient) {
       const { data: user, error: userError } = await admin.auth.admin.getUserById(ownerId);
-      recipient = stringValue(user?.user?.email).toLowerCase();
+      recipient = normalizedEmailAddress(user?.user?.email);
       userLookupFailed = Boolean(userError);
     }
     if (userLookupFailed || !recipient) {
