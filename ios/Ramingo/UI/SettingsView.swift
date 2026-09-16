@@ -12,7 +12,9 @@ struct SettingsView: View {
     @State private var cancellationRemindersEnabled = true
     @State private var reminderHour = 9
     @State private var language = "RU"
-    @State private var darkTheme = false
+    @State private var themePreference: ThemePreference = .system
+    @State private var themePickerOpen = false
+    @State private var languagePickerOpen = false
     @State private var didLoadProfile = false
     @State private var isSaving = false
     @State private var isSigningOut = false
@@ -43,22 +45,35 @@ struct SettingsView: View {
                             .disabled(!notificationsEnabled)
                         }
 
-                        settingsSection("ПРИЛОЖЕНИЕ") {
-                            HStack {
-                                SettingsRowLabel(icon: "globe", title: "Язык")
-                                Spacer()
-                                Picker("Язык", selection: $language) {
-                                    Text("Русский").tag("RU")
-                                    Text("English").tag("EN")
-                                    Text("Español").tag("ES")
-                                    Text("Deutsch").tag("DE")
-                                }
-                                .labelsHidden()
-                                .tint(AppTheme.purple)
+                        settingsSection("ВНЕШНИЙ ВИД") {
+                            SettingsButtonRow(icon: "paintpalette", title: "Тема", value: themeTitle) {
+                                themePickerOpen.toggle()
                             }
-                            SettingsDivider()
-                            SettingsToggleRow(icon: "moon", title: "Тёмная тема", isOn: $darkTheme)
-                            SettingsDivider()
+                            if themePickerOpen {
+                                ThemePreferenceSelector(selection: $themePreference) { selected in
+                                    let previous = themePreference
+                                    themePreference = selected
+                                    themePickerOpen = false
+                                    Task { await saveAppearance(previousLanguage: language, previousTheme: previous) }
+                                }
+                            }
+                        }
+
+                        settingsSection("НАСТРОЙКИ АККАУНТА") {
+                            SettingsButtonRow(icon: "globe", title: "Языки", value: languageTitle) {
+                                languagePickerOpen.toggle()
+                            }
+                            if languagePickerOpen {
+                                LanguageSelector(selection: $language) { selected in
+                                    let previous = language
+                                    language = selected
+                                    languagePickerOpen = false
+                                    Task { await saveAppearance(previousLanguage: previous, previousTheme: themePreference) }
+                                }
+                            }
+                        }
+
+                        settingsSection("ПРИЛОЖЕНИЕ") {
                             SettingsRowLabel(icon: "info.circle", title: "Версия", value: versionText)
                         }
 
@@ -195,6 +210,23 @@ struct SettingsView: View {
         String((model.currentUser?.displayName ?? "R").prefix(2)).uppercased()
     }
 
+    private var themeTitle: String {
+        switch themePreference {
+        case .system: return "Системная"
+        case .light: return "Светлая"
+        case .dark: return "Тёмная"
+        }
+    }
+
+    private var languageTitle: String {
+        switch language.uppercased() {
+        case "EN": return "English"
+        case "ES": return "Español"
+        case "DE": return "Deutsch"
+        default: return "Русский"
+        }
+    }
+
     private var versionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
@@ -208,8 +240,31 @@ struct SettingsView: View {
         cancellationRemindersEnabled = model.profile.cancellationRemindersEnabled
         reminderHour = model.profile.reminderHour
         language = model.profile.language
-        darkTheme = model.profile.darkTheme
+        themePreference = model.profile.themePreference
         didLoadProfile = true
+    }
+
+    private func saveAppearance(previousLanguage: String, previousTheme: ThemePreference) async {
+        guard didLoadProfile else { return }
+        localError = nil
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let next = AccountProfile(
+                avatarReference: model.profile.avatarReference,
+                notificationsEnabled: notificationsEnabled,
+                language: language,
+                themePreference: themePreference,
+                tripRemindersEnabled: tripRemindersEnabled,
+                cancellationRemindersEnabled: cancellationRemindersEnabled,
+                reminderHour: reminderHour,
+            )
+            try await model.updateProfile(next)
+        } catch {
+            language = previousLanguage
+            themePreference = previousTheme
+            localError = error.localizedDescription
+        }
     }
 
     private func saveProfile() async {
@@ -224,7 +279,7 @@ struct SettingsView: View {
                 avatarReference: model.profile.avatarReference,
                 notificationsEnabled: notificationsEnabled,
                 language: language,
-                darkTheme: darkTheme,
+                themePreference: themePreference,
                 tripRemindersEnabled: tripRemindersEnabled,
                 cancellationRemindersEnabled: cancellationRemindersEnabled,
                 reminderHour: reminderHour
@@ -275,7 +330,7 @@ private struct SettingsDivider: View {
 private struct SettingsRowLabel: View {
     let icon: String
     let title: String
-    var value: String?
+    var value: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -311,9 +366,79 @@ private struct SettingsToggleRow: View {
     }
 }
 
+private struct ThemePreferenceSelector: View {
+    @Binding var selection: ThemePreference
+    let onSelect: (ThemePreference) -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ForEach([ThemePreference.system, .light, .dark], id: \.self) { preference in
+                Button {
+                    onSelect(preference)
+                } label: {
+                    HStack {
+                        Text(title(for: preference))
+                            .font(AppTheme.font(12, .bold))
+                            .foregroundStyle(selection == preference ? .white : AppTheme.ink)
+                        Spacer()
+                        if selection == preference {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .padding(.horizontal, 11)
+                    .frame(minHeight: 42)
+                    .background(selection == preference ? AppTheme.purple : Color.clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.bottom, 10)
+    }
+
+    private func title(for preference: ThemePreference) -> String {
+        switch preference {
+        case .system: return "Системная"
+        case .light: return "Светлая"
+        case .dark: return "Тёмная"
+        }
+    }
+}
+
+private struct LanguageSelector: View {
+    @Binding var selection: String
+    let onSelect: (String) -> Void
+    private let options = ["RU", "EN", "ES", "DE"]
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(options, id: \.self) { code in
+                Button {
+                    onSelect(code)
+                } label: {
+                    Text(code)
+                        .font(AppTheme.font(12, .extrabold))
+                        .foregroundStyle(selection.uppercased() == code ? .white : AppTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(selection.uppercased() == code ? AppTheme.purple : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.bottom, 10)
+    }
+}
+
 private struct SettingsButtonRow: View {
     let icon: String
     let title: String
+    var value: String? = nil
     var destructive = false
     let action: () -> Void
 
@@ -323,6 +448,11 @@ private struct SettingsButtonRow: View {
                 Image(systemName: icon).frame(width: 22)
                 Text(title)
                 Spacer()
+                if let value {
+                    Text(value)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                }
                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
             }
             .font(AppTheme.font(14, .bold))

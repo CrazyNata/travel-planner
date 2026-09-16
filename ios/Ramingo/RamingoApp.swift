@@ -13,11 +13,19 @@ struct RamingoApp: App {
                 .onOpenURL { url in
                     model.handleDeepLink(url)
                 }
-                .preferredColorScheme(model.profile.darkTheme ? .dark : nil)
+                .preferredColorScheme(colorScheme(for: model.profile.themePreference))
                 .sheet(isPresented: $model.isShowingPasswordRecovery) {
                     PasswordRecoveryView()
                         .environmentObject(model)
                 }
+        }
+    }
+
+    private func colorScheme(for preference: ThemePreference) -> ColorScheme? {
+        switch preference {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 }

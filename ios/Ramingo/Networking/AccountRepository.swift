@@ -1,19 +1,37 @@
 import Foundation
 
+enum ThemePreference: String, Hashable, Sendable {
+    case system
+    case light
+    case dark
+
+    init(storageValue: String?) {
+        switch storageValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "light": self = .light
+        case "dark": self = .dark
+        default: self = .system
+        }
+    }
+
+    var storageValue: String { rawValue }
+}
+
 struct AccountProfile: Hashable, Sendable {
     let avatarReference: String?
     let notificationsEnabled: Bool
     let language: String
-    let darkTheme: Bool
+    let themePreference: ThemePreference
     let tripRemindersEnabled: Bool
     let cancellationRemindersEnabled: Bool
     let reminderHour: Int
+
+    var darkTheme: Bool { themePreference == .dark }
 
     static let defaults = AccountProfile(
         avatarReference: nil,
         notificationsEnabled: false,
         language: "RU",
-        darkTheme: false,
+        themePreference: .system,
         tripRemindersEnabled: true,
         cancellationRemindersEnabled: true,
         reminderHour: 9,
@@ -62,11 +80,20 @@ final class AccountRepository {
             authenticated: true,
         )
         guard let value = rows.first?.value.objectValue else { return .defaults }
+        let themePreference: ThemePreference
+        if let storedTheme = value.text("theme").nonEmpty {
+            themePreference = ThemePreference(storageValue: storedTheme)
+        } else if value.flag("dark_theme") == true {
+            themePreference = .dark
+        } else {
+            // Android treats an existing legacy profile without a theme as light.
+            themePreference = .light
+        }
         return AccountProfile(
             avatarReference: value.text("avatar_url").nonEmpty,
             notificationsEnabled: value.flag("notifications_enabled") ?? false,
             language: value.text("language", fallback: "RU").uppercased(),
-            darkTheme: value.flag("dark_theme") ?? false,
+            themePreference: themePreference,
             tripRemindersEnabled: value.flag("trip_reminders_enabled") ?? true,
             cancellationRemindersEnabled: value.flag("cancellation_reminders_enabled") ?? true,
             reminderHour: min(max(value.integer("reminder_hour") ?? 9, 0), 23),
@@ -78,6 +105,7 @@ final class AccountRepository {
         notificationsEnabled: Bool,
         language: String? = nil,
         darkTheme: Bool? = nil,
+        themePreference: ThemePreference? = nil,
         tripRemindersEnabled: Bool? = nil,
         cancellationRemindersEnabled: Bool? = nil,
         reminderHour: Int? = nil,
@@ -88,7 +116,15 @@ final class AccountRepository {
         if let avatarReference { next["avatar_url"] = .string(avatarReference) }
         next["notifications_enabled"] = .boolean(notificationsEnabled)
         language.map { $0.uppercased() }.map { next["language"] = .string($0) }
-        darkTheme.map { next["dark_theme"] = .boolean($0) }
+        if let themePreference {
+            next["theme"] = .string(themePreference.storageValue)
+            next["dark_theme"] = .boolean(themePreference == .dark)
+        } else if let darkTheme {
+            next["dark_theme"] = .boolean(darkTheme)
+            if next["theme"] == nil {
+                next["theme"] = .string(darkTheme ? ThemePreference.dark.storageValue : ThemePreference.light.storageValue)
+            }
+        }
         tripRemindersEnabled.map { next["trip_reminders_enabled"] = .boolean($0) }
         cancellationRemindersEnabled.map { next["cancellation_reminders_enabled"] = .boolean($0) }
         reminderHour.map { next["reminder_hour"] = .number(Double(min(max($0, 0), 23))) }
@@ -113,7 +149,7 @@ final class AccountRepository {
                 avatarReference: reference,
                 notificationsEnabled: profile.notificationsEnabled,
                 language: profile.language,
-                darkTheme: profile.darkTheme,
+                themePreference: profile.themePreference,
                 tripRemindersEnabled: profile.tripRemindersEnabled,
                 cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
                 reminderHour: profile.reminderHour,
