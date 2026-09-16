@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import MapKit
 import SwiftUI
+import UIKit
 
 struct TripDetailView: View {
     @EnvironmentObject private var model: AppModel
@@ -271,6 +272,7 @@ private struct AndroidOverviewScreen: View {
     let weather: [String: WeatherSnapshot]
     let client: SupabaseClient
     @State private var photoIndex = 0
+    @State private var showTripWeather = false
 
     private var photos: [CoverPhoto] { overview.coverPhotos }
     private var activePhoto: CoverPhoto? { photos.isEmpty ? nil : photos[photoIndex % photos.count] }
@@ -330,22 +332,14 @@ private struct AndroidOverviewScreen: View {
                 .foregroundStyle(AppTheme.ink)
                 .padding(.horizontal, 16)
                 .padding(.top, 13)
-            Text("Текущая погода для городов маршрута")
+            Text(showTripWeather ? "Прогноз на даты поездки" : "Текущая погода для городов маршрута")
                 .font(AppTheme.font(13, .semibold))
                 .foregroundStyle(AppTheme.muted)
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
             HStack(spacing: 0) {
-                Text("Сейчас")
-                    .font(AppTheme.font(14, .bold))
-                    .foregroundStyle(AppTheme.ink)
-                    .frame(width: 72, height: 38)
-                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12))
-                Text("На даты поездки")
-                    .font(AppTheme.font(14, .bold))
-                    .foregroundStyle(Color(hex: 0x9999A3))
-                    .padding(.horizontal, 14)
-                Spacer()
+                weatherModeButton("Сейчас", trip: false)
+                weatherModeButton("На даты поездки", trip: true)
             }
             .padding(4)
             .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13))
@@ -359,6 +353,7 @@ private struct AndroidOverviewScreen: View {
                             AndroidWeatherCard(
                                 city: city,
                                 snapshot: snapshot,
+                                showTripWeather: showTripWeather,
                                 photo: photos.first(where: { $0.city == city })?.reference ?? photos.first?.reference,
                                 client: client
                             )
@@ -369,6 +364,21 @@ private struct AndroidOverviewScreen: View {
             }
             .padding(.top, 9)
         }
+    }
+
+    private func weatherModeButton(_ title: String, trip: Bool) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.16)) { showTripWeather = trip }
+        } label: {
+            Text(title)
+                .font(AppTheme.font(14, .bold))
+                .foregroundStyle(showTripWeather == trip ? AppTheme.ink : Color(hex: 0x9999A3))
+                .padding(.horizontal, 14)
+                .frame(maxWidth: trip ? .infinity : nil)
+                .frame(height: 38)
+                .background(showTripWeather == trip ? AppTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 
     private func carouselButton(_ icon: String, delta: Int) -> some View {
@@ -388,6 +398,7 @@ private struct AndroidOverviewScreen: View {
 private struct AndroidWeatherCard: View {
     let city: String
     let snapshot: WeatherSnapshot
+    let showTripWeather: Bool
     let photo: String?
     let client: SupabaseClient
 
@@ -399,8 +410,10 @@ private struct AndroidWeatherCard: View {
             VStack(alignment: .leading) {
                 Text(city).font(AppTheme.font(14, .bold))
                 Spacer()
-                Text(snapshot.tripTemperature ?? snapshot.temperature).font(AppTheme.font(28, .extrabold))
-                Text(snapshot.tripCondition ?? snapshot.condition).font(AppTheme.font(12, .semibold))
+                Text(showTripWeather ? (snapshot.tripTemperature ?? "—") : snapshot.temperature)
+                    .font(AppTheme.font(28, .extrabold))
+                Text(showTripWeather ? (snapshot.tripCondition ?? "Нет прогноза") : snapshot.condition)
+                    .font(AppTheme.font(12, .semibold))
             }
             .foregroundStyle(.white)
             .padding(11)
@@ -433,6 +446,7 @@ private struct AndroidRouteScreen: View {
 private struct AndroidRouteLegCard: View {
     let leg: RouteLeg
     let onEdit: () -> Void
+    @State private var copied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -449,7 +463,7 @@ private struct AndroidRouteLegCard: View {
                     RouteStopLine(city: leg.to, muted: false, last: true)
                 }
                 Spacer(minLength: 4)
-                AndroidIconButton(icon: "doc.on.doc", action: {})
+                AndroidIconButton(icon: copied ? "checkmark" : "doc.on.doc", action: copyLeg)
                 AndroidIconButton(icon: "pencil", action: onEdit)
             }
             HStack(spacing: 12) {
@@ -465,6 +479,15 @@ private struct AndroidRouteLegCard: View {
         }
         .padding(14)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func copyLeg() {
+        UIPasteboard.general.string = "\(leg.date) · \(leg.from) → \(leg.to) · Заселение: \(routeTime(leg))"
+        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await MainActor.run { withAnimation(.easeOut(duration: 0.15)) { copied = false } }
+        }
     }
 }
 
@@ -494,6 +517,7 @@ private struct AndroidSightsScreen: View {
     let overview: TripOverview
     let client: SupabaseClient
     let onEdit: () -> Void
+    @State private var copied = false
 
     private var city: String { overview.sights.first?.city.nonEmpty ?? overview.cities.first ?? "Город" }
     private var pins: [NumberedMapPin] {
@@ -536,8 +560,8 @@ private struct AndroidSightsScreen: View {
                         Text("\(city) · \(overview.sights.count) мест").font(AppTheme.font(13, .semibold)).foregroundStyle(AppTheme.muted)
                     }
                     Spacer()
-                    Button(action: {}) {
-                        Label("Копировать", systemImage: "doc.on.doc")
+                    Button(action: copyRoute) {
+                        Label(copied ? "Скопировано" : "Копировать", systemImage: copied ? "checkmark" : "doc.on.doc")
                             .font(AppTheme.font(13, .bold)).foregroundStyle(.white)
                             .padding(.horizontal, 13).frame(height: 40)
                             .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 11))
@@ -551,6 +575,19 @@ private struct AndroidSightsScreen: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 24)
+    }
+
+    private func copyRoute() {
+        let route = overview.sights
+            .sorted { ($0.walkDay, $0.walkOrder) < ($1.walkDay, $1.walkOrder) }
+            .map(\.name)
+            .joined(separator: " → ")
+        UIPasteboard.general.string = route.isEmpty ? city : "\(city): \(route)"
+        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await MainActor.run { withAnimation(.easeOut(duration: 0.15)) { copied = false } }
+        }
     }
 }
 
@@ -825,10 +862,15 @@ private struct AndroidPetsScreen: View {
     let client: SupabaseClient
     let onEdit: () -> Void
     @State private var selectedType = "shop"
+    @State private var searchText = ""
 
     private var visiblePets: [PetPlace] {
         overview.petPlaces.filter { pet in
-            selectedType == "vet" ? pet.type == "vet" || pet.type == "veterinary" : pet.type != "vet" && pet.type != "veterinary"
+            let type = pet.type.lowercased()
+            let isVet = type.contains("vet") || type.contains("вет") || type.contains("clinic") || type.contains("клиник")
+            let matchesType = selectedType == "vet" ? isVet : !isVet
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return matchesType && (query.isEmpty || pet.name.localizedCaseInsensitiveContains(query) || pet.address.localizedCaseInsensitiveContains(query))
         }
     }
 
@@ -841,11 +883,20 @@ private struct AndroidPetsScreen: View {
             }
             .padding(4).background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 14))
 
-            HStack {
-                Text("Поиск по каталогу").font(AppTheme.font(15, .regular)).foregroundStyle(Color(hex: 0x9999A3))
-                Spacer()
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(AppTheme.muted)
+                TextField("Поиск по каталогу", text: $searchText)
+                    .font(AppTheme.font(15, .regular))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.muted)
+                    }.buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, 16).frame(height: 54)
+            .background(AppTheme.surface.opacity(0.45), in: RoundedRectangle(cornerRadius: 14))
             .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
 
             Button(action: onEdit) {
@@ -1223,36 +1274,101 @@ private struct NumberedMapPin: Identifiable {
     let coordinate: Coordinate
 }
 
-private struct NumberedTripMap: View {
+private struct NumberedTripMap: UIViewRepresentable {
     let pins: [NumberedMapPin]
-    @State private var region: MKCoordinateRegion
 
-    init(pins: [NumberedMapPin]) {
-        self.pins = pins
-        let latitude = pins.map { $0.coordinate.latitude }.reduce(0, +) / Double(max(pins.count, 1))
-        let longitude = pins.map { $0.coordinate.longitude }.reduce(0, +) / Double(max(pins.count, 1))
-        _region = State(initialValue: MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-            span: MKCoordinateSpan(latitudeDelta: pins.count > 2 ? 14 : 0.08, longitudeDelta: pins.count > 2 ? 14 : 0.08)
-        ))
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
     }
 
-    var body: some View {
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView(frame: .zero)
+        map.delegate = context.coordinator
+        map.showsCompass = false
+        map.showsScale = false
+        map.pointOfInterestFilter = .excludingAll
+        return map
+    }
+
+    func updateUIView(_ map: MKMapView, context: Context) {
+        map.removeAnnotations(map.annotations)
+        map.removeOverlays(map.overlays)
+
         if pins.isEmpty {
-            ZStack {
-                Color(hex: 0xE7E5EC)
-                Image(systemName: "map").font(.system(size: 30)).foregroundStyle(AppTheme.muted)
-            }
-        } else {
-            Map(coordinateRegion: $region, annotationItems: pins) { pin in
-                MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: pin.coordinate.latitude, longitude: pin.coordinate.longitude)) {
-                    Text("\((pins.firstIndex { $0.id == pin.id } ?? 0) + 1)")
-                        .font(AppTheme.font(10, .extrabold)).foregroundStyle(.white)
-                        .frame(width: 24, height: 24).background(AppTheme.purple, in: Circle())
-                        .overlay { Circle().stroke(.white, lineWidth: 2) }
-                }
-            }
+            map.setRegion(
+                MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: 45.7, longitude: 10.8),
+                    span: MKCoordinateSpan(latitudeDelta: 8, longitudeDelta: 8)
+                ),
+                animated: false
+            )
+            return
         }
+
+        let annotations = pins.enumerated().map { index, pin in
+            NumberedPointAnnotation(number: index + 1, title: pin.title, coordinate: CLLocationCoordinate2D(
+                latitude: pin.coordinate.latitude,
+                longitude: pin.coordinate.longitude
+            ))
+        }
+        map.addAnnotations(annotations)
+
+        let coordinates = annotations.map(\.coordinate)
+        if coordinates.count > 1 {
+            map.addOverlay(MKPolyline(coordinates: coordinates, count: coordinates.count), level: .aboveRoads)
+        }
+
+        if coordinates.count == 1, let coordinate = coordinates.first {
+            map.setRegion(
+                MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)),
+                animated: false
+            )
+        } else if let overlay = map.overlays.first {
+            map.setVisibleMapRect(
+                overlay.boundingMapRect,
+                edgePadding: UIEdgeInsets(top: 28, left: 28, bottom: 28, right: 28),
+                animated: false
+            )
+        }
+    }
+
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard let annotation = annotation as? NumberedPointAnnotation else { return nil }
+            let identifier = "RamingoNumberedPin"
+            let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
+                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            marker.annotation = annotation
+            marker.markerTintColor = UIColor(red: 0.42, green: 0.36, blue: 0.91, alpha: 1)
+            marker.glyphTintColor = .white
+            marker.glyphText = String(annotation.number)
+            marker.titleVisibility = .hidden
+            marker.subtitleVisibility = .hidden
+            marker.displayPriority = .required
+            return marker
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let polyline = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
+            let renderer = MKPolylineRenderer(polyline: polyline)
+            renderer.strokeColor = UIColor(red: 0.42, green: 0.36, blue: 0.91, alpha: 1)
+            renderer.lineWidth = 5
+            renderer.lineJoin = .round
+            renderer.lineCap = .round
+            return renderer
+        }
+    }
+}
+
+private final class NumberedPointAnnotation: NSObject, MKAnnotation {
+    let number: Int
+    let title: String?
+    dynamic var coordinate: CLLocationCoordinate2D
+
+    init(number: Int, title: String, coordinate: CLLocationCoordinate2D) {
+        self.number = number
+        self.title = title
+        self.coordinate = coordinate
     }
 }
 
