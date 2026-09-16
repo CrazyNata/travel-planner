@@ -530,11 +530,14 @@ private struct NotificationSettingsView: View {
                         Text("Email-уведомления")
                             .font(AppTheme.font(15, .bold))
                             .foregroundStyle(AppTheme.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
                         Spacer(minLength: 4)
                         Button("Изменить") { emailEditorOpen = true }
                             .font(AppTheme.font(13, .extrabold))
                             .foregroundStyle(AppTheme.purple)
                             .buttonStyle(.plain)
+                            .fixedSize()
                     }
                     Text("Письма будут приходить на")
                         .font(AppTheme.font(13, .medium))
