@@ -162,8 +162,31 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
     func setNotificationsEnabled(_ enabled: Bool) async throws {
+        try await updateNotificationSettings(
+            enabled: enabled,
+            tripRemindersEnabled: profile.tripRemindersEnabled,
+            cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            reminderHour: profile.reminderHour,
+        )
+    }
+
+    func updateNotificationSettings(
+        enabled: Bool,
+        tripRemindersEnabled: Bool,
+        cancellationRemindersEnabled: Bool,
+        reminderHour: Int,
+    ) async throws {
         if enabled {
-            let granted = try await ReminderScheduler.requestAuthorization()
+            let settings = await ReminderScheduler.notificationSettings()
+            let granted: Bool
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                granted = true
+            case .notDetermined:
+                granted = try await ReminderScheduler.requestAuthorization()
+            default:
+                granted = false
+            }
             guard granted else { throw AppModelError.notificationsDenied }
         }
         let next = AccountProfile(
@@ -171,9 +194,9 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             notificationsEnabled: enabled,
             language: profile.language,
             themePreference: profile.themePreference,
-            tripRemindersEnabled: profile.tripRemindersEnabled,
-            cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
-            reminderHour: profile.reminderHour,
+            tripRemindersEnabled: tripRemindersEnabled,
+            cancellationRemindersEnabled: cancellationRemindersEnabled,
+            reminderHour: min(max(reminderHour, 0), 23),
         )
         try await updateProfile(next)
         if !enabled { await ReminderScheduler.cancelAll() }

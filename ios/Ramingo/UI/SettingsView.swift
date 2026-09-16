@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
@@ -19,6 +20,8 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var isSigningOut = false
     @State private var isDeleting = false
+    @State private var showNotificationSettings = false
+    @State private var isPhotoPickerPresented = false
     @State private var showPasswordChange = false
     @State private var showDeleteConfirmation = false
     @State private var localError: String?
@@ -30,21 +33,6 @@ struct SettingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         profileCard
-                        settingsSection("НАПОМИНАНИЯ") {
-                            SettingsToggleRow(icon: "bell", title: "Разрешить уведомления", isOn: $notificationsEnabled)
-                            SettingsDivider()
-                            SettingsToggleRow(icon: "airplane", title: "Напоминать о поездках", isOn: $tripRemindersEnabled)
-                                .disabled(!notificationsEnabled)
-                            SettingsDivider()
-                            SettingsToggleRow(icon: "bed.double", title: "Напоминать об отмене жилья", isOn: $cancellationRemindersEnabled)
-                                .disabled(!notificationsEnabled)
-                            SettingsDivider()
-                            Stepper(value: $reminderHour, in: 0...23) {
-                                SettingsRowLabel(icon: "clock", title: "Время напоминаний", value: String(format: "%02d:00", reminderHour))
-                            }
-                            .disabled(!notificationsEnabled)
-                        }
-
                         settingsSection("ВНЕШНИЙ ВИД") {
                             SettingsButtonRow(icon: "paintpalette", title: "Тема", value: themeTitle) {
                                 themePickerOpen.toggle()
@@ -71,6 +59,18 @@ struct SettingsView: View {
                                     Task { await saveAppearance(previousLanguage: previous, previousTheme: themePreference) }
                                 }
                             }
+                            SettingsDivider()
+                            SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
+                                showNotificationSettings = true
+                            }
+                            SettingsDivider()
+                            SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
+                            SettingsDivider()
+                            SettingsButtonRow(icon: "photo", title: "Сменить фото") { isPhotoPickerPresented = true }
+                            SettingsDivider()
+                            SettingsButtonRow(icon: "trash", title: "Удалить аккаунт", destructive: true) {
+                                showDeleteConfirmation = true
+                            }
                         }
 
                         settingsSection("ПРИЛОЖЕНИЕ") {
@@ -83,18 +83,6 @@ struct SettingsView: View {
                             SettingsLinkRow(icon: "doc.text", title: "Условия использования", url: "https://ramingo.online/#/terms")
                             SettingsDivider()
                             SettingsLinkRow(icon: "envelope", title: "Написать в поддержку", url: "mailto:support@ramingo.online")
-                        }
-
-                        settingsSection("БЕЗОПАСНОСТЬ") {
-                            SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
-                            SettingsDivider()
-                            SettingsButtonRow(icon: "trash", title: "Удалить аккаунт", destructive: true) {
-                                showDeleteConfirmation = true
-                            }
-                        }
-
-                        PrimaryActionButton(title: "Сохранить настройки", isLoading: isSaving, disabled: isSaving || !didLoadProfile) {
-                            Task { await saveProfile() }
                         }
 
                         Button {
@@ -133,6 +121,16 @@ struct SettingsView: View {
                 }
             }
             .task { loadProfileState() }
+            .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
+            .onChange(of: model.profile) { _, next in
+                guard didLoadProfile else { return }
+                notificationsEnabled = next.notificationsEnabled
+                tripRemindersEnabled = next.tripRemindersEnabled
+                cancellationRemindersEnabled = next.cancellationRemindersEnabled
+                reminderHour = next.reminderHour
+                language = next.language
+                themePreference = next.themePreference
+            }
             .onChange(of: selectedPhoto) { _, item in
                 guard let item else { return }
                 Task { @MainActor in await importPhoto(item) }
@@ -153,6 +151,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPasswordChange) {
                 ChangePasswordView().environmentObject(model)
+            }
+            .sheet(isPresented: $showNotificationSettings) {
+                NotificationSettingsView().environmentObject(model)
             }
         }
         .presentationDetents([.large])
@@ -179,13 +180,6 @@ struct SettingsView: View {
                         .font(AppTheme.font(12, .semibold))
                         .foregroundStyle(AppTheme.muted)
                         .lineLimit(1)
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Text("Изменить фото")
-                            .font(AppTheme.font(12, .extrabold))
-                            .foregroundStyle(AppTheme.purple)
-                    }
-                    .disabled(isSaving || isDeleting)
-                    .padding(.top, 2)
                 }
                 Spacer()
             }
@@ -225,6 +219,10 @@ struct SettingsView: View {
         case "DE": return "Deutsch"
         default: return "Русский"
         }
+    }
+
+    private var notificationTitle: String {
+        notificationsEnabled ? "Включены" : "Выключены"
     }
 
     private var versionText: String {
@@ -319,6 +317,136 @@ struct SettingsView: View {
             dismiss()
         } catch {
             localError = error.localizedDescription
+        }
+    }
+}
+
+private struct NotificationSettingsView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var notificationsEnabled = false
+    @State private var tripRemindersEnabled = true
+    @State private var cancellationRemindersEnabled = true
+    @State private var reminderHour = 9
+    @State private var permissionGranted = false
+    @State private var didLoad = false
+    @State private var isSaving = false
+    @State private var message: String?
+    @State private var messageIsError = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Настройте напоминания под себя")
+                            .font(AppTheme.font(14, .semibold))
+                            .foregroundStyle(AppTheme.muted)
+
+                        if !permissionGranted {
+                            Button {
+                                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                                UIApplication.shared.open(url)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "bell.badge")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(AppTheme.warning)
+                                        .frame(width: 26)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Разрешите уведомления телефона")
+                                            .font(AppTheme.font(13, .bold))
+                                            .foregroundStyle(AppTheme.ink)
+                                        Text("Нажмите, чтобы открыть настройки iPhone.")
+                                            .font(AppTheme.font(11, .semibold))
+                                            .foregroundStyle(AppTheme.muted)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(AppTheme.muted)
+                                }
+                                .padding(14)
+                                .background(AppTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        RamingoCard(padding: 14, radius: 18) {
+                            VStack(spacing: 0) {
+                                SettingsToggleRow(icon: "bell", title: "Разрешить уведомления", isOn: $notificationsEnabled)
+                                SettingsDivider()
+                                SettingsToggleRow(icon: "airplane", title: "Напоминать о поездках", isOn: $tripRemindersEnabled)
+                                    .disabled(!notificationsEnabled)
+                                SettingsDivider()
+                                SettingsToggleRow(icon: "bed.double", title: "Напоминать об отмене жилья", isOn: $cancellationRemindersEnabled)
+                                    .disabled(!notificationsEnabled)
+                                SettingsDivider()
+                                Stepper(value: $reminderHour, in: 0...23) {
+                                    SettingsRowLabel(icon: "clock", title: "Время напоминаний", value: String(format: "%02d:00", reminderHour))
+                                }
+                                .disabled(!notificationsEnabled)
+                            }
+                        }
+
+                        if let message {
+                            Text(message)
+                                .font(AppTheme.font(13, .bold))
+                                .foregroundStyle(messageIsError ? AppTheme.error : AppTheme.success)
+                        }
+
+                        PrimaryActionButton(title: "Сохранить настройки", isLoading: isSaving, disabled: isSaving || !didLoad) {
+                            Task { await save() }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 34)
+                }
+            }
+            .navigationTitle("Уведомления")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Назад") { dismiss() }
+                        .font(AppTheme.font(15, .bold))
+                }
+            }
+            .task { await loadState() }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func loadState() async {
+        guard !didLoad else { return }
+        notificationsEnabled = model.profile.notificationsEnabled
+        tripRemindersEnabled = model.profile.tripRemindersEnabled
+        cancellationRemindersEnabled = model.profile.cancellationRemindersEnabled
+        reminderHour = model.profile.reminderHour
+        let settings = await ReminderScheduler.notificationSettings()
+        permissionGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        didLoad = true
+    }
+
+    private func save() async {
+        message = nil
+        messageIsError = false
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await model.updateNotificationSettings(
+                enabled: notificationsEnabled,
+                tripRemindersEnabled: tripRemindersEnabled,
+                cancellationRemindersEnabled: cancellationRemindersEnabled,
+                reminderHour: reminderHour,
+            )
+            let settings = await ReminderScheduler.notificationSettings()
+            permissionGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            message = "Настройки сохранены"
+        } catch {
+            messageIsError = true
+            message = error.localizedDescription
         }
     }
 }
@@ -498,8 +626,12 @@ struct ChangePasswordView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     SecureField("Новый пароль · минимум 6 символов", text: $password)
                         .ramingoSettingsField()
+                        .textContentType(.newPassword)
+                        .autocorrectionDisabled()
                     SecureField("Повторите пароль", text: $confirmation)
                         .ramingoSettingsField()
+                        .textContentType(.newPassword)
+                        .autocorrectionDisabled()
                     if let localError {
                         Text(localError).font(AppTheme.font(13, .bold)).foregroundStyle(AppTheme.error)
                     }
@@ -527,6 +659,10 @@ struct ChangePasswordView: View {
         localError = nil
         guard password == confirmation else {
             localError = "Пароли не совпадают."
+            return
+        }
+        guard password.count >= 6 else {
+            localError = "Пароль должен содержать минимум 6 символов."
             return
         }
         isWorking = true

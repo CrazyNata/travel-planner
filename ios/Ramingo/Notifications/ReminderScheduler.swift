@@ -282,7 +282,7 @@ struct ReminderScheduler {
         }
     }
 
-    private static func notificationSettings(_ center: UNUserNotificationCenter) async -> UNNotificationSettings {
+    static func notificationSettings(_ center: UNUserNotificationCenter = .current()) async -> UNNotificationSettings {
         await withCheckedContinuation { continuation in
             center.getNotificationSettings { continuation.resume(returning: $0) }
         }
