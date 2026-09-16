@@ -23,6 +23,10 @@ struct AccountProfile: Hashable, Sendable {
     let themePreference: ThemePreference
     let tripRemindersEnabled: Bool
     let cancellationRemindersEnabled: Bool
+    let paymentRemindersEnabled: Bool
+    let emailNotificationsEnabled: Bool
+    let emailPaymentRemindersEnabled: Bool
+    let emailRecipient: String?
     let reminderHour: Int
 
     var darkTheme: Bool { themePreference == .dark }
@@ -34,6 +38,10 @@ struct AccountProfile: Hashable, Sendable {
         themePreference: .system,
         tripRemindersEnabled: true,
         cancellationRemindersEnabled: true,
+        paymentRemindersEnabled: true,
+        emailNotificationsEnabled: true,
+        emailPaymentRemindersEnabled: true,
+        emailRecipient: nil,
         reminderHour: 9,
     )
 }
@@ -96,6 +104,10 @@ final class AccountRepository {
             themePreference: themePreference,
             tripRemindersEnabled: value.flag("trip_reminders_enabled") ?? true,
             cancellationRemindersEnabled: value.flag("cancellation_reminders_enabled") ?? true,
+            paymentRemindersEnabled: value.flag("payment_reminders_enabled") ?? true,
+            emailNotificationsEnabled: value.flag("email_notifications_enabled") ?? true,
+            emailPaymentRemindersEnabled: value.flag("email_payment_reminders_enabled") ?? true,
+            emailRecipient: value.text("email_recipient").nonEmpty.flatMap(normalizeNotificationEmail),
             reminderHour: min(max(value.integer("reminder_hour") ?? 9, 0), 23),
         )
     }
@@ -108,6 +120,10 @@ final class AccountRepository {
         themePreference: ThemePreference? = nil,
         tripRemindersEnabled: Bool? = nil,
         cancellationRemindersEnabled: Bool? = nil,
+        paymentRemindersEnabled: Bool? = nil,
+        emailNotificationsEnabled: Bool? = nil,
+        emailPaymentRemindersEnabled: Bool? = nil,
+        emailRecipient: String? = nil,
         reminderHour: Int? = nil,
     ) async throws {
         guard let userID = client.currentUser?.id else { throw SupabaseClientError.cancelled }
@@ -127,6 +143,15 @@ final class AccountRepository {
         }
         tripRemindersEnabled.map { next["trip_reminders_enabled"] = .boolean($0) }
         cancellationRemindersEnabled.map { next["cancellation_reminders_enabled"] = .boolean($0) }
+        paymentRemindersEnabled.map { next["payment_reminders_enabled"] = .boolean($0) }
+        emailNotificationsEnabled.map { next["email_notifications_enabled"] = .boolean($0) }
+        emailPaymentRemindersEnabled.map { next["email_payment_reminders_enabled"] = .boolean($0) }
+        if let emailRecipient {
+            guard let normalized = normalizeNotificationEmail(emailRecipient) else {
+                throw SupabaseClientError.invalidInput("Укажите корректный e-mail")
+            }
+            next["email_recipient"] = .string(normalized)
+        }
         reminderHour.map { next["reminder_hour"] = .number(Double(min(max($0, 0), 23))) }
         let _: [UserDataRow] = try await client.request(
             "rest/v1/user_data?on_conflict=user_id,key",
@@ -152,6 +177,10 @@ final class AccountRepository {
                 themePreference: profile.themePreference,
                 tripRemindersEnabled: profile.tripRemindersEnabled,
                 cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+                paymentRemindersEnabled: profile.paymentRemindersEnabled,
+                emailNotificationsEnabled: profile.emailNotificationsEnabled,
+                emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
+                emailRecipient: profile.emailRecipient,
                 reminderHour: profile.reminderHour,
             )
             if let previousReference = profile.avatarReference, previousReference != reference {
@@ -184,6 +213,14 @@ final class AccountRepository {
         )
         return rows.first?.value.objectValue ?? [:]
     }
+}
+
+private let notificationEmailPattern = try! Regex(#"^[^\s@]+@[^\s@]+\.[^\s@]+$"#)
+
+func normalizeNotificationEmail(_ value: String) -> String? {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard normalized.count <= 254, normalized.wholeMatch(of: notificationEmailPattern) != nil else { return nil }
+    return normalized
 }
 
 private struct EmptyAccountBody: Encodable {}

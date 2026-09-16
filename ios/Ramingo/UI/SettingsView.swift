@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var notificationsEnabled = false
     @State private var tripRemindersEnabled = true
     @State private var cancellationRemindersEnabled = true
+    @State private var paymentRemindersEnabled = true
+    @State private var emailNotificationsEnabled = true
+    @State private var emailPaymentRemindersEnabled = true
+    @State private var emailRecipient: String?
     @State private var reminderHour = 9
     @State private var language = "RU"
     @State private var themePreference: ThemePreference = .system
@@ -127,6 +131,10 @@ struct SettingsView: View {
                 notificationsEnabled = next.notificationsEnabled
                 tripRemindersEnabled = next.tripRemindersEnabled
                 cancellationRemindersEnabled = next.cancellationRemindersEnabled
+                paymentRemindersEnabled = next.paymentRemindersEnabled
+                emailNotificationsEnabled = next.emailNotificationsEnabled
+                emailPaymentRemindersEnabled = next.emailPaymentRemindersEnabled
+                emailRecipient = next.emailRecipient
                 reminderHour = next.reminderHour
                 language = next.language
                 themePreference = next.themePreference
@@ -149,10 +157,10 @@ struct SettingsView: View {
             } message: {
                 Text("Будут удалены профиль и связанные с ним данные. Это действие нельзя отменить.")
             }
-            .sheet(isPresented: $showPasswordChange) {
+            .fullScreenCover(isPresented: $showPasswordChange) {
                 ChangePasswordView().environmentObject(model)
             }
-            .sheet(isPresented: $showNotificationSettings) {
+            .fullScreenCover(isPresented: $showNotificationSettings) {
                 NotificationSettingsView().environmentObject(model)
             }
         }
@@ -236,6 +244,10 @@ struct SettingsView: View {
         notificationsEnabled = model.profile.notificationsEnabled
         tripRemindersEnabled = model.profile.tripRemindersEnabled
         cancellationRemindersEnabled = model.profile.cancellationRemindersEnabled
+        paymentRemindersEnabled = model.profile.paymentRemindersEnabled
+        emailNotificationsEnabled = model.profile.emailNotificationsEnabled
+        emailPaymentRemindersEnabled = model.profile.emailPaymentRemindersEnabled
+        emailRecipient = model.profile.emailRecipient
         reminderHour = model.profile.reminderHour
         language = model.profile.language
         themePreference = model.profile.themePreference
@@ -255,6 +267,10 @@ struct SettingsView: View {
                 themePreference: themePreference,
                 tripRemindersEnabled: tripRemindersEnabled,
                 cancellationRemindersEnabled: cancellationRemindersEnabled,
+                paymentRemindersEnabled: paymentRemindersEnabled,
+                emailNotificationsEnabled: emailNotificationsEnabled,
+                emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
+                emailRecipient: emailRecipient,
                 reminderHour: reminderHour,
             )
             try await model.updateProfile(next)
@@ -280,6 +296,10 @@ struct SettingsView: View {
                 themePreference: themePreference,
                 tripRemindersEnabled: tripRemindersEnabled,
                 cancellationRemindersEnabled: cancellationRemindersEnabled,
+                paymentRemindersEnabled: paymentRemindersEnabled,
+                emailNotificationsEnabled: emailNotificationsEnabled,
+                emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
+                emailRecipient: emailRecipient,
                 reminderHour: reminderHour
             )
             try await model.updateProfile(next)
@@ -328,94 +348,368 @@ private struct NotificationSettingsView: View {
     @State private var notificationsEnabled = false
     @State private var tripRemindersEnabled = true
     @State private var cancellationRemindersEnabled = true
+    @State private var paymentRemindersEnabled = true
+    @State private var emailNotificationsEnabled = true
+    @State private var emailPaymentRemindersEnabled = true
+    @State private var emailRecipient = ""
     @State private var reminderHour = 9
     @State private var permissionGranted = false
     @State private var didLoad = false
     @State private var isSaving = false
     @State private var message: String?
     @State private var messageIsError = false
+    @State private var selectedPreset = 0
+    @State private var helpOpen = false
+    @State private var emailEditorOpen = false
+    @State private var timePickerOpen = false
+    @State private var pickerDate = Date()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppTheme.background.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text("Настройте напоминания под себя")
-                            .font(AppTheme.font(14, .semibold))
-                            .foregroundStyle(AppTheme.muted)
+        ZStack(alignment: .bottom) {
+            AppTheme.background.ignoresSafeArea()
 
-                        if !permissionGranted {
-                            Button {
-                                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                                UIApplication.shared.open(url)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "bell.badge")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundStyle(AppTheme.warning)
-                                        .frame(width: 26)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("Разрешите уведомления телефона")
-                                            .font(AppTheme.font(13, .bold))
-                                            .foregroundStyle(AppTheme.ink)
-                                        Text("Нажмите, чтобы открыть настройки iPhone.")
-                                            .font(AppTheme.font(11, .semibold))
-                                            .foregroundStyle(AppTheme.muted)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(AppTheme.muted)
-                                }
-                                .padding(14)
-                                .background(AppTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                        }
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    permissionCard
 
-                        RamingoCard(padding: 14, radius: 18) {
-                            VStack(spacing: 0) {
-                                SettingsToggleRow(icon: "bell", title: "Разрешить уведомления", isOn: $notificationsEnabled)
-                                SettingsDivider()
-                                SettingsToggleRow(icon: "airplane", title: "Напоминать о поездках", isOn: $tripRemindersEnabled)
-                                    .disabled(!notificationsEnabled)
-                                SettingsDivider()
-                                SettingsToggleRow(icon: "bed.double", title: "Напоминать об отмене жилья", isOn: $cancellationRemindersEnabled)
-                                    .disabled(!notificationsEnabled)
-                                SettingsDivider()
-                                Stepper(value: $reminderHour, in: 0...23) {
-                                    SettingsRowLabel(icon: "clock", title: "Время напоминаний", value: String(format: "%02d:00", reminderHour))
-                                }
-                                .disabled(!notificationsEnabled)
-                            }
-                        }
-
-                        if let message {
-                            Text(message)
-                                .font(AppTheme.font(13, .bold))
-                                .foregroundStyle(messageIsError ? AppTheme.error : AppTheme.success)
-                        }
-
-                        PrimaryActionButton(title: "Сохранить настройки", isLoading: isSaving, disabled: isSaving || !didLoad) {
-                            Task { await save() }
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 34)
+                    notificationGroup
+                        .padding(.top, 14)
+                    emailGroup
+                        .padding(.top, 14)
+                    deliveryTime
+                    quickPreset
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 118)
             }
-            .navigationTitle("Уведомления")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Назад") { dismiss() }
-                        .font(AppTheme.font(15, .bold))
-                }
-            }
-            .task { await loadState() }
+            .safeAreaPadding(.top, 4)
+
+            saveFooter
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .task { await loadState() }
+        .sheet(isPresented: $emailEditorOpen) {
+            EmailRecipientEditorView(initialValue: emailRecipient) { value in
+                guard let normalized = normalizeNotificationEmail(value) else {
+                    return "Укажите корректный e-mail"
+                }
+                emailRecipient = normalized
+                return nil
+            }
+            .presentationDetents([.height(310)])
+        }
+        .sheet(isPresented: $timePickerOpen) {
+            TimePickerView(date: $pickerDate) {
+                reminderHour = Calendar.current.component(.hour, from: pickerDate)
+                selectedPreset = -1
+                timePickerOpen = false
+            }
+            .presentationDetents([.height(350)])
+        }
+        .alert("О напоминаниях", isPresented: $helpOpen) {
+            Button("Понятно", role: .cancel) {}
+        } message: {
+            Text("Ramingo напомнит о начале поездки, оплате жилья и дедлайнах бесплатной отмены. E-mail-настройки применяются и в веб-версии. Все параметры сохраняются в профиле аккаунта.")
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Button { dismiss() } label: {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(AppTheme.ink)
+                    .frame(width: 42, height: 42)
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Уведомления")
+                    .font(AppTheme.font(24, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+                Text("Настройте напоминания под себя")
+                    .font(AppTheme.font(13, .medium))
+                    .foregroundStyle(AppTheme.muted)
+            }
+            Spacer(minLength: 8)
+            Button { helpOpen = true } label: {
+                Image(systemName: "questionmark")
+                    .font(.system(size: 17, weight: .heavy))
+                    .foregroundStyle(AppTheme.purple)
+                    .frame(width: 36, height: 42)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("О напоминаниях")
+        }
+    }
+
+    private var permissionCard: some View {
+        Button {
+            Task { await requestPermission() }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: permissionGranted ? "checkmark" : "bell")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(permissionGranted ? AppTheme.success : Color(hex: 0xB97828))
+                    .frame(width: 54, height: 54)
+                    .background(
+                        (permissionGranted ? AppTheme.success : Color(hex: 0xFFDFAC)).opacity(0.18),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous),
+                    )
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(permissionGranted ? "Разрешение телефона включено" : "Разрешите уведомления телефона")
+                        .font(AppTheme.font(14, .bold))
+                        .foregroundStyle(permissionGranted ? AppTheme.success : AppTheme.ink)
+                        .multilineTextAlignment(.leading)
+                    Text(permissionGranted ? "Ramingo сможет напоминать о важных датах." : "Нажмите, чтобы открыть системное разрешение.")
+                        .font(AppTheme.font(12, .medium))
+                        .foregroundStyle(AppTheme.muted)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                (permissionGranted ? AppTheme.success : AppTheme.warning).opacity(permissionGranted ? 0.10 : 0.12),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous),
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 14)
+        .accessibilityHint(permissionGranted ? "Уведомления разрешены" : "Открыть системные настройки уведомлений")
+    }
+
+    private var notificationGroup: some View {
+        VStack(spacing: 0) {
+            NotificationSettingsRow(
+                icon: "bell",
+                title: "Все уведомления",
+                detail: "Поездки, жильё и задачи",
+                isOn: $notificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+            SettingsDivider()
+            NotificationSettingsRow(
+                icon: "calendar",
+                title: "До начала поездки",
+                detail: "30, 14, 7, 3 и 1 день",
+                isOn: $tripRemindersEnabled,
+                enabled: notificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+            SettingsDivider()
+            NotificationSettingsRow(
+                icon: "bed.double",
+                title: "Бесплатная отмена",
+                detail: "7, 3, 1 день и день дедлайна",
+                isOn: $cancellationRemindersEnabled,
+                enabled: notificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+            SettingsDivider()
+            NotificationSettingsRow(
+                icon: "wallet.pass",
+                title: "Оплата жилья",
+                detail: "За 3 дня и в день дедлайна",
+                isOn: $paymentRemindersEnabled,
+                enabled: notificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.border.opacity(0.82), lineWidth: 1) }
+    }
+
+    private var emailGroup: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 14) {
+                settingsIcon("bell")
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Email-уведомления")
+                            .font(AppTheme.font(15, .bold))
+                            .foregroundStyle(AppTheme.ink)
+                        Spacer(minLength: 4)
+                        Button("Изменить") { emailEditorOpen = true }
+                            .font(AppTheme.font(13, .extrabold))
+                            .foregroundStyle(AppTheme.purple)
+                            .buttonStyle(.plain)
+                    }
+                    Text("Письма будут приходить на")
+                        .font(AppTheme.font(13, .medium))
+                        .foregroundStyle(AppTheme.muted)
+                    Text(emailTarget)
+                        .font(AppTheme.font(13, .medium))
+                        .foregroundStyle(AppTheme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 16)
+
+            SettingsDivider()
+            NotificationSettingsRow(
+                icon: "bell",
+                title: "Все письма от Ramingo",
+                detail: "Разрешить отправку писем",
+                isOn: $emailNotificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+            SettingsDivider()
+            NotificationSettingsRow(
+                icon: "wallet.pass",
+                title: "Оплата жилья по e-mail",
+                detail: "За 3 дня и в день дедлайна",
+                isOn: $emailPaymentRemindersEnabled,
+                enabled: emailNotificationsEnabled,
+                onToggle: { selectedPreset = -1 },
+            )
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.border.opacity(0.82), lineWidth: 1) }
+    }
+
+    private var deliveryTime: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Время отправки")
+                    .font(AppTheme.font(17, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+                Spacer()
+                Text("Часовой пояс: авто")
+                    .font(AppTheme.font(13, .extrabold))
+                    .foregroundStyle(AppTheme.purple)
+            }
+            .padding(.top, 22)
+            .padding(.bottom, 10)
+
+            Button {
+                pickerDate = pickerDateForHour
+                timePickerOpen = true
+            } label: {
+                HStack(spacing: 14) {
+                    settingsIcon("clock")
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Ежедневное время")
+                            .font(AppTheme.font(15, .bold))
+                            .foregroundStyle(AppTheme.ink)
+                        Text("Напоминания не будут приходить ночью")
+                            .font(AppTheme.font(13, .medium))
+                            .foregroundStyle(AppTheme.muted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                    Spacer(minLength: 4)
+                    Text(String(format: "%02d:00", reminderHour))
+                        .font(AppTheme.font(16, .extrabold))
+                        .foregroundStyle(AppTheme.purple)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.border.opacity(0.82), lineWidth: 1) }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var quickPreset: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Быстрый пресет")
+                .font(AppTheme.font(17, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            HStack(spacing: 8) {
+                presetButton("Сбалансированный", index: 0)
+                presetButton("Только важное", index: 1)
+                presetButton("Всё", index: 2)
+            }
+        }
+        .padding(.top, 22)
+    }
+
+    private func presetButton(_ title: String, index: Int) -> some View {
+        Button {
+            selectedPreset = index
+            notificationsEnabled = true
+            if index == 1 {
+                tripRemindersEnabled = false
+                cancellationRemindersEnabled = true
+                paymentRemindersEnabled = true
+            } else {
+                tripRemindersEnabled = true
+                cancellationRemindersEnabled = true
+                paymentRemindersEnabled = true
+            }
+        } label: {
+            Text(title)
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(selectedPreset == index ? AppTheme.purple : AppTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .background(
+                    selectedPreset == index ? AppTheme.lavender : AppTheme.surface,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous),
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(selectedPreset == index ? AppTheme.purpleLight.opacity(0.65) : AppTheme.border, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var saveFooter: some View {
+        VStack(spacing: 7) {
+            if let message {
+                Text(message)
+                    .font(AppTheme.font(12, .bold))
+                    .foregroundStyle(messageIsError ? AppTheme.error : AppTheme.success)
+                    .lineLimit(1)
+            }
+            Button {
+                Task { await save() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSaving { ProgressView().tint(.white) }
+                    Text(isSaving ? "Сохраняем…" : "Сохранить настройки")
+                        .font(AppTheme.font(16, .extrabold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(AppTheme.primaryGradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving || !didLoad)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 9)
+        .padding(.bottom, 8)
+        .background(AppTheme.background)
+    }
+
+    private var emailTarget: String {
+        let configured = emailRecipient.trimmingCharacters(in: .whitespacesAndNewlines)
+        return configured.isEmpty ? (model.currentUser?.email ?? "email вашего аккаунта") : configured
+    }
+
+    private var pickerDateForHour: Date {
+        Calendar.current.date(bySettingHour: reminderHour, minute: 0, second: 0, of: Date()) ?? Date()
+    }
+
+    private func settingsIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 19, weight: .semibold))
+            .foregroundStyle(AppTheme.purple)
+            .frame(width: 42, height: 42)
+            .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     private func loadState() async {
@@ -423,15 +717,38 @@ private struct NotificationSettingsView: View {
         notificationsEnabled = model.profile.notificationsEnabled
         tripRemindersEnabled = model.profile.tripRemindersEnabled
         cancellationRemindersEnabled = model.profile.cancellationRemindersEnabled
+        paymentRemindersEnabled = model.profile.paymentRemindersEnabled
+        emailNotificationsEnabled = model.profile.emailNotificationsEnabled
+        emailPaymentRemindersEnabled = model.profile.emailPaymentRemindersEnabled
+        emailRecipient = model.profile.emailRecipient ?? model.currentUser?.email ?? ""
         reminderHour = model.profile.reminderHour
+        selectedPreset = !tripRemindersEnabled && cancellationRemindersEnabled ? 1 : 0
         let settings = await ReminderScheduler.notificationSettings()
         permissionGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         didLoad = true
     }
 
+    private func requestPermission() async {
+        do {
+            let granted = try await ReminderScheduler.requestAuthorization()
+            permissionGranted = granted
+            if !granted {
+                messageIsError = true
+                message = "Разрешите уведомления в настройках iPhone"
+            }
+        } catch {
+            messageIsError = true
+            message = error.localizedDescription
+        }
+    }
+
     private func save() async {
         message = nil
         messageIsError = false
+        guard let normalizedEmail = normalizeNotificationEmail(emailRecipient) else {
+            emailEditorOpen = true
+            return
+        }
         isSaving = true
         defer { isSaving = false }
         do {
@@ -439,6 +756,10 @@ private struct NotificationSettingsView: View {
                 enabled: notificationsEnabled,
                 tripRemindersEnabled: tripRemindersEnabled,
                 cancellationRemindersEnabled: cancellationRemindersEnabled,
+                paymentRemindersEnabled: paymentRemindersEnabled,
+                emailNotificationsEnabled: emailNotificationsEnabled,
+                emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
+                emailRecipient: normalizedEmail,
                 reminderHour: reminderHour,
             )
             let settings = await ReminderScheduler.notificationSettings()
@@ -447,6 +768,152 @@ private struct NotificationSettingsView: View {
         } catch {
             messageIsError = true
             message = error.localizedDescription
+        }
+    }
+}
+
+private struct NotificationSettingsRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+    var enabled = true
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button {
+            guard enabled else { return }
+            isOn.toggle()
+            onToggle()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(AppTheme.purple)
+                    .frame(width: 42, height: 42)
+                    .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title)
+                        .font(AppTheme.font(15, .bold))
+                        .foregroundStyle(AppTheme.ink)
+                        .lineLimit(1)
+                    Text(detail)
+                        .font(AppTheme.font(13, .medium))
+                        .foregroundStyle(AppTheme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                Spacer(minLength: 4)
+                RamingoSwitch(isOn: isOn, enabled: enabled)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 15)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.45)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "Включено" : "Выключено")
+    }
+}
+
+private struct RamingoSwitch: View {
+    let isOn: Bool
+    let enabled: Bool
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule()
+                .fill(isOn ? AppTheme.purple.opacity(enabled ? 1 : 0.35) : AppTheme.border)
+                .frame(width: 52, height: 32)
+            Circle()
+                .fill(Color.white)
+                .frame(width: 28, height: 28)
+                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                .padding(2)
+        }
+        .animation(.easeInOut(duration: 0.16), value: isOn)
+    }
+}
+
+private struct EmailRecipientEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    let initialValue: String
+    let onSave: (String) -> String?
+    @State private var value: String
+    @State private var error: String?
+
+    init(initialValue: String, onSave: @escaping (String) -> String?) {
+        self.initialValue = initialValue
+        self.onSave = onSave
+        _value = State(initialValue: initialValue)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Укажите адрес, на который будут приходить напоминания Ramingo.")
+                    .font(AppTheme.font(14, .medium))
+                    .foregroundStyle(AppTheme.muted)
+                TextField("you@example.com", text: $value)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .ramingoSettingsField()
+                if let error {
+                    Text(error)
+                        .font(AppTheme.font(12, .bold))
+                        .foregroundStyle(AppTheme.error)
+                }
+                Spacer()
+            }
+            .padding(20)
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle("Почта для писем")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") {
+                        if let error = onSave(value) {
+                            self.error = error
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .font(AppTheme.font(14, .extrabold))
+                }
+            }
+        }
+    }
+}
+
+private struct TimePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var date: Date
+    let onDone: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            DatePicker("Ежедневное время", selection: $date, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppTheme.background.ignoresSafeArea())
+                .navigationTitle("Время отправки")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Отмена") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Готово") { onDone() }
+                            .font(AppTheme.font(14, .extrabold))
+                    }
+                }
         }
     }
 }

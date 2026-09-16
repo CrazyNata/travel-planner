@@ -7,6 +7,7 @@ struct ReminderScheduler {
     private static let reminderPrefix = "ramingo.reminder."
     private static let tripReminderDays = [30, 14, 7, 3, 1]
     private static let cancellationReminderDays = [7, 3, 1, 0]
+    private static let paymentReminderDays = [3, 0]
 
     private struct Event {
         let identifier: String
@@ -56,6 +57,7 @@ struct ReminderScheduler {
                     now: now,
                     tripRemindersEnabled: profile.tripRemindersEnabled,
                     cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+                    paymentRemindersEnabled: profile.paymentRemindersEnabled,
                 )
             }
 
@@ -93,6 +95,7 @@ struct ReminderScheduler {
         now: Date,
         tripRemindersEnabled: Bool,
         cancellationRemindersEnabled: Bool,
+        paymentRemindersEnabled: Bool,
     ) -> [Event] {
         let calendar = Calendar.current
         let dates = extractDates(from: trip.dates)
@@ -127,6 +130,9 @@ struct ReminderScheduler {
         }
         if cancellationRemindersEnabled {
             events.append(contentsOf: cancellationEvents(for: trip, language: language, reminderHour: reminderHour, now: now))
+        }
+        if paymentRemindersEnabled {
+            events.append(contentsOf: paymentEvents(for: trip, language: language, reminderHour: reminderHour, now: now))
         }
         return events
     }
@@ -173,6 +179,54 @@ struct ReminderScheduler {
                         tripID: trip.id,
                         triggerDate: trigger,
                         title: localized(language, ru: "Срок бесплатной отмены", en: "Free cancellation deadline", es: "Fecha límite de cancelación gratuita", de: "Frist für kostenlose Stornierung"),
+                        body: body,
+                    )
+                }
+            }
+    }
+
+    private static func paymentEvents(
+        for trip: TripOverview,
+        language: String,
+        reminderHour: Int,
+        now: Date,
+    ) -> [Event] {
+        let calendar = Calendar.current
+        return trip.accommodations
+            .filter { !$0.status.isNonPayable }
+            .flatMap { accommodation -> [Event] in
+                guard let deadline = extractDates(from: accommodation.paymentDeadline).first else { return [] }
+                let name = [accommodation.name, accommodation.city]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " · ")
+                return paymentReminderDays.compactMap { daysBefore -> Event? in
+                    guard let target = calendar.date(byAdding: .day, value: -daysBefore, to: deadline),
+                          let trigger = reminderDate(on: target, hour: reminderHour, calendar: calendar),
+                          trigger > now else { return nil }
+                    let body: String
+                    if daysBefore == 0 {
+                        body = localized(
+                            language,
+                            ru: "Сегодня нужно оплатить «\(name)»",
+                            en: "Pay for «\(name)» today",
+                            es: "Hoy hay que pagar «\(name)»",
+                            de: "«\(name)» heute bezahlen",
+                        )
+                    } else {
+                        body = localized(
+                            language,
+                            ru: "До оплаты «\(name)» осталось \(daysBefore) \(russianDayWord(daysBefore))",
+                            en: "\(daysBefore) \(daysBefore == 1 ? "day" : "days") left to pay for «\(name)»",
+                            es: "Faltan \(daysBefore) \(daysBefore == 1 ? "día" : "días") para pagar «\(name)»",
+                            de: "Noch \(daysBefore) \(daysBefore == 1 ? "Tag" : "Tage"), um «\(name)» zu bezahlen",
+                        )
+                    }
+                    return Event(
+                        identifier: "payment-\(trip.id)-\(accommodation.id)-\(daysBefore)",
+                        tripID: trip.id,
+                        triggerDate: trigger,
+                        title: localized(language, ru: "Оплата жилья", en: "Accommodation payment", es: "Pago del alojamiento", de: "Unterkunft bezahlen"),
                         body: body,
                     )
                 }
@@ -325,5 +379,10 @@ private extension String {
     var isStayed: Bool {
         let value = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return ["пожил", "stayed", "visited", "past"].contains { value.contains($0) }
+    }
+
+    var isNonPayable: Bool {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return isStayed || ["опла", "paid", "pagad", "bezahlt", "отмен", "cancel", "cancelad", "storn"].contains { value.contains($0) }
     }
 }

@@ -155,6 +155,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             themePreference: next.themePreference,
             tripRemindersEnabled: next.tripRemindersEnabled,
             cancellationRemindersEnabled: next.cancellationRemindersEnabled,
+            paymentRemindersEnabled: next.paymentRemindersEnabled,
+            emailNotificationsEnabled: next.emailNotificationsEnabled,
+            emailPaymentRemindersEnabled: next.emailPaymentRemindersEnabled,
+            emailRecipient: next.emailRecipient,
             reminderHour: next.reminderHour,
         )
         profile = next
@@ -166,6 +170,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             enabled: enabled,
             tripRemindersEnabled: profile.tripRemindersEnabled,
             cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            paymentRemindersEnabled: profile.paymentRemindersEnabled,
+            emailNotificationsEnabled: profile.emailNotificationsEnabled,
+            emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
+            emailRecipient: profile.emailRecipient,
             reminderHour: profile.reminderHour,
         )
     }
@@ -174,6 +182,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         enabled: Bool,
         tripRemindersEnabled: Bool,
         cancellationRemindersEnabled: Bool,
+        paymentRemindersEnabled: Bool,
+        emailNotificationsEnabled: Bool,
+        emailPaymentRemindersEnabled: Bool,
+        emailRecipient: String?,
         reminderHour: Int,
     ) async throws {
         if enabled {
@@ -196,6 +208,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             themePreference: profile.themePreference,
             tripRemindersEnabled: tripRemindersEnabled,
             cancellationRemindersEnabled: cancellationRemindersEnabled,
+            paymentRemindersEnabled: paymentRemindersEnabled,
+            emailNotificationsEnabled: emailNotificationsEnabled,
+            emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
+            emailRecipient: emailRecipient,
             reminderHour: min(max(reminderHour, 0), 23),
         )
         try await updateProfile(next)
@@ -211,6 +227,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             themePreference: profile.themePreference,
             tripRemindersEnabled: profile.tripRemindersEnabled,
             cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            paymentRemindersEnabled: profile.paymentRemindersEnabled,
+            emailNotificationsEnabled: profile.emailNotificationsEnabled,
+            emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
+            emailRecipient: profile.emailRecipient,
             reminderHour: profile.reminderHour,
         )
     }

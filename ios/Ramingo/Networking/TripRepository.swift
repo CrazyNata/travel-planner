@@ -38,6 +38,7 @@ struct Accommodation: Identifiable, Hashable, Sendable {
     let photos: [String]
     let bookingURL: String
     let deadline: String
+    let paymentDeadline: String
     let rating: Double?
     let source: String
     let googlePlaceID: String
@@ -1191,6 +1192,7 @@ final class TripRepository {
                 photos: photoReferences(object, keys: ["photos", "photoNames", "photo_names", "googlePhotos", "photo", "image", "imageUrl", "photoUrl"]),
                 bookingURL: object.text("bookingUrl", fallback: object.text("externalUrl")),
                 deadline: object.text("deadline"),
+                paymentDeadline: object.text("paymentDeadline", fallback: object.text("payment_deadline")),
                 rating: firstNumber(object, keys: ["rating", "hotelRating", "googleRating", "userRating", "score"]),
                 source: object.text("source", fallback: "manual"),
                 googlePlaceID: object.text("googlePlaceId", fallback: object.text("googlePlaceID")),
