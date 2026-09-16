@@ -36,6 +36,9 @@
   <style>
     .notification-email-title b{font-size:14px}.notification-email-title button{font-size:12px}.notification-time-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;position:static;align-items:center;padding:14px;text-align:left}.notification-time-copy{display:block;min-width:0;overflow:hidden}.notification-time-value{position:static;display:block;transform:none}
   </style>
+  <style>
+    .notification-view{position:relative}.notification-modal-backdrop{position:absolute;z-index:10;inset:0;display:grid;place-items:center;padding:20px;background:#17152566}.notification-modal-backdrop[hidden],.notification-dialog [hidden]{display:none!important}.notification-dialog{width:min(100%,320px);padding:18px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 18px 45px #17152540}.notification-dialog-head{display:flex;align-items:center;gap:8px}.notification-dialog-head b{font-size:17px}.notification-dialog-close{display:grid;place-items:center;width:32px;height:32px;margin-left:auto;border:0;border-radius:50%;background:var(--soft);color:var(--muted);font-size:22px;line-height:1;cursor:pointer}.notification-dialog p{margin:10px 0 14px;color:var(--muted);font-size:12px;line-height:1.35}.notification-dialog label{display:block;color:var(--muted);font-size:11px;font-weight:750}.notification-dialog input{width:100%;height:46px;margin-top:7px;padding:0 12px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--text);font:650 14px Manrope;outline:0}.notification-dialog input:focus{border-color:var(--purple)}.notification-dialog-error{min-height:17px!important;margin:7px 0 0!important;color:var(--red)!important;font-weight:750}.notification-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.notification-dialog-actions button{height:44px;border:1px solid var(--line);border-radius:13px;background:#fff;color:var(--text);font:850 13px Manrope;cursor:pointer}.notification-dialog-actions button:last-child{border-color:var(--purple);background:var(--purple);color:#fff}
+  </style>
 </head>
 <body>
 <main class="stage">
@@ -103,6 +106,16 @@
             <button class="notification-preset" data-notification-preset="2" type="button">Всё</button>
           </div>
         </div>
+      </div>
+      <div class="notification-modal-backdrop" data-notification-modal hidden>
+        <form class="notification-dialog" data-notification-dialog>
+          <div class="notification-dialog-head"><b data-notification-dialog-title></b><button class="notification-dialog-close" data-notification-modal-close type="button" aria-label="Закрыть">×</button></div>
+          <p data-notification-dialog-detail></p>
+          <label data-notification-email-field hidden>E-mail для уведомлений<input data-notification-email-input type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label data-notification-time-field hidden>Ежедневное время<input data-notification-time-input type="time" step="3600"></label>
+          <p class="notification-dialog-error" data-notification-dialog-error></p>
+          <div class="notification-dialog-actions"><button data-notification-modal-cancel type="button">Отмена</button><button type="submit">Сохранить</button></div>
+        </form>
       </div>
       <div class="notification-save-wrap"><p class="settings-message" data-notification-message></p><button class="settings-primary" data-notification-save type="button">Сохранить настройки</button></div>
     </div>
@@ -245,13 +258,22 @@
     const permissionDetail=screen.querySelector('[data-notification-permission-detail]');
     const emailTarget=screen.querySelector('[data-notification-email-target]');
     const message=screen.querySelector('[data-notification-message]');
+    const modal=screen.querySelector('[data-notification-modal]');
+    const dialog=screen.querySelector('[data-notification-dialog]');
+    const dialogTitle=screen.querySelector('[data-notification-dialog-title]');
+    const dialogDetail=screen.querySelector('[data-notification-dialog-detail]');
+    const emailField=screen.querySelector('[data-notification-email-field]');
+    const emailInput=screen.querySelector('[data-notification-email-input]');
+    const timeField=screen.querySelector('[data-notification-time-field]');
+    const timeInput=screen.querySelector('[data-notification-time-input]');
+    const modalError=screen.querySelector('[data-notification-dialog-error]');
     master.checked=previewNotificationsEnabled;
     if(trip)trip.checked=previewTripReminders;
     if(cancellation)cancellation.checked=previewCancellationReminders;
     if(payment)payment.checked=previewPaymentReminders;
     if(email)email.checked=previewEmailNotifications;
     if(emailPayment)emailPayment.checked=previewEmailPaymentReminders;
-    if(hour)hour.value=previewReminderHour;
+    if(hour)hour.textContent=previewReminderHour;
     if(emailTarget)emailTarget.textContent=previewEmailRecipient;
     const update=()=>{
       previewNotificationsEnabled=master.checked;
@@ -260,7 +282,6 @@
       if(payment)previewPaymentReminders=payment.checked;
       if(email)previewEmailNotifications=email.checked;
       if(emailPayment)previewEmailPaymentReminders=emailPayment.checked;
-      if(hour&&hour.dataset.notificationHour)previewReminderHour=hour.dataset.notificationHour;
       [trip,cancellation,payment].forEach(input=>{if(input){input.disabled=!master.checked;input.closest('.notification-toggle-row').classList.toggle('disabled',!master.checked);}});
       if(emailPayment){emailPayment.disabled=!email.checked;emailPayment.closest('.notification-toggle-row').classList.toggle('disabled',!email.checked);}
       if(status)status.textContent=master.checked?'Включены':'Выключены';
@@ -272,16 +293,41 @@
       }
       refreshIcons();
     };
-    master.onchange=update;trip?.addEventListener('change',update);cancellation?.addEventListener('change',update);payment?.addEventListener('change',update);email?.addEventListener('change',update);emailPayment?.addEventListener('change',update);
-    screen.querySelector('[data-notification-time]')?.addEventListener('click',()=>{
-      const next=prompt('Время напоминаний (например, 09:00)',previewReminderHour);
-      if(!next)return;
-      const match=String(next).trim().match(/^([01]?\d|2[0-3]):00$/);
-      if(!match){if(message){message.classList.add('error');message.textContent='Введите время в формате ЧЧ:00';}return;}
-      previewReminderHour=String(next).trim().padStart(5,'0');
-      if(hour)hour.textContent=previewReminderHour;
+    let modalMode='';
+    const closeModal=()=>{if(modal)modal.hidden=true;if(modalError)modalError.textContent='';};
+    const openModal=(mode)=>{
+      modalMode=mode;
+      if(!modal)return;
+      if(dialogTitle)dialogTitle.textContent=mode==='email'?'Почта для писем':'Время отправки';
+      if(dialogDetail)dialogDetail.textContent=mode==='email'?'Укажите адрес, на который будут приходить напоминания Ramingo.':'Выберите час, в который будут приходить ежедневные напоминания.';
+      if(emailField)emailField.hidden=mode!=='email';
+      if(timeField)timeField.hidden=mode!=='time';
+      if(emailInput)emailInput.value=previewEmailRecipient;
+      if(timeInput)timeInput.value=previewReminderHour;
+      if(modalError)modalError.textContent='';
+      modal.hidden=false;
+      (mode==='email'?emailInput:timeInput)?.focus();
+    };
+    dialog?.addEventListener('submit',event=>{
+      event.preventDefault();
+      if(modalMode==='email'){
+        const value=String(emailInput?.value||'').trim().toLowerCase();
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)){if(modalError)modalError.textContent='Укажите корректный e-mail';return;}
+        previewEmailRecipient=value;
+        if(emailTarget)emailTarget.textContent=value;
+      }else{
+        const value=String(timeInput?.value||'').trim();
+        if(!/^(?:[01]\d|2[0-3]):00$/.test(value)){if(modalError)modalError.textContent='Выберите время с минутами :00';return;}
+        previewReminderHour=value;
+        if(hour)hour.textContent=value;
+      }
       if(message){message.classList.remove('error');message.textContent='';}
+      closeModal();
     });
+    modal?.addEventListener('click',event=>{if(event.target===modal)closeModal();});
+    screen.querySelectorAll('[data-notification-modal-close],[data-notification-modal-cancel]').forEach(button=>button.onclick=closeModal);
+    master.onchange=update;trip?.addEventListener('change',update);cancellation?.addEventListener('change',update);payment?.addEventListener('change',update);email?.addEventListener('change',update);emailPayment?.addEventListener('change',update);
+    screen.querySelector('[data-notification-time]')?.addEventListener('click',()=>openModal('time'));
     screen.querySelectorAll('[data-notification-preset]').forEach(button=>button.onclick=()=>{
       const index=Number(button.dataset.notificationPreset);
       screen.querySelectorAll('[data-notification-preset]').forEach(item=>item.classList.toggle('on',item===button));
@@ -294,15 +340,7 @@
       previewPhonePermissionGranted=true;
       update();
     });
-    screen.querySelector('[data-notification-email-edit]')?.addEventListener('click',()=>{
-      const next=prompt('E-mail для уведомлений',previewEmailRecipient);
-      if(!next)return;
-      const value=String(next).trim().toLowerCase();
-      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)){if(message){message.classList.add('error');message.textContent='Укажите корректный e-mail';}return;}
-      previewEmailRecipient=value;
-      if(emailTarget)emailTarget.textContent=value;
-      if(message){message.classList.remove('error');message.textContent='';}
-    });
+    screen.querySelector('[data-notification-email-edit]')?.addEventListener('click',()=>openModal('email'));
     screen.querySelector('[data-notification-help]')?.addEventListener('click',()=>alert('Ramingo напомнит о начале поездки, оплате жилья и дедлайнах бесплатной отмены.'));
     screen.querySelector('[data-notification-save]')?.addEventListener('click',()=>{update();if(message){message.classList.remove('error');message.textContent='Настройки сохранены';}});
     update();
