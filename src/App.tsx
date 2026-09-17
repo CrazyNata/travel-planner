@@ -3,6 +3,7 @@ import {
   useEffectEvent,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type InputHTMLAttributes,
   type ReactNode,
@@ -13712,36 +13713,57 @@ function WeatherOverview({
         canonicalWeatherCity(weatherCityByDate.get(date)) === selectedWeatherCityKey,
     ),
   );
+  const focusSnapshot = selectedWeatherCity
+    ? weather[selectedWeatherCity.name]
+    : undefined;
+  const focusForecast = mode === "trip" ? selectedCityForecast : undefined;
+  const focusTemperature =
+    mode === "now" ? focusSnapshot?.temperature : focusForecast?.temperature;
+  const focusCode = mode === "now" ? focusSnapshot?.code : focusForecast?.code;
+  const focusVisualKind = weatherVisualKind(focusCode) || "cloudy";
+  const focusDescription =
+    focusCode !== undefined
+      ? weatherDescription(focusCode)
+      : mode === "now"
+        ? failed
+          ? "Погода временно недоступна"
+          : "Обновляем погоду..."
+        : failed
+          ? "Не удалось обновить прогноз"
+          : "Прогноз появится позже";
 
   return (
-    <section className={`weather-overview${mode === "trip" ? " trip-mode" : ""}`}>
-      <header className="overview-section-head weather-heading">
-        <div>
-          <h2>Погода по маршруту</h2>
+    <section className={`weather-overview weather-overview-redesign${mode === "trip" ? " trip-mode" : ""}`}>
+      <header className="overview-section-head weather-heading weather-redesign-heading">
+        <div className="weather-heading-copy">
+          <span className="weather-kicker">Погода по маршруту</span>
+          <h2>Погода в поездке</h2>
           <p>
             {mode === "now"
-              ? "Текущая погода в городах поездки"
-              : `Погода на ${selectedTripDateLabel}${selectedWeatherCity ? ` · ${selectedWeatherCity.name}` : ""}`}
+              ? "Сейчас в городах маршрута"
+              : `${weatherTripDates} · выберите город и дату`}
           </p>
         </div>
         <div className="weather-switch" role="group" aria-label="Период погоды">
           <button
+            type="button"
             className={mode === "now" ? "active" : ""}
             onClick={() => setMode("now")}
           >
             Сейчас
           </button>
           <button
+            type="button"
             className={mode === "trip" ? "active" : ""}
             onClick={() => setMode("trip")}
           >
-            На даты поездки
+            В поездке
           </button>
         </div>
       </header>
       {mode === "trip" && !hasSelectedTripForecast && (
         <p className="weather-notice">
-          Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.
+          Точный прогноз появится примерно за 16 дней до поездки. Пока показываем доступные данные.
         </p>
       )}
       {!weatherCities.length && (
@@ -13749,98 +13771,111 @@ function WeatherOverview({
           Не удалось определить города поездки для загрузки погоды.
         </p>
       )}
-      <div className="weather-grid">
-        {weatherCities.map((city) => {
-          const current = weather[city.name];
-          const selectedForecast = current?.tripDays?.[selectedTripDate];
-          const cityIndex = weatherCities.findIndex(
-            (weatherCity) => weatherCity.name === city.name,
-          );
-          const photo =
-            coverPhotos.find(
-              (item) =>
-                canonicalWeatherCity(item.city) ===
-                canonicalWeatherCity(city.name),
-            ) || coverPhotos[cityIndex];
-          return (
-            <article
-              className={`weather-card${photo ? " has-photo" : ""}${
-                photo && brightenPhotos ? " christmas-weather-photo" : ""
-              }${
-                mode === "trip" && selectedWeatherCity?.name === city.name
-                  ? " selected"
-                  : ""
-              }${mode === "trip" ? " selectable" : ""}`}
-              role={mode === "trip" ? "button" : undefined}
-              tabIndex={mode === "trip" ? 0 : undefined}
-              aria-pressed={
-                mode === "trip"
-                  ? selectedWeatherCity?.name === city.name
-                  : undefined
-              }
-              onClick={() => {
-                if (mode === "trip") setSelectedWeatherCityName(city.name);
-              }}
-              onKeyDown={(event) => {
-                if (
-                  mode !== "trip" ||
-                  (event.key !== "Enter" && event.key !== " ")
-                ) {
-                  return;
-                }
-                event.preventDefault();
-                setSelectedWeatherCityName(city.name);
-              }}
-              style={
-                photo
-                  ? {
-                      backgroundImage: brightenPhotos
-                        ? `url(${photo.image})`
-                        : `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
-                    }
-                  : undefined
-              }
-              key={city.name}
-            >
-              <h3>{city.name}</h3>
-              {mode === "now" ? (
-                failed ? (
-                  <p>Не удалось обновить погоду</p>
-                ) : current ? (
-                  <>
-                    <b>{Math.round(current.temperature)}°C</b>
-                    <span>{weatherDescription(current.code)}</span>
-                  </>
-                ) : (
-                  <p>Обновляем...</p>
-                )
-              ) : selectedForecast?.temperature !== undefined ? (
-                <>
-                  <b>{Math.round(selectedForecast.temperature)}°C</b>
-                  <span>
-                    {selectedForecast.code !== undefined
-                      ? weatherDescription(selectedForecast.code)
-                      : "Прогноз пока недоступен"}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <b>{selectedTripDateLabel}</b>
-                  <span>
-                    {failed
-                      ? "Не удалось обновить прогноз"
-                      : "Прогноз появится позже"}
-                  </span>
-                </>
-              )}
-            </article>
-          );
-        })}
+
+      <div className="weather-focus-card">
+        <span className={`weather-focus-icon weather-focus-icon-${focusVisualKind}`}>
+          <WeatherDateIcon kind={focusVisualKind} />
+        </span>
+        <div className="weather-focus-copy">
+          <span>{mode === "now" ? "Сейчас" : selectedTripDateLabel}</span>
+          <strong>{selectedWeatherCity?.name || "Маршрут"}</strong>
+          <small>{focusDescription}{focusForecast?.nightTemperature !== undefined ? ` · ночью ${Math.round(focusForecast.nightTemperature)}°` : ""}</small>
+        </div>
+        <div className="weather-focus-temperature">
+          <b>{focusTemperature !== undefined ? `${Math.round(focusTemperature)}°` : "—"}</b>
+          <small>{formatRussianCount(weatherCities.length, "город", "города", "городов")}</small>
+        </div>
       </div>
+
+      <section className="weather-city-section" aria-labelledby="weather-city-section-title">
+        <header className="weather-subheading">
+          <div>
+            <span className="weather-kicker">Маршрут</span>
+            <h3 id="weather-city-section-title">Города поездки</h3>
+          </div>
+          <span>{weatherTripDates}</span>
+        </header>
+        <div className="weather-city-list">
+          {weatherCities.map((city) => {
+            const current = weather[city.name];
+            const selectedForecast = current?.tripDays?.[selectedTripDate];
+            const cityIndex = weatherCities.findIndex(
+              (weatherCity) => weatherCity.name === city.name,
+            );
+            const photo =
+              coverPhotos.find(
+                (item) =>
+                  canonicalWeatherCity(item.city) ===
+                  canonicalWeatherCity(city.name),
+              ) || coverPhotos[cityIndex];
+            const displayTemperature =
+              mode === "now"
+                ? current?.temperature
+                : selectedForecast?.temperature;
+            const displayCode =
+              mode === "now" ? current?.code : selectedForecast?.code;
+            const visualKind = weatherVisualKind(displayCode) || "cloudy";
+            const cityDateKeys = weatherDateOptions.filter(
+              (date) =>
+                Boolean(weatherCityByDate.get(date)) &&
+                canonicalWeatherCity(weatherCityByDate.get(date)) ===
+                  canonicalWeatherCity(city.name),
+            );
+            const cityStayLabel = cityDateKeys.length
+              ? `${formatWeatherOverviewDate(cityDateKeys[0])}${cityDateKeys.length > 1 ? `–${formatWeatherOverviewDate(cityDateKeys[cityDateKeys.length - 1])}` : ""} · ${formatRussianCount(cityDateKeys.length, "день", "дня", "дней")}`
+              : "Город маршрута";
+            const displayDescription =
+              mode === "now"
+                ? failed
+                  ? "Не удалось обновить"
+                  : current
+                    ? weatherDescription(current.code)
+                    : "Обновляем..."
+                : selectedForecast?.temperature !== undefined
+                  ? selectedForecast.code !== undefined
+                    ? weatherDescription(selectedForecast.code)
+                    : "Прогноз пока недоступен"
+                  : failed
+                    ? "Не удалось обновить"
+                    : "Прогноз появится позже";
+            return (
+              <button
+                key={city.name}
+                type="button"
+                className={`weather-city-row${selectedWeatherCity?.name === city.name ? " selected" : ""}`}
+                aria-pressed={selectedWeatherCity?.name === city.name}
+                onClick={() => setSelectedWeatherCityName(city.name)}
+                style={
+                  photo
+                    ? {
+                        "--weather-city-image": `url(${photo.image})`,
+                      } as CSSProperties
+                    : undefined
+                }
+              >
+                <span className={`weather-city-photo${photo ? " has-photo" : ""}${photo && brightenPhotos ? " christmas-weather-photo" : ""}`}>
+                  {!photo && <WeatherDateIcon kind={visualKind} />}
+                </span>
+                <span className="weather-city-copy">
+                  <strong>{city.name}</strong>
+                  <small>{mode === "trip" ? cityStayLabel : "Текущая погода"}</small>
+                  <em>{displayDescription}</em>
+                </span>
+                <span className="weather-city-values">
+                  <b>{displayTemperature !== undefined ? `${Math.round(displayTemperature)}°` : "—"}</b>
+                  <small>{selectedForecast?.nightTemperature !== undefined && mode === "trip" ? `ночью ${Math.round(selectedForecast.nightTemperature)}°` : ""}</small>
+                </span>
+                <span className="weather-city-arrow" aria-hidden="true">›</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
       {mode === "trip" && weatherDateOptions.length > 0 && (
         <section className="weather-trip-days" aria-labelledby="weather-trip-days-title">
-          <header>
+          <header className="weather-trip-days-heading">
             <div>
+              <span className="weather-kicker">Даты маршрута</span>
               <h3 id="weather-trip-days-title">Каждый день поездки</h3>
               <p>
                 {selectedWeatherCity && selectedCityDateKeys.size > 0
@@ -13866,61 +13901,63 @@ function WeatherOverview({
               <span>{formatRussianCount(weatherDateOptions.length, "день", "дня", "дней")}</span>
             </div>
           </header>
-          <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
-            {visibleTripDates.map((date) => {
-              const selectedForecast = selectedWeatherCity
-                ? weather[selectedWeatherCity.name]?.tripDays?.[date]
-                : undefined;
-              const visualKind = weatherVisualKind(selectedForecast?.code);
-              const dayTemperature = selectedForecast?.temperature;
-              const nightTemperature = selectedForecast?.nightTemperature;
-              const isSelectedCityDate =
-                Boolean(weatherCityByDate.get(date)) &&
-                Boolean(selectedWeatherCityKey) &&
-                canonicalWeatherCity(weatherCityByDate.get(date)) === selectedWeatherCityKey;
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  className={`weather-trip-date${selectedTripDate === date ? " active" : ""}${isSelectedCityDate ? " city-stay" : ""}${visualKind ? ` weather-trip-date-${visualKind}` : ""}`}
-                  aria-pressed={selectedTripDate === date}
-                  aria-label={`${formatWeatherOverviewDate(date)}${isSelectedCityDate && selectedWeatherCity ? `, ${selectedWeatherCity.name}` : ""}${dayTemperature !== undefined ? `, днём ${Math.round(dayTemperature)} градусов${nightTemperature !== undefined ? `, ночью ${Math.round(nightTemperature)} градусов` : ""}` : ", прогноз пока недоступен"}`}
-                  onClick={() => selectTripDate(date)}
-                >
-                  <span className="weather-trip-date-label">
-                    {formatWeatherOverviewDate(date)}
-                  </span>
-                  {visualKind && (
-                    <span className="weather-trip-date-icon">
-                      <WeatherDateIcon kind={visualKind} />
+          <div className="weather-trip-days-viewport">
+            <div className="weather-trip-days-list" role="group" aria-label="Даты поездки">
+              {visibleTripDates.map((date) => {
+                const selectedForecast = selectedWeatherCity
+                  ? weather[selectedWeatherCity.name]?.tripDays?.[date]
+                  : undefined;
+                const visualKind = weatherVisualKind(selectedForecast?.code);
+                const dayTemperature = selectedForecast?.temperature;
+                const nightTemperature = selectedForecast?.nightTemperature;
+                const isSelectedCityDate =
+                  Boolean(weatherCityByDate.get(date)) &&
+                  Boolean(selectedWeatherCityKey) &&
+                  canonicalWeatherCity(weatherCityByDate.get(date)) === selectedWeatherCityKey;
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    className={`weather-trip-date${selectedTripDate === date ? " active" : ""}${isSelectedCityDate ? " city-stay" : ""}${visualKind ? ` weather-trip-date-${visualKind}` : ""}`}
+                    aria-pressed={selectedTripDate === date}
+                    aria-label={`${formatWeatherOverviewDate(date)}${isSelectedCityDate && selectedWeatherCity ? `, ${selectedWeatherCity.name}` : ""}${dayTemperature !== undefined ? `, днём ${Math.round(dayTemperature)} градусов${nightTemperature !== undefined ? `, ночью ${Math.round(nightTemperature)} градусов` : ""}` : ", прогноз пока недоступен"}`}
+                    onClick={() => selectTripDate(date)}
+                  >
+                    <span className="weather-trip-date-label">
+                      {formatWeatherOverviewDate(date)}
                     </span>
-                  )}
-                  <span className="weather-trip-date-temperatures">
-                    <b>{dayTemperature !== undefined ? `${Math.round(dayTemperature)}°` : "—"}</b>
-                    {nightTemperature !== undefined && (
-                      <small>☾ {Math.round(nightTemperature)}°</small>
+                    {visualKind && (
+                      <span className="weather-trip-date-icon">
+                        <WeatherDateIcon kind={visualKind} />
+                      </span>
                     )}
-                  </span>
+                    <span className="weather-trip-date-temperatures">
+                      <b>{dayTemperature !== undefined ? `${Math.round(dayTemperature)}°` : "—"}</b>
+                      {nightTemperature !== undefined && (
+                        <small>☾ {Math.round(nightTemperature)}°</small>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+              {nextTripDateStart < weatherDateOptions.length && (
+                <button
+                  type="button"
+                  className="weather-trip-days-more"
+                  aria-label="Показать следующие даты"
+                  onClick={() =>
+                    selectTripDate(weatherDateOptions[nextTripDateStart])
+                  }
+                >
+                  +{formatRussianCount(
+                    weatherDateOptions.length - nextTripDateStart,
+                    "день",
+                    "дня",
+                    "дней",
+                  )}
                 </button>
-              );
-            })}
-            {nextTripDateStart < weatherDateOptions.length && (
-              <button
-                type="button"
-                className="weather-trip-days-more"
-                aria-label="Показать следующие даты"
-                onClick={() =>
-                  selectTripDate(weatherDateOptions[nextTripDateStart])
-                }
-              >
-                +{formatRussianCount(
-                  weatherDateOptions.length - nextTripDateStart,
-                  "день",
-                  "дня",
-                  "дней",
-                )}
-              </button>
-            )}
+              )}
+            </div>
           </div>
           <div className="weather-trip-selected">
             <div>
@@ -13947,7 +13984,7 @@ function WeatherOverview({
             </strong>
           </div>
           <p className="weather-trip-days-note">
-            В полном варианте здесь можно пролистывать все {formatRussianCount(weatherDateOptions.length, "день", "дня", "дней")}.
+            Даты идут по порядку поездки. Стрелками можно открыть следующий отрезок.
           </p>
         </section>
       )}
