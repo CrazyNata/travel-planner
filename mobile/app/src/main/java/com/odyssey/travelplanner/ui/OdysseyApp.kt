@@ -8508,6 +8508,7 @@ private fun TripOverviewScreen(
     var overview by remember { mutableStateOf<TripOverview?>(null) }
     var weather by remember { mutableStateOf<Map<String, WeatherSnapshot>>(emptyMap()) }
     var weatherLoading by remember { mutableStateOf(true) }
+    var weatherError by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var tab by remember(tripId, initialTab) { mutableStateOf(initialTab) }
     var overviewEditMode by remember { mutableStateOf(false) }
@@ -8531,6 +8532,7 @@ private fun TripOverviewScreen(
             if (!hadOverview) overview = null
             weather = emptyMap()
             weatherLoading = false
+            weatherError = false
             loading = false
             return@LaunchedEffect
         }
@@ -8538,6 +8540,7 @@ private fun TripOverviewScreen(
         overview = loadedOverview
         loading = false
         weatherLoading = true
+        weatherError = false
 
         loadedOverview.let { trip ->
             // The web editor stores its weather city selection in `cities`.
@@ -8567,9 +8570,15 @@ private fun TripOverviewScreen(
                     CityLocation(entry.latitude, entry.longitude)
                 }
             }.getOrDefault(emptyMap())
-            weather = runCatching {
+            val loadedWeather = try {
                 weatherRepository.loadCurrent(cities, trip.dates, catalogCoordinates + trip.cityCoordinates)
-            }.getOrDefault(emptyMap())
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                null
+            }
+            weather = loadedWeather ?: emptyMap()
+            weatherError = loadedWeather == null || (cities.isNotEmpty() && weather.isEmpty())
             weatherLoading = false
         }
     }
@@ -8740,8 +8749,10 @@ private fun TripOverviewScreen(
                     overview = overview!!,
                     weather = weather,
                     weatherLoading = weatherLoading,
+                    weatherError = weatherError,
                     editMode = overviewEditMode,
                     onChanged = { refresh++ },
+                    onWeatherRetry = { refresh++ },
                 )
                 "route" -> TripRouteContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
                 "sights" -> SightsContent(
@@ -17359,10 +17370,10 @@ private fun BudgetContent(
             ?.takeIf { it.isFinite() && it > 0.0 }
             ?.takeIf { expense.inputCurrency.trim().equals(selectedCurrencyCode, ignoreCase = true) }
 
-    suspend fun refreshOnlineRates() {
+    suspend fun refreshOnlineRates(): Boolean {
         loadingRates = true
         ratesMessage = null
-        runCatching { exchangeRateRepository.loadRubRates(currencyOptions.map { it.code }.toSet()) }
+        val result = runCatching { exchangeRateRepository.loadRubRates(currencyOptions.map { it.code }.toSet()) }
             .onSuccess {
                 onlineRates = it.rates
                 onlineRateDate = it.date
@@ -17371,6 +17382,7 @@ private fun BudgetContent(
                 ratesMessage = localized(language, "Не удалось обновить онлайн-курс", "Could not refresh the online rate", "No se pudo actualizar el tipo online", "Online-Kurs konnte nicht aktualisiert werden")
             }
         loadingRates = false
+        return result.isSuccess
     }
 
     LaunchedEffect(tripId) { refreshOnlineRates() }
@@ -17432,8 +17444,7 @@ private fun BudgetContent(
         }
     }
 
-    fun resetManualRate() {
-        val code = rateEditorCode ?: return
+    suspend fun resetManualRate(code: String): Boolean {
         val previousRates = manualRates
         val previousAmountInput = amountInput
         val previousRate = effectiveCurrencyRate(code)
@@ -17444,23 +17455,51 @@ private fun BudgetContent(
                 amountInput = formatBudgetInput(enteredAmount / previousRate, effectiveCurrencyRate(code))
             }
         }
-        scope.launch {
-            savingRate = true
-            runCatching {
-                SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
-                    tripId,
-                    "budgetManualRates",
-                    manualRatesJson(updatedRates),
-                )
-            }.onSuccess {
+        val editorWasOpen = rateEditorCode == code
+        savingRate = true
+        val result = runCatching {
+            SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).updateTripSection(
+                tripId,
+                "budgetManualRates",
+                manualRatesJson(updatedRates),
+            )
+        }
+        result.onSuccess {
+            if (editorWasOpen) {
                 rateEditorCode = null
-                rateError = null
-            }.onFailure {
-                manualRates = previousRates
-                amountInput = previousAmountInput
-                rateError = localizedFailure(language, it, localized(language, "Не удалось сбросить курс", "Could not reset the rate", "No se pudo restablecer el tipo", "Kurs konnte nicht zurückgesetzt werden"))
             }
-            savingRate = false
+            rateError = null
+        }
+        result.onFailure {
+            manualRates = previousRates
+            amountInput = previousAmountInput
+            val errorText = localizedFailure(language, it, localized(language, "Не удалось сбросить курс", "Could not reset the rate", "No se pudo restablecer el tipo", "Kurs konnte nicht zurückgesetzt werden"))
+            rateError = errorText
+            if (!editorWasOpen) ratesMessage = errorText
+        }
+        savingRate = false
+        return result.isSuccess
+    }
+
+    suspend fun useOnlineRate(code: String): Boolean {
+        if (code == "RUB" || !canEdit) return false
+        // Keep a manual value until a fresh online rate is available.
+        val refreshed = refreshOnlineRates()
+        if (!refreshed || onlineRates[code]?.let { it > 0.0 } != true) {
+            rateError = ratesMessage ?: missingCurrencyRateMessage
+            return false
+        }
+        return resetManualRate(code)
+    }
+
+    fun refreshDisplayedRate() {
+        val code = selectedCurrencyCode
+        scope.launch {
+            if (canEdit && manualRates.containsKey(code)) {
+                useOnlineRate(code)
+            } else {
+                refreshOnlineRates()
+            }
         }
     }
 
@@ -17542,7 +17581,7 @@ private fun BudgetContent(
             currencyCode = selectedCurrencyCode,
             rubPerUnit = rubPerCurrencyUnit(selectedCurrencyCode),
             isManual = manualRates.containsKey(selectedCurrencyCode),
-            loading = loadingRates,
+            loading = loadingRates || savingRate,
             onlineRateDate = onlineRateDate,
             hasOnlineRate = selectedCurrencyCode == "RUB" || onlineRates.containsKey(selectedCurrencyCode),
             message = ratesMessage,
@@ -17554,7 +17593,7 @@ private fun BudgetContent(
                     rateError = null
                 }
             },
-            onRefresh = { scope.launch { refreshOnlineRates() } },
+            onRefresh = ::refreshDisplayedRate,
             editable = canEdit,
         )
         Spacer(Modifier.height(14.dp))
@@ -17835,7 +17874,7 @@ private fun BudgetContent(
                         Text(it, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp)
                     }
                     if (manualRates.containsKey(code)) {
-                        TextButton(onClick = ::resetManualRate, enabled = !savingRate) {
+                        TextButton(onClick = { scope.launch { useOnlineRate(code) } }, enabled = !savingRate) {
                             Text(
                                 localized("Сбросить на онлайн-курс", "Use online rate", "Usar tipo online", "Online-Kurs verwenden"),
                                 color = primaryColor(),
@@ -18080,7 +18119,12 @@ private fun BudgetExchangeRateCard(
         else -> localized("нет курса", "no rate", "sin tipo", "kein Kurs")
     }
     val editRateDescription = localized("Изменить курс", "Edit rate", "Editar tipo", "Kurs ändern")
-    val refreshRateDescription = localized("Обновить курс", "Refresh rate", "Actualizar tipo", "Kurs aktualisieren")
+    val useOnlineRate = isManual && editable
+    val refreshRateDescription = if (useOnlineRate) {
+        localized("Перейти на онлайн-курс", "Use the online rate", "Usar el tipo online", "Online-Kurs verwenden")
+    } else {
+        localized("Обновить курс", "Refresh rate", "Actualizar tipo", "Kurs aktualisieren")
+    }
     val darkTheme = LocalDarkTheme.current
     val exchangeBrush = if (darkTheme) {
         Brush.linearGradient(listOf(OdysseyDarkSurface2, OdysseyDarkTint))
@@ -18201,8 +18245,11 @@ private fun BudgetExchangeRateCard(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
                     Text(
-                        if (loading) localized("Обновляем…", "Refreshing…", "Actualizando…", "Aktualisierung…")
-                        else localized("↻  Обновить", "↻  Refresh", "↻  Actualizar", "↻  Aktualisieren"),
+                        when {
+                            loading -> localized("Обновляем…", "Refreshing…", "Actualizando…", "Aktualisierung…")
+                            useOnlineRate -> localized("↻  Онлайн-курс", "↻  Use online", "↻  Tipo online", "↻  Online")
+                            else -> localized("↻  Обновить", "↻  Refresh", "↻  Actualizar", "↻  Aktualisieren")
+                        },
                         color = Color.White,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W800,
@@ -23374,8 +23421,10 @@ private fun OverviewContent(
     overview: TripOverview,
     weather: Map<String, WeatherSnapshot>,
     weatherLoading: Boolean,
+    weatherError: Boolean,
     editMode: Boolean,
     onChanged: () -> Unit,
+    onWeatherRetry: () -> Unit,
 ) {
     val language = LocalLanguage.current
     val context = LocalContext.current
@@ -23590,11 +23639,13 @@ private fun OverviewContent(
                             photos = photos,
                             weather = weather,
                             weatherLoading = weatherLoading,
+                            weatherError = weatherError,
                             tripDates = overview.dates,
                             routeLegs = overview.routeLegs,
                             accommodations = overview.accommodations,
                             tripDatesWeather = tripDatesWeather,
                             onTripDatesWeatherChange = { tripDatesWeather = it },
+                            onRetry = onWeatherRetry,
                         )
                     }
                 }
@@ -23743,6 +23794,8 @@ private fun OverviewWeatherBlock(
     accommodations: List<Accommodation>,
     tripDatesWeather: Boolean,
     onTripDatesWeatherChange: (Boolean) -> Unit,
+    weatherError: Boolean = false,
+    onRetry: () -> Unit = {},
 ) {
     val language = LocalLanguage.current
     val tripDateOptions = remember(tripDates) { weatherTripDates(tripDates) }
@@ -23813,6 +23866,41 @@ private fun OverviewWeatherBlock(
                     .clickable { onTripDatesWeatherChange(true) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
+        }
+        if (weatherError && !weatherLoading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(tintedSurfaceColor())
+                    .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    localized(
+                        "Не удалось загрузить погоду. Проверьте интернет.",
+                        "Could not load weather. Check your connection.",
+                        "No se pudo cargar el tiempo. Comprueba la conexión.",
+                        "Wetter konnte nicht geladen werden. Prüfen Sie die Verbindung.",
+                    ),
+                    color = primaryColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W700,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onRetry) {
+                    Text(
+                        localized("Повторить", "Retry", "Reintentar", "Erneut versuchen"),
+                        color = primaryColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
         }
         if (tripDatesWeather && selectedTripDate != null && !weatherLoading && !selectedForecastAvailable) {
             Text(
@@ -24619,7 +24707,7 @@ private fun WeatherPlaceholder(
             val temperatureText = if (tripDatesWeather && displayedIsEstimate) {
                 displayedTemperature?.let { "≈ $it" } ?: "—"
             } else {
-                displayedTemperature ?: if (tripDatesWeather) "—" else "…"
+                displayedTemperature ?: "—"
             }
             if (weatherLoading && weather == null) {
                 CircularProgressIndicator(
@@ -24637,7 +24725,13 @@ private fun WeatherPlaceholder(
                 )
             } else {
                 Text(temperatureText, color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp)
-                Text(displayedCondition.orEmpty(), color = Color(0xDDFFFFFF), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
+                Text(
+                    displayedCondition ?: localized("Нет данных", "No data", "Sin datos", "Keine Daten"),
+                    color = Color(0xDDFFFFFF),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W600,
+                    fontSize = 11.sp,
+                )
             }
         }
     }
