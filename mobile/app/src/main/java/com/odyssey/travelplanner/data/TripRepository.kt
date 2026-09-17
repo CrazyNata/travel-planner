@@ -73,7 +73,12 @@ private data class TripCollaboratorRow(
     val role: String,
 )
 
-data class CoverPhoto(val id: String, val imageUrl: String, val city: String)
+data class CoverPhoto(
+    val id: String,
+    val imageUrl: String,
+    val city: String,
+    val date: String = "",
+)
 data class RouteLeg(
     val dayId: String,
     val from: String,
@@ -619,7 +624,7 @@ interface TripRepository {
     suspend fun addAccommodation(id: String, name: String, city: String, dates: String, price: String, status: String)
     suspend fun addSight(id: String, name: String, city: String, category: String)
     suspend fun addMember(id: String, name: String, email: String, role: String)
-    suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String = "")
+    suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String = "", date: String = "")
     suspend fun countRouteDaysAtRisk(id: String, dates: String, cities: String): Int
     suspend fun updateTripDetails(id: String, title: String, dates: String, cities: String)
     suspend fun updateRestaurantStatus(id: String, restaurantId: String, status: String)
@@ -819,6 +824,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 id = photo["id"]?.jsonPrimitive?.contentOrNull ?: imageUrl,
                 imageUrl = imageUrl,
                 city = photo["city"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                date = photo["date"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             )
         }
         val mapPoints = row.payload["overviewMapPoints"]?.jsonArray.orEmpty()
@@ -1564,7 +1570,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         )
     }
 
-    override suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String) {
+    override suspend fun addCoverPhoto(id: String, bytes: ByteArray, city: String, date: String) {
         require(bytes.isNotEmpty()) { "Не удалось прочитать изображение" }
         val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
         val current = loadTripRow(id)
@@ -1577,6 +1583,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 put("id", UUID.randomUUID().toString())
                 put("image", imageUrl)
                 put("city", city.trim())
+                if (date.isNotBlank()) put("date", date.trim())
             })
         }
         val patch = buildJsonObject {

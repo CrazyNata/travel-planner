@@ -307,7 +307,9 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.sqrt
 import kotlin.math.sin
 
 private val OdysseyPurple = Color(0xFF6C5CE7)
@@ -1304,6 +1306,213 @@ private data class NewTripPhoto(
     val uri: Uri,
     val city: String = "",
 )
+
+private data class TripPhotoMetadata(
+    val date: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+)
+
+private data class ExifEntry(
+    val tag: Int,
+    val type: Int,
+    val count: Int,
+    val value: Int,
+    val valuePosition: Int,
+)
+
+private fun readTripPhotoMetadata(bytes: ByteArray): TripPhotoMetadata {
+    if (bytes.size < 4 || (bytes[0].toInt() and 0xFF) != 0xFF || (bytes[1].toInt() and 0xFF) != 0xD8) {
+        return TripPhotoMetadata()
+    }
+    var cursor = 2
+    while (cursor + 4 <= bytes.size && (bytes[cursor].toInt() and 0xFF) == 0xFF) {
+        val marker = bytes[cursor + 1].toInt() and 0xFF
+        if (marker == 0xDA || marker == 0xD9) break
+        val segmentLength = readExifU16(bytes, cursor + 2, littleEndian = false)
+        val segmentEnd = cursor + 2 + segmentLength
+        if (segmentLength < 2 || segmentEnd > bytes.size) break
+        val hasExifHeader = marker == 0xE1 && segmentLength >= 8 &&
+            bytes.copyOfRange(cursor + 4, cursor + 10).contentEquals(byteArrayOf(0x45, 0x78, 0x69, 0x66, 0x00, 0x00))
+        if (hasExifHeader) {
+            return readExifMetadata(bytes, cursor + 10)
+        }
+        cursor = segmentEnd
+    }
+    return TripPhotoMetadata()
+}
+
+private fun readExifMetadata(bytes: ByteArray, tiffOffset: Int): TripPhotoMetadata {
+    if (tiffOffset + 8 > bytes.size) return TripPhotoMetadata()
+    val byteOrder = readExifU16(bytes, tiffOffset, littleEndian = false)
+    val littleEndian = when (byteOrder) {
+        0x4949 -> true
+        0x4D4D -> false
+        else -> return TripPhotoMetadata()
+    }
+    if (readExifU16(bytes, tiffOffset + 2, littleEndian) != 42) return TripPhotoMetadata()
+    val ifdOffset = readExifU32(bytes, tiffOffset + 4, littleEndian).toInt()
+    val ifd0 = readExifIfd(bytes, tiffOffset, ifdOffset, littleEndian)
+    val exifIfd = ifd0.firstOrNull { it.tag == 0x8769 }?.let { pointer ->
+        readExifIfd(bytes, tiffOffset, pointer.value, littleEndian)
+    }.orEmpty()
+    val dateEntry = exifIfd.firstOrNull { it.tag == 0x9003 }
+        ?: ifd0.firstOrNull { it.tag == 0x0132 }
+    val date = dateEntry?.let { readExifAscii(bytes, tiffOffset, it, littleEndian) }
+        ?.let(::normalizeExifPhotoDate)
+
+    val gpsIfd = ifd0.firstOrNull { it.tag == 0x8825 }?.let { pointer ->
+        readExifIfd(bytes, tiffOffset, pointer.value, littleEndian)
+    }.orEmpty()
+    val latitude = readExifGpsCoordinate(bytes, tiffOffset, gpsIfd, 0x0002, littleEndian)
+        ?.let { value -> if (readExifGpsReference(bytes, tiffOffset, gpsIfd, 0x0001, littleEndian).equals("S", ignoreCase = true)) -value else value }
+    val longitude = readExifGpsCoordinate(bytes, tiffOffset, gpsIfd, 0x0004, littleEndian)
+        ?.let { value -> if (readExifGpsReference(bytes, tiffOffset, gpsIfd, 0x0003, littleEndian).equals("W", ignoreCase = true)) -value else value }
+    return TripPhotoMetadata(date = date, latitude = latitude, longitude = longitude)
+}
+
+private fun readExifIfd(bytes: ByteArray, tiffOffset: Int, relativeOffset: Int, littleEndian: Boolean): List<ExifEntry> {
+    val start = tiffOffset + relativeOffset
+    if (start < 0 || start + 2 > bytes.size) return emptyList()
+    val entryCount = readExifU16(bytes, start, littleEndian)
+    return (0 until entryCount).mapNotNull { index ->
+        val position = start + 2 + index * 12
+        if (position + 12 > bytes.size) return@mapNotNull null
+        ExifEntry(
+            tag = readExifU16(bytes, position, littleEndian),
+            type = readExifU16(bytes, position + 2, littleEndian),
+            count = readExifU32(bytes, position + 4, littleEndian).toInt(),
+            value = readExifU32(bytes, position + 8, littleEndian).toInt(),
+            valuePosition = position + 8,
+        )
+    }
+}
+
+private fun exifTypeSize(type: Int): Int = when (type) {
+    1, 2, 7 -> 1
+    3 -> 2
+    4, 9 -> 4
+    5, 10 -> 8
+    else -> 1
+}
+
+private fun exifDataPosition(tiffOffset: Int, entry: ExifEntry): Int {
+    return if (exifTypeSize(entry.type) * entry.count <= 4) entry.valuePosition else tiffOffset + entry.value
+}
+
+private fun readExifAscii(bytes: ByteArray, tiffOffset: Int, entry: ExifEntry, littleEndian: Boolean): String {
+    val position = exifDataPosition(tiffOffset, entry)
+    if (position < 0 || position >= bytes.size) return ""
+    val length = minOf(entry.count, bytes.size - position)
+    return String(bytes, position, length, Charsets.US_ASCII).substringBefore('\u0000').trim()
+}
+
+private fun readExifGpsReference(bytes: ByteArray, tiffOffset: Int, entries: List<ExifEntry>, tag: Int, littleEndian: Boolean): String {
+    return entries.firstOrNull { it.tag == tag }?.let { readExifAscii(bytes, tiffOffset, it, littleEndian) }.orEmpty()
+}
+
+private fun readExifGpsCoordinate(
+    bytes: ByteArray,
+    tiffOffset: Int,
+    entries: List<ExifEntry>,
+    tag: Int,
+    littleEndian: Boolean,
+): Double? {
+    val entry = entries.firstOrNull { it.tag == tag && it.type == 5 && it.count >= 3 } ?: return null
+    val position = exifDataPosition(tiffOffset, entry)
+    val values = (0 until 3).mapNotNull { index ->
+        val valuePosition = position + index * 8
+        if (valuePosition + 8 > bytes.size) return@mapNotNull null
+        val numerator = readExifU32(bytes, valuePosition, littleEndian).toDouble()
+        val denominator = readExifU32(bytes, valuePosition + 4, littleEndian).toDouble()
+        numerator.takeIf { denominator != 0.0 }?.div(denominator)
+    }
+    if (values.size != 3) return null
+    return values[0] + values[1] / 60.0 + values[2] / 3600.0
+}
+
+private fun readExifU16(bytes: ByteArray, position: Int, littleEndian: Boolean): Int {
+    if (position < 0 || position + 2 > bytes.size) return 0
+    val first = bytes[position].toInt() and 0xFF
+    val second = bytes[position + 1].toInt() and 0xFF
+    return if (littleEndian) first or (second shl 8) else (first shl 8) or second
+}
+
+private fun readExifU32(bytes: ByteArray, position: Int, littleEndian: Boolean): Long {
+    if (position < 0 || position + 4 > bytes.size) return 0L
+    val first = bytes[position].toLong() and 0xFF
+    val second = bytes[position + 1].toLong() and 0xFF
+    val third = bytes[position + 2].toLong() and 0xFF
+    val fourth = bytes[position + 3].toLong() and 0xFF
+    return if (littleEndian) {
+        first or (second shl 8) or (third shl 16) or (fourth shl 24)
+    } else {
+        (first shl 24) or (second shl 16) or (third shl 8) or fourth
+    }
+}
+
+private fun normalizeExifPhotoDate(value: String): String? {
+    val match = Regex("""^(\d{4}):(\d{2}):(\d{2})(?:\s+(\d{2}):(\d{2})(?::\d{2})?)?""").find(value.trim())
+        ?: return null
+    val date = "${match.groupValues[1]}-${match.groupValues[2]}-${match.groupValues[3]}"
+    val hour = match.groupValues[4]
+    val minute = match.groupValues[5]
+    return if (hour.isBlank() || minute.isBlank()) date else "$date $hour:$minute"
+}
+
+private fun photoDateLabel(value: String): String {
+    val match = Regex("""^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?""").find(value.trim())
+        ?: return value
+    val date = "${match.groupValues[3]}.${match.groupValues[2]}.${match.groupValues[1]}"
+    val hour = match.groupValues[4]
+    val minute = match.groupValues[5]
+    return if (hour.isBlank() || minute.isBlank()) date else "$date · $hour:$minute"
+}
+
+private fun tripPhotoCityCandidates(overview: TripOverview): List<String> {
+    return (
+        overview.cities +
+            overview.overviewMapPoints +
+            overview.overviewWeatherCities +
+            overview.routeLegs.flatMap { listOf(it.from, it.to) } +
+            overview.cityCoordinates.keys
+        )
+        .flatMap(::splitStoredCityList)
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinctBy(::cityFilterKey)
+}
+
+private fun tripPhotoCityLocation(city: String, overview: TripOverview): CityLocation? {
+    return overview.cityCoordinates.entries
+        .firstOrNull { cityFilterKey(it.key) == cityFilterKey(city) }
+        ?.value
+        ?: cityCatalogEntry(city)?.let { CityLocation(it.latitude, it.longitude) }
+}
+
+private fun tripPhotoDistanceKm(left: CityLocation, latitude: Double, longitude: Double): Double {
+    val earthRadiusKm = 6371.0
+    val latitudeDelta = Math.toRadians(latitude - left.latitude)
+    val longitudeDelta = Math.toRadians(longitude - left.longitude)
+    val leftLatitude = Math.toRadians(left.latitude)
+    val rightLatitude = Math.toRadians(latitude)
+    val a = sin(latitudeDelta / 2).let { it * it } +
+        cos(leftLatitude) * cos(rightLatitude) * sin(longitudeDelta / 2).let { it * it }
+    return earthRadiusKm * 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+}
+
+private fun detectTripPhotoCity(metadata: TripPhotoMetadata, overview: TripOverview, fallback: String): String {
+    val latitude = metadata.latitude ?: return fallback
+    val longitude = metadata.longitude ?: return fallback
+    val nearest = tripPhotoCityCandidates(overview)
+        .mapNotNull { city ->
+            tripPhotoCityLocation(city, overview)?.let { location ->
+                city to tripPhotoDistanceKm(location, latitude, longitude)
+            }
+        }
+        .minByOrNull { it.second }
+    return nearest?.takeIf { it.second <= 45.0 }?.first ?: fallback
+}
 
 private val PhotoMonthNames = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
 
@@ -7289,7 +7498,8 @@ private fun CreateTripScreen(
                     selectedPhotoItems.forEach { photo ->
                         val bytes = context.contentResolver.openInputStream(photo.uri)?.use { it.readBytes() }
                             ?: error(localized(language, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0447\u0438\u0442\u0430\u0442\u044c \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435", "Could not read the image", "No se pudo leer la imagen", "Das Bild konnte nicht gelesen werden"))
-                        repository.addCoverPhoto(created.id, bytes, photo.city)
+                        val metadata = readTripPhotoMetadata(bytes)
+                        repository.addCoverPhoto(created.id, bytes, photo.city, date = metadata.date.orEmpty())
                     }
                 } catch (photoError: Throwable) {
                     runCatching { repository.deleteTrip(created.id) }
@@ -16743,20 +16953,19 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
     val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val uploadCities = remember(overview.id, overview.cities, overview.overviewMapPoints, overview.overviewWeatherCities, overview.routeLegs) {
+    val uploadCities = remember(overview.id, overview.cities, overview.overviewMapPoints, overview.overviewWeatherCities, overview.routeLegs, overview.cityCoordinates) {
         (
-            overview.cities + overview.overviewMapPoints + overview.overviewWeatherCities + overview.routeLegs.flatMap { listOf(it.from, it.to) }
+            overview.cities +
+                overview.overviewMapPoints +
+                overview.overviewWeatherCities +
+                overview.routeLegs.flatMap { listOf(it.from, it.to) } +
+                overview.cityCoordinates.keys
         ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     }
     var selectedUploadCity by remember(overview.id) { mutableStateOf("") }
     var uploadCityMenuOpen by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(uploadCities) {
-        if (selectedUploadCity.isBlank() || uploadCities.none { cityFilterKey(it) == cityFilterKey(selectedUploadCity) }) {
-            selectedUploadCity = uploadCities.firstOrNull().orEmpty()
-        }
-    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
@@ -16767,7 +16976,14 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                 uris.forEach { uri ->
                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: error(localized(language, "Не удалось прочитать изображение", "Could not read the image", "No se pudo leer la imagen", "Das Bild konnte nicht gelesen werden"))
-                    repository.addCoverPhoto(tripId, bytes, selectedUploadCity)
+                    val metadata = readTripPhotoMetadata(bytes)
+                    val detectedCity = detectTripPhotoCity(metadata, overview, selectedUploadCity)
+                    repository.addCoverPhoto(
+                        id = tripId,
+                        bytes = bytes,
+                        city = detectedCity,
+                        date = metadata.date.orEmpty(),
+                    )
                 }
             }.onSuccess { onPhotoAdded() }.onFailure {
                 message = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden"))
@@ -16778,18 +16994,43 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
     // This gallery is user-owned: only photos explicitly uploaded from this
     // screen belong here. Catalog and section photos remain in their sections.
     val photos = overview.coverPhotos
-        .map { it.imageUrl to it.city }
         // Cover photos used by the overview/weather are restored from the
         // trip's legacy catalog. The Photos tab is intentionally reserved for
         // images uploaded through this tab, which are stored under /covers/.
-        .filter { (imageUrl, _) ->
-            imageUrl.isNotBlank() && tripPhotoPath(imageUrl)?.contains("/covers/") == true
+        .filter { photo ->
+            photo.imageUrl.isNotBlank() && tripPhotoPath(photo.imageUrl)?.contains("/covers/") == true
         }
-        .distinctBy { it.first }
-    val groupedPhotos = photos.groupBy { (_, city) -> city.ifBlank { localized(language, "Поездка", "Trip", "Viaje", "Reise") } }.toList()
+        .distinctBy { it.imageUrl }
+    val photoCities = remember(overview.id, uploadCities, photos) {
+        (uploadCities + photos.map { it.city })
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinctBy(::cityFilterKey)
+    }
+    val firstPhotoCity = photos.firstOrNull { it.city.isNotBlank() }?.city
+    val defaultPhotoCity = firstPhotoCity ?: photoCities.firstOrNull().orEmpty()
+    LaunchedEffect(photoCities, defaultPhotoCity) {
+        if (selectedUploadCity.isBlank() || photoCities.none { cityFilterKey(it) == cityFilterKey(selectedUploadCity) }) {
+            selectedUploadCity = defaultPhotoCity
+        }
+    }
+    val groupedPhotos = photos.groupBy { photo ->
+        photo.city.ifBlank { localized(language, "Поездка", "Trip", "Viaje", "Reise") }
+    }.toList()
+    val selectedCityPhotos = if (selectedUploadCity.isBlank()) {
+        photos
+    } else {
+        val cityPhotos = photos.filter { photo -> samePhotoCity(photo.city, selectedUploadCity) }
+        cityPhotos.ifEmpty { photos.filter { it.city.isBlank() } }
+    }
+    val selectedCityName = selectedUploadCity.ifBlank {
+        localized(language, "Поездка", "Trip", "Viaje", "Reise")
+    }
 
     fun groupMeta(city: String, count: Int): String {
-        val date = photoGroupDateRange(city, overview, groupedPhotos.indexOfFirst { it.first == city } + 1)
+        val groupIndex = groupedPhotos.indexOfFirst { samePhotoCity(it.first, city) }
+            .let { if (it >= 0) it + 1 else 1 }
+        val date = photoGroupDateRange(city, overview, groupIndex)
             ?.let { formatPhotoDateRange(it, language) }
         return listOfNotNull(date, "$count ${localized(language, "фото", "photos", "fotos", "Fotos")}").joinToString(" · ")
     }
@@ -16829,7 +17070,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                 }
             }
         }
-        if (canEdit && uploadCities.isNotEmpty()) {
+        if (photoCities.isNotEmpty()) {
             item {
                 Box {
                     Row(
@@ -16850,7 +17091,7 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                         Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = localized("Выбрать город", "Choose city", "Elegir ciudad", "Stadt auswählen"), tint = secondaryTextColor(), modifier = Modifier.size(19.dp))
                     }
                     DropdownMenu(expanded = uploadCityMenuOpen, onDismissRequest = { uploadCityMenuOpen = false }, containerColor = cardSurfaceColor()) {
-                        uploadCities.forEach { city ->
+                        photoCities.forEach { city ->
                             DropdownMenuItem(
                                 text = { Text(localizedCityName(city), fontFamily = Manrope) },
                                 onClick = { selectedUploadCity = city; uploadCityMenuOpen = false },
@@ -16860,37 +17101,65 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
                 }
             }
         }
+        if (photoCities.size > 1) {
+            item {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                ) {
+                    photoCities.forEach { city ->
+                        val selected = samePhotoCity(city, selectedUploadCity)
+                        val cityPhotoCount = photos.count { photo -> samePhotoCity(photo.city, city) }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) primaryColor() else secondarySurfaceColor())
+                                .border(1.dp, if (selected) primaryColor() else contentBorderColor(), RoundedCornerShape(999.dp))
+                                .clickable { selectedUploadCity = city }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                buildString {
+                                    append(localizedCityName(city))
+                                    if (cityPhotoCount > 0) append("  ·  $cityPhotoCount")
+                                },
+                                color = if (selected) primaryContentColor() else contentTextColor(),
+                                fontFamily = Manrope,
+                                fontWeight = FontWeight.W800,
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
         if (message != null) item { Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
-        if (groupedPhotos.isEmpty()) {
-            item { Text(localized("Фотографии пока не добавлены", "No photos added yet", "Aún no se han añadido fotos", "Noch keine Fotos hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp) }
+        if (selectedCityPhotos.isEmpty()) {
+            item {
+                PhotoHeroEmpty(
+                    city = selectedCityName,
+                    canEdit = canEdit,
+                    onAddPhoto = { picker.launch("image/*") },
+                )
+            }
         } else {
-            itemsIndexed(groupedPhotos, key = { _, group -> group.first }) { index, (city, cityPhotos) ->
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).background(Brush.linearGradient(listOf(Color(0xFFF5A623), Color(0xFFF77F4B))), CircleShape)) {
-                            Text(photoGroupDay(city, overview, index + 1).toString(), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
-                        }
-                    Text(localizedCityName(city), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
-                        Spacer(Modifier.weight(1f))
-                        Text(groupMeta(city, cityPhotos.size), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 12.5.sp)
-                    }
-
-                    if (cityPhotos.size >= 3) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            PhotoTile(cityPhotos[0].first, Modifier.weight(1.7f).height(216.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                                PhotoTile(cityPhotos[1].first, Modifier.fillMaxWidth().height(104.dp))
-                                PhotoTile(cityPhotos[2].first, Modifier.fillMaxWidth().height(104.dp))
-                            }
-                        }
-                        cityPhotos.drop(3).chunked(3).forEach { row ->
-                            PhotoTileRow(row)
-                        }
-                    } else {
-                        cityPhotos.chunked(3).forEach { row ->
-                            PhotoTileRow(row)
-                        }
-                    }
+            item {
+                PhotoHero(
+                    city = selectedCityName,
+                    photos = selectedCityPhotos,
+                    meta = groupMeta(selectedCityName, selectedCityPhotos.size),
+                )
+            }
+            if (selectedCityPhotos.size > 1) {
+                items(
+                    selectedCityPhotos.drop(1).chunked(3),
+                    key = { row -> row.joinToString("|") { it.id } },
+                ) { row ->
+                    PhotoTileRow(row)
                 }
             }
         }
@@ -16898,19 +17167,162 @@ private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boole
 }
 
 @Composable
-private fun PhotoTileRow(photos: List<Pair<String, String>>) {
+private fun PhotoHeroEmpty(
+    city: String,
+    canEdit: Boolean,
+    onAddPhoto: () -> Unit,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    val borderColor = contentBorderColor()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp)
+            .clip(shape)
+            .background(secondarySurfaceColor())
+            .drawBehind {
+                drawRoundRect(
+                    color = borderColor,
+                    cornerRadius = CornerRadius(18.dp.toPx()),
+                    style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))),
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(142.dp)
+                .offset(x = 48.dp, y = (-44).dp)
+                .background(Color(0x33766CE7), CircleShape),
+        )
+        Box(
+            modifier = Modifier
+                .size(132.dp)
+                .offset(x = (-70).dp, y = 58.dp)
+                .background(Color(0x22F5A623), CircleShape),
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Icon(Icons.Outlined.Image, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(32.dp))
+            Text(
+                localized("Добавьте первое фото", "Add the first photo", "Añade la primera foto", "Erstes Foto hinzufügen"),
+                color = contentTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+                fontSize = 15.sp,
+            )
+            Text(
+                localizedCityName(city),
+                color = secondaryTextColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W600,
+                fontSize = 12.sp,
+            )
+            if (canEdit) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(cardSurfaceColor())
+                        .clickable(onClick = onAddPhoto)
+                        .padding(horizontal = 13.dp, vertical = 9.dp),
+                ) {
+                    Text(
+                        localized("＋ Добавить фото", "＋ Add photo", "＋ Añadir foto", "＋ Foto hinzufügen"),
+                        color = primaryColor(),
+                        fontFamily = Manrope,
+                        fontWeight = FontWeight.W800,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoHero(
+    city: String,
+    photos: List<CoverPhoto>,
+    meta: String,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    val heroPhoto = photos.first()
+    val heroDate = heroPhoto.date.takeIf(String::isNotBlank)?.let(::photoDateLabel)
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .clip(shape)
+                .background(Color(0xFFD9D6E1)),
+        ) {
+            AsyncImage(
+                model = heroPhoto.imageUrl,
+                contentDescription = localized("Главная фотография $city", "Main photo of $city", "Foto principal de $city", "Hauptfoto von $city"),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC15131D)))),
+            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(13.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(localized("Главная фотография", "Main photo", "Foto principal", "Hauptfoto"), color = Color.White.copy(alpha = .82f), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
+                    Text("${localizedCityName(city)} · ${photos.size} ${localized("фото", "photos", "fotos", "Fotos")}", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    heroDate?.let { detectedDate ->
+                        Text(
+                            localized("Снято $detectedDate", "Taken $detectedDate", "Tomada $detectedDate", "Aufgenommen am $detectedDate"),
+                            color = Color.White.copy(alpha = .8f),
+                            fontFamily = Manrope,
+                            fontWeight = FontWeight.W600,
+                            fontSize = 10.5.sp,
+                        )
+                    }
+                }
+                Text("1 / ${photos.size}", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp, modifier = Modifier.background(Color(0xAA252332), RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 6.dp))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+            Text(localized("Фотографии города", "City photos", "Fotos de la ciudad", "Stadtfotos"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text(meta, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun PhotoTileRow(photos: List<CoverPhoto>) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        photos.forEach { (imageUrl, _) ->
-            PhotoTile(imageUrl, Modifier.weight(1f).height(112.dp))
+        photos.forEach { photo ->
+            PhotoTile(photo, Modifier.weight(1f).height(112.dp))
         }
         repeat(3 - photos.size) { Spacer(Modifier.weight(1f)) }
     }
 }
 
 @Composable
-private fun PhotoTile(imageUrl: String, modifier: Modifier = Modifier) {
+private fun PhotoTile(photo: CoverPhoto, modifier: Modifier = Modifier) {
     Box(modifier = modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFFD9D6E1))) {
-        AsyncImage(model = imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        AsyncImage(model = photo.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        photo.date.takeIf(String::isNotBlank)?.let { date ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(Color(0xAA15131D))
+                    .padding(horizontal = 7.dp, vertical = 5.dp),
+            ) {
+                Text(photoDateLabel(date), color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -23552,10 +23964,13 @@ private fun OverviewContent(
             runCatching {
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: error("Не удалось прочитать изображение")
+                val metadata = readTripPhotoMetadata(bytes)
+                val fallbackCity = photos.getOrNull(photoIndex)?.city.orEmpty().ifBlank { routeCities.firstOrNull().orEmpty() }
                 SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow()).addCoverPhoto(
                     id = tripId,
                     bytes = bytes,
-                    city = photos.getOrNull(photoIndex)?.city.orEmpty().ifBlank { routeCities.firstOrNull().orEmpty() },
+                    city = detectTripPhotoCity(metadata, overview, fallbackCity),
+                    date = metadata.date.orEmpty(),
                 )
             }.onSuccess {
                 photoIndex = overview.coverPhotos.size
