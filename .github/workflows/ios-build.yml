@@ -222,23 +222,17 @@ jobs:
                       )"
                   fi
 
-                  callback_url="$(ACCESS_TOKEN="$access_token" REFRESH_TOKEN="$refresh_token" TRIP_ID="$trip_id" python3 - <<'PY'
-          import os
-          from urllib.parse import urlencode
-
-          values = {
-              "access_token": os.environ["ACCESS_TOKEN"],
-              "refresh_token": os.environ["REFRESH_TOKEN"],
-          }
-          if os.environ.get("TRIP_ID"):
-              values["tripID"] = os.environ["TRIP_ID"]
-          print("ramingo://auth-callback?" + urlencode(values))
-          PY
-                  )"
-                  xcrun simctl openurl "$device_udid" "$callback_url"
+                  xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
+                  launch_output="$(xcrun simctl launch "$device_udid" com.odyssey.ramingo.ios \
+                      -ramingo-qa-access-token "$access_token" \
+                      -ramingo-qa-refresh-token "$refresh_token" \
+                      -ramingo-qa-trip-id "$trip_id")"
+                  echo "$launch_output"
+                  pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
+                  test -n "$pid"
                   sleep 25
                   capture_path="$RUNNER_TEMP/ramingo-ios-authorized.png"
-                  echo "Authenticated callback smoke passed${trip_id:+; trip deep link requested}."
+                  echo "Authenticated bootstrap smoke passed${trip_id:+; trip deep link requested}."
               else
                   echo "IOS_QA_EMAIL/IOS_QA_PASSWORD are not configured; launch-only smoke remains active."
               fi

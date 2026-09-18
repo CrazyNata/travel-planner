@@ -48,6 +48,24 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             return
         }
         do {
+#if DEBUG
+            if let accessToken = Self.launchArgument("-ramingo-qa-access-token"),
+               let refreshToken = Self.launchArgument("-ramingo-qa-refresh-token"),
+               !accessToken.isEmpty,
+               !refreshToken.isEmpty {
+                session = try await client.establishSession(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    expiresIn: 3_600,
+                )
+                if let tripID = Self.launchArgument("-ramingo-qa-trip-id"), !tripID.isEmpty {
+                    pendingTripID = tripID
+                }
+                isReadyForSession = false
+                try await finishAuthenticatedBootstrap()
+                return
+            }
+#endif
             session = try await client.restoreSession()
             if session != nil {
                 isReadyForSession = false
@@ -744,6 +762,16 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         else { return nil }
         return fragmentComponents.queryItems?.first(where: { ["tripID", "tripId", "trip_id"].contains($0.name) })?.value
     }
+
+#if DEBUG
+    private static func launchArgument(_ name: String) -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: name), arguments.index(after: index) < arguments.endIndex else {
+            return nil
+        }
+        return arguments[arguments.index(after: index)]
+    }
+#endif
 }
 
 enum AppModelError: LocalizedError {
