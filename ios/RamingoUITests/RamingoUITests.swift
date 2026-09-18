@@ -99,11 +99,11 @@ final class RamingoUITests: XCTestCase {
         openTripSection("accommodation", title: "Жильё")
         XCTAssertTrue(tapIfPresent("Добавить жильё", timeout: 5), "В разделе жилья нет добавления")
         XCTAssertTrue(app.staticTexts["Выберите способ добавления"].waitForExistence(timeout: 5), "Выбор способа добавления жилья не открылся")
-        XCTAssertTrue(tapIfPresent("Найти в каталоге", timeout: 3), "В жилье нет добавления из каталога")
+        XCTAssertTrue(tapIfPresentContaining("Найти в каталоге", timeout: 3), "В жилье нет добавления из каталога")
         XCTAssertTrue(app.staticTexts["Жильё"].waitForExistence(timeout: 10), "Каталог жилья не открылся")
         XCTAssertTrue(tapIfPresent("Закрыть", timeout: 5), "Каталог жилья нельзя закрыть")
         XCTAssertTrue(tapIfPresent("Добавить жильё", timeout: 5), "Повторное добавление жилья недоступно")
-        XCTAssertTrue(tapIfPresent("Добавить вручную", timeout: 3), "В жилье нет ручного добавления")
+        XCTAssertTrue(tapIfPresentContaining("Добавить вручную", timeout: 3), "В жилье нет ручного добавления")
         XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Ручной редактор жилья не открылся")
         app.buttons["Готово"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Жильё"].waitForExistence(timeout: 10), "Ручной редактор жилья не закрылся")
@@ -165,12 +165,12 @@ final class RamingoUITests: XCTestCase {
         settingsButton.tap()
         XCTAssertTrue(app.staticTexts["Настройки"].waitForExistence(timeout: 10), "Настройки из списка поездок не открылись")
 
-        app.buttons["Тема"].tap()
+        XCTAssertTrue(tapIfPresentContaining("Тема", timeout: 5), "В настройках нет выбора темы")
         XCTAssertTrue(app.buttons["Светлая"].waitForExistence(timeout: 5), "Выбор темы не открылся")
-        app.buttons["Тема"].tap()
-        app.buttons["Языки"].tap()
+        XCTAssertTrue(tapIfPresentContaining("Тема", timeout: 5), "Выбор темы нельзя закрыть")
+        XCTAssertTrue(tapIfPresentContaining("Языки", timeout: 5), "В настройках нет выбора языка")
         XCTAssertTrue(app.buttons["EN"].waitForExistence(timeout: 5), "Выбор языка не открылся")
-        app.buttons["Языки"].tap()
+        XCTAssertTrue(tapIfPresentContaining("Языки", timeout: 5), "Выбор языка нельзя закрыть")
 
         app.buttons["Уведомления"].tap()
         XCTAssertTrue(app.staticTexts["Уведомления"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
@@ -269,6 +269,14 @@ final class RamingoUITests: XCTestCase {
     @discardableResult
     private func tapIfPresent(_ title: String, timeout: TimeInterval = 2) -> Bool {
         let button = app.buttons[title].firstMatch
+        guard button.waitForExistence(timeout: timeout) else { return false }
+        button.tap()
+        return true
+    }
+
+    @discardableResult
+    private func tapIfPresentContaining(_ text: String, timeout: TimeInterval = 2) -> Bool {
+        let button = buttonContaining(text)
         guard button.waitForExistence(timeout: timeout) else { return false }
         button.tap()
         return true
