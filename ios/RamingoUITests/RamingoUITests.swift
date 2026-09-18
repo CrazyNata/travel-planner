@@ -9,6 +9,7 @@ final class RamingoUITests: XCTestCase {
 
     func testAuthenticatedTripSectionsAndFilters() throws {
         let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
+        XCTAssertNotNil(qaSession(), "Сессия iOS UI-теста не передана в тестовый bundle")
 
         app = XCUIApplication()
         app.launchArguments = qaLaunchArguments(tripID: tripID)
@@ -57,6 +58,7 @@ final class RamingoUITests: XCTestCase {
 
     func testCreateTripFormValidationWithoutSaving() throws {
         let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
+        XCTAssertNotNil(qaSession(), "Сессия iOS UI-теста не передана в тестовый bundle")
 
         app = XCUIApplication()
         app.launchArguments = qaLaunchArguments(tripID: tripID)

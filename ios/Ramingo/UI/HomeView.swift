@@ -56,6 +56,34 @@ struct HomeView: View {
 
                         filterBar
 
+                        if let loadError = model.tripsLoadErrorMessage {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "wifi.exclamationmark")
+                                    .foregroundStyle(AppTheme.error)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Не удалось загрузить путешествия")
+                                        .font(AppTheme.font(13, .bold))
+                                        .foregroundStyle(AppTheme.ink)
+                                    Text(loadError)
+                                        .font(AppTheme.font(12, .regular))
+                                        .foregroundStyle(AppTheme.muted)
+                                        .lineLimit(3)
+                                    Button("Повторить") {
+                                        Task { try? await model.reloadTrips() }
+                                    }
+                                    .font(AppTheme.font(13, .bold))
+                                    .foregroundStyle(AppTheme.purple)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(14)
+                            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(AppTheme.error.opacity(0.25), lineWidth: 1)
+                            }
+                        }
+
                         if showCreateTripHint {
                             RamingoHintCard(
                                 title: "Соберите первую поездку",

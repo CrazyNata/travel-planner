@@ -287,6 +287,7 @@ jobs:
                     -xcconfig "$RUNNER_TEMP/RamingoSimulator.xcconfig" \
                     CODE_SIGNING_ALLOWED=NO \
                     CODE_SIGNING_REQUIRED=NO \
+                    IOS_QA_SESSION_FILE="$qa_session_file" \
                     IOS_QA_TRIP_ID="$trip_id" \
                     test-without-building 2>&1 | tee -a "$test_log"
                   grep -Eq 'Executed 2 tests, with 0 tests skipped and 0 failures' "$test_log"
@@ -322,6 +323,17 @@ jobs:
               test -s "$video_path"
               echo "Simulator smoke test passed: Ramingo launched with pid $pid and produced a screenshot and video."
           } 2>&1 | tee "$smoke_log"
+
+      - name: Remove temporary auth markers from smoke log
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_log="$RUNNER_TEMP/ramingo-ios-simulator-smoke.log"
+          if [ -f "$smoke_log" ]; then
+              sed -i.bak '/::add-mask::/d' "$smoke_log"
+              rm -f "$smoke_log.bak"
+          fi
 
       - name: Upload Simulator build
         uses: actions/upload-artifact@v6

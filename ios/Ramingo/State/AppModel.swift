@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 import UserNotifications
 
@@ -12,12 +13,14 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     private let cityCatalogRepository = IOSCityCatalogRepository()
     private let weatherRepository: WeatherRepository
     private let exchangeRateRepository: ExchangeRateRepository
+    private let logger = Logger(subsystem: "com.odyssey.ramingo.ios", category: "bootstrap")
 
     @Published private(set) var session: AuthSession?
     @Published private(set) var trips: [TripSummary] = []
     @Published private(set) var profile = AccountProfile.defaults
     @Published private(set) var isBootstrapping = true
     @Published private(set) var isReadyForSession = false
+    @Published private(set) var tripsLoadErrorMessage: String?
     @Published var errorMessage: String?
     @Published var authNotice: String?
     @Published var pendingTripID: String?
@@ -61,24 +64,28 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
                     refreshToken: refreshToken,
                     expiresIn: 3_600,
                 )
-                isReadyForSession = false
-                try await finishAuthenticatedBootstrap()
-                return
-            }
-#endif
-            session = try await client.restoreSession()
-            if session != nil {
-                isReadyForSession = false
-                try await finishAuthenticatedBootstrap()
             } else {
-                isReadyForSession = false
+                session = try await client.restoreSession()
             }
+#else
+            session = try await client.restoreSession()
+#endif
         } catch {
             session = nil
             isReadyForSession = false
             profile = .defaults
             errorMessage = error.localizedDescription
+            logger.error("Session bootstrap failed: \(error.localizedDescription, privacy: .public)")
+            return
         }
+
+        guard session != nil else {
+            isReadyForSession = false
+            return
+        }
+
+        isReadyForSession = false
+        await finishAuthenticatedBootstrap()
     }
 
     func signIn(email: String, password: String, remember: Bool = true) async {
@@ -86,7 +93,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             self.client.setSessionPersistence(remember)
             self.session = try await self.client.signIn(email: email, password: password)
             self.isReadyForSession = false
-            try await self.finishAuthenticatedBootstrap()
+            await self.finishAuthenticatedBootstrap()
         }
     }
 
@@ -97,7 +104,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             self.session = result ?? self.client.session
             if self.session != nil {
                 self.isReadyForSession = false
-                try await self.finishAuthenticatedBootstrap()
+                await self.finishAuthenticatedBootstrap()
             } else {
                 let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
                 self.authNotice = "Мы отправили письмо для подтверждения на \(normalizedEmail). Подтвердите e-mail, затем войдите в приложение."
@@ -110,7 +117,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             self.client.setSessionPersistence(remember)
             self.session = try await self.client.signInWithGoogle()
             self.isReadyForSession = false
-            try await self.finishAuthenticatedBootstrap()
+            await self.finishAuthenticatedBootstrap()
         }
     }
 
@@ -118,7 +125,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         await runAuth {
             self.session = try await self.client.signInWithApple(identityToken: identityToken, nonce: nonce)
             self.isReadyForSession = false
-            try await self.finishAuthenticatedBootstrap()
+            await self.finishAuthenticatedBootstrap()
         }
     }
 
@@ -157,6 +164,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         session = nil
         profile = .defaults
         trips = []
+        tripsLoadErrorMessage = nil
         isReadyForSession = false
         pendingTripID = nil
         isShowingPasswordRecovery = false
@@ -235,9 +243,15 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         }
     }
 
-    private func finishAuthenticatedBootstrap() async throws {
+    private func finishAuthenticatedBootstrap() async {
         await loadProfile()
-        try await reloadTrips()
+        do {
+            try await reloadTrips()
+            tripsLoadErrorMessage = nil
+        } catch {
+            tripsLoadErrorMessage = error.localizedDescription
+            logger.error("Authenticated data bootstrap failed: \(error.localizedDescription, privacy: .public)")
+        }
         await reconcileOnboardingState()
         isReadyForSession = true
     }
@@ -378,9 +392,15 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
     func reloadTrips() async throws {
-        try await ensureSession()
-        trips = try await repository.loadTrips()
-        await syncReminders()
+        do {
+            try await ensureSession()
+            trips = try await repository.loadTrips()
+            tripsLoadErrorMessage = nil
+            await syncReminders()
+        } catch {
+            tripsLoadErrorMessage = error.localizedDescription
+            throw error
+        }
     }
 
     func overview(for tripID: String) async throws -> TripOverview? {
@@ -689,7 +709,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
                 guard let result = try await self.client.handleAuthCallback(url) else { return }
                 self.session = result.session
                 self.isReadyForSession = false
-                try await self.finishAuthenticatedBootstrap()
+                await self.finishAuthenticatedBootstrap()
                 if let tripID = result.tripID, !tripID.isEmpty { self.pendingTripID = tripID }
                 if result.isRecovery { self.isShowingPasswordRecovery = true }
             } catch {
