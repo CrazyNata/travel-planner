@@ -28,10 +28,10 @@ struct AccountProfile: Hashable, Sendable {
     let emailPaymentRemindersEnabled: Bool
     let emailRecipient: String?
     let reminderHour: Int
-    let onboardingCompleted: Bool = false
-    let createTripHintSeen: Bool = false
-    let addPlaceHintSeen: Bool = false
-    let hasStoredProfile: Bool = false
+    let onboardingCompleted: Bool
+    let createTripHintSeen: Bool
+    let addPlaceHintSeen: Bool
+    let hasStoredProfile: Bool
 
     init(
         avatarReference: String?,
