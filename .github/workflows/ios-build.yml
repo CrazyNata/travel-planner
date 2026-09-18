@@ -253,6 +253,8 @@ jobs:
                    fi
 
                   echo "Starting authenticated iOS UI tests."
+                  IOS_QA_SESSION_FILE="$qa_session_file" \
+                  IOS_QA_TRIP_ID="$trip_id" \
                   xcodebuild \
                     -project ios/Ramingo.xcodeproj \
                     -scheme RamingoUITests \
@@ -278,6 +280,8 @@ jobs:
                   sleep 60
                   xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
 
+                  IOS_QA_SESSION_FILE="$qa_session_file" \
+                  IOS_QA_TRIP_ID="$trip_id" \
                   xcodebuild \
                     -project ios/Ramingo.xcodeproj \
                     -scheme RamingoUITests \
