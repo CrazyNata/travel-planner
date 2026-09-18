@@ -5,7 +5,7 @@
 
 ## Итог
 
-Приложение нельзя считать полностью проверенным и готовым к релизу. Авторизация и основные backend-контракты отвечают, iOS Simulator build на GitHub Actions собирается и запускается, а авторизованный bootstrap теперь проверен на live Supabase-сессии. Однако workflow пока не выполняет интерактивные tap-сценарии: он открывает домашний экран, снимает экран/видео и не проверяет все native UI-сценарии.
+Приложение нельзя считать полностью проверенным и готовым к релизу. Supabase Auth API и read-only backend-запросы отвечают, iOS Simulator build собирается и запускается. Но текущий авторизованный UI-прогон не проходит: приложение остаётся на splash, затем возвращается на экран входа, поэтому до маршрута, фильтров и формы создания поездки тесты не доходят.
 
 Найдены подтвержденные дефекты в текущей iOS-реализации, один воспроизводимый дефект API-контракта и несколько блокеров, которые нельзя закрыть только статическим анализом.
 
@@ -19,13 +19,15 @@
 - Расчет маршрута Valhalla: ответ получен с длиной маршрута.
 - Контракт создания поездки и patch-операций: создание, изменение основных полей, массивов и отдельного элемента с новой ревизией прошли.
 - Временная тестовая поездка для mutation-проверки была удалена; после очистки она не находится.
-- GitHub Actions run [35350152001](https://github.com/CrazyNata/travel-planner/actions/runs/35350152001), commit `e6ac3fe`: unsigned iOS Simulator build, установка, запуск с live Supabase access/refresh token, чтение реальной поездки и screenshot/video авторизованного домашнего экрана — успешно. На чистом симуляторе также появился штатный запрос разрешения геолокации.
+- Исторический GitHub Actions run [35350152001](https://github.com/CrazyNata/travel-planner/actions/runs/35350152001), commit `e6ac3fe`, действительно показал авторизованный Home и запрос геолокации.
+- Актуальный launch-only run [35373190568](https://github.com/CrazyNata/travel-planner/actions/runs/35373190568), commit `df74580`, собирается и запускает приложение.
+- Актуальный авторизованный UI run [35373697869](https://github.com/CrazyNata/travel-planner/actions/runs/35373697869), commit `df74580`, завершился с `Executed 2 tests, with 2 failures`: оба теста упали на ожидании `Главная`.
 
 ## Ограничения результата
 
-1. Последний CI проверил commit `e6ac3fe` и включает текущую iOS Debug-конфигурацию. Незакоммиченные изменения в репозитории относятся к Web/Android/design-reference/tmp и не были включены в iOS-коммит или изменены в этой проверке.
-2. На Windows нет локального Xcode/iOS Simulator. Удаленная job не выполняет UI automation после запуска.
-3. Нативные сценарии после входа — создание поездки, фильтры, карточки, редактирование, фотографии, уведомления, permissions и настройки — не должны помечаться как `PASS` только на основании screenshot домашнего экрана.
+1. Текущий iOS workflow проверил commit `df74580`; незакоммиченные изменения в Web/Android/design-reference/tmp не включались в iOS-коммит и не изменялись в этой проверке.
+2. На Windows нет локального Xcode/iOS Simulator; native UI проверяется удалённым macOS job.
+3. Текущий авторизованный UI-прогон не проходит bootstrap, поэтому сценарии создания поездки, фильтров, карточек, редактирования, фотографий, уведомлений, permissions и настроек остаются непроверенными.
 
 ## Новые дефекты
 
@@ -78,13 +80,13 @@
 - Статус: `FIXED_LOCALLY_UNVERIFIED`.
 - Исправление: добавлено переключение статусов через существующий `updateTripArrayItem`, отдельный details-sheet и переход к редактированию выбранной записи.
 
-### QA-IOS-032 — CI не проверяет полный авторизованный пользовательский сценарий
+### QA-IOS-032 — CI не проходит полный авторизованный пользовательский сценарий
 
 - Приоритет: P1 release QA blocker
-- Статус: `PARTIALLY_CLOSED_AUTH_BOOTSTRAP_ONLY`.
-- Факт: workflow получает временные QA-токены через Supabase Auth, передает их в Debug-приложение, открывает реальную поездку и снимает авторизованный домашний экран. Интерактивные tap-сценарии и CRUD после входа по-прежнему не выполняются.
-- Доказательство: `.github/workflows/ios-build.yml`; run [35350152001](https://github.com/CrazyNata/travel-planner/actions/runs/35350152001) и artifact `ramingo-ios-authorized.png`.
-- Результат: green CI теперь означает «сборка запускается и live-сессия проходит bootstrap до Home», но не «проверено приложение целиком».
+- Статус: `OPEN_AUTH_UI_BLOCKED`.
+- Факт: workflow получает временные QA-токены через Supabase Auth и запускает два native XCTest, но приложение не доходит до Home. Интерактивные tap-сценарии и CRUD после входа поэтому не выполняются.
+- Доказательство: `.github/workflows/ios-build.yml`; авторизованный run [35373697869](https://github.com/CrazyNata/travel-planner/actions/runs/35373697869) — два падения на ожидании `Главная`.
+- Результат: green launch-only CI означает только «сборка запускается»; авторизованный UI run сейчас красный и блокирует дальнейшее покрытие.
 
 ### QA-IOS-033 — Фильтры ресторанов основаны на свободном тексте заметки
 
@@ -102,12 +104,23 @@
 - Риск: фильтр 1/5/10/25 км может показывать места, расстояние до которых неизвестно; пользователь получает неверный результат радиусного поиска.
 - Доказательство: `ios/Ramingo/UI/TripDetailView.swift:1860-1967`.
 
-### QA-IOS-035 — Текущие iOS-изменения не подтверждены сборкой
+### QA-IOS-035 — Текущие iOS-изменения не подтверждены полной авторизованной проверкой
 
 - Приоритет: P1 release QA blocker
-- Статус: `CLOSED_FOR_CURRENT_IOS_HEAD`.
-- Факт: run [35350152001](https://github.com/CrazyNata/travel-planner/actions/runs/35350152001) собрал commit `e6ac3fe`, включающий текущие iOS-файлы и Debug QA-вход.
-- Ограничение: это не закрывает интерактивную проверку всех экранов и сценариев; незакоммиченные изменения вне `ios/` в iOS-сборку не входят.
+- Статус: `OPEN_AUTH_RUNTIME_BLOCKED`.
+- Факт: launch-only run [35373190568](https://github.com/CrazyNata/travel-planner/actions/runs/35373190568) собрал commit `df74580`, а авторизованный UI run [35373697869](https://github.com/CrazyNata/travel-planner/actions/runs/35373697869) дошёл до XCTest и завершился двумя падениями на `Главная`.
+- Ограничение: сборка подтверждена, но авторизованный runtime и интерактивные сценарии текущего iOS HEAD не подтверждены.
+
+### QA-IOS-038 — Авторизованный iOS bootstrap возвращает приложение на экран входа
+
+- Приоритет: P0 release blocker
+- Статус: `REPRODUCED_CI`
+- Шаги: собрать Debug Simulator app; получить live Supabase session; запустить приложение с access/refresh token и реальным `tripID`; открыть XCTest-сценарии.
+- Ожидание: после bootstrap открывается «Главная» выбранной поездки.
+- Факт: callback/Auth API проходит, реальный trip ID получен, оба XCTest запускаются, но приложение остаётся на splash и затем показывает экран входа. `testAuthenticatedTripSectionsAndFilters` и `testCreateTripFormValidationWithoutSaving` падают на первом ожидании `Главная`.
+- Доказательство: run [35373697869](https://github.com/CrazyNata/travel-planner/actions/runs/35373697869), UI log: `Executed 2 tests, with 2 failures`; видеокадр после ожидания показывает AuthView.
+- Техническая граница: `AppModel.bootstrap()` сбрасывает `session` при любой ошибке `establishSession()` или `finishAuthenticatedBootstrap()`, поэтому UI скрывает исходную ошибку. Точный запрос, который сбрасывает сессию, ещё не локализован.
+- Риск: весь авторизованный iOS-функционал недоступен для честной проверки, пока не устранён этот блокер.
 
 ## Что пока не закрыто как баг или pass
 
@@ -142,11 +155,11 @@
 | Create/update trip API | PASS | create и patch с актуальной ревизией |
 | Stale revision conflict | FAIL | timeout вместо контролируемой ошибки |
 | iOS build на CI commit | PASS | unsigned Simulator build и launch |
-| Авторизованный iOS bootstrap/Home | PASS | live Supabase session, реальная поездка, run 35350152001 |
-| Полный авторизованный iOS UI | QA_PENDING | нет tap automation и CRUD/filter сценариев |
-| Текущий iOS HEAD | PASS | run 35350152001, commit e6ac3fe |
+| Авторизованный iOS bootstrap/Home | FAIL | run 35373697869: оба XCTest не увидели «Главная» |
+| Полный авторизованный iOS UI | BLOCKED | тесты падают до маршрута, фильтров и формы создания |
+| Текущий iOS HEAD | PARTIAL / BLOCKED | build/launch run 35373190568 зелёный, auth UI run 35373697869 красный |
 | Web/Android | NOT TOUCHED | вне области запроса |
 
 ## Решение для следующего шага
 
-Локально исправлены первые пользовательские сценарии `QA-IOS-028`–`QA-IOS-030`, `QA-IOS-036` и `QA-IOS-037`; текущий iOS HEAD собран и запущен в CI, а live auth bootstrap до Home подтвержден. Для честного статуса «проверено всё» по-прежнему потребуется macOS UI automation job или доступный iPhone Simulator с tap-сценариями для создания поездки, фильтров, редактирования, permissions, настроек и остальных экранов.
+Следующий контролируемый шаг — локализовать и исправить `QA-IOS-038`, затем повторить только два уже подготовленных XCTest. До зелёного bootstrap не засчитывать маршруты, фильтры, настройки или создание поездки как рабочие. После этого потребуется расширить native UI-покрытие CRUD, permissions, offline/error states, accessibility и Release/TestFlight.
