@@ -147,6 +147,19 @@ jobs:
           stop_recording() {
               if [ -n "$record_pid" ]; then
                   kill -INT "$record_pid" >/dev/null 2>&1 || true
+                  for _ in $(seq 1 30); do
+                      if ! kill -0 "$record_pid" >/dev/null 2>&1; then
+                          break
+                      fi
+                      sleep 1
+                  done
+                  if kill -0 "$record_pid" >/dev/null 2>&1; then
+                      kill -TERM "$record_pid" >/dev/null 2>&1 || true
+                      sleep 1
+                  fi
+                  if kill -0 "$record_pid" >/dev/null 2>&1; then
+                      kill -KILL "$record_pid" >/dev/null 2>&1 || true
+                  fi
                   wait "$record_pid" >/dev/null 2>&1 || true
                   record_pid=""
               fi
