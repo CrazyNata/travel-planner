@@ -41,6 +41,23 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "IOS_QA_ACCESS_TOKEN"
+            value = "$(IOS_QA_ACCESS_TOKEN)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "IOS_QA_REFRESH_TOKEN"
+            value = "$(IOS_QA_REFRESH_TOKEN)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "IOS_QA_TRIP_ID"
+            value = "$(IOS_QA_TRIP_ID)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
       <Testables>
          <TestableReference
             skipped = "NO">

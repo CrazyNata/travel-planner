@@ -205,10 +205,10 @@ jobs:
           print(json.loads(os.environ["AUTH_RESPONSE"])["refresh_token"])
           PY
                   )"
-                  test -n "$access_token"
-                  test -n "$refresh_token"
+                   test -n "$access_token"
+                   test -n "$refresh_token"
 
-                  trip_id=""
+                   trip_id=""
                   if trip_response="$(curl -fsS --max-time 20 \
                       "$SUPABASE_URL/rest/v1/trips?select=id&limit=1" \
                       -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
@@ -220,21 +220,39 @@ jobs:
           rows = json.loads(os.environ["TRIP_RESPONSE"])
           print(rows[0].get("id", "") if rows else "")
           PY
-                      )"
-                  fi
+                       )"
+                   fi
 
-                  echo "Starting authenticated iOS UI tests."
+                  qa_xcconfig="$RUNNER_TEMP/RamingoUITests.xcconfig"
                   IOS_QA_ACCESS_TOKEN="$access_token" \
                   IOS_QA_REFRESH_TOKEN="$refresh_token" \
                   IOS_QA_TRIP_ID="$trip_id" \
+                  QA_XCCONFIG="$qa_xcconfig" \
+                  PUBLIC_XCCONFIG="$RUNNER_TEMP/RamingoSimulator.xcconfig" \
+                  python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          config = Path(os.environ["QA_XCCONFIG"])
+          public_config = Path(os.environ["PUBLIC_XCCONFIG"])
+          config.write_text(
+              f'#include "{public_config.as_posix()}"\n'
+              "IOS_QA_ACCESS_TOKEN = " + os.environ["IOS_QA_ACCESS_TOKEN"] + "\n"
+              "IOS_QA_REFRESH_TOKEN = " + os.environ["IOS_QA_REFRESH_TOKEN"] + "\n"
+              "IOS_QA_TRIP_ID = " + os.environ["IOS_QA_TRIP_ID"] + "\n"
+          )
+          config.chmod(0o600)
+          PY
+
+                  echo "Starting authenticated iOS UI tests."
                   xcodebuild \
                     -project ios/Ramingo.xcodeproj \
                     -scheme RamingoUITests \
                     -configuration Debug \
-                    -destination "platform=iOS Simulator,id=$device_udid" \
-                    -derivedDataPath "$RUNNER_TEMP/RamingoDerivedData" \
-                    -xcconfig "$RUNNER_TEMP/RamingoSimulator.xcconfig" \
-                    CODE_SIGNING_ALLOWED=NO \
+                     -destination "platform=iOS Simulator,id=$device_udid" \
+                     -derivedDataPath "$RUNNER_TEMP/RamingoDerivedData" \
+                     -xcconfig "$qa_xcconfig" \
+                     CODE_SIGNING_ALLOWED=NO \
                     CODE_SIGNING_REQUIRED=NO \
                     test 2>&1 | tee "$test_log"
 
