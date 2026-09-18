@@ -130,8 +130,20 @@ jobs:
               pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
               test -n "$pid"
               sleep 8
-              xcrun simctl io "$device_udid" screenshot "$screenshot_path"
-              if ! xcrun simctl spawn "$device_udid" kill -0 "$pid"; then
+              python3 - "$device_udid" "$screenshot_path" <<'PY'
+          import subprocess
+          import sys
+
+          device_udid, screenshot_path = sys.argv[1:]
+          subprocess.run(
+              ["xcrun", "simctl", "io", device_udid, "screenshot", screenshot_path],
+              check=True,
+              timeout=45,
+          )
+          PY
+              process_list="$(xcrun simctl spawn "$device_udid" ps -ax || true)"
+              printf '%s\n' "$process_list"
+              if ! printf '%s\n' "$process_list" | grep -q '[R]amingo'; then
                   echo "Ramingo process exited before the smoke check completed. Recent simulator log:"
                   xcrun simctl spawn "$device_udid" log show --last 30s --style compact \
                       --predicate 'process == "Ramingo" OR eventMessage CONTAINS[c] "Ramingo"' || true
