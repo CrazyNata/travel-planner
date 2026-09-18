@@ -53,16 +53,9 @@ jobs:
           screenshot_path="$RUNNER_TEMP/ramingo-ios-simulator.png"
           : > "$smoke_log"
 
-          read -r device_type runtime < <(python3 - <<'PY'
+          device_type="$(python3 - <<'PY'
           import json
           import subprocess
-
-          def available(value):
-              if value is False:
-                  return False
-              if isinstance(value, str) and value.lower() not in {"yes", "true"}:
-                  return False
-              return True
 
           device_data = json.loads(subprocess.check_output(
               ["xcrun", "simctl", "list", "devicetypes", "available", "-j"],
@@ -70,8 +63,15 @@ jobs:
           ))
           device = next(
               item for item in device_data["devicetypes"]
-              if available(item.get("isAvailable", True)) and item["name"].startswith("iPhone")
+              if item["name"].startswith("iPhone")
           )
+          print(device["identifier"])
+          PY
+          )"
+
+          runtime="$(python3 - <<'PY'
+          import json
+          import subprocess
 
           runtime_data = json.loads(subprocess.check_output(
               ["xcrun", "simctl", "list", "runtimes", "available", "-j"],
@@ -79,14 +79,16 @@ jobs:
           ))
           runtimes = [
               item for item in runtime_data["runtimes"]
-              if available(item.get("isAvailable", True)) and item.get("platform") == "iOS"
+              if item.get("platform") == "iOS"
           ]
-          runtime = max(runtimes, key=lambda item: tuple(
+          selected = max(runtimes, key=lambda item: tuple(
               int(part) for part in item["version"].split(".") if part.isdigit()
           ))
-          print(device["identifier"], runtime["identifier"])
+          print(selected["identifier"])
           PY
-          )
+          )"
+          test -n "$device_type"
+          test -n "$runtime"
 
           device_udid="$(xcrun simctl create 'Ramingo CI iPhone' "$device_type" "$runtime")"
           cleanup() {
