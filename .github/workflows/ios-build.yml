@@ -44,6 +44,74 @@ jobs:
             build 2>&1 | tee "$build_log"
           test -d "$RUNNER_TEMP/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app"
 
+      - name: Boot iPhone Simulator and launch app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$RUNNER_TEMP/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app"
+          smoke_log="$RUNNER_TEMP/ramingo-ios-simulator-smoke.log"
+          screenshot_path="$RUNNER_TEMP/ramingo-ios-simulator.png"
+          : > "$smoke_log"
+
+          read -r device_type runtime < <(python3 - <<'PY'
+          import json
+          import subprocess
+
+          def available(value):
+              if value is False:
+                  return False
+              if isinstance(value, str) and value.lower() not in {"yes", "true"}:
+                  return False
+              return True
+
+          device_data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devicetypes", "available", "-j"],
+              text=True,
+          ))
+          device = next(
+              item for item in device_data["devicetypes"]
+              if available(item.get("isAvailable", True)) and item["name"].startswith("iPhone")
+          )
+
+          runtime_data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "runtimes", "available", "-j"],
+              text=True,
+          ))
+          runtimes = [
+              item for item in runtime_data["runtimes"]
+              if available(item.get("isAvailable", True)) and item.get("platform") == "iOS"
+          ]
+          runtime = max(runtimes, key=lambda item: tuple(
+              int(part) for part in item["version"].split(".") if part.isdigit()
+          ))
+          print(device["identifier"], runtime["identifier"])
+          PY
+          )
+
+          device_udid="$(xcrun simctl create 'Ramingo CI iPhone' "$device_type" "$runtime")"
+          cleanup() {
+              xcrun simctl shutdown "$device_udid" >/dev/null 2>&1 || true
+              xcrun simctl delete "$device_udid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          {
+              echo "device_type=$device_type"
+              echo "runtime=$runtime"
+              echo "device_udid=$device_udid"
+              xcrun simctl boot "$device_udid"
+              xcrun simctl bootstatus "$device_udid" -b
+              xcrun simctl install "$device_udid" "$app_path"
+              launch_output="$(xcrun simctl launch "$device_udid" com.odyssey.ramingo.ios)"
+              echo "$launch_output"
+              pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
+              test -n "$pid"
+              sleep 8
+              xcrun simctl spawn "$device_udid" kill -0 "$pid"
+              xcrun simctl io "$device_udid" screenshot "$screenshot_path"
+              echo "Simulator smoke test passed: Ramingo launched with pid $pid."
+          } 2>&1 | tee "$smoke_log"
+
       - name: Upload Simulator build
         uses: actions/upload-artifact@v6
         with:
@@ -52,3 +120,13 @@ jobs:
             ${{ runner.temp }}/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app
             ${{ runner.temp }}/ramingo-ios-build.log
           if-no-files-found: error
+
+      - name: Upload Simulator smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ramingo-ios-simulator-smoke-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/ramingo-ios-simulator-smoke.log
+            ${{ runner.temp }}/ramingo-ios-simulator.png
+          if-no-files-found: ignore
