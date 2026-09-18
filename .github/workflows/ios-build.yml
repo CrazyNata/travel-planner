@@ -20,6 +20,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://hxcavgtlucyoqudbrgse.supabase.co' }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      IOS_QA_EMAIL: ${{ secrets.IOS_QA_EMAIL }}
+      IOS_QA_PASSWORD: ${{ secrets.IOS_QA_PASSWORD }}
 
     steps:
       - name: Check out source
@@ -140,6 +142,7 @@ jobs:
           fi
 
           record_pid=""
+          capture_path="$screenshot_path"
           stop_recording() {
               if [ -n "$record_pid" ]; then
                   kill -INT "$record_pid" >/dev/null 2>&1 || true
@@ -170,7 +173,76 @@ jobs:
               pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
               test -n "$pid"
               sleep 18
-              python3 - "$device_udid" "$screenshot_path" <<'PY'
+              if [ -n "${IOS_QA_EMAIL:-}" ] && [ -n "${IOS_QA_PASSWORD:-}" ]; then
+                  echo "Starting authenticated iOS callback smoke."
+                  auth_body="$(python3 - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "email": os.environ["IOS_QA_EMAIL"],
+              "password": os.environ["IOS_QA_PASSWORD"],
+          }))
+          PY
+                  )"
+                  auth_response="$(curl -fsS --max-time 20 \
+                      -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+                      -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+                      -H "Content-Type: application/json" \
+                      --data "$auth_body")"
+                  access_token="$(AUTH_RESPONSE="$auth_response" python3 - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["AUTH_RESPONSE"])["access_token"])
+          PY
+                  )"
+                  refresh_token="$(AUTH_RESPONSE="$auth_response" python3 - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["AUTH_RESPONSE"])["refresh_token"])
+          PY
+                  )"
+                  test -n "$access_token"
+                  test -n "$refresh_token"
+
+                  trip_id=""
+                  if trip_response="$(curl -fsS --max-time 20 \
+                      "$SUPABASE_URL/rest/v1/trips?select=id&limit=1" \
+                      -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+                      -H "Authorization: Bearer $access_token")"; then
+                      trip_id="$(TRIP_RESPONSE="$trip_response" python3 - <<'PY'
+          import json
+          import os
+
+          rows = json.loads(os.environ["TRIP_RESPONSE"])
+          print(rows[0].get("id", "") if rows else "")
+          PY
+                      )"
+                  fi
+
+                  callback_url="$(ACCESS_TOKEN="$access_token" REFRESH_TOKEN="$refresh_token" TRIP_ID="$trip_id" python3 - <<'PY'
+          import os
+          from urllib.parse import urlencode
+
+          values = {
+              "access_token": os.environ["ACCESS_TOKEN"],
+              "refresh_token": os.environ["REFRESH_TOKEN"],
+          }
+          if os.environ.get("TRIP_ID"):
+              values["tripID"] = os.environ["TRIP_ID"]
+          print("ramingo://auth-callback?" + urlencode(values))
+          PY
+                  )"
+                  xcrun simctl openurl "$device_udid" "$callback_url"
+                  sleep 25
+                  capture_path="$RUNNER_TEMP/ramingo-ios-authorized.png"
+                  echo "Authenticated callback smoke passed${trip_id:+; trip deep link requested}."
+              else
+                  echo "IOS_QA_EMAIL/IOS_QA_PASSWORD are not configured; launch-only smoke remains active."
+              fi
+              python3 - "$device_udid" "$capture_path" <<'PY'
           import subprocess
           import sys
 
@@ -182,7 +254,7 @@ jobs:
           )
           PY
               stop_recording
-              test -s "$screenshot_path"
+              test -s "$capture_path"
               test -s "$video_path"
               echo "Simulator smoke test passed: Ramingo launched with pid $pid and produced a screenshot and video."
           } 2>&1 | tee "$smoke_log"
@@ -204,6 +276,7 @@ jobs:
           path: |
             ${{ runner.temp }}/ramingo-ios-simulator-smoke.log
             ${{ runner.temp }}/ramingo-ios-simulator.png
+            ${{ runner.temp }}/ramingo-ios-authorized.png
             ${{ runner.temp }}/ramingo-ios-simulator.mp4
             ${{ runner.temp }}/ramingo-ios-simulator-record.log
           if-no-files-found: ignore
