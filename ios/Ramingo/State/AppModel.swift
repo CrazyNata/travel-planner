@@ -49,6 +49,9 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         }
         do {
 #if DEBUG
+            if let tripID = Self.launchArgument("-ramingo-qa-trip-id"), !tripID.isEmpty {
+                pendingTripID = tripID
+            }
             if let accessToken = Self.launchArgument("-ramingo-qa-access-token"),
                let refreshToken = Self.launchArgument("-ramingo-qa-refresh-token"),
                !accessToken.isEmpty,
@@ -58,9 +61,6 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
                     refreshToken: refreshToken,
                     expiresIn: 3_600,
                 )
-                if let tripID = Self.launchArgument("-ramingo-qa-trip-id"), !tripID.isEmpty {
-                    pendingTripID = tripID
-                }
                 isReadyForSession = false
                 try await finishAuthenticatedBootstrap()
                 return

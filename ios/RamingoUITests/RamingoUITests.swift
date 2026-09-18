@@ -8,16 +8,10 @@ final class RamingoUITests: XCTestCase {
     }
 
     func testAuthenticatedTripSectionsAndFilters() throws {
-        let accessToken = try requiredEnvironment("IOS_QA_ACCESS_TOKEN")
-        let refreshToken = try requiredEnvironment("IOS_QA_REFRESH_TOKEN")
-        let tripID = ProcessInfo.processInfo.environment["IOS_QA_TRIP_ID"] ?? ""
+        let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
 
         app = XCUIApplication()
-        app.launchArguments = [
-            "-ramingo-qa-access-token", accessToken,
-            "-ramingo-qa-refresh-token", refreshToken,
-            "-ramingo-qa-trip-id", tripID,
-        ]
+        app.launchArguments = tripID.isEmpty ? [] : ["-ramingo-qa-trip-id", tripID]
         allowSystemPermissions()
         app.launch()
 
@@ -62,16 +56,10 @@ final class RamingoUITests: XCTestCase {
     }
 
     func testCreateTripFormValidationWithoutSaving() throws {
-        let accessToken = try requiredEnvironment("IOS_QA_ACCESS_TOKEN")
-        let refreshToken = try requiredEnvironment("IOS_QA_REFRESH_TOKEN")
-        let tripID = ProcessInfo.processInfo.environment["IOS_QA_TRIP_ID"] ?? ""
+        let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
 
         app = XCUIApplication()
-        app.launchArguments = [
-            "-ramingo-qa-access-token", accessToken,
-            "-ramingo-qa-refresh-token", refreshToken,
-            "-ramingo-qa-trip-id", tripID,
-        ]
+        app.launchArguments = tripID.isEmpty ? [] : ["-ramingo-qa-trip-id", tripID]
         allowSystemPermissions()
         app.launch()
 
@@ -109,7 +97,7 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Мои путешествия"].waitForExistence(timeout: 10), "Форма не закрылась без сохранения")
     }
 
-    private func requiredEnvironment(_ name: String) throws -> String {
+    private func optionalTestValue(_ name: String) -> String? {
         if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty {
             return value
         }
@@ -119,8 +107,7 @@ final class RamingoUITests: XCTestCase {
                 return value
             }
         }
-
-        throw XCTSkip("Не задано значение \(name); live iOS UI smoke пропущен")
+        return nil
     }
 
     private func element(_ identifier: String) -> XCUIElement {
