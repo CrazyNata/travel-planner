@@ -53,53 +53,74 @@ jobs:
           screenshot_path="$RUNNER_TEMP/ramingo-ios-simulator.png"
           : > "$smoke_log"
 
-          device_type="$(python3 - <<'PY'
+          device_udid="$(python3 - <<'PY'
           import json
           import subprocess
 
-          device_data = json.loads(subprocess.check_output(
-              ["xcrun", "simctl", "list", "devicetypes", "available", "-j"],
+          data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"],
               text=True,
           ))
-          device = next(
-              item for item in device_data["devicetypes"]
-              if item["name"].startswith("iPhone")
-          )
-          print(device["identifier"])
+          for devices in data.get("devices", {}).values():
+              for device in devices:
+                  if device.get("name", "").lower().startswith("iphone") and device.get("isAvailable", True):
+                      print(device["udid"])
+                      raise SystemExit(0)
           PY
           )"
 
-          runtime="$(python3 - <<'PY'
+          device_created=false
+          if [ -z "$device_udid" ]; then
+              device_type="$(python3 - <<'PY'
+          import json
+          import subprocess
+
+          data = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devicetypes", "-j"],
+              text=True,
+          ))
+          for device in data.get("devicetypes", []):
+              name = device.get("name", "").lower()
+              if device.get("productFamily") == "iPhone" or "iphone" in name:
+                  print(device["identifier"])
+                  raise SystemExit(0)
+          raise SystemExit("No iPhone Simulator device type is installed.")
+          PY
+              )"
+
+              runtime="$(python3 - <<'PY'
           import json
           import subprocess
 
           runtime_data = json.loads(subprocess.check_output(
-              ["xcrun", "simctl", "list", "runtimes", "available", "-j"],
+              ["xcrun", "simctl", "list", "runtimes", "-j"],
               text=True,
           ))
           runtimes = [
               item for item in runtime_data["runtimes"]
-              if item.get("platform") == "iOS"
+              if item.get("platform") == "iOS" and "unavailable" not in item.get("availability", "").lower()
           ]
+          if not runtimes:
+              raise SystemExit("No available iOS Simulator runtime is installed.")
           selected = max(runtimes, key=lambda item: tuple(
               int(part) for part in item["version"].split(".") if part.isdigit()
           ))
           print(selected["identifier"])
           PY
-          )"
-          test -n "$device_type"
-          test -n "$runtime"
+              )"
+              device_udid="$(xcrun simctl create 'Ramingo CI iPhone' "$device_type" "$runtime")"
+              device_created=true
+          fi
 
-          device_udid="$(xcrun simctl create 'Ramingo CI iPhone' "$device_type" "$runtime")"
           cleanup() {
               xcrun simctl shutdown "$device_udid" >/dev/null 2>&1 || true
-              xcrun simctl delete "$device_udid" >/dev/null 2>&1 || true
+              if [ "$device_created" = true ]; then
+                  xcrun simctl delete "$device_udid" >/dev/null 2>&1 || true
+              fi
           }
           trap cleanup EXIT
 
           {
-              echo "device_type=$device_type"
-              echo "runtime=$runtime"
               echo "device_udid=$device_udid"
               xcrun simctl boot "$device_udid"
               xcrun simctl bootstatus "$device_udid" -b
