@@ -66,6 +66,20 @@ data class TripCard(
     val distanceKm: Double? = null,
 )
 
+/**
+ * Resolve the trip date range from both the current and legacy payload shapes.
+ * Older trips created by the web app may keep only startDate/endDate while
+ * newer trips also persist the combined dates field.
+ */
+internal fun storedTripDates(payload: JsonObject): String {
+    fun text(key: String) = payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
+    return text("dates").ifBlank {
+        listOf(text("startDate"), text("endDate"))
+            .filter(String::isNotBlank)
+            .joinToString(" — ")
+    }
+}
+
 @Serializable
 private data class TripCollaboratorRow(
     @SerialName("trip_id") val tripId: String,
@@ -771,11 +785,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                     TripCard(
                         id = row.id,
                         title = text("title").ifBlank { "Путешествие" },
-                        dates = text("dates").ifBlank {
-                            listOf(text("startDate"), text("endDate"))
-                                .filter(String::isNotBlank)
-                                .joinToString(" — ")
-                        },
+                        dates = storedTripDates(row.payload),
                         status = text("status").ifBlank { "Черновик" },
                         // Progress is derived from the current payload so legacy
                         // trips with a stale stored value of 0 are fixed on read.
@@ -1150,7 +1160,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         return TripOverview(
             id = row.id,
             title = text("title").ifBlank { "Путешествие" },
-            dates = text("dates"),
+            dates = storedTripDates(row.payload),
             status = text("status"),
             coverPhotos = resolvedCovers,
             overviewMapPoints = mapPoints,

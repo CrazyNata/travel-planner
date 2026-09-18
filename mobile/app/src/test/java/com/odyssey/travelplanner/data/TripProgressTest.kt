@@ -9,6 +9,27 @@ import kotlinx.serialization.json.put
 
 class TripProgressTest {
     @Test
+    fun tripDatesFallBackToStartAndEndDatesForLegacyPayloads() {
+        val payload = buildJsonObject {
+            put("startDate", "2026-09-25")
+            put("endDate", "2026-10-12")
+        }
+
+        assertEquals("2026-09-25 — 2026-10-12", storedTripDates(payload))
+    }
+
+    @Test
+    fun storedTripDatesPreferTheCombinedDateField() {
+        val payload = buildJsonObject {
+            put("dates", "25 сен 2026 – 12 окт 2026")
+            put("startDate", "2026-09-25")
+            put("endDate", "2026-10-12")
+        }
+
+        assertEquals("25 сен 2026 – 12 окт 2026", storedTripDates(payload))
+    }
+
+    @Test
     fun emptyTripHasNoProgress() {
         assertEquals(0, calculateTripProgress(buildJsonObject { }))
     }

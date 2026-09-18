@@ -161,6 +161,15 @@ class UiLogicTest {
     }
 
     @Test
+    fun weatherTripDatesNormalizesUnicodeSpacesFromStoredWebDates() {
+        val dates = weatherTripDates("25\u00A0сентябрь\u00A02026 – 12\u00A0октябрь\u00A02026 · 18 дней")
+
+        assertEquals(18, dates.size)
+        assertEquals(LocalDate.of(2026, 9, 25), dates.first())
+        assertEquals(LocalDate.of(2026, 10, 12), dates.last())
+    }
+
+    @Test
     fun weatherTripDatesCapsVeryLongRanges() {
         assertEquals(
             listOf(LocalDate.of(2026, 9, 25), LocalDate.of(2026, 9, 26)),

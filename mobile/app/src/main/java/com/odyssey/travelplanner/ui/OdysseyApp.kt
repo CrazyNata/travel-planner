@@ -6455,7 +6455,10 @@ private fun CompactTripDateField(
 }
 
 private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
-    val dottedDates = Regex("""\d{1,2}\.\d{1,2}\.\d{4}""").findAll(value)
+    // Web payloads can contain regular, non-breaking, or narrow no-break
+    // spaces. Normalize all Unicode space separators before matching dates.
+    val normalizedValue = value.replace(Regex("[\\p{Z}\\p{Cf}]+"), " ").trim()
+    val dottedDates = Regex("""\d{1,2}\.\d{1,2}\.\d{4}""").findAll(normalizedValue)
         .mapNotNull { match ->
             val parts = match.value.split('.')
             runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
@@ -6466,7 +6469,7 @@ private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
         return start to dottedDates.getOrElse(1) { start }
     }
 
-    val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(value)
+    val isoDates = Regex("""\d{4}-\d{2}-\d{2}""").findAll(normalizedValue)
         .mapNotNull { match -> runCatching { LocalDate.parse(match.value) }.getOrNull() }
         .toList()
     if (isoDates.isNotEmpty()) {
@@ -6478,8 +6481,8 @@ private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
     // "25–27 сентября 2026". A plain date regex only finds the end date,
     // which makes the Android weather strip contain a single day.
     val compactHumanRange = Regex(
-        """(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+([A-Za-zА-Яа-яЁёÄÖÜäöüß]+)\s+(\d{4})""",
-    ).find(value)
+        """(?<!\d)(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+(\p{L}+)\s+(\d{4})""",
+    ).find(normalizedValue)
     if (compactHumanRange != null) {
         val month = weatherMonthNumber(compactHumanRange.groupValues[3]) ?: return null
         val year = compactHumanRange.groupValues[4].toIntOrNull() ?: return null
@@ -6490,7 +6493,7 @@ private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
         return start to end
     }
 
-    val humanDates = Regex("""(\d{1,2})\s+([A-Za-zА-Яа-яЁёÄÖÜäöüß]+)\s+(\d{4})""").findAll(value)
+    val humanDates = Regex("""(\d{1,2})\s+(\p{L}+)\s+(\d{4})""").findAll(normalizedValue)
         .mapNotNull { match ->
             val month = weatherMonthNumber(match.groupValues[2]) ?: return@mapNotNull null
             runCatching { LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt()) }.getOrNull()
