@@ -386,6 +386,7 @@ private struct NewTripCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("home.createTrip")
     }
 }
 

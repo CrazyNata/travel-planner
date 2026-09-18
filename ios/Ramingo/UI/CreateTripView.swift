@@ -74,6 +74,7 @@ struct CreateTripView: View {
                         ) {
                             Task { await save() }
                         }
+                        .accessibilityIdentifier("createTrip.save")
                         .padding(.top, 24)
 
                         Text("После создания откроются маршрут, места, жильё, бюджет и остальные разделы.")
@@ -137,6 +138,7 @@ struct CreateTripView: View {
                     .font(AppTheme.font(14, .semibold))
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled(false)
+                    .accessibilityIdentifier("createTrip.cities")
                     .onSubmit { addCitiesFromDraft() }
                 Button { addCitiesFromDraft() } label: {
                     Image(systemName: "plus")
@@ -250,6 +252,7 @@ struct TripTextField: View {
                 .font(AppTheme.font(14, .semibold))
                 .foregroundStyle(AppTheme.ink)
                 .textInputAutocapitalization(.sentences)
+                .accessibilityIdentifier("createTrip.\(title)")
                 .padding(.horizontal, 14)
                 .frame(minHeight: 52)
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))

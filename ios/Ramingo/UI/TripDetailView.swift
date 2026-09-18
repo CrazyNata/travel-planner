@@ -197,6 +197,7 @@ struct TripDetailView: View {
                     .frame(width: 48, height: 48)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("trip.drawer")
 
             Spacer(minLength: 0)
             VStack(spacing: 1) {
@@ -501,6 +502,7 @@ private struct TripDrawer: View {
                         DrawerRow(title: section.title, icon: section.drawerIcon, selected: section == selection) {
                             onSelect(section)
                         }
+                        .accessibilityIdentifier("trip.section.\(section.rawValue)")
                     }
                 }
                 .padding(.horizontal, 18)
@@ -508,8 +510,10 @@ private struct TripDrawer: View {
 
                 Spacer(minLength: 18)
                 DrawerRow(title: "Мои путешествия", icon: "arrowshape.turn.up.left", selected: false, action: onTrips)
+                    .accessibilityIdentifier("trip.home")
                     .padding(.horizontal, 18)
                 DrawerRow(title: "Настройки", icon: "gearshape", selected: false, action: onSettings)
+                    .accessibilityIdentifier("trip.settings")
                     .padding(.horizontal, 18)
                     .padding(.top, 10)
                     .padding(.bottom, proxy.safeAreaInsets.bottom + 32)
@@ -1183,6 +1187,7 @@ private struct AndroidRouteScreen: View {
             }
             if overview.canEdit {
                 DashedAddButton(title: "Добавить переезд", action: onAdd)
+                    .accessibilityIdentifier("route.add")
             }
         }
         .padding(.horizontal, 18)
@@ -1212,6 +1217,7 @@ private struct AndroidRouteLegCard: View {
                 Spacer(minLength: 4)
                 AndroidIconButton(icon: copied ? "checkmark" : "doc.on.doc", action: copyLeg)
                 AndroidIconButton(icon: "pencil", action: onEdit)
+                    .accessibilityIdentifier("route.leg.edit")
             }
             HStack(spacing: 12) {
                 Image(systemName: "key.fill").font(.system(size: 13)).foregroundStyle(AppTheme.purple)
@@ -1691,6 +1697,7 @@ private struct FilterHeader: View {
             }
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("restaurants.filters")
         }
     }
 }

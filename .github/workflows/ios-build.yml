@@ -80,6 +80,7 @@ jobs:
           screenshot_path="$RUNNER_TEMP/ramingo-ios-simulator.png"
           video_path="$RUNNER_TEMP/ramingo-ios-simulator.mp4"
           video_log="$RUNNER_TEMP/ramingo-ios-simulator-record.log"
+          test_log="$RUNNER_TEMP/ramingo-ios-ui-tests.log"
           : > "$smoke_log"
 
           device_udid="$(python3 - <<'PY'
@@ -222,6 +223,22 @@ jobs:
                       )"
                   fi
 
+                  echo "Starting authenticated iOS UI tests."
+                  IOS_QA_ACCESS_TOKEN="$access_token" \
+                  IOS_QA_REFRESH_TOKEN="$refresh_token" \
+                  IOS_QA_TRIP_ID="$trip_id" \
+                  xcodebuild \
+                    -project ios/Ramingo.xcodeproj \
+                    -scheme RamingoUITests \
+                    -configuration Debug \
+                    -destination "platform=iOS Simulator,id=$device_udid" \
+                    -derivedDataPath "$RUNNER_TEMP/RamingoDerivedData" \
+                    -xcconfig "$RUNNER_TEMP/RamingoSimulator.xcconfig" \
+                    CODE_SIGNING_ALLOWED=NO \
+                    CODE_SIGNING_REQUIRED=NO \
+                    test 2>&1 | tee "$test_log"
+
+                  xcrun simctl privacy "$device_udid" grant location com.odyssey.ramingo.ios >/dev/null 2>&1 || true
                   xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
                   launch_output="$(xcrun simctl launch "$device_udid" com.odyssey.ramingo.ios \
                       -ramingo-qa-access-token "$access_token" \
@@ -230,9 +247,9 @@ jobs:
                   echo "$launch_output"
                   pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
                   test -n "$pid"
-                  sleep 25
+                  sleep 20
                   capture_path="$RUNNER_TEMP/ramingo-ios-authorized.png"
-                  echo "Authenticated bootstrap smoke passed${trip_id:+; trip deep link requested}."
+                  echo "Authenticated iOS UI smoke passed${trip_id:+; trip deep link requested}."
               else
                   echo "IOS_QA_EMAIL/IOS_QA_PASSWORD are not configured; launch-only smoke remains active."
               fi
@@ -273,4 +290,5 @@ jobs:
             ${{ runner.temp }}/ramingo-ios-authorized.png
             ${{ runner.temp }}/ramingo-ios-simulator.mp4
             ${{ runner.temp }}/ramingo-ios-simulator-record.log
+            ${{ runner.temp }}/ramingo-ios-ui-tests.log
           if-no-files-found: ignore

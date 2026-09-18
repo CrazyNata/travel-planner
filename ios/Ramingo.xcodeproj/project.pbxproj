@@ -27,6 +27,7 @@
 		A10000000000000000000051 /* TripEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003B /* TripEditorView.swift */; };
 		A10000000000000000000052 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003D /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000053 /* manrope_variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003E /* manrope_variable.ttf */; };
+		A10000000000000000000054 /* RamingoUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003F /* RamingoUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,11 +55,20 @@
 		A1000000000000000000003C /* Ramingo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ramingo.entitlements; sourceTree = "<group>"; };
 		A1000000000000000000003D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1000000000000000000003E /* manrope_variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = manrope_variable.ttf; sourceTree = "<group>"; };
+		A1000000000000000000003F /* RamingoUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RamingoUITests.swift; sourceTree = "<group>"; };
 		A10000000000000000000032 /* Ramingo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ramingo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000055 /* RamingoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RamingoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000008 /* UI Tests Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -72,6 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000011 /* Ramingo */,
+				A1000000000000000000001A /* RamingoUITests */,
 				A10000000000000000000017 /* Config */,
 				A10000000000000000000012 /* Products */,
 			);
@@ -108,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000032 /* Ramingo.app */,
+				A10000000000000000000055 /* RamingoUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -171,6 +183,14 @@
 			path = Resources/Fonts;
 			sourceTree = "<group>";
 		};
+		A1000000000000000000001A /* RamingoUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000003F /* RamingoUITests.swift */,
+			);
+			path = RamingoUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -191,6 +211,23 @@
 			productReference = A10000000000000000000032 /* Ramingo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A10000000000000000000006 /* RamingoUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000062 /* Build configuration list for PBXNativeTarget \"RamingoUITests\" */;
+			buildPhases = (
+				A10000000000000000000009 /* UI Tests Sources */,
+				A1000000000000000000000A /* UI Tests Resources */,
+				A10000000000000000000008 /* UI Tests Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RamingoUITests;
+			productName = RamingoUITests;
+			productReference = A10000000000000000000055 /* RamingoUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -203,6 +240,10 @@
 				TargetAttributes = {
 					A10000000000000000000002 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					A10000000000000000000006 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A10000000000000000000002;
 					};
 				};
 			};
@@ -221,6 +262,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000002 /* Ramingo */,
+				A10000000000000000000006 /* RamingoUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -263,7 +305,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000009 /* UI Tests Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000054 /* RamingoUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1000000000000000000000A /* UI Tests Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		A10000000000000000000070 /* Debug */ = {
@@ -347,6 +407,41 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000074 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.odyssey.ramingo.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Ramingo;
+			};
+			name = Debug;
+		};
+		A10000000000000000000075 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.odyssey.ramingo.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Ramingo;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -364,6 +459,15 @@
 			buildConfigurations = (
 				A10000000000000000000072 /* Debug */,
 				A10000000000000000000073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000062 /* Build configuration list for PBXNativeTarget "RamingoUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000074 /* Debug */,
+				A10000000000000000000075 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
