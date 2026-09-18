@@ -130,8 +130,13 @@ jobs:
               pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
               test -n "$pid"
               sleep 8
-              xcrun simctl spawn "$device_udid" kill -0 "$pid"
               xcrun simctl io "$device_udid" screenshot "$screenshot_path"
+              if ! xcrun simctl spawn "$device_udid" kill -0 "$pid"; then
+                  echo "Ramingo process exited before the smoke check completed. Recent simulator log:"
+                  xcrun simctl spawn "$device_udid" log show --last 30s --style compact \
+                      --predicate 'process == "Ramingo" OR eventMessage CONTAINS[c] "Ramingo"' || true
+                  exit 1
+              fi
               echo "Simulator smoke test passed: Ramingo launched with pid $pid."
           } 2>&1 | tee "$smoke_log"
 
