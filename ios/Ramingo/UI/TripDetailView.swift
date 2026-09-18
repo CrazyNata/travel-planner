@@ -998,7 +998,7 @@ private struct AndroidOverviewScreen: View {
         if let roadRouteDistanceMeters, roadRouteDistanceMeters > 0 {
             return "\(Int((roadRouteDistanceMeters / 1_000).rounded())) км"
         }
-        let fallback = mapPins.map(\.coordinate).zip(mapPins.dropFirst().map(\.coordinate)).reduce(0.0) { total, pair in
+        let fallback = zip(mapPins.map(\.coordinate), mapPins.dropFirst().map(\.coordinate)).reduce(0.0) { total, pair in
             total + CLLocation(
                 latitude: pair.0.latitude,
                 longitude: pair.0.longitude,
@@ -2247,7 +2247,12 @@ private struct AndroidAccommodationCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottom) {
-                RemotePhotoView(reference: photoReferences[safe: photoIndex], client: client, contentMode: .fill, cornerRadius: 0)
+                RemotePhotoView(
+                    reference: photoReferences.indices.contains(photoIndex) ? photoReferences[photoIndex] : nil,
+                    client: client,
+                    contentMode: .fill,
+                    cornerRadius: 0,
+                )
                     .frame(height: 205)
                 HStack {
                     carouselButton("arrow.left", delta: -1)
