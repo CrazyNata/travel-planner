@@ -33,6 +33,40 @@ struct AccountProfile: Hashable, Sendable {
     let addPlaceHintSeen: Bool = false
     let hasStoredProfile: Bool = false
 
+    init(
+        avatarReference: String?,
+        notificationsEnabled: Bool,
+        language: String,
+        themePreference: ThemePreference,
+        tripRemindersEnabled: Bool,
+        cancellationRemindersEnabled: Bool,
+        paymentRemindersEnabled: Bool,
+        emailNotificationsEnabled: Bool,
+        emailPaymentRemindersEnabled: Bool,
+        emailRecipient: String?,
+        reminderHour: Int,
+        onboardingCompleted: Bool = false,
+        createTripHintSeen: Bool = false,
+        addPlaceHintSeen: Bool = false,
+        hasStoredProfile: Bool = false,
+    ) {
+        self.avatarReference = avatarReference
+        self.notificationsEnabled = notificationsEnabled
+        self.language = language
+        self.themePreference = themePreference
+        self.tripRemindersEnabled = tripRemindersEnabled
+        self.cancellationRemindersEnabled = cancellationRemindersEnabled
+        self.paymentRemindersEnabled = paymentRemindersEnabled
+        self.emailNotificationsEnabled = emailNotificationsEnabled
+        self.emailPaymentRemindersEnabled = emailPaymentRemindersEnabled
+        self.emailRecipient = emailRecipient
+        self.reminderHour = reminderHour
+        self.onboardingCompleted = onboardingCompleted
+        self.createTripHintSeen = createTripHintSeen
+        self.addPlaceHintSeen = addPlaceHintSeen
+        self.hasStoredProfile = hasStoredProfile
+    }
+
     var darkTheme: Bool { themePreference == .dark }
 
     static let defaults = AccountProfile(
