@@ -35,10 +35,12 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SUPABASE_PUBLISHABLE_KEY"
-          test "${SUPABASE_PUBLISHABLE_KEY^^}" != *REPLACE*
           python3 - <<'PY'
           import os
           from pathlib import Path
+
+          if "REPLACE" in os.environ["SUPABASE_PUBLISHABLE_KEY"].upper():
+              raise SystemExit("Configure the SUPABASE_PUBLISHABLE_KEY repository secret.")
 
           config = Path(os.environ["RUNNER_TEMP"]) / "RamingoSimulator.xcconfig"
           config.write_text(
