@@ -9,6 +9,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     private let repository: TripRepository
     private let accountRepository: AccountRepository
     private let catalogRepository: CatalogRepository
+    private let cityCatalogRepository = IOSCityCatalogRepository()
     private let weatherRepository: WeatherRepository
     private let exchangeRateRepository: ExchangeRateRepository
 
@@ -16,10 +17,12 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     @Published private(set) var trips: [TripSummary] = []
     @Published private(set) var profile = AccountProfile.defaults
     @Published private(set) var isBootstrapping = true
+    @Published private(set) var isReadyForSession = false
     @Published var errorMessage: String?
     @Published var authNotice: String?
     @Published var pendingTripID: String?
     @Published var isShowingPasswordRecovery = false
+    @Published var shouldPresentCreateTrip = false
 
     override init() {
         let client = SupabaseClient(configuration: .load())
@@ -40,15 +43,21 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
 
     func bootstrap() async {
         defer { isBootstrapping = false }
-        guard isConfigured else { return }
+        guard isConfigured else {
+            isReadyForSession = session == nil
+            return
+        }
         do {
             session = try await client.restoreSession()
             if session != nil {
-                await loadProfile()
-                try await reloadTrips()
+                isReadyForSession = false
+                try await finishAuthenticatedBootstrap()
+            } else {
+                isReadyForSession = false
             }
         } catch {
             session = nil
+            isReadyForSession = false
             profile = .defaults
             errorMessage = error.localizedDescription
         }
@@ -58,8 +67,8 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         await runAuth {
             self.client.setSessionPersistence(remember)
             self.session = try await self.client.signIn(email: email, password: password)
-            await self.loadProfile()
-            try await self.reloadTrips()
+            self.isReadyForSession = false
+            try await self.finishAuthenticatedBootstrap()
         }
     }
 
@@ -69,8 +78,8 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             let result = try await self.client.signUp(email: email, password: password, displayName: displayName)
             self.session = result ?? self.client.session
             if self.session != nil {
-                await self.loadProfile()
-                try await self.reloadTrips()
+                self.isReadyForSession = false
+                try await self.finishAuthenticatedBootstrap()
             } else {
                 let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
                 self.authNotice = "Мы отправили письмо для подтверждения на \(normalizedEmail). Подтвердите e-mail, затем войдите в приложение."
@@ -82,16 +91,16 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         await runAuth {
             self.client.setSessionPersistence(remember)
             self.session = try await self.client.signInWithGoogle()
-            await self.loadProfile()
-            try await self.reloadTrips()
+            self.isReadyForSession = false
+            try await self.finishAuthenticatedBootstrap()
         }
     }
 
     func signInWithApple(identityToken: String, nonce: String) async {
         await runAuth {
             self.session = try await self.client.signInWithApple(identityToken: identityToken, nonce: nonce)
-            await self.loadProfile()
-            try await self.reloadTrips()
+            self.isReadyForSession = false
+            try await self.finishAuthenticatedBootstrap()
         }
     }
 
@@ -130,8 +139,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         session = nil
         profile = .defaults
         trips = []
+        isReadyForSession = false
         pendingTripID = nil
         isShowingPasswordRecovery = false
+        shouldPresentCreateTrip = false
     }
 
     func deleteAccount() async throws {
@@ -147,6 +158,108 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         profile = (try? await accountRepository.loadProfile()) ?? .defaults
     }
 
+    func completeOnboarding(openCreateTrip: Bool = false) async {
+        let next = profileCopy(
+            onboardingCompleted: true,
+            createTripHintSeen: profile.createTripHintSeen,
+            addPlaceHintSeen: profile.addPlaceHintSeen,
+        )
+        do {
+            try await accountRepository.updateProfile(
+                avatarReference: next.avatarReference,
+                notificationsEnabled: next.notificationsEnabled,
+                language: next.language,
+                themePreference: next.themePreference,
+                tripRemindersEnabled: next.tripRemindersEnabled,
+                cancellationRemindersEnabled: next.cancellationRemindersEnabled,
+                paymentRemindersEnabled: next.paymentRemindersEnabled,
+                emailNotificationsEnabled: next.emailNotificationsEnabled,
+                emailPaymentRemindersEnabled: next.emailPaymentRemindersEnabled,
+                emailRecipient: next.emailRecipient,
+                reminderHour: next.reminderHour,
+                onboardingCompleted: true,
+                createTripHintSeen: next.createTripHintSeen,
+                addPlaceHintSeen: next.addPlaceHintSeen,
+            )
+            try? await accountRepository.updateWebOnboardingState(completed: true)
+            profile = next
+            shouldPresentCreateTrip = openCreateTrip
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func markCreateTripHintSeen() async {
+        guard !profile.createTripHintSeen else { return }
+        let next = profileCopy(
+            onboardingCompleted: profile.onboardingCompleted,
+            createTripHintSeen: true,
+            addPlaceHintSeen: profile.addPlaceHintSeen,
+        )
+        do {
+            try await updateProfile(next)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func markAddPlaceHintSeen() async {
+        guard !profile.addPlaceHintSeen else { return }
+        let next = profileCopy(
+            onboardingCompleted: profile.onboardingCompleted,
+            createTripHintSeen: profile.createTripHintSeen,
+            addPlaceHintSeen: true,
+        )
+        do {
+            try await updateProfile(next)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func finishAuthenticatedBootstrap() async throws {
+        await loadProfile()
+        try await reloadTrips()
+        await reconcileOnboardingState()
+        isReadyForSession = true
+    }
+
+    private func reconcileOnboardingState() async {
+        guard session != nil, !profile.onboardingCompleted else { return }
+        if let webCompleted = try? await accountRepository.loadWebOnboardingCompleted(), webCompleted == true {
+            await completeOnboarding()
+            return
+        }
+        // Older accounts may have trips but no account_profile onboarding flag.
+        // Do not show a first-run tutorial to those users.
+        guard !profile.hasStoredProfile, !trips.isEmpty else { return }
+        await completeOnboarding()
+    }
+
+    private func profileCopy(
+        onboardingCompleted: Bool,
+        createTripHintSeen: Bool,
+        addPlaceHintSeen: Bool,
+    ) -> AccountProfile {
+        AccountProfile(
+            avatarReference: profile.avatarReference,
+            notificationsEnabled: profile.notificationsEnabled,
+            language: profile.language,
+            themePreference: profile.themePreference,
+            tripRemindersEnabled: profile.tripRemindersEnabled,
+            cancellationRemindersEnabled: profile.cancellationRemindersEnabled,
+            paymentRemindersEnabled: profile.paymentRemindersEnabled,
+            emailNotificationsEnabled: profile.emailNotificationsEnabled,
+            emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
+            emailRecipient: profile.emailRecipient,
+            reminderHour: profile.reminderHour,
+            onboardingCompleted: onboardingCompleted,
+            createTripHintSeen: createTripHintSeen,
+            addPlaceHintSeen: addPlaceHintSeen,
+            hasStoredProfile: true,
+        )
+    }
+
     func updateProfile(_ next: AccountProfile) async throws {
         try await accountRepository.updateProfile(
             avatarReference: next.avatarReference,
@@ -160,6 +273,9 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             emailPaymentRemindersEnabled: next.emailPaymentRemindersEnabled,
             emailRecipient: next.emailRecipient,
             reminderHour: next.reminderHour,
+            onboardingCompleted: next.onboardingCompleted,
+            createTripHintSeen: next.createTripHintSeen,
+            addPlaceHintSeen: next.addPlaceHintSeen,
         )
         profile = next
         await syncReminders()
@@ -213,6 +329,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
             emailRecipient: emailRecipient,
             reminderHour: min(max(reminderHour, 0), 23),
+            onboardingCompleted: profile.onboardingCompleted,
+            createTripHintSeen: profile.createTripHintSeen,
+            addPlaceHintSeen: profile.addPlaceHintSeen,
+            hasStoredProfile: profile.hasStoredProfile,
         )
         try await updateProfile(next)
         if !enabled { await ReminderScheduler.cancelAll() }
@@ -232,6 +352,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
             emailRecipient: profile.emailRecipient,
             reminderHour: profile.reminderHour,
+            onboardingCompleted: profile.onboardingCompleted,
+            createTripHintSeen: profile.createTripHintSeen,
+            addPlaceHintSeen: profile.addPlaceHintSeen,
+            hasStoredProfile: profile.hasStoredProfile,
         )
     }
 
@@ -247,8 +371,17 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
     func weather(for overview: TripOverview) async -> [String: WeatherSnapshot] {
+        let candidates = overview.overviewWeatherCities.isEmpty
+            ? overview.cities + overview.overviewMapPoints + overview.routeLegs.flatMap { [$0.from, $0.to] }
+            : overview.overviewWeatherCities
+        var seen = Set<String>()
+        let cities = candidates.filter { city in
+            let value = city.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { return false }
+            return seen.insert(value.lowercased()).inserted
+        }
         await weatherRepository.loadCurrent(
-            cities: overview.cities,
+            cities: cities,
             tripDates: overview.dates,
             coordinates: overview.cityCoordinates,
         )
@@ -261,15 +394,59 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         return try await exchangeRateRepository.loadRubRates(quotes: currencies)
     }
 
-    func createTrip(title: String, startDate: String, endDate: String, cities: String) async throws {
+    func createTrip(
+        title: String,
+        startDate: String,
+        endDate: String,
+        cities: String,
+        cityCoordinates: [String: Coordinate] = [:],
+    ) async throws {
         try await ensureSession()
-        _ = try await repository.createTrip(title: title, startDate: startDate, endDate: endDate, cities: cities)
+        let cityList = cities
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let resolvedCoordinates = await weatherRepository.resolveCoordinates(
+            cities: cityList,
+            known: cityCoordinates,
+        )
+        _ = try await repository.createTrip(
+            title: title,
+            startDate: startDate,
+            endDate: endDate,
+            cities: cities,
+            cityCoordinates: resolvedCoordinates,
+        )
         try await reloadTrips()
+    }
+
+    func searchCities(query: String) -> [IOSCityCatalogEntry] {
+        cityCatalogRepository.search(query: query, language: profile.language)
+    }
+
+    func resolveCityCoordinates(for cities: [String]) -> [String: Coordinate] {
+        cities.reduce(into: [String: Coordinate]()) { result, city in
+            if let entry = cityCatalogRepository.resolve(city) {
+                result[city] = entry.coordinate
+            }
+        }
     }
 
     func updateTripDetails(id: String, title: String, dates: String, cities: String) async throws {
         try await ensureSession()
         try await repository.updateTripDetails(id: id, title: title, dates: dates, cities: cities)
+    }
+
+    func deleteTrip(id: String) async throws {
+        try await ensureSession()
+        try await repository.deleteTrip(id: id)
+        try await reloadTrips()
+    }
+
+    func restoreTrip(id: String) async throws {
+        try await ensureSession()
+        try await repository.restoreTrip(id: id)
+        try await reloadTrips()
     }
 
     func updateTripField(id: String, key: String, value: JSONValue) async throws {
@@ -431,6 +608,12 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         try await repository.removeMember(id: id, memberID: memberID)
     }
 
+    func leaveTrip(id: String) async throws {
+        try await ensureSession()
+        try await repository.leaveTrip(id: id)
+        trips.removeAll { $0.id == id }
+    }
+
     func inviteMember(id: String, name: String, email: String, role: String) async throws {
         try await ensureSession()
         try await repository.inviteMember(id: id, name: name, email: email, role: role)
@@ -476,7 +659,8 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
     func handleDeepLink(_ url: URL) {
-        let containsSession = url.absoluteString.contains("access_token=")
+        let absolute = url.absoluteString.lowercased()
+        let containsSession = absolute.contains("access_token=") && absolute.contains("refresh_token=")
         if !containsSession, let tripID = Self.tripID(from: url), !tripID.isEmpty {
             pendingTripID = tripID
         }
@@ -486,11 +670,12 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             do {
                 guard let result = try await self.client.handleAuthCallback(url) else { return }
                 self.session = result.session
-                await self.loadProfile()
-                try await self.reloadTrips()
+                self.isReadyForSession = false
+                try await self.finishAuthenticatedBootstrap()
                 if let tripID = result.tripID, !tripID.isEmpty { self.pendingTripID = tripID }
                 if result.isRecovery { self.isShowingPasswordRecovery = true }
             } catch {
+                if self.session != nil { self.isReadyForSession = true }
                 self.errorMessage = error.localizedDescription
             }
         }
@@ -525,6 +710,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         do {
             try await operation()
         } catch {
+            if session != nil { isReadyForSession = true }
             errorMessage = error.localizedDescription
         }
     }

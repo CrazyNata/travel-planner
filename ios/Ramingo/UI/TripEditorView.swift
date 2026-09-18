@@ -8,6 +8,7 @@ struct TripEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     let tripID: String
+    let initialItemID: String?
 
     @State private var overview: TripOverview
     @State private var selectedSection: EditorSection = .details
@@ -27,10 +28,18 @@ struct TripEditorView: View {
     @State private var catalogRequest: CatalogEditorRequest?
     @State private var sightNotesDraft: [String: String]
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var didOpenInitialItem = false
 
-    init(tripID: String, initial: TripOverview) {
+    init(
+        tripID: String,
+        initial: TripOverview,
+        initialSection: String = "details",
+        initialItemID: String? = nil,
+    ) {
         self.tripID = tripID
+        self.initialItemID = initialItemID
         _overview = State(initialValue: initial)
+        _selectedSection = State(initialValue: EditorSection(rawValue: initialSection) ?? .details)
         _title = State(initialValue: initial.title)
         _dates = State(initialValue: initial.dates)
         _cities = State(initialValue: initial.cities.joined(separator: ", "))
@@ -85,6 +94,7 @@ struct TripEditorView: View {
                     ToolbarItem(placement: .primaryAction) { EditButton() }
                 }
             }
+            .onAppear { openInitialItemIfNeeded() }
             .overlay {
                 if isSaving {
                     ProgressView("Сохраняем…")
@@ -765,6 +775,31 @@ struct TripEditorView: View {
         budgetCurrency = fresh.budgetCurrency
         sightNotesDraft = fresh.sightNotes
         if coverCity.isEmpty { coverCity = fresh.cities.first ?? "" }
+    }
+
+    private func openInitialItemIfNeeded() {
+        guard !didOpenInitialItem, let initialItemID, !initialItemID.isEmpty else { return }
+        didOpenInitialItem = true
+
+        switch selectedSection {
+        case .route:
+            guard let leg = overview.routeLegs.first(where: { $0.id == initialItemID }) else { return }
+            routeEditor = RouteDraft(leg: leg)
+        case .sights:
+            guard let sight = overview.sights.first(where: { $0.id == initialItemID }) else { return }
+            itemEditor = EditableItem(sight)
+        case .restaurants:
+            guard let restaurant = overview.restaurants.first(where: { $0.id == initialItemID }) else { return }
+            itemEditor = EditableItem(restaurant)
+        case .accommodation:
+            guard let accommodation = overview.accommodations.first(where: { $0.id == initialItemID }) else { return }
+            itemEditor = EditableItem(accommodation)
+        case .pets:
+            guard let pet = overview.petPlaces.first(where: { $0.id == initialItemID }) else { return }
+            itemEditor = EditableItem(pet)
+        default:
+            break
+        }
     }
 
     private func beginSave() {
@@ -1536,7 +1571,7 @@ private struct MemberInviteSheet: View {
     }
 }
 
-private struct CatalogPickerSheet: View {
+struct CatalogPickerSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
@@ -1570,6 +1605,19 @@ private struct CatalogPickerSheet: View {
 
     private var searchKey: String {
         [kind.rawValue, city, query, petType, language].joined(separator: "|")
+    }
+
+    private var displayedEntries: [CatalogEntry] {
+        guard kind == .accommodation else { return entries }
+        return entries.sorted {
+            let leftRating = $0.rating ?? -1
+            let rightRating = $1.rating ?? -1
+            if leftRating != rightRating { return leftRating > rightRating }
+            let leftReviews = $0.reviewCount ?? 0
+            let rightReviews = $1.reviewCount ?? 0
+            if leftReviews != rightReviews { return leftReviews > rightReviews }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
     }
 
     var body: some View {
@@ -1613,7 +1661,7 @@ private struct CatalogPickerSheet: View {
                         Text("Ничего не найдено. Попробуйте изменить город или запрос.")
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(entries) { entry in
+                    ForEach(displayedEntries) { entry in
                         Button {
                             onSelect(entry, walkDay)
                             dismiss()

@@ -220,10 +220,14 @@ struct TripOverview: Identifiable, Sendable {
     let progress: Int
     let cities: [String]
     let cityCoordinates: [String: Coordinate]
+    let overviewBlocks: [String]
+    let overviewMapPoints: [String]
+    let overviewWeatherCities: [String]
     let coverPhotos: [CoverPhoto]
     let routeLegs: [RouteLeg]
     let accommodations: [Accommodation]
     let budgetCurrency: String
+    let budgetManualRates: [String: Double]
     let budgetExpenses: [BudgetExpense]
     let budgetGroups: [BudgetGroup]
     let members: [TripMember]
@@ -359,7 +363,13 @@ final class TripRepository {
         return (current, removed)
     }
 
-    func createTrip(title: String, startDate: String, endDate: String, cities: String) async throws -> TripSummary {
+    func createTrip(
+        title: String,
+        startDate: String,
+        endDate: String,
+        cities: String,
+        cityCoordinates: [String: Coordinate] = [:],
+    ) async throws -> TripSummary {
         guard let owner = client.currentUser else { throw SupabaseClientError.cancelled }
         let tripID = UUID().uuidString.lowercased()
         let cityList = cities.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -377,7 +387,12 @@ final class TripRepository {
             "tone": .string("purple"),
             "overviewBlocks": .array([.string("photo"), .string("map"), .string("weather")]),
             "overviewMapPoints": .array(cityList.map(JSONValue.string)),
-            "cityCoordinates": .object([:]),
+            "cityCoordinates": .object(cityCoordinates.reduce(into: [String: JSONValue]()) { result, item in
+                result[item.key] = .object([
+                    "latitude": .number(item.value.latitude),
+                    "longitude": .number(item.value.longitude),
+                ])
+            }),
             "budgetCurrency": .string("EUR"),
             "budgetManualRates": .object([:]),
             "budgetSplit": .object(["groups": .array([])]),
@@ -465,6 +480,37 @@ final class TripRepository {
         // Keep the complete existing route and all user-entered sections. The
         // editor changes only the trip-level metadata in this operation.
         try await patchPayload(id: id, patch: patch, expectedRevision: current.revision ?? 0)
+    }
+
+    func deleteTrip(id: String) async throws {
+        let current = try await loadRow(id: id)
+        guard let userID = client.currentUser?.id else {
+            throw SupabaseClientError.invalidInput("Требуется авторизация.")
+        }
+        guard current.ownerID == userID else {
+            throw SupabaseClientError.invalidInput("Только владелец путешествия может его удалить.")
+        }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        try await patchPayload(
+            id: id,
+            patch: ["deletedAt": .string(timestamp)],
+            expectedRevision: current.revision ?? 0,
+        )
+    }
+
+    func restoreTrip(id: String) async throws {
+        let current = try await loadRow(id: id)
+        guard let userID = client.currentUser?.id else {
+            throw SupabaseClientError.invalidInput("Требуется авторизация.")
+        }
+        guard current.ownerID == userID else {
+            throw SupabaseClientError.invalidInput("Только владелец путешествия может его восстановить.")
+        }
+        try await patchPayload(
+            id: id,
+            patch: ["deletedAt": .string("")],
+            expectedRevision: current.revision ?? 0,
+        )
     }
 
     func updateTripField(id: String, key: String, value: JSONValue) async throws {
@@ -752,6 +798,17 @@ final class TripRepository {
                 "p_role": .null,
                 "p_delete": .boolean(true),
             ],
+        )
+    }
+
+    func leaveTrip(id: String) async throws {
+        let current = try await loadRow(id: id)
+        if current.ownerID == client.currentUser?.id {
+            throw SupabaseClientError.invalidInput("Владелец путешествия не может покинуть его. Передайте владение или удалите поездку.")
+        }
+        try await client.invokeRPC(
+            "leave_trip",
+            body: ["p_trip_id": .string(id)],
         )
     }
 
@@ -1106,10 +1163,14 @@ final class TripRepository {
                 guard let latitude = object.number("latitude"), let longitude = object.number("longitude") else { return nil }
                 return Coordinate(latitude: latitude, longitude: longitude)
             },
+            overviewBlocks: payload.array("overviewBlocks").compactMap(\.stringValue),
+            overviewMapPoints: payload.array("overviewMapPoints").compactMap(\.stringValue),
+            overviewWeatherCities: payload.array("overviewWeatherCities").compactMap(\.stringValue),
             coverPhotos: coverPhotos,
             routeLegs: routeLegs(from: payload),
             accommodations: accommodations(from: payload),
             budgetCurrency: payload.text("budgetCurrency", fallback: "EUR"),
+            budgetManualRates: payload.object("budgetManualRates").compactMapValues { $0.doubleValue },
             budgetExpenses: expenses(from: payload),
             budgetGroups: payload.object("budgetSplit").array("groups").compactMap { value in
                 let object = value.objectValue ?? [:]

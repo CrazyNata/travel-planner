@@ -28,6 +28,8 @@
 	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ramingo использует выбранные фотографии для альбомов поездок.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ramingo показывает ваше положение на карте маршрута только во время использования приложения.</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
 	<key>SUPABASE_PUBLISHABLE_KEY</key>

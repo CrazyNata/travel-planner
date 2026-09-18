@@ -220,6 +220,7 @@ final class SupabaseClient {
     let configuration: SupabaseConfiguration
     private let sessionStore = KeychainSessionStore()
     private let urlSession: URLSession
+    private let requestTimeoutInterval: TimeInterval = 15
     private(set) var session: AuthSession?
     private var persistSession = true
     @MainActor private var googleAuthCoordinator: GoogleAuthCoordinator?
@@ -656,8 +657,15 @@ final class SupabaseClient {
         }
         extraHeaders.forEach { request.setValue($1, forHTTPHeaderField: $0) }
         if let body { request.httpBody = try JSONEncoder().encode(body) }
+        request.timeoutInterval = requestTimeoutInterval
 
-        let (data, response) = try await urlSession.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            throw Self.transportError(error)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseClientError.server(status: 0, message: "Не удалось получить ответ Supabase.")
         }
@@ -665,6 +673,24 @@ final class SupabaseClient {
             throw SupabaseClientError.server(status: httpResponse.statusCode, message: Self.errorMessage(data))
         }
         return data
+    }
+
+    private static func transportError(_ error: Error) -> Error {
+        guard let urlError = error as? URLError else { return error }
+        switch urlError.code {
+        case .timedOut:
+            return SupabaseClientError.server(
+                status: 408,
+                message: "Сервер Supabase не ответил вовремя. Попробуйте сохранить ещё раз.",
+            )
+        case .cancelled:
+            return SupabaseClientError.cancelled
+        default:
+            return SupabaseClientError.server(
+                status: 0,
+                message: "Не удалось подключиться к Supabase. Проверьте интернет и попробуйте ещё раз.",
+            )
+        }
     }
 
     private static func errorMessage(_ data: Data) -> String {

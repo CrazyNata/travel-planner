@@ -28,6 +28,10 @@ struct AccountProfile: Hashable, Sendable {
     let emailPaymentRemindersEnabled: Bool
     let emailRecipient: String?
     let reminderHour: Int
+    let onboardingCompleted: Bool = false
+    let createTripHintSeen: Bool = false
+    let addPlaceHintSeen: Bool = false
+    let hasStoredProfile: Bool = false
 
     var darkTheme: Bool { themePreference == .dark }
 
@@ -43,6 +47,10 @@ struct AccountProfile: Hashable, Sendable {
         emailPaymentRemindersEnabled: true,
         emailRecipient: nil,
         reminderHour: 9,
+        onboardingCompleted: false,
+        createTripHintSeen: false,
+        addPlaceHintSeen: false,
+        hasStoredProfile: false,
     )
 }
 
@@ -109,6 +117,10 @@ final class AccountRepository {
             emailPaymentRemindersEnabled: value.flag("email_payment_reminders_enabled") ?? true,
             emailRecipient: value.text("email_recipient").nonEmpty.flatMap(normalizeNotificationEmail),
             reminderHour: min(max(value.integer("reminder_hour") ?? 9, 0), 23),
+            onboardingCompleted: value.flag("onboarding_completed") ?? false,
+            createTripHintSeen: value.flag("create_trip_hint_seen") ?? false,
+            addPlaceHintSeen: value.flag("add_place_hint_seen") ?? false,
+            hasStoredProfile: true,
         )
     }
 
@@ -125,6 +137,9 @@ final class AccountRepository {
         emailPaymentRemindersEnabled: Bool? = nil,
         emailRecipient: String? = nil,
         reminderHour: Int? = nil,
+        onboardingCompleted: Bool? = nil,
+        createTripHintSeen: Bool? = nil,
+        addPlaceHintSeen: Bool? = nil,
     ) async throws {
         guard let userID = client.currentUser?.id else { throw SupabaseClientError.cancelled }
         let existing = try await loadProfileValue(userID: userID)
@@ -153,6 +168,9 @@ final class AccountRepository {
             next["email_recipient"] = .string(normalized)
         }
         reminderHour.map { next["reminder_hour"] = .number(Double(min(max($0, 0), 23))) }
+        onboardingCompleted.map { next["onboarding_completed"] = .boolean($0) }
+        createTripHintSeen.map { next["create_trip_hint_seen"] = .boolean($0) }
+        addPlaceHintSeen.map { next["add_place_hint_seen"] = .boolean($0) }
         let _: [UserDataRow] = try await client.request(
             "rest/v1/user_data?on_conflict=user_id,key",
             method: "POST",
@@ -182,6 +200,9 @@ final class AccountRepository {
                 emailPaymentRemindersEnabled: profile.emailPaymentRemindersEnabled,
                 emailRecipient: profile.emailRecipient,
                 reminderHour: profile.reminderHour,
+                onboardingCompleted: profile.onboardingCompleted,
+                createTripHintSeen: profile.createTripHintSeen,
+                addPlaceHintSeen: profile.addPlaceHintSeen,
             )
             if let previousReference = profile.avatarReference, previousReference != reference {
                 await client.deleteStorageReference(previousReference)
@@ -200,6 +221,35 @@ final class AccountRepository {
     func deleteAccount() async throws {
         guard client.currentUser != nil else { throw SupabaseClientError.cancelled }
         try await client.invokeFunction("delete-account", body: EmptyAccountBody())
+    }
+
+    func loadWebOnboardingCompleted() async throws -> Bool? {
+        guard let userID = client.currentUser?.id else { return nil }
+        let safeUserID = userID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userID
+        let path = "rest/v1/user_data?select=user_id,key,value&user_id=eq.\(safeUserID)&key=eq.web-onboarding"
+        let rows: [UserDataRow] = try await client.request(
+            path,
+            method: "GET",
+            body: nil as EmptyAccountBody?,
+            authenticated: true,
+        )
+        guard let value = rows.first?.value.objectValue else { return nil }
+        return value.flag("completed")
+    }
+
+    func updateWebOnboardingState(completed: Bool) async throws {
+        guard let userID = client.currentUser?.id else { throw SupabaseClientError.cancelled }
+        let value: JSONValue = .object([
+            "completed": .boolean(completed),
+            "completedAt": .string(ISO8601DateFormatter().string(from: Date())),
+        ])
+        let _: [UserDataRow] = try await client.request(
+            "rest/v1/user_data?on_conflict=user_id,key",
+            method: "POST",
+            body: [UserDataUpsert(userID: userID, key: "web-onboarding", value: value)],
+            authenticated: true,
+            extraHeaders: ["Prefer": "resolution=merge-duplicates,return=representation"],
+        )
     }
 
     private func loadProfileValue(userID: String) async throws -> [String: JSONValue] {

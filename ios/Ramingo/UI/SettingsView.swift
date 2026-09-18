@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var showNotificationSettings = false
     @State private var isPhotoPickerPresented = false
     @State private var showPasswordChange = false
+    @State private var showOnboardingReplay = false
     @State private var showDeleteConfirmation = false
     @State private var localError: String?
 
@@ -78,6 +79,10 @@ struct SettingsView: View {
                         }
 
                         settingsSection("ПРИЛОЖЕНИЕ") {
+                            SettingsButtonRow(icon: "book.pages", title: "Повторить обучение") {
+                                showOnboardingReplay = true
+                            }
+                            SettingsDivider()
                             SettingsRowLabel(icon: "info.circle", title: "Версия", value: versionText)
                         }
 
@@ -162,6 +167,10 @@ struct SettingsView: View {
             }
             .fullScreenCover(isPresented: $showNotificationSettings) {
                 NotificationSettingsView().environmentObject(model)
+            }
+            .fullScreenCover(isPresented: $showOnboardingReplay) {
+                OnboardingView(replay: true)
+                    .environmentObject(model)
             }
         }
         .presentationDetents([.large])
@@ -272,6 +281,10 @@ struct SettingsView: View {
                 emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
                 emailRecipient: emailRecipient,
                 reminderHour: reminderHour,
+                onboardingCompleted: model.profile.onboardingCompleted,
+                createTripHintSeen: model.profile.createTripHintSeen,
+                addPlaceHintSeen: model.profile.addPlaceHintSeen,
+                hasStoredProfile: model.profile.hasStoredProfile,
             )
             try await model.updateProfile(next)
         } catch {
@@ -300,7 +313,11 @@ struct SettingsView: View {
                 emailNotificationsEnabled: emailNotificationsEnabled,
                 emailPaymentRemindersEnabled: emailPaymentRemindersEnabled,
                 emailRecipient: emailRecipient,
-                reminderHour: reminderHour
+                reminderHour: reminderHour,
+                onboardingCompleted: model.profile.onboardingCompleted,
+                createTripHintSeen: model.profile.createTripHintSeen,
+                addPlaceHintSeen: model.profile.addPlaceHintSeen,
+                hasStoredProfile: model.profile.hasStoredProfile,
             )
             try await model.updateProfile(next)
         } catch {

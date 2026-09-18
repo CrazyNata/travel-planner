@@ -250,6 +250,35 @@ struct PrimaryActionButton: View {
     }
 }
 
+struct RamingoHintCard: View {
+    let title: String
+    let message: String
+    let icon: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(AppTheme.purple)
+                .frame(width: 35, height: 35)
+                .background(AppTheme.lavender, in: RoundedRectangle(cornerRadius: 11))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppTheme.font(14, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+                Text(message)
+                    .font(AppTheme.font(12, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(13)
+        .background(AppTheme.lavender.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.purpleLight.opacity(0.35), lineWidth: 1) }
+    }
+}
+
 struct RemotePhotoView: View {
     let reference: String?
     let client: SupabaseClient

@@ -92,6 +92,20 @@ final class WeatherRepository {
         return result
     }
 
+    func resolveCoordinates(
+        cities: [String],
+        known: [String: Coordinate],
+    ) async -> [String: Coordinate] {
+        var result = known
+        for city in cities.uniqued() where !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if result[city] != nil { continue }
+            if let coordinate = await resolveCoordinate(for: city, coordinates: result) {
+                result[city] = coordinate
+            }
+        }
+        return result
+    }
+
     private func load(city: String, coordinate: Coordinate, tripDates: String) async throws -> WeatherSnapshot {
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
         components.queryItems = [

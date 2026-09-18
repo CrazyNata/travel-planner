@@ -648,3 +648,152 @@ private func placesLanguageCode(_ language: String) -> String {
     default: return "ru"
     }
 }
+
+// MARK: - City catalog parity
+
+/// The Android client keeps a curated city layer in front of its large world
+/// catalog. Keeping the canonical layer in Swift gives iOS deterministic
+/// aliases, coordinates and country flags while still allowing a user to type
+/// an arbitrary free-form city name in a trip.
+struct IOSCityCatalogEntry: Identifiable, Hashable, Sendable {
+    let id: String
+    let russian: String
+    let english: String
+    let spanish: String
+    let german: String
+    let latitude: Double
+    let longitude: Double
+    let flag: String
+    let aliases: Set<String>
+
+    func localizedName(language: String) -> String {
+        switch language.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().prefix(2) {
+        case "EN": return english
+        case "ES": return spanish
+        case "DE": return german
+        default: return russian
+        }
+    }
+
+    var coordinate: Coordinate { Coordinate(latitude: latitude, longitude: longitude) }
+}
+
+final class IOSCityCatalogRepository {
+    private let entries: [IOSCityCatalogEntry] = [
+        Self.city("prague", "Прага", "Prague", "Praga", "Prag", 50.0755, 14.4378, "🇨🇿", "прага", "praha"),
+        Self.city("salzburg", "Зальцбург", "Salzburg", "Salzburgo", "Salzburg", 47.8095, 13.0550, "🇦🇹"),
+        Self.city("verona", "Верона", "Verona", "Verona", "Verona", 45.4384, 10.9916, "🇮🇹"),
+        Self.city("rome", "Рим", "Rome", "Roma", "Rom", 41.9028, 12.4964, "🇮🇹"),
+        Self.city("pisa", "Пиза", "Pisa", "Pisa", "Pisa", 43.7228, 10.4017, "🇮🇹"),
+        Self.city("san-marino", "Сан-Марино", "San Marino", "San Marino", "San Marino", 43.9424, 12.4578, "🇸🇲"),
+        Self.city("chioggia", "Кьоджа", "Chioggia", "Chioggia", "Chioggia", 45.2181, 12.2786, "🇮🇹"),
+        Self.city("milan", "Милан", "Milan", "Milán", "Mailand", 45.4642, 9.1900, "🇮🇹"),
+        Self.city("munich", "Мюнхен", "Munich", "Múnich", "München", 48.1351, 11.5820, "🇩🇪", "muenchen"),
+        Self.city("vienna", "Вена", "Vienna", "Viena", "Wien", 48.2082, 16.3738, "🇦🇹"),
+        Self.city("innsbruck", "Инсбрук", "Innsbruck", "Innsbruck", "Innsbruck", 47.2692, 11.4041, "🇦🇹"),
+        Self.city("florence", "Флоренция", "Florence", "Florencia", "Florenz", 43.7696, 11.2558, "🇮🇹"),
+        Self.city("venice", "Венеция", "Venice", "Venecia", "Venedig", 45.4408, 12.3155, "🇮🇹"),
+        Self.city("tallinn", "Таллин", "Tallinn", "Tallin", "Tallinn", 59.4370, 24.7536, "🇪🇪"),
+        Self.city("riga", "Рига", "Riga", "Riga", "Riga", 56.9496, 24.1052, "🇱🇻"),
+        Self.city("vilnius", "Вильнюс", "Vilnius", "Vilna", "Vilnius", 54.6872, 25.2797, "🇱🇹"),
+        Self.city("como", "Комо", "Como", "Como", "Como", 45.8080, 9.2600, "🇮🇹", "озеро комо", "lake como"),
+        Self.city("bormio", "Бормио", "Bormio", "Bormio", "Bormio", 46.4670, 10.3740, "🇮🇹"),
+        Self.city("berlin", "Берлин", "Berlin", "Berlín", "Berlin", 52.5200, 13.4050, "🇩🇪"),
+        Self.city("amsterdam", "Амстердам", "Amsterdam", "Ámsterdam", "Amsterdam", 52.3676, 4.9041, "🇳🇱"),
+        Self.city("barcelona", "Барселона", "Barcelona", "Barcelona", "Barcelona", 41.3874, 2.1686, "🇪🇸"),
+        Self.city("madrid", "Мадрид", "Madrid", "Madrid", "Madrid", 40.4168, -3.7038, "🇪🇸"),
+        Self.city("lisbon", "Лиссабон", "Lisbon", "Lisboa", "Lissabon", 38.7223, -9.1393, "🇵🇹"),
+        Self.city("paris", "Париж", "Paris", "París", "Paris", 48.8566, 2.3522, "🇫🇷"),
+        Self.city("london", "Лондон", "London", "Londres", "London", 51.5074, -0.1278, "🇬🇧"),
+        Self.city("budapest", "Будапешт", "Budapest", "Budapest", "Budapest", 47.4979, 19.0402, "🇭🇺"),
+        Self.city("istanbul", "Стамбул", "Istanbul", "Estambul", "Istanbul", 41.0082, 28.9784, "🇹🇷", "стамбул"),
+        Self.city("zurich", "Цюрих", "Zurich", "Zúrich", "Zürich", 47.3769, 8.5417, "🇨🇭"),
+        Self.city("helsinki", "Хельсинки", "Helsinki", "Helsinki", "Helsinki", 60.1699, 24.9384, "🇫🇮"),
+        Self.city("dubai", "Дубай", "Dubai", "Dubái", "Dubai", 25.2048, 55.2708, "🇦🇪"),
+        Self.city("tokyo", "Токио", "Tokyo", "Tokio", "Tokio", 35.6762, 139.6503, "🇯🇵"),
+        Self.city("new-york", "Нью-Йорк", "New York", "Nueva York", "New York", 40.7128, -74.0060, "🇺🇸", "new york"),
+    ]
+
+    func search(query: String, language: String, limit: Int = 36) -> [IOSCityCatalogEntry] {
+        let normalizedQuery = Self.normalize(query)
+        return entries
+            .compactMap { entry -> (entry: IOSCityCatalogEntry, score: Int)? in
+                let candidates = entry.aliases
+                let score = candidates.compactMap { candidate -> Int? in
+                    let value = Self.normalize(candidate)
+                    if normalizedQuery.isEmpty { return 0 }
+                    if value == normalizedQuery { return 300 }
+                    if value.hasPrefix(normalizedQuery) { return 200 }
+                    if value.contains(normalizedQuery) { return 100 }
+                    if normalizedQuery.count >= 4 && Self.editDistance(value, normalizedQuery) <= (normalizedQuery.count <= 6 ? 1 : 2) {
+                        return 50
+                    }
+                    return nil
+                }.max()
+                guard let score else { return nil }
+                return (entry, score)
+            }
+            .sorted {
+                if $0.score != $1.score { return $0.score > $1.score }
+                return $0.entry.localizedName(language: language) < $1.entry.localizedName(language: language)
+            }
+            .prefix(limit)
+            .map { $0.entry }
+    }
+
+    func resolve(_ value: String) -> IOSCityCatalogEntry? {
+        let normalized = Self.normalize(value.components(separatedBy: ",").first ?? value)
+        return entries.first { $0.aliases.contains(normalized) }
+    }
+
+    private static func city(
+        _ id: String,
+        _ russian: String,
+        _ english: String,
+        _ spanish: String,
+        _ german: String,
+        _ latitude: Double,
+        _ longitude: Double,
+        _ flag: String,
+        _ aliases: String...
+    ) -> IOSCityCatalogEntry {
+        let names = [id, russian, english, spanish, german] + aliases
+        return IOSCityCatalogEntry(
+            id: id,
+            russian: russian,
+            english: english,
+            spanish: spanish,
+            german: german,
+            latitude: latitude,
+            longitude: longitude,
+            flag: flag,
+            aliases: Set(names.map(Self.normalize)),
+        )
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "ё", with: "е")
+            .replacingOccurrences(of: "‑", with: "-")
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    private static func editDistance(_ lhs: String, _ rhs: String) -> Int {
+        let right = Array(rhs)
+        var previous = Array(0...right.count)
+        for (row, leftCharacter) in Array(lhs).enumerated() {
+            var current = [row + 1]
+            for (column, rightCharacter) in right.enumerated() {
+                let substitution = previous[column] + (leftCharacter == rightCharacter ? 0 : 1)
+                let insertion = current[column] + 1
+                let deletion = previous[column + 1] + 1
+                current.append(min(substitution, insertion, deletion))
+            }
+            previous = current
+        }
+        return previous.last ?? rhs.count
+    }
+}
