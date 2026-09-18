@@ -207,6 +207,10 @@ jobs:
                   )"
                    test -n "$access_token"
                    test -n "$refresh_token"
+                  echo "::add-mask::$access_token"
+                  echo "::add-mask::$refresh_token"
+                  export IOS_QA_ACCESS_TOKEN="$access_token"
+                  export IOS_QA_REFRESH_TOKEN="$refresh_token"
 
                    trip_id=""
                   if trip_response="$(curl -fsS --max-time 20 \

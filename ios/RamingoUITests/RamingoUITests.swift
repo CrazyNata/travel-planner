@@ -11,7 +11,7 @@ final class RamingoUITests: XCTestCase {
         let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
 
         app = XCUIApplication()
-        app.launchArguments = tripID.isEmpty ? [] : ["-ramingo-qa-trip-id", tripID]
+        app.launchArguments = qaLaunchArguments(tripID: tripID)
         allowSystemPermissions()
         app.launch()
 
@@ -59,7 +59,7 @@ final class RamingoUITests: XCTestCase {
         let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
 
         app = XCUIApplication()
-        app.launchArguments = tripID.isEmpty ? [] : ["-ramingo-qa-trip-id", tripID]
+        app.launchArguments = qaLaunchArguments(tripID: tripID)
         allowSystemPermissions()
         app.launch()
 
@@ -108,6 +108,23 @@ final class RamingoUITests: XCTestCase {
             }
         }
         return nil
+    }
+
+    private func qaLaunchArguments(tripID: String) -> [String] {
+        var arguments: [String] = []
+        if !tripID.isEmpty {
+            arguments += ["-ramingo-qa-trip-id", tripID]
+        }
+        if let accessToken = optionalTestValue("IOS_QA_ACCESS_TOKEN"),
+           let refreshToken = optionalTestValue("IOS_QA_REFRESH_TOKEN"),
+           !accessToken.isEmpty,
+           !refreshToken.isEmpty {
+            arguments += [
+                "-ramingo-qa-access-token", accessToken,
+                "-ramingo-qa-refresh-token", refreshToken,
+            ]
+        }
+        return arguments
     }
 
     private func element(_ identifier: String) -> XCUIElement {
