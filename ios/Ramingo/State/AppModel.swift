@@ -380,7 +380,7 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             guard !value.isEmpty else { return false }
             return seen.insert(value.lowercased()).inserted
         }
-        await weatherRepository.loadCurrent(
+        return await weatherRepository.loadCurrent(
             cities: cities,
             tripDates: overview.dates,
             coordinates: overview.cityCoordinates,
