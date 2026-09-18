@@ -144,7 +144,7 @@ jobs:
               echo "$launch_output"
               pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
               test -n "$pid"
-              sleep 8
+              sleep 18
               python3 - "$device_udid" "$screenshot_path" <<'PY'
           import subprocess
           import sys

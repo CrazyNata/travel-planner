@@ -8,6 +8,7 @@ struct RamingoApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tint(AppTheme.purple)
                 .task { await model.bootstrap() }
                 .onOpenURL { url in
