@@ -217,6 +217,7 @@
 			buildPhases = (
 				A10000000000000000000009 /* UI Tests Sources */,
 				A1000000000000000000000A /* UI Tests Resources */,
+				A1000000000000000000000B /* Prepare UI test QA resources */,
 				A10000000000000000000008 /* UI Tests Frameworks */,
 			);
 			buildRules = (
@@ -324,6 +325,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1000000000000000000000B /* Prepare UI test QA resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(IOS_QA_SESSION_FILE)",
+			);
+			name = "Prepare UI test QA resources";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ramingo-qa-session.json",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ramingo-qa-trip-id.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\noutput_dir=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$output_dir\"\nif [ -n \"${IOS_QA_SESSION_FILE:-}\" ] && [ -f \"$IOS_QA_SESSION_FILE\" ]; then\n  cp \"$IOS_QA_SESSION_FILE\" \"$output_dir/ramingo-qa-session.json\"\nfi\nif [ -n \"${IOS_QA_TRIP_ID:-}\" ]; then\n  printf '%s' \"$IOS_QA_TRIP_ID\" > \"$output_dir/ramingo-qa-trip-id.txt\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		A10000000000000000000070 /* Debug */ = {

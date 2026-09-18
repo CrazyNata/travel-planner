@@ -109,6 +109,28 @@ final class RamingoUITests: XCTestCase {
                 return value
             }
         }
+
+        let resourceName: String
+        let resourceExtension: String
+        switch name {
+        case "IOS_QA_SESSION_FILE":
+            resourceName = "ramingo-qa-session"
+            resourceExtension = "json"
+        case "IOS_QA_TRIP_ID":
+            resourceName = "ramingo-qa-trip-id"
+            resourceExtension = "txt"
+        default:
+            return nil
+        }
+
+        if let resourceURL = Bundle(for: RamingoUITests.self).url(
+            forResource: resourceName,
+            withExtension: resourceExtension
+        ),
+           let value = try? String(contentsOf: resourceURL, encoding: .utf8),
+           !value.isEmpty {
+            return value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
         return nil
     }
 
@@ -129,9 +151,15 @@ final class RamingoUITests: XCTestCase {
     }
 
     private func qaSession() -> QASession? {
-        guard let path = optionalTestValue("IOS_QA_SESSION_FILE"),
-              let data = try? Data(contentsOf: URL(fileURLWithPath: path))
-        else { return nil }
+        guard let path = optionalTestValue("IOS_QA_SESSION_FILE") else { return nil }
+        let data: Data?
+        if path.hasPrefix("/") {
+            data = try? Data(contentsOf: URL(fileURLWithPath: path))
+        } else {
+            data = path.data(using: .utf8)
+        }
+
+        guard let data else { return nil }
         return try? JSONDecoder().decode(QASession.self, from: data)
     }
 
