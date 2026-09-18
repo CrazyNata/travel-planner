@@ -26,7 +26,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -506,7 +505,7 @@ internal object ReminderScheduler {
     // persistent registry; their old broadcasts are ignored after upgrade.
     const val ACTION_DELIVER = "com.odyssey.travelplanner.action.DELIVER_REMINDER_V2"
     private const val ACTION_REFRESH = "com.odyssey.travelplanner.action.REFRESH_REMINDERS"
-    private const val CHANNEL_ID = "trip_reminders"
+    internal const val NOTIFICATION_CHANNEL_ID = "trip_reminders"
     private const val MAINTENANCE_REQUEST_CODE = 0
     private const val EXTRA_ACCOUNT_ID = "account_id"
     private const val EXTRA_TRIP_ID = "trip_id"
@@ -696,12 +695,16 @@ internal object ReminderScheduler {
     }
 
     internal fun canPostNotifications(context: Context): Boolean {
+        // Create the channel before checking it. On a fresh install Android
+        // has no channel yet, and the first scheduling pass must still be
+        // able to create it and register the alarms.
+        ensureChannel(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return false
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return false
         if (!manager.areNotificationsEnabled()) return false
-        return manager.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
+        return manager.getNotificationChannel(NOTIFICATION_CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
     }
 
     internal fun canScheduleExactAlarms(context: Context): Boolean {
@@ -714,27 +717,18 @@ internal object ReminderScheduler {
         if (intent.action != ACTION_DELIVER || !canPostNotifications(context)) return false
         val expectedAccountId = intent.getStringExtra(EXTRA_ACCOUNT_ID).orEmpty()
         val restoreResult = SupabaseProvider.restorePersistentSession()
-        if (restoreResult == com.odyssey.travelplanner.data.AuthRestoreResult.NO_SESSION ||
-            !SupabaseProvider.ensureActiveSession()
-        ) return false
+        if (restoreResult == com.odyssey.travelplanner.data.AuthRestoreResult.NO_SESSION) return false
         val actualAccountId = SupabaseProvider.clientForCurrentAuthFlow().auth.currentUserOrNull()?.id?.toString().orEmpty()
+        if (actualAccountId.isBlank()) return false
         if (expectedAccountId.isNotBlank() && expectedAccountId != actualAccountId) return false
 
-        // A preference change is persisted in Supabase. Check it when the
-        // process was started by an alarm so an old alarm cannot resurrect
-        // notifications after the user turns them off. Fail closed when the
-        // profile cannot be confirmed within the short timeout.
-        return withTimeoutOrNull(1_500L) {
-            runCatching {
-                val profile = AccountRepository(SupabaseProvider.clientForCurrentAuthFlow()).loadProfile()
-                profile.notificationsEnabled && when (intent.getStringExtra(EXTRA_KIND)) {
-                    ReminderKind.TRIP.name -> profile.tripRemindersEnabled
-                    ReminderKind.FREE_CANCELLATION.name -> profile.cancellationRemindersEnabled
-                    ReminderKind.PAYMENT.name -> profile.paymentRemindersEnabled
-                    else -> true
-                }
-            }.getOrNull()
-        } == true
+        // The alarm already contains the text and settings that were approved
+        // when it was scheduled. Do not make delivery depend on a network
+        // request: a cold start, locked phone, or offline connection must not
+        // silently discard a notification. Settings changes cancel and
+        // reschedule the local alarms, while a missing session still blocks
+        // delivery after an explicit sign-out.
+        return true
     }
 
     internal fun post(context: Context, intent: Intent) {
@@ -762,7 +756,7 @@ internal object ReminderScheduler {
             openTripIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(context, CHANNEL_ID)
+        val notification = Notification.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
@@ -835,10 +829,10 @@ internal object ReminderScheduler {
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+        if (manager.getNotificationChannel(NOTIFICATION_CHANNEL_ID) == null) {
             manager.createNotificationChannel(
                 NotificationChannel(
-                    CHANNEL_ID,
+                    NOTIFICATION_CHANNEL_ID,
                     "Напоминания о поездках",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply {

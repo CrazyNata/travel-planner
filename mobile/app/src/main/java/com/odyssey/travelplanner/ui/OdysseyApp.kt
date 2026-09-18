@@ -2557,6 +2557,20 @@ private fun OnboardingStepContent(
     }
 }
 
+private fun openNotificationSettings(context: Context) {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra(Settings.EXTRA_CHANNEL_ID, ReminderScheduler.NOTIFICATION_CHANNEL_ID)
+        }
+    } else {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+    }
+    runCatching { context.startActivity(intent) }
+}
+
 @Composable
 private fun OnboardingProductPreview(
     page: RamingoOnboardingPage,
@@ -4476,7 +4490,7 @@ private fun MyTripsScreen(
                 language = language,
                 darkTheme = darkTheme,
                 themePreference = themePreference,
-                notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
+                notificationsEnabled = notificationsEnabled && ReminderScheduler.canPostNotifications(context),
                 emailNotificationsEnabled = emailNotificationsEnabled,
                 emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
                 passwordEditorOpen = passwordEditorOpen,
@@ -4826,7 +4840,7 @@ private fun AccountSettingsScreen(
             language = language,
             darkTheme = darkTheme,
             themePreference = themePreference,
-            notificationsEnabled = notificationsEnabled && notificationPermissionGranted(context),
+            notificationsEnabled = notificationsEnabled && ReminderScheduler.canPostNotifications(context),
             emailNotificationsEnabled = emailNotificationsEnabled,
             emailPaymentRemindersEnabled = emailPaymentRemindersEnabled,
             passwordEditorOpen = passwordEditorOpen,
@@ -4987,6 +5001,8 @@ private fun NotificationSettingsScreen(
     var messageIsError by remember { mutableStateOf(false) }
     var pendingSave by remember { mutableStateOf<NotificationSettingsDraft?>(null) }
     var phonePermissionGranted by remember { mutableStateOf(notificationPermissionGranted(context)) }
+    var phoneNotificationsEnabled by remember { mutableStateOf(ReminderScheduler.canPostNotifications(context)) }
+    var notificationPermissionPrompted by remember { mutableStateOf(false) }
     var exactAlarmPermissionGranted by remember { mutableStateOf(ReminderScheduler.canScheduleExactAlarms(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     var helpOpen by remember { mutableStateOf(false) }
@@ -5018,6 +5034,8 @@ private fun NotificationSettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                phonePermissionGranted = notificationPermissionGranted(context)
+                phoneNotificationsEnabled = ReminderScheduler.canPostNotifications(context)
                 val wasGranted = exactAlarmPermissionGranted
                 val isGranted = ReminderScheduler.canScheduleExactAlarms(context)
                 exactAlarmPermissionGranted = isGranted
@@ -5055,7 +5073,9 @@ private fun NotificationSettingsScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        notificationPermissionPrompted = true
         phonePermissionGranted = granted
+        phoneNotificationsEnabled = granted && ReminderScheduler.canPostNotifications(context)
         val draft = pendingSave
         pendingSave = null
         if (granted && draft != null) {
@@ -5168,8 +5188,17 @@ private fun NotificationSettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(if (phonePermissionGranted) tintedSurfaceColor() else warningSurfaceColor())
-                    .clickable(enabled = !phonePermissionGranted) { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                    .background(if (phoneNotificationsEnabled) tintedSurfaceColor() else warningSurfaceColor())
+                    .clickable(enabled = !phoneNotificationsEnabled) {
+                        if (!phonePermissionGranted &&
+                            !notificationPermissionPrompted &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        ) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            openNotificationSettings(context)
+                        }
+                    }
                     .padding(12.dp),
             ) {
                 Box(
@@ -5177,25 +5206,29 @@ private fun NotificationSettingsScreen(
                     modifier = Modifier
                         .size(29.dp)
                         .clip(RoundedCornerShape(9.dp))
-                        .background(if (phonePermissionGranted) Color(0xFFE4DEFF) else Color(0xFFFFE1B8)),
+                    .background(if (phoneNotificationsEnabled) Color(0xFFE4DEFF) else Color(0xFFFFE1B8)),
                 ) {
                     Icon(
-                        if (phonePermissionGranted) Icons.Filled.Check else Icons.Outlined.NotificationsNone,
+                        if (phoneNotificationsEnabled) Icons.Filled.Check else Icons.Outlined.NotificationsNone,
                         contentDescription = null,
-                        tint = if (phonePermissionGranted) primaryColor() else Color(0xFFB97828),
+                        tint = if (phoneNotificationsEnabled) primaryColor() else Color(0xFFB97828),
                         modifier = Modifier.size(16.dp),
                     )
                 }
                 Column(modifier = Modifier.padding(start = 10.dp)) {
                     Text(
-                        if (phonePermissionGranted) localized("Разрешение телефона включено", "Phone permission is enabled", "Permiso del teléfono activado", "Telefonberechtigung aktiviert") else localized("Разрешите уведомления телефона", "Allow phone notifications", "Permita las notificaciones", "Telefonbenachrichtigungen erlauben"),
+                        when {
+                            phoneNotificationsEnabled -> localized("Разрешение телефона включено", "Phone permission is enabled", "Permiso del teléfono activado", "Telefonberechtigung aktiviert")
+                            !phonePermissionGranted -> localized("Разрешите уведомления телефона", "Allow phone notifications", "Permita las notificaciones", "Telefonbenachrichtigungen erlauben")
+                            else -> localized("Включите уведомления Ramingo", "Turn on Ramingo notifications", "Active las notificaciones de Ramingo", "Ramingo-Benachrichtigungen einschalten")
+                        },
                         color = contentTextColor(),
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W700,
                         fontSize = 10.sp,
                     )
                     Text(
-                        if (phonePermissionGranted) localized("Ramingo сможет напоминать о важных датах.", "Ramingo can remind you about important dates.", "Ramingo puede recordar fechas importantes.", "Ramingo kann an wichtige Termine erinnern.") else localized("Нажмите, чтобы открыть системное разрешение.", "Tap to open the system permission.", "Toque para abrir el permiso del sistema.", "Tippen, um die Systemberechtigung zu öffnen."),
+                        if (phoneNotificationsEnabled) localized("Ramingo сможет напоминать о важных датах.", "Ramingo can remind you about important dates.", "Ramingo puede recordar fechas importantes.", "Ramingo kann an wichtige Termine erinnern.") else localized("Нажмите, чтобы разрешить уведомления в Android.", "Tap to allow notifications in Android.", "Toque para permitir las notificaciones en Android.", "Tippen Sie, um Benachrichtigungen in Android zu erlauben."),
                         color = detailColor,
                         fontFamily = Manrope,
                         fontWeight = FontWeight.W500,
