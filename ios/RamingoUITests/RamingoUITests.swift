@@ -8,15 +8,7 @@ final class RamingoUITests: XCTestCase {
     }
 
     func testAuthenticatedTripSectionsAndFilters() throws {
-        let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
-        XCTAssertNotNil(qaSession(), "Сессия iOS UI-теста не передана в тестовый bundle")
-
-        app = XCUIApplication()
-        app.launchArguments = qaLaunchArguments(tripID: tripID)
-        allowSystemPermissions()
-        app.launch()
-
-        XCTAssertTrue(app.staticTexts["Главная"].waitForExistence(timeout: 60), "Авторизованный экран поездки не открылся")
+        launchAuthorizedTrip()
         XCTAssertTrue(element("trip.drawer").waitForExistence(timeout: 10), "Не найдено меню поездки")
 
         element("trip.drawer").tap()
@@ -56,16 +48,168 @@ final class RamingoUITests: XCTestCase {
         app.buttons["Закрыть"].firstMatch.tap()
     }
 
-    func testCreateTripFormValidationWithoutSaving() throws {
-        let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
-        XCTAssertNotNil(qaSession(), "Сессия iOS UI-теста не передана в тестовый bundle")
+    func testAuthenticatedTripAllSectionsAndReadOnlyEditors() throws {
+        launchAuthorizedTrip()
 
+        XCTAssertTrue(app.staticTexts["Погода по маршруту"].waitForExistence(timeout: 15), "Главный экран поездки не показал блок погоды")
+        if app.buttons["На даты поездки"].waitForExistence(timeout: 5) {
+            app.buttons["На даты поездки"].tap()
+            XCTAssertTrue(app.staticTexts["Прогноз на даты поездки"].waitForExistence(timeout: 5), "Переключатель прогноза на даты не сработал")
+            app.buttons["Сейчас"].tap()
+            XCTAssertTrue(app.staticTexts["Текущая погода для городов маршрута"].waitForExistence(timeout: 5), "Переключатель текущей погоды не сработал")
+        }
+
+        if app.buttons["Редактировать главный экран"].waitForExistence(timeout: 5) {
+            app.buttons["Редактировать главный экран"].tap()
+            XCTAssertTrue(app.staticTexts["Зажмите блок за ⋮⋮ и перенесите его"].waitForExistence(timeout: 5), "Режим редактирования главного экрана не открылся")
+            if app.buttons["Изменить карту"].waitForExistence(timeout: 3) {
+                app.buttons["Изменить карту"].tap()
+                XCTAssertTrue(app.staticTexts["Создать карту"].waitForExistence(timeout: 5), "Редактор карты не открылся")
+                app.buttons["Отмена"].firstMatch.tap()
+            }
+            if app.buttons["Настроить погоду"].waitForExistence(timeout: 3) {
+                app.buttons["Настроить погоду"].tap()
+                XCTAssertTrue(app.staticTexts["Погода по городам"].waitForExistence(timeout: 5), "Редактор городов погоды не открылся")
+                app.buttons["Отмена"].firstMatch.tap()
+            }
+            app.buttons["Завершить редактирование главного экрана"].tap()
+        }
+
+        openTripSection("sights", title: "Достопримечательности")
+        XCTAssertTrue(app.buttons["Копировать"].waitForExistence(timeout: 10), "На экране достопримечательностей нет копирования маршрута")
+        app.buttons["Копировать"].tap()
+        XCTAssertTrue(app.buttons["Скопировано"].waitForExistence(timeout: 5), "Копирование маршрута достопримечательностей не сработало")
+
+        openTripSection("restaurants", title: "Рестораны")
+        XCTAssertTrue(element("restaurants.filters").waitForExistence(timeout: 10), "В разделе ресторанов нет фильтров")
+        element("restaurants.filters").tap()
+        XCTAssertTrue(app.staticTexts["Фильтры"].waitForExistence(timeout: 5), "Фильтры ресторанов не открылись")
+        tapIfPresent("Бар")
+        tapIfPresent("С собакой")
+        tapIfPresent("4.5+")
+        XCTAssertTrue(app.buttons["Показать результаты"].waitForExistence(timeout: 5), "В фильтрах ресторанов нет применения")
+        app.buttons["Показать результаты"].tap()
+        XCTAssertTrue(element("restaurants.filters").waitForExistence(timeout: 5), "После фильтрации ресторанов раздел закрылся")
+        if tapIfPresent("Добавить ресторан", timeout: 5) {
+            XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Редактор ресторанов не открылся")
+            app.buttons["Готово"].firstMatch.tap()
+            XCTAssertTrue(app.staticTexts["Рестораны"].waitForExistence(timeout: 10), "Редактор ресторанов не закрылся без сохранения")
+        }
+
+        openTripSection("accommodation", title: "Жильё")
+        XCTAssertTrue(tapIfPresent("Добавить жильё", timeout: 5), "В разделе жилья нет добавления")
+        XCTAssertTrue(app.staticTexts["Выберите способ добавления"].waitForExistence(timeout: 5), "Выбор способа добавления жилья не открылся")
+        XCTAssertTrue(tapIfPresent("Найти в каталоге", timeout: 3), "В жилье нет добавления из каталога")
+        XCTAssertTrue(app.staticTexts["Жильё"].waitForExistence(timeout: 10), "Каталог жилья не открылся")
+        XCTAssertTrue(tapIfPresent("Закрыть", timeout: 5), "Каталог жилья нельзя закрыть")
+        XCTAssertTrue(tapIfPresent("Добавить жильё", timeout: 5), "Повторное добавление жилья недоступно")
+        XCTAssertTrue(tapIfPresent("Добавить вручную", timeout: 3), "В жилье нет ручного добавления")
+        XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Ручной редактор жилья не открылся")
+        app.buttons["Готово"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Жильё"].waitForExistence(timeout: 10), "Ручной редактор жилья не закрылся")
+
+        openTripSection("pets", title: "Питомцы")
+        XCTAssertTrue(app.buttons["Зоомагазины"].waitForExistence(timeout: 10), "На экране питомцев нет вкладки зоомагазинов")
+        XCTAssertTrue(app.buttons["Ветеринары"].exists, "На экране питомцев нет вкладки ветеринаров")
+        app.buttons["Ветеринары"].tap()
+        XCTAssertTrue(app.buttons["Ветеринары"].exists, "Переключение на ветеринаров не доступно")
+        let petFilters = buttonContaining("Фильтры")
+        XCTAssertTrue(petFilters.waitForExistence(timeout: 5), "В разделе питомцев нет фильтров")
+        petFilters.tap()
+        XCTAssertTrue(app.staticTexts["Фильтры"].waitForExistence(timeout: 5), "Фильтры питомцев не открылись")
+        XCTAssertTrue(tapIfPresent("Круглосуточно"), "В фильтрах ветеринаров нет опции круглосуточной работы")
+        XCTAssertTrue(tapIfPresent("★ 4.5"), "В фильтрах питомцев нет рейтинга")
+        XCTAssertTrue(app.buttons["Показать места"].waitForExistence(timeout: 5), "В фильтрах питомцев нет применения")
+        app.buttons["Показать места"].tap()
+
+        openTripSection("budget", title: "Бюджет")
+        XCTAssertTrue(app.staticTexts["ОБЩАЯ СУММА"].waitForExistence(timeout: 10), "Бюджет не показал общую сумму")
+        XCTAssertTrue(app.staticTexts["Курс валюты"].waitForExistence(timeout: 10), "Бюджет не показал курс валюты")
+        let rateEditor = app.buttons["Изменить"].firstMatch
+        if rateEditor.waitForExistence(timeout: 5), rateEditor.isEnabled {
+            rateEditor.tap()
+            XCTAssertTrue(app.staticTexts["Изменить курс"].waitForExistence(timeout: 5), "Редактор курса валюты не открылся")
+            app.buttons["Отмена"].firstMatch.tap()
+        }
+
+        openTripSection("members", title: "Участники")
+        if tapIfPresent("Изменить", timeout: 5) {
+            XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Редактор участников не открылся")
+            app.buttons["Готово"].firstMatch.tap()
+            XCTAssertTrue(app.staticTexts["Участники"].waitForExistence(timeout: 10), "Редактор участников не закрылся")
+        }
+        if tapIfPresent("Покинуть поездку", timeout: 3) {
+            XCTAssertTrue(app.staticTexts["Покинуть поездку?"].waitForExistence(timeout: 5), "Подтверждение выхода из поездки не открылось")
+            app.buttons["Отмена"].firstMatch.tap()
+        }
+
+        openTripSection("photos", title: "Фото")
+        XCTAssertTrue(app.staticTexts["Фотографии"].waitForExistence(timeout: 10), "Раздел фотографий не показал заголовок")
+        XCTAssertTrue(app.buttons["Загрузить"].waitForExistence(timeout: 5), "В разделе фотографий нет загрузки")
+    }
+
+    func testAuthenticatedHomeFiltersAndSettingsSurfaces() throws {
+        launchAuthorizedTrip()
+        element("trip.drawer").tap()
+        element("trip.home").tap()
+        XCTAssertTrue(app.staticTexts["Мои путешествия"].waitForExistence(timeout: 15), "Список поездок не открылся")
+
+        for prefix in ["Все ·", "Предстоящие ·", "Черновики ·", "Завершённые ·"] {
+            let filter = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+            XCTAssertTrue(filter.waitForExistence(timeout: 5), "На главном экране нет фильтра \(prefix)")
+            filter.tap()
+        }
+
+        let settingsButton = app.buttons["Открыть настройки"].firstMatch
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "На главном экране нет перехода в настройки")
+        settingsButton.tap()
+        XCTAssertTrue(app.staticTexts["Настройки"].waitForExistence(timeout: 10), "Настройки из списка поездок не открылись")
+
+        app.buttons["Тема"].tap()
+        XCTAssertTrue(app.buttons["Светлая"].waitForExistence(timeout: 5), "Выбор темы не открылся")
+        app.buttons["Тема"].tap()
+        app.buttons["Языки"].tap()
+        XCTAssertTrue(app.buttons["EN"].waitForExistence(timeout: 5), "Выбор языка не открылся")
+        app.buttons["Языки"].tap()
+
+        app.buttons["Уведомления"].tap()
+        XCTAssertTrue(app.staticTexts["Уведомления"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
+        app.buttons["Закрыть"].firstMatch.tap()
+
+        app.buttons["Изменить пароль"].tap()
+        XCTAssertTrue(app.staticTexts["Изменить пароль"].waitForExistence(timeout: 10), "Форма смены пароля не открылась")
+        app.buttons["Закрыть"].firstMatch.tap()
+
+        app.buttons["Удалить аккаунт"].tap()
+        XCTAssertTrue(app.staticTexts["Удалить аккаунт?"].waitForExistence(timeout: 5), "Подтверждение удаления аккаунта не открылось")
+        app.buttons["Отмена"].firstMatch.tap()
+        app.buttons["Закрыть"].firstMatch.tap()
+    }
+
+    func testUnauthenticatedAuthAndRecoverySurfaces() throws {
         app = XCUIApplication()
-        app.launchArguments = qaLaunchArguments(tripID: tripID)
+        app.launchArguments = ["-ramingo-qa-skip-session"]
         allowSystemPermissions()
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Главная"].waitForExistence(timeout: 60), "Авторизованный экран поездки не открылся")
+        XCTAssertTrue(app.staticTexts["С возвращением"].waitForExistence(timeout: 30), "Экран входа не открылся без сессии")
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "На экране входа нет e-mail поля")
+        XCTAssertTrue(app.secureTextFields.firstMatch.waitForExistence(timeout: 5), "На экране входа нет поля пароля")
+
+        app.buttons["Забыли пароль?"].tap()
+        XCTAssertTrue(app.staticTexts["Сброс пароля"].waitForExistence(timeout: 10), "Форма восстановления пароля не открылась")
+        app.buttons["Закрыть"].firstMatch.tap()
+
+        XCTAssertTrue(buttonContaining("Зарегистрироваться").waitForExistence(timeout: 5), "На экране входа нет перехода к регистрации")
+        buttonContaining("Зарегистрироваться").tap()
+        XCTAssertTrue(app.staticTexts["Создать аккаунт"].waitForExistence(timeout: 5), "Переключение на регистрацию не сработало")
+        buttonContaining("Войти").tap()
+        XCTAssertTrue(app.staticTexts["С возвращением"].waitForExistence(timeout: 5), "Возврат к форме входа не сработал")
+    }
+
+    func testCreateTripFormValidationWithoutSaving() throws {
+        let tripID = launchAuthorizedTrip()
+        _ = tripID
         element("trip.drawer").tap()
         element("trip.home").tap()
         XCTAssertTrue(app.staticTexts["Мои путешествия"].waitForExistence(timeout: 15), "Список поездок не открылся")
@@ -97,6 +241,41 @@ final class RamingoUITests: XCTestCase {
 
         app.buttons["Отмена"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Мои путешествия"].waitForExistence(timeout: 10), "Форма не закрылась без сохранения")
+    }
+
+    @discardableResult
+    private func launchAuthorizedTrip() -> String {
+        let tripID = optionalTestValue("IOS_QA_TRIP_ID") ?? ""
+        XCTAssertNotNil(qaSession(), "Сессия iOS UI-теста не передана в тестовый bundle")
+
+        app = XCUIApplication()
+        app.launchArguments = qaLaunchArguments(tripID: tripID)
+        allowSystemPermissions()
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Главная"].waitForExistence(timeout: 60), "Авторизованный экран поездки не открылся")
+        return tripID
+    }
+
+    private func openTripSection(_ identifier: String, title: String) {
+        XCTAssertTrue(element("trip.drawer").waitForExistence(timeout: 10), "Не найдено меню поездки перед открытием \(identifier)")
+        element("trip.drawer").tap()
+        let row = element("trip.section.\(identifier)")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "В меню нет раздела \(identifier)")
+        row.tap()
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 15), "Раздел \(title) не открылся")
+    }
+
+    @discardableResult
+    private func tapIfPresent(_ title: String, timeout: TimeInterval = 2) -> Bool {
+        let button = app.buttons[title].firstMatch
+        guard button.waitForExistence(timeout: timeout) else { return false }
+        button.tap()
+        return true
+    }
+
+    private func buttonContaining(_ text: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
     private func optionalTestValue(_ name: String) -> String? {

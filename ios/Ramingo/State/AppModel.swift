@@ -52,6 +52,11 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
         }
         do {
 #if DEBUG
+            if Self.hasLaunchArgument("-ramingo-qa-skip-session") {
+                session = nil
+                isReadyForSession = false
+                return
+            }
             if let tripID = Self.launchArgument("-ramingo-qa-trip-id"), !tripID.isEmpty {
                 pendingTripID = tripID
             }
@@ -784,6 +789,10 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
 #if DEBUG
+    private static func hasLaunchArgument(_ name: String) -> Bool {
+        ProcessInfo.processInfo.arguments.contains(name)
+    }
+
     private static func launchArgument(_ name: String) -> String? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: name), arguments.index(after: index) < arguments.endIndex else {

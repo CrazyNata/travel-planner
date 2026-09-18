@@ -294,7 +294,7 @@ jobs:
                     IOS_QA_SESSION_FILE="$qa_session_file" \
                     IOS_QA_TRIP_ID="$trip_id" \
                     test-without-building 2>&1 | tee -a "$test_log"
-                  grep -Eq 'Executed 2 tests, with (0 tests skipped and )?0 failures' "$test_log"
+                  grep -Eq 'Executed [0-9]+ tests, with (0 tests skipped and )?0 failures' "$test_log"
 
                   xcrun simctl privacy "$device_udid" grant location com.odyssey.ramingo.ios >/dev/null 2>&1 || true
                   xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
