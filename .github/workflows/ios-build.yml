@@ -245,7 +245,7 @@ jobs:
                   echo "$launch_output"
                   pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
                   test -n "$pid"
-                  sleep 20
+                  sleep 60
                   xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
 
                   xcodebuild \
@@ -270,7 +270,7 @@ jobs:
                   echo "$launch_output"
                   pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
                   test -n "$pid"
-                  sleep 20
+                  sleep 60
                   capture_path="$RUNNER_TEMP/ramingo-ios-authorized.png"
                   echo "Authenticated iOS UI smoke passed${trip_id:+; trip deep link requested}."
               else
