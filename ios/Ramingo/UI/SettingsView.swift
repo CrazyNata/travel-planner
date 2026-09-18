@@ -121,7 +121,7 @@ struct SettingsView: View {
                     .padding(.bottom, 34)
                 }
             }
-            .navigationTitle("Профиль и настройки")
+            .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
