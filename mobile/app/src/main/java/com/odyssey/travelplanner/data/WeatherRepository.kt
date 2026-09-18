@@ -218,7 +218,7 @@ class WeatherRepository {
     }
 }
 
-private fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? {
+internal fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? {
     val dotted = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").find(value)?.value
     if (dotted != null) {
         val dates = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").findAll(value).mapNotNull { match ->
@@ -251,6 +251,19 @@ private fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? {
         "ноября" to 11, "ноябрь" to 11,
         "декабря" to 12, "декабрь" to 12,
     )
+    val compactHumanRange = Regex(
+        "(\\d{1,2})\\s*[–—-]\\s*(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})",
+        RegexOption.IGNORE_CASE,
+    ).find(value)
+    if (compactHumanRange != null) {
+        val startDay = compactHumanRange.groupValues[1].toIntOrNull() ?: return null
+        val endDay = compactHumanRange.groupValues[2].toIntOrNull() ?: return null
+        val month = russianMonths[compactHumanRange.groupValues[3].lowercase(Locale.ROOT)] ?: return null
+        val year = compactHumanRange.groupValues[4].toIntOrNull() ?: return null
+        val start = runCatching { LocalDate.of(year, month, startDay) }.getOrNull() ?: return null
+        val end = runCatching { LocalDate.of(year, month, endDay) }.getOrNull() ?: return null
+        return start to end
+    }
     val dates = Regex(
         "(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})",
         RegexOption.IGNORE_CASE,

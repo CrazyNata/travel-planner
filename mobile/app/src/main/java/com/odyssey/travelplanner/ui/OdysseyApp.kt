@@ -6474,28 +6474,46 @@ private fun parseTripDateRange(value: String): Pair<LocalDate, LocalDate>? {
         return start to isoDates.getOrElse(1) { start }
     }
 
+    // The shared web app abbreviates same-month ranges as
+    // "25–27 сентября 2026". A plain date regex only finds the end date,
+    // which makes the Android weather strip contain a single day.
+    val compactHumanRange = Regex(
+        """(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+([A-Za-zА-Яа-яЁёÄÖÜäöüß]+)\s+(\d{4})""",
+    ).find(value)
+    if (compactHumanRange != null) {
+        val month = weatherMonthNumber(compactHumanRange.groupValues[3]) ?: return null
+        val year = compactHumanRange.groupValues[4].toIntOrNull() ?: return null
+        val startDay = compactHumanRange.groupValues[1].toIntOrNull() ?: return null
+        val endDay = compactHumanRange.groupValues[2].toIntOrNull() ?: return null
+        val start = runCatching { LocalDate.of(year, month, startDay) }.getOrNull() ?: return null
+        val end = runCatching { LocalDate.of(year, month, endDay) }.getOrNull() ?: return null
+        return start to end
+    }
+
     val humanDates = Regex("""(\d{1,2})\s+([A-Za-zА-Яа-яЁёÄÖÜäöüß]+)\s+(\d{4})""").findAll(value)
         .mapNotNull { match ->
-            val month = when (match.groupValues[2].lowercase(Locale.ROOT).take(4)) {
-                "янва", "janu", "jan", "ene" -> 1
-                "февр", "febr", "feb" -> 2
-                "мар", "mär", "mar", "march" -> 3
-                "апре", "apr" -> 4
-                "мая", "май", "may", "mai" -> 5
-                "июн", "june", "jun" -> 6
-                "июл", "july", "jul" -> 7
-                "авгу", "aug", "ago" -> 8
-                "сент", "сен", "sept", "sep" -> 9
-                "октя", "окт", "oct", "okt" -> 10
-                "нояб", "nov" -> 11
-                "дека", "дек", "dec", "dez" -> 12
-                else -> null
-            } ?: return@mapNotNull null
+            val month = weatherMonthNumber(match.groupValues[2]) ?: return@mapNotNull null
             runCatching { LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt()) }.getOrNull()
         }
         .toList()
     val start = humanDates.firstOrNull() ?: return null
     return start to humanDates.getOrElse(1) { start }
+}
+
+private fun weatherMonthNumber(value: String): Int? = when (value.trim().lowercase(Locale.ROOT)) {
+    "январь", "января", "янв", "january", "januar", "jan", "enero", "ene" -> 1
+    "февраль", "февраля", "фев", "february", "februar", "feb", "febrero" -> 2
+    "март", "марта", "мар", "march", "märz", "mär", "mar", "marzo" -> 3
+    "апрель", "апреля", "апр", "april", "apr", "abril" -> 4
+    "май", "мая", "may", "mai", "mayo" -> 5
+    "июнь", "июня", "июн", "june", "jun", "junio" -> 6
+    "июль", "июля", "июл", "july", "jul", "julio" -> 7
+    "август", "августа", "авг", "august", "aug", "agosto", "ago" -> 8
+    "сентябрь", "сентября", "сен", "сент", "september", "sept", "sep", "septiembre" -> 9
+    "октябрь", "октября", "окт", "october", "oct", "oktober", "okt", "octubre" -> 10
+    "ноябрь", "ноября", "ноя", "нояб", "november", "nov", "noviembre" -> 11
+    "декабрь", "декабря", "дек", "december", "dec", "dezember", "dez", "diciembre" -> 12
+    else -> null
 }
 
 internal fun weatherTripDates(value: String, maxDays: Int = 366): List<LocalDate> {
@@ -24416,8 +24434,18 @@ private fun WeatherTripDayPanel(
     val shape = RoundedCornerShape(17.dp)
     val selectedBackground = if (LocalDarkTheme.current) Color(0xFF5148B4) else Color(0xFFDCE9F3)
     val selectedText = if (LocalDarkTheme.current) Color.White else Color(0xFF315C7C)
-    val visibleDates = dates.take(8)
-    val hiddenCount = (dates.size - visibleDates.size).coerceAtLeast(0)
+    val pageSize = 8
+    var visibleDateStart by remember(dates) { mutableStateOf(0) }
+    LaunchedEffect(dates, selectedDate) {
+        val selectedIndex = dates.indexOf(selectedDate)
+        if (selectedIndex >= 0) {
+            visibleDateStart = (selectedIndex / pageSize) * pageSize
+        }
+    }
+    val visibleDates = dates.drop(visibleDateStart).take(pageSize)
+    val previousDateStart = (visibleDateStart - pageSize).coerceAtLeast(0)
+    val nextDateStart = (visibleDateStart + pageSize).coerceAtMost(dates.size)
+    val hiddenCount = (dates.size - nextDateStart).coerceAtLeast(0)
     val selectedWeather = selectedCity?.let { city -> weather[city]?.tripDays?.get(selectedDate.toString()) }
     val selectedConditionValue = selectedWeather?.condition
     val selectedCondition = if (selectedConditionValue == null) {
@@ -24430,6 +24458,12 @@ private fun WeatherTripDayPanel(
     } else {
         localizedCityName(selectedCity)
     }
+    val nextDatesDescription = localized(
+        "Показать следующие даты",
+        "Show next dates",
+        "Mostrar fechas siguientes",
+        "Nächste Daten anzeigen",
+    )
 
     Column(
         modifier = Modifier
@@ -24462,17 +24496,48 @@ private fun WeatherTripDayPanel(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            Text(
-                "${dates.size} ${localizedCountWord(dates.size, language, "день", "дня", "дней", "day", "days", "día", "días", "Tag", "Tage")}",
-                color = primaryColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 11.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(tintedSurfaceColor())
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                if (visibleDateStart > 0) {
+                    IconButton(
+                        onClick = { onDateSelected(dates[previousDateStart]) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.ArrowBack,
+                            contentDescription = localized("Показать предыдущие даты", "Show previous dates", "Mostrar fechas anteriores", "Vorherige Daten anzeigen"),
+                            tint = primaryColor(),
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+                Text(
+                    "${dates.size} ${localizedCountWord(dates.size, language, "день", "дня", "дней", "day", "days", "día", "días", "Tag", "Tage")}",
+                    color = primaryColor(),
+                    fontFamily = Manrope,
+                    fontWeight = FontWeight.W800,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(tintedSurfaceColor())
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                )
+                if (nextDateStart < dates.size) {
+                    IconButton(
+                        onClick = { onDateSelected(dates[nextDateStart]) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.KeyboardArrowRight,
+                            contentDescription = localized("Показать следующие даты", "Show next dates", "Mostrar fechas siguientes", "Nächste Daten anzeigen"),
+                            tint = primaryColor(),
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+            }
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -24545,6 +24610,11 @@ private fun WeatherTripDayPanel(
                         .height(70.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(secondarySurfaceColor())
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = nextDatesDescription
+                            role = Role.Button
+                        }
+                        .clickable { onDateSelected(dates[nextDateStart]) }
                         .padding(horizontal = 8.dp),
                 ) {
                     Text("+$hiddenCount", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp)

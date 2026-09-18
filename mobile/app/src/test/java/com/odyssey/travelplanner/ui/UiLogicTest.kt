@@ -137,6 +137,30 @@ class UiLogicTest {
     }
 
     @Test
+    fun weatherTripDatesParsesSharedWebCompactDateRange() {
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 9, 25),
+                LocalDate.of(2026, 9, 26),
+                LocalDate.of(2026, 9, 27),
+            ),
+            weatherTripDates("25–27 сентября 2026 · 3 дня"),
+        )
+    }
+
+    @Test
+    fun weatherTripDatesParsesRussianMonthForms() {
+        assertEquals(
+            listOf(
+                LocalDate.of(2026, 3, 25),
+                LocalDate.of(2026, 3, 26),
+                LocalDate.of(2026, 3, 27),
+            ),
+            weatherTripDates("25–27 марта 2026 · 3 дня"),
+        )
+    }
+
+    @Test
     fun weatherTripDatesCapsVeryLongRanges() {
         assertEquals(
             listOf(LocalDate.of(2026, 9, 25), LocalDate.of(2026, 9, 26)),
