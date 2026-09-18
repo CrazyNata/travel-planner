@@ -51,6 +51,8 @@ jobs:
           app_path="$RUNNER_TEMP/RamingoDerivedData/Build/Products/Debug-iphonesimulator/Ramingo.app"
           smoke_log="$RUNNER_TEMP/ramingo-ios-simulator-smoke.log"
           screenshot_path="$RUNNER_TEMP/ramingo-ios-simulator.png"
+          video_path="$RUNNER_TEMP/ramingo-ios-simulator.mp4"
+          video_log="$RUNNER_TEMP/ramingo-ios-simulator-record.log"
           : > "$smoke_log"
 
           device_udid="$(python3 - <<'PY'
@@ -112,7 +114,17 @@ jobs:
               device_created=true
           fi
 
+          record_pid=""
+          stop_recording() {
+              if [ -n "$record_pid" ]; then
+                  kill -INT "$record_pid" >/dev/null 2>&1 || true
+                  wait "$record_pid" >/dev/null 2>&1 || true
+                  record_pid=""
+              fi
+          }
+
           cleanup() {
+              stop_recording
               xcrun simctl shutdown "$device_udid" >/dev/null 2>&1 || true
               if [ "$device_created" = true ]; then
                   xcrun simctl delete "$device_udid" >/dev/null 2>&1 || true
@@ -125,6 +137,9 @@ jobs:
               xcrun simctl boot "$device_udid"
               xcrun simctl bootstatus "$device_udid" -b
               xcrun simctl install "$device_udid" "$app_path"
+              xcrun simctl io "$device_udid" recordVideo --codec=h264 "$video_path" >"$video_log" 2>&1 &
+              record_pid=$!
+              sleep 2
               launch_output="$(xcrun simctl launch "$device_udid" com.odyssey.ramingo.ios)"
               echo "$launch_output"
               pid="$(printf '%s\n' "$launch_output" | sed -nE 's/.*: ([0-9]+)$/\1/p')"
@@ -141,8 +156,10 @@ jobs:
               timeout=45,
           )
           PY
+              stop_recording
               test -s "$screenshot_path"
-              echo "Simulator smoke test passed: Ramingo launched with pid $pid and produced a screenshot."
+              test -s "$video_path"
+              echo "Simulator smoke test passed: Ramingo launched with pid $pid and produced a screenshot and video."
           } 2>&1 | tee "$smoke_log"
 
       - name: Upload Simulator build
@@ -162,4 +179,6 @@ jobs:
           path: |
             ${{ runner.temp }}/ramingo-ios-simulator-smoke.log
             ${{ runner.temp }}/ramingo-ios-simulator.png
+            ${{ runner.temp }}/ramingo-ios-simulator.mp4
+            ${{ runner.temp }}/ramingo-ios-simulator-record.log
           if-no-files-found: ignore
