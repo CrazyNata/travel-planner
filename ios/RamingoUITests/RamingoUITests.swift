@@ -50,7 +50,7 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(element("restaurants.filters").waitForExistence(timeout: 5), "После применения фильтр закрыл раздел")
 
         element("trip.drawer").tap()
-        element("trip.section.settings").tap()
+        element("trip.settings").tap()
         XCTAssertTrue(app.staticTexts["Настройки"].waitForExistence(timeout: 10), "Настройки не открылись из меню поездки")
         app.buttons["Закрыть"].firstMatch.tap()
     }
