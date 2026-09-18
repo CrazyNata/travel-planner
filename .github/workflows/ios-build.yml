@@ -223,25 +223,26 @@ jobs:
                        )"
                    fi
 
-                  qa_xcconfig="$RUNNER_TEMP/RamingoUITests.xcconfig"
+                  scheme_path="ios/Ramingo.xcodeproj/xcshareddata/xcschemes/RamingoUITests.xcscheme"
+                  SCHEME_PATH="$scheme_path" \
                   IOS_QA_ACCESS_TOKEN="$access_token" \
                   IOS_QA_REFRESH_TOKEN="$refresh_token" \
                   IOS_QA_TRIP_ID="$trip_id" \
-                  QA_XCCONFIG="$qa_xcconfig" \
-                  PUBLIC_XCCONFIG="$RUNNER_TEMP/RamingoSimulator.xcconfig" \
                   python3 - <<'PY'
+          import html
           import os
           from pathlib import Path
 
-          config = Path(os.environ["QA_XCCONFIG"])
-          public_config = Path(os.environ["PUBLIC_XCCONFIG"])
-          config.write_text(
-              f'#include "{public_config.as_posix()}"\n'
-              "IOS_QA_ACCESS_TOKEN = " + os.environ["IOS_QA_ACCESS_TOKEN"] + "\n"
-              "IOS_QA_REFRESH_TOKEN = " + os.environ["IOS_QA_REFRESH_TOKEN"] + "\n"
-              "IOS_QA_TRIP_ID = " + os.environ["IOS_QA_TRIP_ID"] + "\n"
-          )
-          config.chmod(0o600)
+          scheme = Path(os.environ["SCHEME_PATH"])
+          content = scheme.read_text()
+          for placeholder, name in {
+              "$(IOS_QA_ACCESS_TOKEN)": "IOS_QA_ACCESS_TOKEN",
+              "$(IOS_QA_REFRESH_TOKEN)": "IOS_QA_REFRESH_TOKEN",
+              "$(IOS_QA_TRIP_ID)": "IOS_QA_TRIP_ID",
+          }.items():
+              content = content.replace(placeholder, html.escape(os.environ[name], quote=True))
+          scheme.write_text(content)
+          scheme.chmod(0o600)
           PY
 
                   echo "Starting authenticated iOS UI tests."
@@ -251,10 +252,11 @@ jobs:
                     -configuration Debug \
                      -destination "platform=iOS Simulator,id=$device_udid" \
                      -derivedDataPath "$RUNNER_TEMP/RamingoDerivedData" \
-                     -xcconfig "$qa_xcconfig" \
-                     CODE_SIGNING_ALLOWED=NO \
+                    -xcconfig "$RUNNER_TEMP/RamingoSimulator.xcconfig" \
+                    CODE_SIGNING_ALLOWED=NO \
                     CODE_SIGNING_REQUIRED=NO \
                     test 2>&1 | tee "$test_log"
+                  grep -Eq 'Executed 2 tests, with 0 tests skipped and 0 failures' "$test_log"
 
                   xcrun simctl privacy "$device_udid" grant location com.odyssey.ramingo.ios >/dev/null 2>&1 || true
                   xcrun simctl terminate "$device_udid" com.odyssey.ramingo.ios >/dev/null 2>&1 || true
