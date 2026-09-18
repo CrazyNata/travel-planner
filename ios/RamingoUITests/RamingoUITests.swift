@@ -110,10 +110,17 @@ final class RamingoUITests: XCTestCase {
     }
 
     private func requiredEnvironment(_ name: String) throws -> String {
-        guard let value = ProcessInfo.processInfo.environment[name], !value.isEmpty else {
-            throw XCTSkip("Не задана переменная \(name); live iOS UI smoke пропущен")
+        if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty {
+            return value
         }
-        return value
+
+        for bundle in [Bundle(for: RamingoUITests.self), Bundle.main] {
+            if let value = bundle.object(forInfoDictionaryKey: name) as? String, !value.isEmpty {
+                return value
+            }
+        }
+
+        throw XCTSkip("Не задано значение \(name); live iOS UI smoke пропущен")
     }
 
     private func element(_ identifier: String) -> XCUIElement {
