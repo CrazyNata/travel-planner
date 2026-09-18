@@ -115,16 +115,22 @@ final class RamingoUITests: XCTestCase {
         if !tripID.isEmpty {
             arguments += ["-ramingo-qa-trip-id", tripID]
         }
-        if let accessToken = optionalTestValue("IOS_QA_ACCESS_TOKEN"),
-           let refreshToken = optionalTestValue("IOS_QA_REFRESH_TOKEN"),
-           !accessToken.isEmpty,
-           !refreshToken.isEmpty {
+        if let session = qaSession(),
+           !session.accessToken.isEmpty,
+           !session.refreshToken.isEmpty {
             arguments += [
-                "-ramingo-qa-access-token", accessToken,
-                "-ramingo-qa-refresh-token", refreshToken,
+                "-ramingo-qa-access-token", session.accessToken,
+                "-ramingo-qa-refresh-token", session.refreshToken,
             ]
         }
         return arguments
+    }
+
+    private func qaSession() -> QASession? {
+        guard let path = optionalTestValue("IOS_QA_SESSION_FILE"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+        else { return nil }
+        return try? JSONDecoder().decode(QASession.self, from: data)
     }
 
     private func element(_ identifier: String) -> XCUIElement {
@@ -150,4 +156,9 @@ final class RamingoUITests: XCTestCase {
             return false
         }
     }
+}
+
+private struct QASession: Decodable {
+    let accessToken: String
+    let refreshToken: String
 }

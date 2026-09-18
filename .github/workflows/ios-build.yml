@@ -209,8 +209,20 @@ jobs:
                    test -n "$refresh_token"
                   echo "::add-mask::$access_token"
                   echo "::add-mask::$refresh_token"
-                  export IOS_QA_ACCESS_TOKEN="$access_token"
-                  export IOS_QA_REFRESH_TOKEN="$refresh_token"
+                  qa_session_file="$RUNNER_TEMP/ramingo-ios-qa-session.json"
+                  QA_SESSION_FILE="$qa_session_file" ACCESS_TOKEN="$access_token" REFRESH_TOKEN="$refresh_token" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["QA_SESSION_FILE"])
+          path.write_text(json.dumps({
+              "accessToken": os.environ["ACCESS_TOKEN"],
+              "refreshToken": os.environ["REFRESH_TOKEN"],
+          }), encoding="utf-8")
+          path.chmod(0o600)
+          PY
+                  test -s "$qa_session_file"
 
                    trip_id=""
                   if trip_response="$(curl -fsS --max-time 20 \
@@ -237,6 +249,7 @@ jobs:
                     -xcconfig "$RUNNER_TEMP/RamingoSimulator.xcconfig" \
                     CODE_SIGNING_ALLOWED=NO \
                     CODE_SIGNING_REQUIRED=NO \
+                    IOS_QA_SESSION_FILE="$qa_session_file" \
                     IOS_QA_TRIP_ID="$trip_id" \
                     build-for-testing 2>&1 | tee "$test_log"
 
