@@ -173,7 +173,9 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.language.RU"].waitForExistence(timeout: 5), "В меню языка нет русского")
         app.buttons["settings.language.RU"].tap()
 
-        app.buttons["Уведомления"].tap()
+        let notificationsButton = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Уведомления")).firstMatch
+        XCTAssertTrue(notificationsButton.waitForExistence(timeout: 5), "В настройках нет уведомлений")
+        notificationsButton.tap()
         XCTAssertTrue(app.staticTexts["Уведомления"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
         app.buttons["Закрыть"].firstMatch.tap()
 
