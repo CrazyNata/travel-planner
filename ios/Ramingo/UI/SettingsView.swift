@@ -54,7 +54,9 @@ struct SettingsView: View {
 
                         settingsSection("НАСТРОЙКИ АККАУНТА") {
                             SettingsButtonRow(icon: "globe", title: "Языки", value: languageTitle) {
-                                languagePickerOpen.toggle()
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    languagePickerOpen.toggle()
+                                }
                             }
                             if languagePickerOpen {
                                 LanguageSelector(selection: $language) { selected in
@@ -1042,8 +1044,10 @@ private struct LanguageSelector: View {
                         .background(selection.uppercased() == code ? AppTheme.purple : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.language.\(code)")
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(4)
         .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.bottom, 10)
