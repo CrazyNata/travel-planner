@@ -23,6 +23,7 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var isSigningOut = false
     @State private var isDeleting = false
+    @State private var showNotificationSettings = false
     @State private var isPhotoPickerPresented = false
     @State private var showPasswordChange = false
     @State private var showOnboardingReplay = false
@@ -62,8 +63,10 @@ struct SettingsView: View {
                                 }
                             )
                             SettingsDivider()
-                            SettingsNavigationRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
-                                NotificationSettingsView().environmentObject(model)
+                            SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showNotificationSettings = true
+                                }
                             }
                             SettingsDivider()
                             SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
@@ -116,6 +119,19 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.bottom, 34)
+                }
+
+                if showNotificationSettings {
+                    NotificationSettingsView(onClose: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showNotificationSettings = false
+                        }
+                    })
+                    .environmentObject(model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppTheme.background)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1)
                 }
             }
             .navigationTitle("Настройки")
@@ -355,6 +371,7 @@ struct SettingsView: View {
 private struct NotificationSettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    private let onClose: (() -> Void)?
 
     @State private var notificationsEnabled = false
     @State private var tripRemindersEnabled = true
@@ -374,6 +391,10 @@ private struct NotificationSettingsView: View {
     @State private var emailEditorOpen = false
     @State private var timePickerOpen = false
     @State private var pickerDate = Date()
+
+    init(onClose: (() -> Void)? = nil) {
+        self.onClose = onClose
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -429,7 +450,7 @@ private struct NotificationSettingsView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            Button { dismiss() } label: {
+            Button { onClose?() ?? dismiss() } label: {
                 Image(systemName: "arrow.left")
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(AppTheme.ink)
@@ -1061,48 +1082,6 @@ private struct LanguageSettingsRow: View {
         }
         .menuStyle(.borderlessButton)
         .accessibilityIdentifier("settings.language.row")
-    }
-}
-
-private struct SettingsNavigationRow<Destination: View>: View {
-    let icon: String
-    let title: String
-    var value: String? = nil
-    var destructive = false
-    let destination: () -> Destination
-
-    init(
-        icon: String,
-        title: String,
-        value: String? = nil,
-        destructive: Bool = false,
-        @ViewBuilder destination: @escaping () -> Destination
-    ) {
-        self.icon = icon
-        self.title = title
-        self.value = value
-        self.destructive = destructive
-        self.destination = destination
-    }
-
-    var body: some View {
-        NavigationLink(destination: destination()) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).frame(width: 22)
-                Text(title)
-                Spacer()
-                if let value {
-                    Text(value)
-                        .font(AppTheme.font(12, .semibold))
-                        .foregroundStyle(AppTheme.muted)
-                }
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
-            }
-            .font(AppTheme.font(14, .bold))
-            .foregroundStyle(destructive ? AppTheme.error : AppTheme.ink)
-            .frame(minHeight: 52)
-        }
-        .buttonStyle(.plain)
     }
 }
 
