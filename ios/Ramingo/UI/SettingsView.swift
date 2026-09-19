@@ -53,19 +53,17 @@ struct SettingsView: View {
                         }
 
                         settingsSection("НАСТРОЙКИ АККАУНТА") {
-                            SettingsButtonRow(icon: "globe", title: "Языки", value: languageTitle) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    languagePickerOpen.toggle()
-                                }
-                            }
-                            if languagePickerOpen {
-                                LanguageSelector(selection: $language) { selected in
+                            LanguageSettingsRow(
+                                language: $language,
+                                languageTitle: languageTitle,
+                                isExpanded: $languagePickerOpen,
+                                onSelect: { selected in
                                     let previous = language
                                     language = selected
                                     languagePickerOpen = false
                                     Task { await saveAppearance(previousLanguage: previous, previousTheme: themePreference) }
                                 }
-                            }
+                            )
                             SettingsDivider()
                             SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
                                 showNotificationSettings = true
@@ -1051,6 +1049,26 @@ private struct LanguageSelector: View {
         .padding(4)
         .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.bottom, 10)
+    }
+}
+
+private struct LanguageSettingsRow: View {
+    @Binding var language: String
+    let languageTitle: String
+    @Binding var isExpanded: Bool
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SettingsButtonRow(icon: "globe", title: "Языки", value: languageTitle) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
+            if isExpanded {
+                LanguageSelector(selection: $language, onSelect: onSelect)
+            }
+        }
     }
 }
 
