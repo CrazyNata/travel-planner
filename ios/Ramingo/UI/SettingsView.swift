@@ -56,6 +56,7 @@ struct SettingsView: View {
                                 language: $language,
                                 languageTitle: languageTitle,
                                 onSelect: { selected in
+                                    guard selected.uppercased() != language.uppercased() else { return }
                                     let previous = language
                                     language = selected
                                     Task { await saveAppearance(previousLanguage: previous, previousTheme: themePreference) }
