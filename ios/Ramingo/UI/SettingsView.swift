@@ -1020,74 +1020,45 @@ private struct ThemePreferenceSelector: View {
     }
 }
 
-private struct LanguageSelector: View {
-    @Binding var selection: String
-    let onSelect: (String) -> Void
-    private let options = ["RU", "EN", "ES", "DE"]
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(options, id: \.self) { code in
-                Button {
-                    onSelect(code)
-                } label: {
-                    Text(code)
-                        .font(AppTheme.font(12, .extrabold))
-                        .foregroundStyle(selection.uppercased() == code ? .white : AppTheme.muted)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 42)
-                        .background(selection.uppercased() == code ? AppTheme.purple : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings.language.\(code)")
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(4)
-        .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding(.bottom, 10)
-    }
-}
-
 private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
     let onSelect: (String) -> Void
-    @State private var isExpanded = false
+    private let options = ["RU", "EN", "ES", "DE"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "globe")
-                        .frame(width: 22)
-                    Text("Языки")
-                    Spacer()
-                    Text(languageTitle)
-                        .font(AppTheme.font(12, .semibold))
-                        .foregroundStyle(AppTheme.muted)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
-                }
-                .font(AppTheme.font(14, .bold))
-                .foregroundStyle(AppTheme.ink)
-                .frame(minHeight: 52)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("settings.language.row")
-            if isExpanded {
-                LanguageSelector(selection: $language) { selected in
-                    onSelect(selected)
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isExpanded = false
+        Menu {
+            ForEach(options, id: \.self) { code in
+                Button {
+                    onSelect(code)
+                } label: {
+                    HStack {
+                        Text(code)
+                        if language.uppercased() == code {
+                            Image(systemName: "checkmark")
+                        }
                     }
                 }
+                .accessibilityIdentifier("settings.language.\(code)")
             }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .frame(width: 22)
+                Text("Языки")
+                Spacer()
+                Text(languageTitle)
+                    .font(AppTheme.font(12, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .font(AppTheme.font(14, .bold))
+            .foregroundStyle(AppTheme.ink)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         }
+        .menuStyle(.borderlessButton)
+        .accessibilityIdentifier("settings.language.row")
     }
 }
 
