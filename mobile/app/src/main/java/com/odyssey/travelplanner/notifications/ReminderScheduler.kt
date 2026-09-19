@@ -21,6 +21,7 @@ import com.odyssey.travelplanner.data.SupabaseProvider
 import com.odyssey.travelplanner.data.TripCard
 import com.odyssey.travelplanner.data.TripOverview
 import com.odyssey.travelplanner.data.SupabaseTripRepository
+import com.odyssey.travelplanner.data.parseTripDateRange
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -217,12 +218,10 @@ internal object ReminderPlanner {
     }
 
     internal fun parseDateRange(value: String): Pair<LocalDate, LocalDate>? {
-        val dates = extractDates(value)
-        val start = dates.firstOrNull() ?: return null
-        return start to dates.getOrElse(1) { start }
+        return parseTripDateRange(value)
     }
 
-    internal fun parseSingleDate(value: String): LocalDate? = extractDates(value).firstOrNull()
+    internal fun parseSingleDate(value: String): LocalDate? = parseTripDateRange(value)?.first
 
     private fun reminderAt(
         kind: ReminderKind,
@@ -357,52 +356,6 @@ internal object ReminderPlanner {
         )
     }
 
-    private fun extractDates(value: String): List<LocalDate> {
-        val source = value.trim()
-        if (source.isBlank()) return emptyList()
-
-        val isoDates = Regex("""(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)""")
-            .findAll(source)
-            .mapNotNull { match ->
-                runCatching {
-                    LocalDate.of(
-                        match.groupValues[1].toInt(),
-                        match.groupValues[2].toInt(),
-                        match.groupValues[3].toInt(),
-                    )
-                }.getOrNull()
-            }
-            .toList()
-        if (isoDates.isNotEmpty()) return isoDates
-
-        val dottedDates = Regex("""(?<!\d)(\d{1,2})[./](\d{1,2})[./](\d{4})(?!\d)""")
-            .findAll(source)
-            .mapNotNull { match ->
-                runCatching {
-                    LocalDate.of(
-                        match.groupValues[3].toInt(),
-                        match.groupValues[2].toInt(),
-                        match.groupValues[1].toInt(),
-                    )
-                }.getOrNull()
-            }
-            .toList()
-        if (dottedDates.isNotEmpty()) return dottedDates
-
-        val monthPattern = monthNames.keys
-            .sortedByDescending(String::length)
-            .joinToString("|") { Regex.escape(it) }
-        return Regex(
-            """(?<!\d)(\d{1,2})\s+($monthPattern)\s+(\d{4})(?!\d)""",
-            RegexOption.IGNORE_CASE,
-        ).findAll(source).mapNotNull { match ->
-            val month = monthNames[match.groupValues[2].lowercase(Locale.ROOT)] ?: return@mapNotNull null
-            runCatching {
-                LocalDate.of(match.groupValues[3].toInt(), month, match.groupValues[1].toInt())
-            }.getOrNull()
-        }.toList()
-    }
-
     private fun isFinishedTrip(status: String): Boolean {
         val normalized = status.trim().lowercase(Locale.ROOT)
         return listOf("заверш", "прошед", "completed", "past", "finished").any(normalized::contains)
@@ -448,56 +401,6 @@ internal object ReminderPlanner {
         else -> ru
     }
 
-    private val monthNames = mapOf(
-        "января" to 1, "январь" to 1, "янв" to 1,
-        "февраля" to 2, "февраль" to 2, "фев" to 2,
-        "марта" to 3, "март" to 3, "мар" to 3,
-        "апреля" to 4, "апрель" to 4, "апр" to 4,
-        "мая" to 5, "май" to 5,
-        "июня" to 6, "июнь" to 6, "июн" to 6,
-        "июля" to 7, "июль" to 7, "июл" to 7,
-        "августа" to 8, "август" to 8, "авг" to 8,
-        "сентября" to 9, "сентябрь" to 9, "сен" to 9, "сент" to 9,
-        "октября" to 10, "октябрь" to 10, "окт" to 10,
-        "ноября" to 11, "ноябрь" to 11, "ноя" to 11,
-        "декабря" to 12, "декабрь" to 12, "дек" to 12,
-        "january" to 1, "jan" to 1,
-        "february" to 2, "feb" to 2,
-        "march" to 3, "mar" to 3,
-        "april" to 4, "apr" to 4,
-        "may" to 5,
-        "june" to 6, "jun" to 6,
-        "july" to 7, "jul" to 7,
-        "august" to 8, "aug" to 8,
-        "september" to 9, "sep" to 9,
-        "october" to 10, "oct" to 10,
-        "november" to 11, "nov" to 11,
-        "december" to 12, "dec" to 12,
-        "enero" to 1, "ene" to 1,
-        "febrero" to 2,
-        "marzo" to 3,
-        "abril" to 4,
-        "mayo" to 5,
-        "junio" to 6,
-        "julio" to 7,
-        "agosto" to 8,
-        "septiembre" to 9, "setiembre" to 9,
-        "octubre" to 10,
-        "noviembre" to 11,
-        "diciembre" to 12,
-        "januar" to 1,
-        "februar" to 2,
-        "märz" to 3, "maerz" to 3,
-        "april" to 4,
-        "mai" to 5,
-        "juni" to 6,
-        "juli" to 7,
-        "august" to 8,
-        "september" to 9,
-        "oktober" to 10,
-        "november" to 11,
-        "dezember" to 12,
-    )
 }
 
 internal object ReminderScheduler {

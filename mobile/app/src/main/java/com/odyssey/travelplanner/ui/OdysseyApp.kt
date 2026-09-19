@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -5004,6 +5005,7 @@ private fun NotificationSettingsScreen(
     var phoneNotificationsEnabled by remember { mutableStateOf(ReminderScheduler.canPostNotifications(context)) }
     var notificationPermissionPrompted by remember { mutableStateOf(false) }
     var exactAlarmPermissionGranted by remember { mutableStateOf(ReminderScheduler.canScheduleExactAlarms(context)) }
+    val currentNotificationsEnabled by rememberUpdatedState(notificationsEnabled)
     val lifecycleOwner = LocalLifecycleOwner.current
     var helpOpen by remember { mutableStateOf(false) }
     var emailEditorOpen by remember { mutableStateOf(false) }
@@ -5032,14 +5034,23 @@ private fun NotificationSettingsScreen(
     )
 
     DisposableEffect(lifecycleOwner) {
+        var previousPhoneNotificationsEnabled = phoneNotificationsEnabled
+        var previousExactAlarmPermissionGranted = exactAlarmPermissionGranted
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                phonePermissionGranted = notificationPermissionGranted(context)
-                phoneNotificationsEnabled = ReminderScheduler.canPostNotifications(context)
-                val wasGranted = exactAlarmPermissionGranted
-                val isGranted = ReminderScheduler.canScheduleExactAlarms(context)
-                exactAlarmPermissionGranted = isGranted
-                if (wasGranted != isGranted && notificationsEnabled) {
+                val isPhonePermissionGranted = notificationPermissionGranted(context)
+                val isPhoneNotificationsEnabled = ReminderScheduler.canPostNotifications(context)
+                val isExactAlarmPermissionGranted = ReminderScheduler.canScheduleExactAlarms(context)
+                val phoneNotificationsBecameAvailable =
+                    !previousPhoneNotificationsEnabled && isPhoneNotificationsEnabled
+                val exactAlarmPermissionChanged =
+                    previousExactAlarmPermissionGranted != isExactAlarmPermissionGranted
+                phonePermissionGranted = isPhonePermissionGranted
+                phoneNotificationsEnabled = isPhoneNotificationsEnabled
+                exactAlarmPermissionGranted = isExactAlarmPermissionGranted
+                previousPhoneNotificationsEnabled = isPhoneNotificationsEnabled
+                previousExactAlarmPermissionGranted = isExactAlarmPermissionGranted
+                if (currentNotificationsEnabled && (phoneNotificationsBecameAvailable || exactAlarmPermissionChanged)) {
                     scope.launch { ReminderScheduler.refreshFromSupabase(context) }
                 }
             }
@@ -5080,6 +5091,11 @@ private fun NotificationSettingsScreen(
         pendingSave = null
         if (granted && draft != null) {
             saveDraft(draft)
+        } else if (granted) {
+            // The permission can also be granted from the status card without
+            // saving the app-level preferences. Rebuild the alarms immediately
+            // instead of waiting for a restart or the next daily maintenance run.
+            scope.launch { ReminderScheduler.refreshFromSupabase(context) }
         } else if (!granted) {
             messageIsError = true
             message = notificationPermissionDeniedMessage
@@ -7981,10 +7997,10 @@ private fun CreateTripPhotoCityAssignments(
         Text(
             localized(
                 language,
-                "Укажите город для фото — оно появится в карточке погоды этого города",
-                "Choose a city for each photo — it will appear on that city's weather card",
-                "Elige una ciudad para cada foto: aparecerá en la tarjeta del tiempo de esa ciudad",
-                "Wähle für jedes Foto eine Stadt — es erscheint auf der Wetterkarte dieser Stadt",
+                "Укажите город для фото — оно появится в разделе фотографий этого города",
+                "Choose a city for each photo — it will appear in that city's photo section",
+                "Elige una ciudad para cada foto: aparecerá en la sección de fotos de esa ciudad",
+                "Wähle für jedes Foto eine Stadt — es erscheint im Fotobereich dieser Stadt",
             ),
             color = secondaryTextColor(),
             fontFamily = Manrope,
@@ -8058,14 +8074,80 @@ private fun CreateTripPhotoCityAssignments(
                             DropdownMenu(
                                 expanded = expandedPhoto == photo.uri,
                                 onDismissRequest = { expandedPhoto = null },
+                                modifier = Modifier.width(252.dp),
                             ) {
                                 cityOptions.forEach { city ->
+                                    val cityPreviewUri = photos.firstOrNull { cityPhoto ->
+                                        samePhotoCity(cityPhoto.city, city)
+                                    }?.uri
+                                    val selectedCity = samePhotoCity(photo.city, city)
                                     DropdownMenuItem(
-                                        text = { Text(city, fontFamily = Manrope, fontWeight = FontWeight.W600) },
+                                        text = {
+                                            Column(modifier = Modifier.padding(vertical = 1.dp)) {
+                                                Text(
+                                                    city,
+                                                    color = contentTextColor(),
+                                                    fontFamily = Manrope,
+                                                    fontWeight = FontWeight.W700,
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                                Text(
+                                                    if (cityPreviewUri != null) {
+                                                        localized(language, "Фото города", "City photos", "Fotos de la ciudad", "Stadtfotos")
+                                                    } else {
+                                                        localized(language, "Пока без фото", "No photos yet", "Aún no hay fotos", "Noch keine Fotos")
+                                                    },
+                                                    color = secondaryTextColor(),
+                                                    fontFamily = Manrope,
+                                                    fontWeight = FontWeight.W500,
+                                                    fontSize = 10.sp,
+                                                    maxLines = 1,
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = {
+                                            if (cityPreviewUri != null) {
+                                                AsyncImage(
+                                                    model = cityPreviewUri,
+                                                    contentDescription = null,
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    modifier = Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)),
+                                                )
+                                            } else {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier
+                                                        .size(38.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (darkTheme) OdysseyDarkTint else Color(0xFFEEEDF4)),
+                                                ) {
+                                                    Icon(
+                                                        Icons.Outlined.Image,
+                                                        contentDescription = null,
+                                                        tint = primaryColor().copy(alpha = 0.75f),
+                                                        modifier = Modifier.size(19.dp),
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        trailingIcon = {
+                                            Icon(
+                                                if (selectedCity) Icons.Filled.Check else Icons.Outlined.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = if (selectedCity) primaryColor() else secondaryTextColor(),
+                                                modifier = Modifier.size(19.dp),
+                                            )
+                                        },
                                         onClick = {
                                             onCityChange(photo.uri, city)
                                             expandedPhoto = null
                                         },
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(11.dp))
+                                            .background(if (selectedCity) tintedSurfaceColor() else Color.Transparent),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
                                     )
                                 }
                             }
@@ -24560,7 +24642,11 @@ private fun WeatherTripDayPanel(
                     verticalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier
                         .width(66.dp)
-                        .height(70.dp)
+                        // Keep enough vertical room for the temperature line.
+                        // On the Android device the old 70.dp tile clipped the
+                        // glyphs at the bottom, leaving only dash-like tops
+                        // visible even though accessibility exposed the value.
+                        .height(78.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(
                             when {

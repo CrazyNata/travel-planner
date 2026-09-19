@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramingo — направления значка</title>
+  <style>
+    :root { color-scheme: light; font-family: "Manrope", "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f7f6fb; color: #191922; }
+    main { width: min(1120px, calc(100vw - 48px)); padding: 42px 0; }
+    h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: -.03em; }
+    .intro { margin: 0 0 30px; color: #8d8c99; font-size: 15px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .card { padding: 22px 18px 20px; border: 1px solid #e1e0e8; border-radius: 28px; background: #fff; box-shadow: 0 12px 30px rgba(34, 31, 62, .07); }
+    .icon { width: 100%; aspect-ratio: 1; display: block; border-radius: 28%; overflow: hidden; box-shadow: 0 12px 20px rgba(24, 24, 32, .14); }
+    h2 { margin: 18px 0 6px; font-size: 17px; }
+    p { margin: 0; color: #8d8c99; font-size: 13px; line-height: 1.45; }
+    @media (max-width: 850px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ramingo · новые направления значка</h1>
+    <p class="intro">Чистые векторные концепции, не загружены в приложение и Google Play.</p>
+    <section class="grid">
+      <article class="card">
+        <svg class="icon" viewBox="0 0 108 108" role="img" aria-label="Маршрут в форме R">
+          <rect width="108" height="108" rx="30" fill="#ef6f61"/>
+          <path d="M31 80V29h24c14 0 22 7 22 18 0 9-5 15-14 18l17 23" fill="none" stroke="#fff9ef" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M31 29h23c9 0 15 4 15 11s-6 12-15 12H31" fill="none" stroke="#14263f" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="77" cy="80" r="7" fill="#14263f" stroke="#fff9ef" stroke-width="4"/>
+        </svg>
+        <h2>Маршрут-Р</h2>
+        <p>Буква R превращена в путь. Связь с названием, но без стандартного компаса.</p>
+      </article>
+
+      <article class="card">
+        <svg class="icon" viewBox="0 0 108 108" role="img" aria-label="Билет с маршрутом">
+          <rect width="108" height="108" rx="30" fill="#0b7774"/>
+          <path d="M16 39h76v30H16z" fill="#fff8e9"/>
+          <path d="M16 46c7 0 7 14 0 14M92 46c-7 0-7 14 0 14" fill="none" stroke="#0b7774" stroke-width="5"/>
+          <path d="M27 56c10-18 17 18 27 0s17 18 27 0" fill="none" stroke="#e9b64b" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="27" cy="56" r="5" fill="#ef6f61"/>
+          <circle cx="81" cy="56" r="5" fill="#14263f"/>
+        </svg>
+        <h2>Билет маршрута</h2>
+        <p>План поездки как билет: города, точки и путь в одном простом знаке.</p>
+      </article>
+
+      <article class="card">
+        <svg class="icon" viewBox="0 0 108 108" role="img" aria-label="Окно поездки">
+          <rect width="108" height="108" rx="30" fill="#14263f"/>
+          <rect x="19" y="18" width="70" height="72" rx="15" fill="#fff9ef"/>
+          <rect x="27" y="27" width="54" height="30" rx="9" fill="#f2c45a"/>
+          <path d="M29 75c9-18 17 8 25-6s15 10 25-4" fill="none" stroke="#42bfa3" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="31" cy="75" r="5" fill="#ef6f61"/>
+          <circle cx="79" cy="65" r="5" fill="#14263f"/>
+        </svg>
+        <h2>Окно поездки</h2>
+        <p>Карточка маршрута в духе интерфейса приложения: чисто, спокойно, узнаваемо.</p>
+      </article>
+
+      <article class="card">
+        <svg class="icon" viewBox="0 0 108 108" role="img" aria-label="Петля путешествия">
+          <rect width="108" height="108" rx="30" fill="#e7b94f"/>
+          <path d="M29 72c-4-22 10-42 31-42 15 0 22 9 22 20 0 15-14 20-27 20-12 0-20 8-20 16 0 7 5 11 12 11" fill="none" stroke="#14263f" stroke-width="9" stroke-linecap="round"/>
+          <path d="M63 24l19 2-11 14" fill="#14263f"/>
+          <circle cx="27" cy="72" r="6" fill="#fff9ef" stroke="#14263f" stroke-width="4"/>
+        </svg>
+        <h2>Петля путешествия</h2>
+        <p>Непрерывное движение и возвращение к плану — более абстрактный знак для Ramingo.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

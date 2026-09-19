@@ -239,6 +239,14 @@ class ReminderPlannerTest {
         assertTrue(events.all { it.triggerAtMillis > Instant.parse("2026-01-01T10:00:00Z").toEpochMilli() })
     }
 
+    @Test
+    fun compactWebDateRangeUsesTheTripStartForReminders() {
+        val range = ReminderPlanner.parseDateRange("25–27 сентября 2026 · 3 дня")
+
+        assertEquals(java.time.LocalDate.of(2026, 9, 25), range?.first)
+        assertEquals(java.time.LocalDate.of(2026, 9, 27), range?.second)
+    }
+
     private fun accommodation(
         id: String,
         name: String,

@@ -218,64 +218,7 @@ class WeatherRepository {
     }
 }
 
-internal fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? {
-    val dotted = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").find(value)?.value
-    if (dotted != null) {
-        val dates = Regex("\\d{1,2}\\.\\d{1,2}\\.\\d{4}").findAll(value).mapNotNull { match ->
-            val parts = match.value.split('.')
-            runCatching { LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) }.getOrNull()
-        }.toList()
-        val start = dates.firstOrNull() ?: return null
-        return start to dates.getOrElse(1) { start }
-    }
-
-    val isoDates = Regex("\\d{4}-\\d{2}-\\d{2}").findAll(value).mapNotNull { match ->
-        runCatching { LocalDate.parse(match.value) }.getOrNull()
-    }.toList()
-    if (isoDates.isNotEmpty()) {
-        val start = isoDates.first()
-        return start to isoDates.getOrElse(1) { start }
-    }
-
-    val russianMonths = mapOf(
-        "января" to 1, "январь" to 1,
-        "февраля" to 2, "февраль" to 2,
-        "марта" to 3, "март" to 3,
-        "апреля" to 4, "апрель" to 4,
-        "мая" to 5, "май" to 5,
-        "июня" to 6, "июнь" to 6,
-        "июля" to 7, "июль" to 7,
-        "августа" to 8, "август" to 8,
-        "сентября" to 9, "сентябрь" to 9,
-        "октября" to 10, "октябрь" to 10,
-        "ноября" to 11, "ноябрь" to 11,
-        "декабря" to 12, "декабрь" to 12,
-    )
-    val compactHumanRange = Regex(
-        "(\\d{1,2})\\s*[–—-]\\s*(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})",
-        RegexOption.IGNORE_CASE,
-    ).find(value)
-    if (compactHumanRange != null) {
-        val startDay = compactHumanRange.groupValues[1].toIntOrNull() ?: return null
-        val endDay = compactHumanRange.groupValues[2].toIntOrNull() ?: return null
-        val month = russianMonths[compactHumanRange.groupValues[3].lowercase(Locale.ROOT)] ?: return null
-        val year = compactHumanRange.groupValues[4].toIntOrNull() ?: return null
-        val start = runCatching { LocalDate.of(year, month, startDay) }.getOrNull() ?: return null
-        val end = runCatching { LocalDate.of(year, month, endDay) }.getOrNull() ?: return null
-        return start to end
-    }
-    val dates = Regex(
-        "(\\d{1,2})\\s+(${russianMonths.keys.joinToString("|")})\\s+(\\d{4})",
-        RegexOption.IGNORE_CASE,
-    ).findAll(value).mapNotNull { match ->
-        val day = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-        val month = russianMonths[match.groupValues[2].lowercase(Locale.ROOT)] ?: return@mapNotNull null
-        val year = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
-        runCatching { LocalDate.of(year, month, day) }.getOrNull()
-    }.toList()
-    val start = dates.firstOrNull() ?: return null
-    return start to dates.getOrElse(1) { start }
-}
+internal fun tripDateRangeFrom(value: String): Pair<LocalDate, LocalDate>? = parseTripDateRange(value)
 
 private fun datesBetween(range: Pair<LocalDate, LocalDate>, maxDays: Int = 366): List<LocalDate> {
     val dayCount = ChronoUnit.DAYS.between(range.first, range.second)
