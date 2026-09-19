@@ -180,8 +180,10 @@ final class RamingoUITests: XCTestCase {
         let notificationCloseButton = app.buttons["notifications.close"]
         if !notificationCloseButton.waitForExistence(timeout: 2) {
             let closeButtons = app.buttons.matching(NSPredicate(format: "label == %@", "Закрыть"))
-            XCTAssertTrue(closeButtons.lastMatch.waitForExistence(timeout: 5), "Экран уведомлений не содержит кнопки закрытия")
-            closeButtons.lastMatch.tap()
+            XCTAssertTrue(closeButtons.count > 0, "Экран уведомлений не содержит кнопки закрытия")
+            let fallbackCloseButton = closeButtons.element(boundBy: max(0, closeButtons.count - 1))
+            XCTAssertTrue(fallbackCloseButton.waitForExistence(timeout: 5), "Кнопка закрытия экрана уведомлений не стала доступна")
+            fallbackCloseButton.tap()
         } else {
             notificationCloseButton.tap()
         }
