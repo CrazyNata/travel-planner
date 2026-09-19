@@ -163,8 +163,10 @@ struct SettingsView: View {
             .fullScreenCover(isPresented: $showPasswordChange) {
                 ChangePasswordView().environmentObject(model)
             }
-            .fullScreenCover(isPresented: $showNotificationSettings) {
+            .sheet(isPresented: $showNotificationSettings) {
                 NotificationSettingsView().environmentObject(model)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             .fullScreenCover(isPresented: $showOnboardingReplay) {
                 OnboardingView(replay: true)

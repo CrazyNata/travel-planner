@@ -176,7 +176,7 @@ final class RamingoUITests: XCTestCase {
         let notificationsButton = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Уведомления")).firstMatch
         XCTAssertTrue(notificationsButton.waitForExistence(timeout: 5), "В настройках нет уведомлений")
         notificationsButton.tap()
-        XCTAssertTrue(app.staticTexts["Уведомления"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
+        XCTAssertTrue(app.staticTexts["Настройте напоминания под себя"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
         let notificationCloseButton = app.buttons["notifications.close"]
         if !notificationCloseButton.waitForExistence(timeout: 2) {
             let closeButtons = app.buttons.matching(NSPredicate(format: "label == %@", "Закрыть"))
@@ -187,6 +187,7 @@ final class RamingoUITests: XCTestCase {
         } else {
             notificationCloseButton.tap()
         }
+        XCTAssertTrue(app.staticTexts["Настройки"].waitForExistence(timeout: 5), "После закрытия уведомлений настройки закрылись целиком")
 
         app.buttons["Изменить пароль"].tap()
         XCTAssertTrue(app.staticTexts["Изменить пароль"].waitForExistence(timeout: 10), "Форма смены пароля не открылась")
