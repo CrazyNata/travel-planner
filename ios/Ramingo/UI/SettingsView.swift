@@ -165,7 +165,9 @@ struct SettingsView: View {
             }
             .confirmationDialog("Удалить аккаунт?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                 Button("Удалить аккаунт", role: .destructive) { Task { await deleteAccount() } }
+                    .accessibilityIdentifier("Удалить аккаунт")
                 Button("Отмена", role: .cancel) {}
+                    .accessibilityIdentifier("Отмена")
             } message: {
                 Text("Будут удалены профиль и связанные с ним данные. Это действие нельзя отменить.")
             }
