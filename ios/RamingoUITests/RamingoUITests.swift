@@ -169,7 +169,7 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Светлая"].waitForExistence(timeout: 5), "Выбор темы не открылся")
         XCTAssertTrue(tapIfPresentContaining("Тема", timeout: 5), "Выбор темы нельзя закрыть")
         XCTAssertTrue(tapIfPresentContaining("Языки", timeout: 5), "В настройках нет выбора языка")
-        XCTAssertTrue(app.buttons["EN"].waitForExistence(timeout: 5), "Выбор языка не открылся")
+        XCTAssertTrue(app.staticTexts["EN"].waitForExistence(timeout: 5), "Выбор языка не открылся")
         XCTAssertTrue(tapIfPresentContaining("Языки", timeout: 5), "Выбор языка нельзя закрыть")
 
         app.buttons["Уведомления"].tap()
