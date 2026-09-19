@@ -33,7 +33,14 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppTheme.background.ignoresSafeArea()
+                if showNotificationSettings {
+                    NotificationSettingsView(onClose: {
+                        showNotificationSettings = false
+                    })
+                    .environmentObject(model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    AppTheme.background.ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         profileCard
@@ -64,9 +71,7 @@ struct SettingsView: View {
                             )
                             SettingsDivider()
                             SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showNotificationSettings = true
-                                }
+                                showNotificationSettings = true
                             }
                             SettingsDivider()
                             SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
@@ -120,18 +125,6 @@ struct SettingsView: View {
                     .padding(.horizontal, 18)
                     .padding(.bottom, 34)
                 }
-
-                if showNotificationSettings {
-                    NotificationSettingsView(onClose: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showNotificationSettings = false
-                        }
-                    })
-                    .environmentObject(model)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.background)
-                    .transition(.move(edge: .trailing))
-                    .zIndex(1)
                 }
             }
             .navigationTitle("Настройки")
