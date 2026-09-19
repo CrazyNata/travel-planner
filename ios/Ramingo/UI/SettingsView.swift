@@ -23,24 +23,17 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var isSigningOut = false
     @State private var isDeleting = false
-    @State private var showNotificationSettings = false
     @State private var isPhotoPickerPresented = false
     @State private var showPasswordChange = false
     @State private var showOnboardingReplay = false
     @State private var showDeleteConfirmation = false
     @State private var localError: String?
+    @State private var settingsPath: [SettingsRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $settingsPath) {
             ZStack {
-                if showNotificationSettings {
-                    NotificationSettingsView(onClose: {
-                        showNotificationSettings = false
-                    })
-                    .environmentObject(model)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    AppTheme.background.ignoresSafeArea()
+                AppTheme.background.ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
                         profileCard
@@ -70,9 +63,11 @@ struct SettingsView: View {
                                 }
                             )
                             SettingsDivider()
-                            SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
-                                showNotificationSettings = true
+                            NavigationLink(value: SettingsRoute.notifications) {
+                                SettingsRowContent(icon: "bell", title: "Уведомления", value: notificationTitle)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("settings.notifications.row")
                             SettingsDivider()
                             SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
                             SettingsDivider()
@@ -125,6 +120,12 @@ struct SettingsView: View {
                     .padding(.horizontal, 18)
                     .padding(.bottom, 34)
                 }
+            }
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .notifications:
+                    NotificationSettingsView()
+                        .environmentObject(model)
                 }
             }
             .navigationTitle("Настройки")
@@ -1087,23 +1088,39 @@ private struct SettingsButtonRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).frame(width: 22)
-                Text(title)
-                Spacer()
-                if let value {
-                    Text(value)
-                        .font(AppTheme.font(12, .semibold))
-                        .foregroundStyle(AppTheme.muted)
-                }
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
-            }
-            .font(AppTheme.font(14, .bold))
-            .foregroundStyle(destructive ? AppTheme.error : AppTheme.ink)
-            .frame(minHeight: 52)
+            SettingsRowContent(icon: icon, title: title, value: value, destructive: destructive)
         }
         .buttonStyle(.plain)
     }
+}
+
+private struct SettingsRowContent: View {
+    let icon: String
+    let title: String
+    var value: String? = nil
+    var destructive = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).frame(width: 22)
+            Text(title)
+            Spacer(minLength: 12)
+            if let value {
+                Text(value)
+                    .font(AppTheme.font(12, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+            }
+            Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+        }
+        .font(AppTheme.font(14, .bold))
+        .foregroundStyle(destructive ? AppTheme.error : AppTheme.ink)
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+private enum SettingsRoute: Hashable {
+    case notifications
 }
 
 private struct SettingsLinkRow: View {
