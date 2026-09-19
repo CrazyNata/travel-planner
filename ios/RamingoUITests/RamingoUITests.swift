@@ -195,7 +195,11 @@ final class RamingoUITests: XCTestCase {
 
         app.buttons["Удалить аккаунт"].tap()
         XCTAssertTrue(app.staticTexts["Удалить аккаунт?"].waitForExistence(timeout: 5), "Подтверждение удаления аккаунта не открылось")
-        app.buttons["Отмена"].firstMatch.tap()
+        let deleteCancelButton = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Отмена"))
+            .firstMatch
+        XCTAssertTrue(deleteCancelButton.waitForExistence(timeout: 5), "В подтверждении удаления нет кнопки отмены")
+        deleteCancelButton.tap()
         app.buttons["Закрыть"].firstMatch.tap()
     }
 
