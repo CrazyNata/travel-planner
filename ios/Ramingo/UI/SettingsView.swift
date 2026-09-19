@@ -163,7 +163,7 @@ struct SettingsView: View {
             } message: {
                 Text(localError ?? "")
             }
-            .confirmationDialog("Удалить аккаунт?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+            .alert("Удалить аккаунт?", isPresented: $showDeleteConfirmation) {
                 Button("Удалить аккаунт", role: .destructive) { Task { await deleteAccount() } }
                     .accessibilityIdentifier("Удалить аккаунт")
                 Button("Отмена", role: .cancel) {}
