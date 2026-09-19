@@ -19,7 +19,6 @@ struct SettingsView: View {
     @State private var language = "RU"
     @State private var themePreference: ThemePreference = .system
     @State private var themePickerOpen = false
-    @State private var languagePickerOpen = false
     @State private var didLoadProfile = false
     @State private var isSaving = false
     @State private var isSigningOut = false
@@ -56,11 +55,9 @@ struct SettingsView: View {
                             LanguageSettingsRow(
                                 language: $language,
                                 languageTitle: languageTitle,
-                                isExpanded: $languagePickerOpen,
                                 onSelect: { selected in
                                     let previous = language
                                     language = selected
-                                    languagePickerOpen = false
                                     Task { await saveAppearance(previousLanguage: previous, previousTheme: themePreference) }
                                 }
                             )
@@ -1055,18 +1052,40 @@ private struct LanguageSelector: View {
 private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
-    @Binding var isExpanded: Bool
     let onSelect: (String) -> Void
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingsButtonRow(icon: "globe", title: "Языки", value: languageTitle) {
+            Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isExpanded.toggle()
                 }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "globe")
+                        .frame(width: 22)
+                    Text("Языки")
+                    Spacer()
+                    Text(languageTitle)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .font(AppTheme.font(14, .bold))
+                .foregroundStyle(AppTheme.ink)
+                .frame(minHeight: 52)
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.language.row")
             if isExpanded {
-                LanguageSelector(selection: $language, onSelect: onSelect)
+                LanguageSelector(selection: $language) { selected in
+                    onSelect(selected)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded = false
+                    }
+                }
             }
         }
     }
