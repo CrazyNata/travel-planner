@@ -121,6 +121,10 @@ struct SettingsView: View {
             }
             .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showNotificationSettings) {
+                NotificationSettingsView()
+                    .environmentObject(model)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Закрыть") { dismiss() }
@@ -162,11 +166,6 @@ struct SettingsView: View {
             }
             .fullScreenCover(isPresented: $showPasswordChange) {
                 ChangePasswordView().environmentObject(model)
-            }
-            .sheet(isPresented: $showNotificationSettings) {
-                NotificationSettingsView().environmentObject(model)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
             }
             .fullScreenCover(isPresented: $showOnboardingReplay) {
                 OnboardingView(replay: true)
@@ -405,6 +404,8 @@ private struct NotificationSettingsView: View {
 
             saveFooter
         }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
         .task { await loadState() }
         .sheet(isPresented: $emailEditorOpen) {
             EmailRecipientEditorView(initialValue: emailRecipient) { value in
