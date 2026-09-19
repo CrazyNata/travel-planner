@@ -23,7 +23,6 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var isSigningOut = false
     @State private var isDeleting = false
-    @State private var showNotificationSettings = false
     @State private var isPhotoPickerPresented = false
     @State private var showPasswordChange = false
     @State private var showOnboardingReplay = false
@@ -63,8 +62,8 @@ struct SettingsView: View {
                                 }
                             )
                             SettingsDivider()
-                            SettingsButtonRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
-                                showNotificationSettings = true
+                            SettingsNavigationRow(icon: "bell", title: "Уведомления", value: notificationTitle) {
+                                NotificationSettingsView().environmentObject(model)
                             }
                             SettingsDivider()
                             SettingsButtonRow(icon: "key", title: "Изменить пароль") { showPasswordChange = true }
@@ -121,10 +120,6 @@ struct SettingsView: View {
             }
             .navigationTitle("Настройки")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(isPresented: $showNotificationSettings) {
-                NotificationSettingsView()
-                    .environmentObject(model)
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Закрыть") { dismiss() }
@@ -1066,6 +1061,48 @@ private struct LanguageSettingsRow: View {
         }
         .menuStyle(.borderlessButton)
         .accessibilityIdentifier("settings.language.row")
+    }
+}
+
+private struct SettingsNavigationRow<Destination: View>: View {
+    let icon: String
+    let title: String
+    var value: String? = nil
+    var destructive = false
+    let destination: () -> Destination
+
+    init(
+        icon: String,
+        title: String,
+        value: String? = nil,
+        destructive: Bool = false,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) {
+        self.icon = icon
+        self.title = title
+        self.value = value
+        self.destructive = destructive
+        self.destination = destination
+    }
+
+    var body: some View {
+        NavigationLink(destination: destination()) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).frame(width: 22)
+                Text(title)
+                Spacer()
+                if let value {
+                    Text(value)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+            }
+            .font(AppTheme.font(14, .bold))
+            .foregroundStyle(destructive ? AppTheme.error : AppTheme.ink)
+            .frame(minHeight: 52)
+        }
+        .buttonStyle(.plain)
     }
 }
 
