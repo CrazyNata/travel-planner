@@ -177,7 +177,7 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(notificationsButton.waitForExistence(timeout: 5), "В настройках нет уведомлений")
         notificationsButton.tap()
         XCTAssertTrue(app.staticTexts["Уведомления"].waitForExistence(timeout: 10), "Настройки уведомлений не открылись")
-        app.buttons["Закрыть"].firstMatch.tap()
+        app.buttons["notifications.close"].tap()
 
         app.buttons["Изменить пароль"].tap()
         XCTAssertTrue(app.staticTexts["Изменить пароль"].waitForExistence(timeout: 10), "Форма смены пароля не открылась")

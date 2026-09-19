@@ -437,6 +437,8 @@ private struct NotificationSettingsView: View {
                     .frame(width: 42, height: 42)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Закрыть")
+            .accessibilityIdentifier("notifications.close")
             VStack(alignment: .leading, spacing: 2) {
                 Text("Уведомления")
                     .font(AppTheme.font(24, .extrabold))
