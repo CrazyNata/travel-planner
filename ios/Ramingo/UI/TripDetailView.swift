@@ -607,7 +607,14 @@ private struct AndroidOverviewScreen: View {
     }
 
     private var weatherCities: [String] {
-        let values = overview.overviewWeatherCities.isEmpty ? mapCities : overview.overviewWeatherCities
+        let values: [String]
+        if !overview.overviewWeatherCities.isEmpty {
+            values = overview.overviewWeatherCities
+        } else if !overview.cities.isEmpty {
+            values = overview.cities
+        } else {
+            values = mapCities
+        }
         return values.uniqued(by: iosFilterCityKey)
     }
 
@@ -882,16 +889,15 @@ private struct AndroidOverviewScreen: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(weatherCities.filter { weather[$0] != nil }, id: \.self) { city in
-                        if let snapshot = weather[city] {
-                            AndroidWeatherCard(
-                                city: city,
-                                snapshot: snapshot,
-                                showTripWeather: showTripWeather,
-                                photo: photos.first(where: { iosFilterCityKey($0.city) == iosFilterCityKey(city) })?.reference ?? photos.first?.reference,
-                                client: client
-                            )
-                        }
+                    ForEach(weatherCities, id: \.self) { city in
+                        AndroidWeatherCard(
+                            city: city,
+                            snapshot: weatherSnapshot(for: city),
+                            isLoading: weatherLoading,
+                            showTripWeather: showTripWeather,
+                            photo: photos.first(where: { iosFilterCityKey($0.city) == iosFilterCityKey(city) })?.reference ?? photos.first?.reference,
+                            client: client
+                        )
                     }
                 }
             }
@@ -1026,6 +1032,11 @@ private struct AndroidOverviewScreen: View {
         .buttonStyle(.plain)
     }
 
+    private func weatherSnapshot(for city: String) -> WeatherSnapshot? {
+        weather[city]
+            ?? weather.first(where: { iosFilterCityKey($0.key) == iosFilterCityKey(city) })?.value
+    }
+
     private func carouselButton(_ icon: String, delta: Int) -> some View {
         Button {
             guard !photos.isEmpty else { return }
@@ -1135,28 +1146,37 @@ private struct OverviewCitySelectionSheet: View {
 
 private struct AndroidWeatherCard: View {
     let city: String
-    let snapshot: WeatherSnapshot
+    let snapshot: WeatherSnapshot?
+    let isLoading: Bool
     let showTripWeather: Bool
     let photo: String?
     let client: SupabaseClient
 
     var body: some View {
         ZStack(alignment: .leading) {
-            RemotePhotoView(reference: photo, client: client, contentMode: .fill, cornerRadius: 17)
+            RemotePhotoView(reference: photo, client: client, contentMode: .fill, cornerRadius: 16)
             LinearGradient(colors: [.black.opacity(0.08), .black.opacity(0.62)], startPoint: .top, endPoint: .bottom)
-                .clipShape(RoundedRectangle(cornerRadius: 17))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
             VStack(alignment: .leading) {
-                Text(city).font(AppTheme.font(14, .bold))
+                Text(city).font(AppTheme.font(13, .bold))
                 Spacer()
-                Text(showTripWeather ? (snapshot.tripTemperature ?? "—") : snapshot.temperature)
-                    .font(AppTheme.font(28, .extrabold))
-                Text(showTripWeather ? (snapshot.tripCondition ?? "Нет прогноза") : snapshot.condition)
-                    .font(AppTheme.font(12, .semibold))
+                if isLoading && snapshot == nil {
+                    ProgressView()
+                        .tint(.white)
+                        .scaleEffect(0.8)
+                    Text("Загружаем…")
+                        .font(AppTheme.font(11, .semibold))
+                } else {
+                    Text(showTripWeather ? (snapshot?.tripTemperature ?? "—") : (snapshot?.temperature ?? "—"))
+                        .font(AppTheme.font(26, .extrabold))
+                    Text(showTripWeather ? (snapshot?.tripCondition ?? "Нет прогноза") : (snapshot?.condition ?? "Нет данных"))
+                        .font(AppTheme.font(11, .semibold))
+                }
             }
             .foregroundStyle(.white)
-            .padding(11)
+            .padding(12)
         }
-        .frame(width: 105, height: 132)
+        .frame(width: 120, height: 150)
     }
 }
 

@@ -82,14 +82,32 @@ final class WeatherRepository {
         tripDates: String,
         coordinates: [String: Coordinate],
     ) async -> [String: WeatherSnapshot] {
-        var result: [String: WeatherSnapshot] = [:]
-        for city in cities.uniqued() where !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let coordinate = await resolveCoordinate(for: city, coordinates: coordinates) else { continue }
-            if let snapshot = try? await load(city: city, coordinate: coordinate, tripDates: tripDates) {
-                result[city] = snapshot
-            }
+        let uniqueCities = cities.reduce(into: [String]()) { result, city in
+            let value = city.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty,
+                  !result.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame })
+            else { return }
+            result.append(value)
         }
-        return result
+
+        return await withTaskGroup(of: (String, WeatherSnapshot)?.self) { group in
+            for city in uniqueCities {
+                group.addTask {
+                    guard let coordinate = await self.resolveCoordinate(for: city, coordinates: coordinates),
+                          let snapshot = try? await self.load(city: city, coordinate: coordinate, tripDates: tripDates)
+                    else { return nil }
+                    return (city, snapshot)
+                }
+            }
+
+            var result: [String: WeatherSnapshot] = [:]
+            for await item in group {
+                if let item {
+                    result[item.0] = item.1
+                }
+            }
+            return result
+        }
     }
 
     func resolveCoordinates(
@@ -116,7 +134,7 @@ final class WeatherRepository {
             URLQueryItem(name: "forecast_days", value: "16"),
             URLQueryItem(name: "timezone", value: "auto"),
         ]
-        let (data, response) = try await session.data(from: components.url!)
+        let (data, response) = try await requestData(from: components.url!)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw WeatherError.requestFailed }
         let weather = try JSONDecoder().decode(WeatherResponse.self, from: data)
         let targetDate = tripDate(from: tripDates)
@@ -151,7 +169,7 @@ final class WeatherRepository {
             URLQueryItem(name: "format", value: "json"),
         ]
         guard let url = components.url,
-              let (data, response) = try? await session.data(from: url),
+              let (data, response) = try? await requestData(from: url),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let decoded = try? JSONDecoder().decode(GeocodingResponse.self, from: data),
               let result = decoded.results?.first
@@ -171,7 +189,7 @@ final class WeatherRepository {
             URLQueryItem(name: "daily", value: "temperature_2m_max,weather_code"),
             URLQueryItem(name: "timezone", value: "auto"),
         ]
-        let (data, response) = try await session.data(from: components.url!)
+        let (data, response) = try await requestData(from: components.url!)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw WeatherError.requestFailed }
         let archive = try JSONDecoder().decode(DailyOnlyResponse.self, from: data)
         return tripWeather(in: archive.daily, date: date) ?? TripWeather(temperature: "—", condition: "—", isEstimate: false)
@@ -190,7 +208,7 @@ final class WeatherRepository {
             URLQueryItem(name: "daily", value: "temperature_2m_mean,precipitation_sum,cloud_cover_mean"),
             URLQueryItem(name: "timezone", value: "auto"),
         ]
-        let (data, response) = try await session.data(from: components.url!)
+        let (data, response) = try await requestData(from: components.url!)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw WeatherError.requestFailed }
         let climate = try JSONDecoder().decode(DailyOnlyResponse.self, from: data)
         guard let daily = climate.daily,
@@ -248,6 +266,12 @@ final class WeatherRepository {
         case 95, 96, 99: return "Гроза"
         default: return "—"
         }
+    }
+
+    private func requestData(from url: URL) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        return try await session.data(for: request)
     }
 }
 

@@ -427,8 +427,11 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
     }
 
     func weather(for overview: TripOverview) async -> [String: WeatherSnapshot] {
+        let fallbackCities = overview.overviewMapPoints.isEmpty
+            ? overview.routeLegs.flatMap { [$0.from, $0.to] }
+            : overview.overviewMapPoints
         let candidates = overview.overviewWeatherCities.isEmpty
-            ? overview.cities + overview.overviewMapPoints + overview.routeLegs.flatMap { [$0.from, $0.to] }
+            ? (overview.cities.isEmpty ? fallbackCities : overview.cities)
             : overview.overviewWeatherCities
         var seen = Set<String>()
         let cities = candidates.filter { city in
@@ -436,10 +439,12 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             guard !value.isEmpty else { return false }
             return seen.insert(value.lowercased()).inserted
         }
+        let catalogCoordinates = resolveCityCoordinates(for: cities)
+        let coordinates = overview.cityCoordinates.merging(catalogCoordinates) { existing, _ in existing }
         return await weatherRepository.loadCurrent(
             cities: cities,
             tripDates: overview.dates,
-            coordinates: overview.cityCoordinates,
+            coordinates: coordinates,
         )
     }
 
