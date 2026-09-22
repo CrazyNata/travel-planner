@@ -92,8 +92,8 @@ final class RamingoUITests: XCTestCase {
         app.buttons["Показать результаты"].tap()
         XCTAssertTrue(element("restaurants.filters").waitForExistence(timeout: 5), "После фильтрации ресторанов раздел закрылся")
         if tapIfPresent("Добавить ресторан", timeout: 5) {
-            XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Редактор ресторанов не открылся")
-            app.buttons["Готово"].firstMatch.tap()
+            XCTAssertTrue(app.staticTexts["Добавить ресторан"].waitForExistence(timeout: 10), "Редактор ресторана не открылся")
+            app.buttons["Отмена"].firstMatch.tap()
             XCTAssertTrue(app.staticTexts["Рестораны"].waitForExistence(timeout: 10), "Редактор ресторанов не закрылся без сохранения")
         }
 
@@ -105,8 +105,8 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(tapIfPresent("Закрыть", timeout: 5), "Каталог жилья нельзя закрыть")
         XCTAssertTrue(tapIfPresent("Добавить жильё", timeout: 5), "Повторное добавление жилья недоступно")
         XCTAssertTrue(tapIfPresentContaining("Добавить вручную", timeout: 3), "В жилье нет ручного добавления")
-        XCTAssertTrue(app.staticTexts["Редактировать поездку"].waitForExistence(timeout: 10), "Ручной редактор жилья не открылся")
-        app.buttons["Готово"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Добавить жильё"].waitForExistence(timeout: 10), "Ручной редактор жилья не открылся")
+        app.buttons["Отмена"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Жильё"].waitForExistence(timeout: 10), "Ручной редактор жилья не закрылся")
 
         openTripSection("pets", title: "Питомцы")

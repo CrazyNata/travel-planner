@@ -2391,7 +2391,7 @@ private struct AndroidRestaurantsScreen: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.top, 24)
+        .padding(.top, 18)
         .sheet(isPresented: $showFilters) {
             AndroidRestaurantFilterSheet(
                 initialType: selectedType,
@@ -2430,7 +2430,11 @@ private struct FilterHeader: View {
     let onFilters: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        GeometryReader { proxy in
+            let availableWidth = max(0, proxy.size.width - 10)
+            let cityWidth = availableWidth * 1.31 / 2.31
+
+            HStack(spacing: 10) {
             Menu {
                 ForEach(cities, id: \.self) { city in
                     Button {
@@ -2452,25 +2456,35 @@ private struct FilterHeader: View {
                 }
                 .font(AppTheme.font(15, .extrabold)).foregroundStyle(.white)
                 .padding(.horizontal, 14).frame(height: 43)
-                .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 14))
+                .background(
+                    LinearGradient(colors: [AppTheme.purple, AppTheme.purpleLight], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous),
+                )
+                .shadow(color: AppTheme.purple.opacity(0.28), radius: 5, y: 3)
             }
             .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
+            .frame(width: cityWidth)
             Button(action: onFilters) {
                 HStack(spacing: 9) {
                     Image(systemName: "line.3.horizontal.decrease")
                     Text("Фильтры")
-                    Text("\(filterCount)").foregroundStyle(.white).frame(width: 27, height: 27).background(AppTheme.purple, in: Circle())
+                    Text("\(filterCount)")
+                        .font(AppTheme.font(11, .extrabold))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(AppTheme.purple, in: Circle())
                 }
-                .font(AppTheme.font(15, .extrabold)).foregroundStyle(AppTheme.ink)
+                .font(AppTheme.font(14, .extrabold)).foregroundStyle(AppTheme.ink)
                 .padding(.horizontal, 12).frame(height: 43)
-                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-                .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(AppTheme.border, lineWidth: 1) }
             }
             .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
+            .frame(width: availableWidth - cityWidth)
             .accessibilityIdentifier("restaurants.filters")
+            }
         }
+        .frame(height: 43)
     }
 }
 
@@ -3103,7 +3117,7 @@ private struct AndroidAccommodationScreen: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.top, 24)
+        .padding(.top, 18)
     }
 }
 
@@ -3577,7 +3591,7 @@ private struct AndroidPetsScreen: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.top, 24)
+        .padding(.top, 18)
         .sheet(isPresented: $showFilters) {
             AndroidPetFilterSheet(
                 type: selectedType,

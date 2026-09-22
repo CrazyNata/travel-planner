@@ -133,10 +133,14 @@ struct TripEditorView: View {
                 }
             }
             .sheet(item: $itemEditor) { item in
-                ItemEditorSheet(initial: item) { updated in
-                    itemEditor = nil
-                    Task { await saveItem(updated) }
-                }
+                ItemEditorSheet(
+                    initial: item,
+                    onCancel: { itemEditor = nil },
+                    onSave: { updated in
+                        itemEditor = nil
+                        Task { await saveItem(updated) }
+                    },
+                )
             }
             .sheet(item: $groupEditor) { draft in
                 GroupEditorSheet(initial: draft) { updated in
@@ -1320,10 +1324,12 @@ private struct RouteEditorSheet: View {
 private struct ItemEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var item: EditableItem
+    let onCancel: () -> Void
     let onSave: (EditableItem) -> Void
 
-    init(initial: EditableItem, onSave: @escaping (EditableItem) -> Void) {
+    init(initial: EditableItem, onCancel: @escaping () -> Void, onSave: @escaping (EditableItem) -> Void) {
         _item = State(initialValue: initial)
+        self.onCancel = onCancel
         self.onSave = onSave
     }
 
@@ -1337,7 +1343,7 @@ private struct ItemEditorSheet: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
-                    Button { dismiss() } label: {
+                    Button { onCancel(); dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(AppTheme.muted)
@@ -1352,7 +1358,7 @@ private struct ItemEditorSheet: View {
                 fields
 
                 HStack(spacing: 10) {
-                    Button("Отмена") { dismiss() }
+                    Button("Отмена") { onCancel(); dismiss() }
                         .font(AppTheme.font(14, .extrabold))
                         .foregroundStyle(AppTheme.ink)
                         .frame(maxWidth: .infinity)
