@@ -25,7 +25,7 @@ final class RamingoUITests: XCTestCase {
 
         if element("route.leg.edit").waitForExistence(timeout: 5) {
             element("route.leg.edit").tap()
-            XCTAssertTrue(app.staticTexts["Изменить переезд"].waitForExistence(timeout: 5), "Редактор переезда не открылся")
+            XCTAssertTrue(app.staticTexts["День маршрута"].waitForExistence(timeout: 5), "Редактор дня маршрута не открылся")
             app.buttons["Отмена"].firstMatch.tap()
         }
 

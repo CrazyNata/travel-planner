@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var language = "RU"
     @State private var themePreference: ThemePreference = .system
     @State private var themePickerOpen = false
+    @State private var languagePickerOpen = false
     @State private var didLoadProfile = false
     @State private var isSaving = false
     @State private var isSigningOut = false
@@ -55,6 +56,7 @@ struct SettingsView: View {
                             LanguageSettingsRow(
                                 language: $language,
                                 languageTitle: languageTitle,
+                                isExpanded: $languagePickerOpen,
                                 onSelect: { selected in
                                     guard selected.uppercased() != language.uppercased() else { return }
                                     let previous = language
@@ -1042,8 +1044,8 @@ private struct ThemePreferenceSelector: View {
 private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
+    @Binding var isExpanded: Bool
     let onSelect: (String) -> Void
-    @State private var isExpanded = false
     private let options = ["RU", "EN", "ES", "DE"]
 
     var body: some View {
@@ -1070,6 +1072,7 @@ private struct LanguageSettingsRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.language.row")
+            .accessibilityValue(languageTitle)
 
             if isExpanded {
                 VStack(spacing: 4) {
@@ -1096,12 +1099,14 @@ private struct LanguageSettingsRow: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(code)
                         .accessibilityIdentifier("settings.language.\(code)")
                     }
                 }
                 .padding(4)
                 .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.bottom, 10)
+                .accessibilityElement(children: .contain)
             }
         }
     }
