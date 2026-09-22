@@ -516,9 +516,11 @@ private struct TripDrawer: View {
                         .font(AppTheme.font(17, .extrabold))
                         .foregroundStyle(AppTheme.ink)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
                     Spacer()
                 }
-                .padding(.top, proxy.safeAreaInsets.top + 22)
+                .padding(.top, proxy.safeAreaInsets.top + 8)
                 .padding(.horizontal, 18)
                 .padding(.bottom, 8)
 
@@ -545,11 +547,10 @@ private struct TripDrawer: View {
                     .padding(.top, 10)
                     .padding(.bottom, proxy.safeAreaInsets.bottom + 32)
             }
-            .frame(width: 310, height: proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom)
+            .frame(width: 310, height: proxy.size.height)
             .background(AppTheme.surface)
             .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .shadow(color: .black.opacity(0.14), radius: 16, x: 6, y: 0)
-            .offset(y: -proxy.safeAreaInsets.top)
         }
         .ignoresSafeArea()
     }
