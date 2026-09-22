@@ -284,6 +284,7 @@ struct RemotePhotoView: View {
     let client: SupabaseClient
     var contentMode: ContentMode = .fill
     var cornerRadius: CGFloat = 18
+    var usesTripCardPlaceholder = false
 
     @State private var url: URL?
 
@@ -293,7 +294,11 @@ struct RemotePhotoView: View {
                 AsyncImage(url: url, transaction: Transaction(animation: .easeInOut)) { phase in
                     switch phase {
                     case .success(let image):
-                        image.resizable().aspectRatio(contentMode: contentMode)
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: contentMode)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
                     case .failure:
                         placeholder
                     default:
@@ -312,13 +317,24 @@ struct RemotePhotoView: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        Rectangle()
-            .fill(LinearGradient(colors: [Color(hex: 0x7865D5), Color(hex: 0xB7A8FF)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay {
-                Image(systemName: "mountain.2.fill")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.8))
-            }
+        if usesTripCardPlaceholder {
+            Rectangle()
+                .fill(LinearGradient(colors: [Color(hex: 0xE8E5F4), Color(hex: 0xD7D2E9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay {
+                    Image(systemName: "safari")
+                        .font(.system(size: 40, weight: .medium))
+                        .foregroundStyle(Color(hex: 0x9B91C3))
+                }
+        } else {
+            Rectangle()
+                .fill(LinearGradient(colors: [Color(hex: 0x7865D5), Color(hex: 0xB7A8FF)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay {
+                    Image(systemName: "mountain.2.fill")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+        }
     }
 }

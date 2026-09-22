@@ -290,7 +290,13 @@ private struct TripCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RemotePhotoView(reference: trip.coverReference, client: client, contentMode: .fill, cornerRadius: 0)
+            RemotePhotoView(
+                reference: trip.coverReference,
+                client: client,
+                contentMode: .fill,
+                cornerRadius: 0,
+                usesTripCardPlaceholder: true,
+            )
                 .frame(height: 205)
                 .overlay(alignment: .topLeading) {
                     StatusPill(text: isDeleted ? "Удалено" : trip.status)
