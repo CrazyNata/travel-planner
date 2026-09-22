@@ -163,6 +163,11 @@ struct HomeView: View {
                 TripDetailView(tripID: tripID)
             }
             .task {
+                // The onboarding flow may request the create sheet while the
+                // initial trip reload is offline or still in progress. Open
+                // it before waiting for Supabase so the user can enter the
+                // app and use the form immediately.
+                openCreateTripIfRequested()
                 try? await model.reloadTrips()
                 openPendingTrip()
                 openCreateTripIfRequested()

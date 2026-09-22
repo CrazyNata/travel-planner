@@ -195,28 +195,41 @@ final class AppModel: NSObject, ObservableObject, UNUserNotificationCenterDelega
             createTripHintSeen: profile.createTripHintSeen,
             addPlaceHintSeen: profile.addPlaceHintSeen,
         )
-        do {
-            try await accountRepository.updateProfile(
-                avatarReference: next.avatarReference,
-                notificationsEnabled: next.notificationsEnabled,
-                language: next.language,
-                themePreference: next.themePreference,
-                tripRemindersEnabled: next.tripRemindersEnabled,
-                cancellationRemindersEnabled: next.cancellationRemindersEnabled,
-                paymentRemindersEnabled: next.paymentRemindersEnabled,
-                emailNotificationsEnabled: next.emailNotificationsEnabled,
-                emailPaymentRemindersEnabled: next.emailPaymentRemindersEnabled,
-                emailRecipient: next.emailRecipient,
-                reminderHour: next.reminderHour,
-                onboardingCompleted: true,
-                createTripHintSeen: next.createTripHintSeen,
-                addPlaceHintSeen: next.addPlaceHintSeen,
-            )
-            try? await accountRepository.updateWebOnboardingState(completed: true)
-            profile = next
-            shouldPresentCreateTrip = openCreateTrip
-        } catch {
-            errorMessage = error.localizedDescription
+        // Onboarding is a navigation gate, not a reason to block the app when
+        // the optional profile sync is temporarily unavailable. Update the
+        // in-memory state first so both Skip and Create can continue normally.
+        profile = next
+        shouldPresentCreateTrip = openCreateTrip
+
+        // Persist the flag in the background. Supabase remains the source of
+        // truth, but a transient transport error must not strand the user on
+        // the tutorial or show a blocking global alert.
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.ensureSession()
+                try await self.accountRepository.updateProfile(
+                    avatarReference: next.avatarReference,
+                    notificationsEnabled: next.notificationsEnabled,
+                    language: next.language,
+                    themePreference: next.themePreference,
+                    tripRemindersEnabled: next.tripRemindersEnabled,
+                    cancellationRemindersEnabled: next.cancellationRemindersEnabled,
+                    paymentRemindersEnabled: next.paymentRemindersEnabled,
+                    emailNotificationsEnabled: next.emailNotificationsEnabled,
+                    emailPaymentRemindersEnabled: next.emailPaymentRemindersEnabled,
+                    emailRecipient: next.emailRecipient,
+                    reminderHour: next.reminderHour,
+                    onboardingCompleted: true,
+                    createTripHintSeen: next.createTripHintSeen,
+                    addPlaceHintSeen: next.addPlaceHintSeen,
+                )
+                try? await self.accountRepository.updateWebOnboardingState(completed: true)
+            } catch is CancellationError {
+                return
+            } catch {
+                self.logger.error("Onboarding sync deferred: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
