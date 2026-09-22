@@ -108,6 +108,7 @@ struct TripDetailView: View {
                     initial: overview,
                     initialSection: fullEditorSection,
                     initialItemID: fullEditorItemID,
+                    initialCreateSection: fullEditorItemID == nil ? fullEditorSection : nil,
                 )
                     .environmentObject(model)
             }
@@ -148,7 +149,7 @@ struct TripDetailView: View {
                 onManual: {
                     Task { @MainActor in
                         await Task.yield()
-                        openFullEditor(section: "accommodation")
+                        openFullEditor(section: "accommodation", createNew: true)
                     }
                 },
                 onCatalog: {
@@ -273,7 +274,7 @@ struct TripDetailView: View {
             AndroidRestaurantsScreen(
                 overview: overview,
                 client: model.client,
-                onEdit: { itemID in openFullEditor(section: "restaurants", itemID: itemID) },
+                onEdit: { itemID in openFullEditor(section: "restaurants", itemID: itemID, createNew: itemID == nil) },
                 onStatusChange: { restaurant, status in
                     Task { await updateRestaurantStatus(restaurant, to: status) }
                 },
@@ -290,7 +291,7 @@ struct TripDetailView: View {
             AndroidPetsScreen(
                 overview: overview,
                 client: model.client,
-                onEdit: { openFullEditor(section: "pets") },
+                onEdit: { openFullEditor(section: "pets", createNew: true) },
                 onPetChanged: { Task { await load() } },
             )
         case .budget:
@@ -310,9 +311,10 @@ struct TripDetailView: View {
         withAnimation(.easeIn(duration: 0.18)) { showDrawer = false }
     }
 
-    private func openFullEditor(section: String, itemID: String? = nil) {
+    private func openFullEditor(section: String, itemID: String? = nil, createNew: Bool = false) {
         fullEditorSection = section
         fullEditorItemID = itemID
+        if createNew { fullEditorItemID = nil }
         showFullEditor = true
     }
 
@@ -2536,33 +2538,36 @@ private struct AndroidRestaurantFilterSheet: View {
                     .foregroundStyle(AppTheme.purple)
                 }
 
-                filterSection("Тип заведения") {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                filterSection("ТИП ЗАВЕДЕНИЯ") {
+                    HStack(spacing: 10) {
                         restaurantTypeChoice("Ресторан", icon: "fork.knife") { type = "Ресторан" }
                         restaurantTypeChoice("Бар", icon: "wineglass") { type = "Бар" }
                         restaurantTypeChoice("Кафе", icon: "cup.and.saucer") { type = "Кафе" }
                     }
                 }
-                filterSection("Особенности") {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        featureChoice("Приоритет", key: "priority", icon: "star")
-                        featureChoice("С собакой", key: "dog", icon: "pawprint")
-                        featureChoice("Есть бронь", key: "reservation", icon: "calendar.badge.checkmark")
-                        featureChoice("Веган", key: "vegan", icon: "leaf")
+                filterSection("ОСОБЕННОСТИ") {
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(spacing: 9) {
+                            featureChoice("Приоритет", key: "priority", icon: "star.fill")
+                            featureChoice("С собакой", key: "dog", icon: "pawprint.fill")
+                        }
+                        HStack(spacing: 9) {
+                            featureChoice("Есть бронь", key: "reservation", icon: "calendar")
+                            featureChoice("Веган", key: "vegan", icon: "leaf.fill")
+                        }
                     }
                 }
-                filterSection("Средний чек") {
+                filterSection("СРЕДНИЙ ЧЕК") {
                     HStack(spacing: 4) {
-                        ForEach(["", "€", "€€", "€€€", "€€€€"], id: \.self) { value in
-                            restaurantSegment(value.isEmpty ? "Любой" : value, selected: price == value) { price = value }
+                        ForEach(["€", "€€", "€€€", "€€€€"], id: \.self) { value in
+                            restaurantSegment(value, selected: price == value) { price = value }
                         }
                     }
                     .padding(4)
                     .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 14))
                 }
-                filterSection("Рейтинг от") {
+                filterSection("РЕЙТИНГ ОТ") {
                     HStack(spacing: 4) {
-                        restaurantSegment("Любой", selected: rating == nil) { rating = nil }
                         restaurantSegment("4.0+", selected: rating == 4) { rating = 4 }
                         restaurantSegment("4.5+", selected: rating == 4.5) { rating = 4.5 }
                         restaurantSegment("4.8+", selected: rating == 4.8) { rating = 4.8 }
@@ -2580,17 +2585,22 @@ private struct AndroidRestaurantFilterSheet: View {
                 .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 16))
                 .buttonStyle(.plain)
             }
-            .padding(18)
+            .padding(.horizontal, 16)
+            .padding(.top, 30)
+            .padding(.bottom, 22)
         }
         .background(AppTheme.background)
-        .presentationDetents([.large])
+        .presentationDetents([.height(640)])
         .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
     private func filterSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(title).font(AppTheme.font(14, .extrabold)).foregroundStyle(AppTheme.muted)
+            Text(title)
+                .font(AppTheme.font(11, .extrabold))
+                .tracking(0.45)
+                .foregroundStyle(AppTheme.muted)
             content()
         }
     }
@@ -2601,10 +2611,16 @@ private struct AndroidRestaurantFilterSheet: View {
                 Image(systemName: icon).font(.system(size: 19, weight: .semibold))
                 Text(title).font(AppTheme.font(12, .bold)).lineLimit(1).minimumScaleFactor(0.75)
             }
-            .foregroundStyle(type == title ? AppTheme.purple : AppTheme.ink)
-            .frame(maxWidth: .infinity).frame(height: 68)
-            .background(type == title ? AppTheme.lavender.opacity(0.7) : AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-            .overlay { RoundedRectangle(cornerRadius: 14).stroke(type == title ? AppTheme.purple : AppTheme.border, lineWidth: 1) }
+            .foregroundStyle(type == title ? .white : AppTheme.ink)
+            .frame(maxWidth: .infinity).frame(height: 75)
+            .background(
+                type == title
+                    ? AnyShapeStyle(LinearGradient(colors: [AppTheme.purple, AppTheme.purpleLight], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    : AnyShapeStyle(AppTheme.surface),
+                in: RoundedRectangle(cornerRadius: 15, style: .continuous),
+            )
+            .overlay { RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(type == title ? AppTheme.purple : AppTheme.border, lineWidth: 1.2) }
+            .shadow(color: type == title ? AppTheme.purple.opacity(0.16) : .clear, radius: 4, y: 2)
         }
         .buttonStyle(.plain)
     }
@@ -2615,17 +2631,13 @@ private struct AndroidRestaurantFilterSheet: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(features.contains(key) ? AppTheme.purple : AppTheme.muted)
-                    .frame(width: 24)
+                    .foregroundStyle(features.contains(key) ? .white : AppTheme.purple)
                 Text(title).font(AppTheme.font(12, .bold)).lineLimit(1).minimumScaleFactor(0.75)
-                Spacer(minLength: 2)
-                Image(systemName: features.contains(key) ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(features.contains(key) ? AppTheme.purple : AppTheme.border)
             }
-            .foregroundStyle(AppTheme.ink)
-            .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 50)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-            .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+            .foregroundStyle(features.contains(key) ? .white : AppTheme.ink)
+            .padding(.horizontal, 13).frame(height: 38)
+            .background(features.contains(key) ? AppTheme.purple : AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(features.contains(key) ? AppTheme.purple : AppTheme.border, lineWidth: 1.2) }
         }
         .buttonStyle(.plain)
     }
@@ -2635,7 +2647,8 @@ private struct AndroidRestaurantFilterSheet: View {
             Text(title).font(AppTheme.font(12, .bold)).lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(selected ? AppTheme.ink : AppTheme.muted)
                 .frame(maxWidth: .infinity).frame(height: 38)
-                .background(selected ? AppTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 10))
+                .background(selected ? AppTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .shadow(color: selected ? Color.black.opacity(0.08) : .clear, radius: 2, y: 1)
         }
         .buttonStyle(.plain)
     }
@@ -2909,50 +2922,159 @@ private struct RouteAddDraft {
 }
 
 private struct RouteAddEditorSheet: View {
+    @State private var draft = RouteAddDraft()
+    @State private var showDatePicker = false
     let isSaving: Bool
     let errorMessage: String?
     let onCancel: () -> Void
     let onSave: (RouteAddDraft) -> Void
-    @State private var draft = RouteAddDraft()
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Города") {
-                    TextField("Откуда", text: $draft.from)
-                    TextField("Куда", text: $draft.to)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text("День маршрута")
+                        .font(AppTheme.font(23, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                    Spacer(minLength: 0)
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(AppTheme.muted)
+                            .frame(width: 37, height: 37)
+                            .background(AppTheme.surface2, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
                 }
-                Section("Дата и время") {
-                    TextField("Дата", text: $draft.date)
-                    TextField("Заселение", text: $draft.checkIn)
-                    TextField("Выселение", text: $draft.checkOut)
+
+                HStack(spacing: 12) {
+                    routeAddTextField("Откуда", text: $draft.from)
+                    routeAddTextField("Куда", text: $draft.to)
                 }
-                Section("Детали") {
-                    TextField("Расстояние", text: $draft.distance)
-                    TextField("Время в пути", text: $draft.travelTime)
-                    TextField("Ссылка на карту", text: $draft.mapsURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                    TextField("Заметки", text: $draft.notes, axis: .vertical)
-                        .lineLimit(3...6)
-                }
+
+                routeAddDateField
+                routeAddTextField("Заселение до", text: $draft.checkIn, placeholder: "—", keyboard: .numbersAndPunctuation)
+                routeAddTextField("Выселение до", text: $draft.checkOut, placeholder: "—", keyboard: .numbersAndPunctuation)
+                routeAddTextField(
+                    "Ссылка на карту",
+                    text: $draft.mapsURL,
+                    placeholder: "https://maps.app.goo.gl/...",
+                    keyboard: .URL,
+                )
+
                 if let errorMessage, !errorMessage.isEmpty {
-                    Section { Text(errorMessage).foregroundStyle(AppTheme.error) }
+                    Text(errorMessage)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.error)
                 }
-            }
-            .navigationTitle("Новый переезд")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена", action: onCancel).disabled(isSaving)
-                }
-                ToolbarItem(placement: .confirmationAction) {
+
+                HStack(spacing: 10) {
+                    Button("Отмена", action: onCancel)
+                        .font(AppTheme.font(14, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+                        .disabled(isSaving)
+
                     Button(isSaving ? "Сохраняем…" : "Сохранить") {
                         onSave(draft)
                     }
+                    .font(AppTheme.font(14, .extrabold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        LinearGradient(colors: [AppTheme.purple, AppTheme.purpleLight], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 14),
+                    )
+                    .shadow(color: AppTheme.purple.opacity(0.28), radius: 8, y: 4)
                     .disabled(isSaving)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 8)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(AppTheme.background.ignoresSafeArea())
+        .presentationDetents([.height(780)])
+        .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showDatePicker) {
+            NavigationStack {
+                DatePicker("Дата", selection: dateBinding, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal, 10)
+                    .navigationTitle("Дата поездки")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Готово") { showDatePicker = false }
+                                .font(AppTheme.font(14, .bold))
+                        }
+                    }
+            }
+            .presentationDetents([.medium])
+            .environment(\.locale, Locale(identifier: "ru_RU"))
+        }
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { routeEditorDateValue(draft.date) ?? Date() },
+            set: { draft.date = routeEditorISODate($0) },
+        )
+    }
+
+    private var routeAddDateField: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Дата")
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            Button { showDatePicker = true } label: {
+                HStack(spacing: 8) {
+                    Text(draft.date.isEmpty ? "Дата не указана" : routeEditorDateLabel(draft.date))
+                        .font(AppTheme.font(14, .semibold))
+                        .foregroundStyle(draft.date.isEmpty ? AppTheme.muted : AppTheme.ink)
+                    Spacer(minLength: 0)
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AppTheme.purple)
+                }
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+        }
+    }
+
+    @ViewBuilder
+    private func routeAddTextField(
+        _ label: String,
+        text: Binding<String>,
+        placeholder: String = "",
+        keyboard: UIKeyboardType = .default,
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            TextField(placeholder, text: text)
+                .font(AppTheme.font(14, .semibold))
+                .keyboardType(keyboard)
+                .textInputAutocapitalization(keyboard == .URL ? .never : .sentences)
+                .autocorrectionDisabled(keyboard == .URL)
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity)
+                .frame(height: keyboard == .URL ? 54 : 50)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
         }
     }
 }

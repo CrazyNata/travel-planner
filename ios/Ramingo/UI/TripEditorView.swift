@@ -9,6 +9,7 @@ struct TripEditorView: View {
 
     let tripID: String
     let initialItemID: String?
+    let initialCreateSection: String?
 
     @State private var overview: TripOverview
     @State private var selectedSection: EditorSection = .details
@@ -35,9 +36,11 @@ struct TripEditorView: View {
         initial: TripOverview,
         initialSection: String = "details",
         initialItemID: String? = nil,
+        initialCreateSection: String? = nil,
     ) {
         self.tripID = tripID
         self.initialItemID = initialItemID
+        self.initialCreateSection = initialCreateSection
         _overview = State(initialValue: initial)
         _selectedSection = State(initialValue: EditorSection(rawValue: initialSection) ?? .details)
         _title = State(initialValue: initial.title)
@@ -778,8 +781,16 @@ struct TripEditorView: View {
     }
 
     private func openInitialItemIfNeeded() {
-        guard !didOpenInitialItem, let initialItemID, !initialItemID.isEmpty else { return }
+        guard !didOpenInitialItem else { return }
         didOpenInitialItem = true
+
+        if let initialCreateSection,
+           let kind = editorItemKind(for: initialCreateSection) {
+            itemEditor = EditableItem.new(kind: kind)
+            return
+        }
+
+        guard let initialItemID, !initialItemID.isEmpty else { return }
 
         switch selectedSection {
         case .route:
@@ -799,6 +810,17 @@ struct TripEditorView: View {
             itemEditor = EditableItem(pet)
         default:
             break
+        }
+    }
+
+    private func editorItemKind(for section: String) -> EditorItemKind? {
+        switch section {
+        case "sights": return .sight
+        case "restaurants": return .restaurant
+        case "accommodation": return .accommodation
+        case "budgetExpenses": return .expense
+        case "pets": return .pet
+        default: return nil
         }
     }
 
@@ -879,6 +901,16 @@ private enum EditorItemKind: String, Equatable {
         case .accommodation: return "Жильё"
         case .expense: return "Расходы"
         case .pet: return "Питомцы"
+        }
+    }
+
+    var editorTitle: String {
+        switch self {
+        case .sight: return "место"
+        case .restaurant: return "ресторан"
+        case .accommodation: return "жильё"
+        case .expense: return "расход"
+        case .pet: return "место"
         }
     }
 
@@ -1022,7 +1054,19 @@ private struct EditableItem: Identifiable {
 
     static func new(kind: EditorItemKind) -> EditableItem {
         var item = EditableItem(id: UUID().uuidString.lowercased(), kind: kind, isNew: true, name: "", city: "")
-        if kind == .expense { item.amountText = "0" }
+        switch kind {
+        case .restaurant:
+            item.status = "хочу"
+            item.price = "€€"
+        case .accommodation:
+            item.status = "хочу"
+        case .pet:
+            item.category = "shop"
+        case .expense:
+            item.amountText = "0"
+        case .sight:
+            break
+        }
         return item
     }
 
@@ -1284,25 +1328,69 @@ private struct ItemEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Основное") {
-                    TextField("Название", text: $item.name)
-                    TextField("Город", text: $item.city)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(item.isNew ? "Добавить \(item.kind.editorTitle)" : "Редактировать \(item.kind.editorTitle)")
+                        .font(AppTheme.font(23, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(AppTheme.muted)
+                            .frame(width: 37, height: 37)
+                            .background(AppTheme.surface2, in: Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
+
+                editorField("Название *", text: $item.name, placeholder: namePlaceholder)
+                editorField("Город *", text: $item.city, placeholder: "Выберите город")
                 fields
-            }
-            .navigationTitle(item.isNew ? "Новый элемент" : "Изменить элемент")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
+
+                HStack(spacing: 10) {
+                    Button("Отмена") { dismiss() }
+                        .font(AppTheme.font(14, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+
                     Button("Сохранить") {
                         onSave(item)
-                        dismiss()
                     }
+                    .font(AppTheme.font(14, .extrabold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        LinearGradient(colors: [AppTheme.purple, AppTheme.purpleLight], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 14),
+                    )
+                    .shadow(color: AppTheme.purple.opacity(0.28), radius: 8, y: 4)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 14)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(AppTheme.background.ignoresSafeArea())
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var namePlaceholder: String {
+        switch item.kind {
+        case .restaurant: return "Название места"
+        case .accommodation: return "Название жилья"
+        case .pet: return "Название места"
+        case .sight: return "Название достопримечательности"
+        case .expense: return "Например, билеты"
         }
     }
 
@@ -1310,70 +1398,200 @@ private struct ItemEditorSheet: View {
     private var fields: some View {
         switch item.kind {
         case .sight:
-            Section("Место") {
-                TextField("Категория", text: $item.category)
-                TextField("Описание", text: $item.description, axis: .vertical).lineLimit(3...7)
-                TextField("Ссылка", text: $item.link).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("День маршрута", text: $item.walkDayText).keyboardType(.numberPad)
-                TextField("Широта", text: $item.latitudeText).keyboardType(.decimalPad)
-                TextField("Долгота", text: $item.longitudeText).keyboardType(.decimalPad)
-                Toggle("Посещено", isOn: $item.done)
+            editorSection("МЕСТО") {
+                editorField("Категория", text: $item.category, placeholder: "Достопримечательность")
+                editorField("Описание", text: $item.description, placeholder: "Короткое описание", multiline: true)
+                editorField("Ссылка", text: $item.link, placeholder: "https://...", keyboard: .URL)
+                HStack(spacing: 12) {
+                    editorField("День маршрута", text: $item.walkDayText, keyboard: .numberPad)
+                    editorField("Широта", text: $item.latitudeText, keyboard: .decimalPad)
+                }
+                editorToggle("Посещено", isOn: $item.done, icon: "checkmark.circle")
             }
         case .restaurant:
-            Section("Ресторан") {
-                TextField("Статус", text: $item.status)
-                TextField("Кухня или заметка", text: $item.note, axis: .vertical).lineLimit(2...5)
-                TextField("Ценовой уровень", text: $item.price)
-                TextField("Ссылка", text: $item.link).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Дата или время", text: $item.date)
-                Toggle("В приоритете", isOn: $item.priority)
+            editorSection("СТАТУС") {
+                editorChoiceRow(
+                    ["хочу", "бронь", "были"],
+                    selected: item.status.isEmpty ? "хочу" : item.status,
+                    labels: ["хочу", "бронь", "были"],
+                ) { value in item.status = value }
+                editorSectionLabel("СРЕДНИЙ ЧЕК")
+                editorSegmentRow(["€", "€€", "€€€", "€€€€"], selected: item.price) { item.price = $0 }
+                editorField("Кухня или заметка", text: $item.note, placeholder: "Например, итальянская кухня", multiline: true)
+                editorField("Дата или время брони", text: $item.date, placeholder: "Не указано")
+                editorField("Ссылка", text: $item.link, placeholder: "https://...", keyboard: .URL)
+                editorToggle("В приоритете", isOn: $item.priority, icon: "flame.fill")
             }
         case .accommodation:
-            Section("Жильё") {
-                TextField("Даты", text: $item.dates)
-                TextField("Цена", text: $item.price)
-                TextField("Статус", text: $item.status)
-                TextField("Описание или адрес", text: $item.details, axis: .vertical).lineLimit(2...5)
-                TextField("Ссылка на бронирование", text: $item.bookingURL).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Дедлайн отмены", text: $item.deadline)
-                TextField("Адрес", text: $item.address, axis: .vertical).lineLimit(2...4)
-                TextField("Внешняя ссылка", text: $item.externalURL).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Сайт", text: $item.website).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Телефон", text: $item.phone).keyboardType(.phonePad)
-                TextField("Тип", text: $item.type)
-                TextField("Источник", text: $item.source)
-                TextField("Google Place ID", text: $item.googlePlaceID).textInputAutocapitalization(.never)
-                TextField("Booking Property ID", text: $item.bookingPropertyID).textInputAutocapitalization(.never)
-                TextField("ID города поездки", text: $item.tripCityID).textInputAutocapitalization(.never)
-                TextField("Фото-ссылка каталога", text: $item.photoReference).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Широта", text: $item.latitudeText).keyboardType(.decimalPad)
-                TextField("Долгота", text: $item.longitudeText).keyboardType(.decimalPad)
-                TextField("Количество отзывов", text: $item.reviewCountText).keyboardType(.numberPad)
+            editorSection("СТАТУС") {
+                editorChoiceRow(
+                    ["хочу", "бронь", "оплачено", "пожили"],
+                    selected: item.status,
+                    labels: ["хочу", "бронь", "оплачено", "пожили"],
+                ) { value in item.status = value }
+                editorField("Даты", text: $item.dates, placeholder: "дд.мм.гггг – дд.мм.гггг")
+                HStack(spacing: 12) {
+                    editorField("Цена", text: $item.price, placeholder: "€90")
+                    editorField("Тип", text: $item.type, placeholder: "Отель")
+                }
+                editorField("Описание или адрес", text: $item.details, placeholder: "Адрес и детали брони", multiline: true)
+                editorField("Бесплатная отмена до", text: $item.deadline, placeholder: "дд.мм.гггг")
+                editorField("Ссылка на бронирование", text: $item.bookingURL, placeholder: "https://...", keyboard: .URL)
+                editorField("Сайт", text: $item.website, placeholder: "https://...", keyboard: .URL)
+                editorField("Телефон", text: $item.phone, keyboard: .phonePad)
             }
         case .expense:
-            Section("Расход") {
-                TextField("Сумма", text: $item.amountText).keyboardType(.decimalPad)
-                TextField("Категория", text: $item.category)
-                TextField("Общий или личный", text: $item.scope)
-                TextField("Кто оплатил", text: $item.paidBy)
-                TextField("Дата", text: $item.date)
-                TextField("Валюта суммы", text: $item.inputCurrency)
-                TextField("Курс ввода", text: $item.inputCurrencyRateText).keyboardType(.decimalPad)
+            editorSection("РАСХОД") {
+                HStack(spacing: 12) {
+                    editorField("Сумма *", text: $item.amountText, placeholder: "0", keyboard: .decimalPad)
+                    editorField("Валюта", text: $item.inputCurrency, placeholder: "EUR")
+                }
+                editorField("Категория", text: $item.category, placeholder: "Транспорт")
+                editorField("Общий или личный", text: $item.scope, placeholder: "Общий")
+                editorField("Кто оплатил", text: $item.paidBy, placeholder: "Участник")
+                editorField("Дата", text: $item.date, placeholder: "дд.мм.гггг")
+                editorField("Курс ввода", text: $item.inputCurrencyRateText, keyboard: .decimalPad)
             }
         case .pet:
-            Section("Место для питомцев") {
-                TextField("Тип", text: $item.category)
-                TextField("Адрес", text: $item.details, axis: .vertical).lineLimit(2...5)
-                TextField("Телефон", text: $item.phone).keyboardType(.phonePad)
-                TextField("Ссылка на карту", text: $item.mapsURL).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Сайт", text: $item.website).keyboardType(.URL).textInputAutocapitalization(.never)
-                TextField("Заметка", text: $item.noteForPet, axis: .vertical).lineLimit(2...5)
-                TextField("Особенности через запятую", text: $item.featuresText, axis: .vertical).lineLimit(2...4)
-                TextField("Широта", text: $item.latitudeText).keyboardType(.decimalPad)
-                TextField("Долгота", text: $item.longitudeText).keyboardType(.decimalPad)
-                TextField("Количество отзывов", text: $item.reviewCountText).keyboardType(.numberPad)
+            editorSection("МЕСТО ДЛЯ ПИТОМЦЕВ") {
+                editorChoiceRow(
+                    ["shop", "vet"],
+                    selected: normalizedPetType,
+                    labels: ["Зоомагазин", "Ветеринар"],
+                ) { value in item.category = value }
+                editorField("Адрес", text: $item.details, placeholder: "Адрес", multiline: true)
+                editorField("Телефон", text: $item.phone, keyboard: .phonePad)
+                editorField("Ссылка на Google Карты", text: $item.mapsURL, placeholder: "https://maps.google.com/...", keyboard: .URL)
+                editorField("Сайт", text: $item.website, placeholder: "https://...", keyboard: .URL)
+                editorField("Заметка", text: $item.noteForPet, placeholder: "Дополнительная информация", multiline: true)
+                editorField("Особенности через запятую", text: $item.featuresText, placeholder: "Корм, груминг")
             }
         }
+    }
+
+    private var normalizedPetType: String {
+        let value = item.category.lowercased()
+        return value.contains("вет") || value == "vet" ? "vet" : "shop"
+    }
+
+    @ViewBuilder
+    private func editorSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            editorSectionLabel(title)
+            content()
+        }
+    }
+
+    private func editorSectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(AppTheme.font(11, .extrabold))
+            .tracking(0.45)
+            .foregroundStyle(AppTheme.muted)
+            .padding(.top, 3)
+    }
+
+    @ViewBuilder
+    private func editorField(
+        _ label: String,
+        text: Binding<String>,
+        placeholder: String = "",
+        keyboard: UIKeyboardType = .default,
+        multiline: Bool = false,
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            if multiline {
+                TextField(placeholder, text: text, axis: .vertical)
+                    .lineLimit(2...5)
+                    .font(AppTheme.font(14, .semibold))
+                    .keyboardType(keyboard)
+                    .textInputAutocapitalization(keyboard == .URL ? .never : .sentences)
+                    .autocorrectionDisabled(keyboard == .URL)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+            } else {
+                TextField(placeholder, text: text)
+                    .font(AppTheme.font(14, .semibold))
+                    .keyboardType(keyboard)
+                    .textInputAutocapitalization(keyboard == .URL ? .never : .sentences)
+                    .autocorrectionDisabled(keyboard == .URL)
+                    .padding(.horizontal, 13)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+            }
+        }
+    }
+
+    private func editorChoiceRow(_ values: [String], selected: String, labels: [String], action: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 9) {
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                Button { action(value) } label: {
+                    Text(labels[index])
+                        .font(AppTheme.font(12, .extrabold))
+                        .foregroundStyle(selected == value ? .white : AppTheme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 41)
+                        .background(
+                            selected == value ? AnyShapeStyle(AppTheme.purple) : AnyShapeStyle(AppTheme.surface),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous),
+                        )
+                        .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(selected == value ? AppTheme.purple : AppTheme.border, lineWidth: 1) }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func editorSegmentRow(_ values: [String], selected: String, action: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 4) {
+            ForEach(values, id: \.self) { value in
+                Button { action(value) } label: {
+                    Text(value)
+                        .font(AppTheme.font(13, .bold))
+                        .foregroundStyle(selected == value ? AppTheme.ink : AppTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(selected == value ? AppTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .shadow(color: selected == value ? Color.black.opacity(0.08) : .clear, radius: 2, y: 1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(5)
+        .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func editorToggle(_ title: String, isOn: Binding<Bool>, icon: String) -> some View {
+        Button { isOn.wrappedValue.toggle() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(isOn.wrappedValue ? AppTheme.purple : AppTheme.muted)
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.lavender.opacity(0.35), in: Circle())
+                Text(title)
+                    .font(AppTheme.font(14, .semibold))
+                    .foregroundStyle(AppTheme.ink)
+                Spacer()
+                Image(systemName: isOn.wrappedValue ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(isOn.wrappedValue ? AppTheme.purple : AppTheme.border)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 58)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border, lineWidth: 1) }
+        }
+        .buttonStyle(.plain)
     }
 }
 
