@@ -260,7 +260,15 @@ struct TripDetailView: View {
                 },
             )
         case .sights:
-            AndroidSightsScreen(overview: overview, client: model.client, onEdit: { itemID in openFullEditor(section: "sights", itemID: itemID) })
+            AndroidSightsScreen(
+                overview: overview,
+                client: model.client,
+                onEdit: { itemID in openFullEditor(section: "sights", itemID: itemID) },
+                onReorderDays: { currentIDs, orderedIDs in
+                    try await model.reorderSightDays(id: overview.id, currentDayIDs: currentIDs, orderedDayIDs: orderedIDs)
+                    await load()
+                },
+            )
         case .restaurants:
             AndroidRestaurantsScreen(
                 overview: overview,
@@ -1948,8 +1956,11 @@ private struct AndroidSightsScreen: View {
     let overview: TripOverview
     let client: SupabaseClient
     let onEdit: (String) -> Void
+    let onReorderDays: (_ currentIDs: [String], _ orderedIDs: [String]) async throws -> Void
     @State private var copied = false
     @State private var selectedDay = 1
+    @State private var isDayMenuOpen = false
+    @State private var isReorderingDays = false
 
     private var dayOptions: [(number: Int, title: String)] {
         if overview.sightDays.isEmpty { return [(1, overview.sights.first?.city.nonEmpty ?? overview.cities.first ?? "Город")] }
@@ -1979,49 +1990,61 @@ private struct AndroidSightsScreen: View {
         LazyVStack(alignment: .leading, spacing: 14) {
             Text("\(city.uppercased()) · ДЕНЬ \(selectedDay)")
                 .font(AppTheme.font(12, .extrabold)).foregroundStyle(AppTheme.purple)
-            HStack(spacing: 12) {
-                VStack(spacing: 0) {
-                    Text("\(selectedDay)").font(AppTheme.font(20, .extrabold))
-                    Text("ДЕНЬ").font(AppTheme.font(8, .bold))
-                }
-                .foregroundStyle(.white).frame(width: 42, height: 50)
-                .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 12))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("ВЫБЕРИТЕ ДЕНЬ").font(AppTheme.font(10, .bold)).foregroundStyle(AppTheme.muted)
-                    HStack(spacing: 8) {
-                        Text(city)
-                            .font(AppTheme.font(17, .extrabold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        Image(systemName: "pencil").foregroundStyle(AppTheme.purple)
+            ZStack(alignment: .top) {
+                HStack(spacing: 12) {
+                    VStack(spacing: 0) {
+                        Text("\(selectedDay)").font(AppTheme.font(20, .extrabold))
+                        Text("ДЕНЬ").font(AppTheme.font(8, .bold))
                     }
-                }
-                Spacer()
-                Menu {
-                ForEach(Array(dayOptions.enumerated()), id: \.offset) { item in
-                    let option = item.element
-                    Button {
-                        selectedDay = option.number
-                        } label: {
-                            if option.number == selectedDay {
-                                Label("День \(option.number) · \(iosSightCityName(option.title))", systemImage: "checkmark")
-                            } else {
-                                Text("День \(option.number) · \(iosSightCityName(option.title))")
-                            }
+                    .foregroundStyle(.white).frame(width: 42, height: 50)
+                    .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("ВЫБЕРИТЕ ДЕНЬ").font(AppTheme.font(10, .bold)).foregroundStyle(AppTheme.muted)
+                        HStack(spacing: 8) {
+                            Text(city)
+                                .font(AppTheme.font(17, .extrabold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Image(systemName: "pencil").foregroundStyle(AppTheme.purple)
                         }
                     }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(AppTheme.purple)
-                        .frame(width: 36, height: 36)
-                        .background(AppTheme.lavender.opacity(0.35), in: RoundedRectangle(cornerRadius: 11))
+                    Spacer()
+                    Button {
+                        withAnimation(.easeOut(duration: 0.16)) { isDayMenuOpen.toggle() }
+                    } label: {
+                        Image(systemName: isDayMenuOpen ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(AppTheme.purple)
+                            .frame(width: 36, height: 36)
+                            .background(AppTheme.lavender.opacity(0.35), in: RoundedRectangle(cornerRadius: 11))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(10)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
+                .overlay { RoundedRectangle(cornerRadius: 20).stroke(AppTheme.border, lineWidth: 1) }
+
+                if isDayMenuOpen {
+                    AndroidSightDayMenu(
+                        options: dayOptions,
+                        selectedDay: selectedDay,
+                        canEdit: overview.canEdit && overview.sightDays.count == dayOptions.count,
+                        isSaving: isReorderingDays,
+                        onSelect: { day in
+                            withAnimation(.easeOut(duration: 0.16)) {
+                                selectedDay = day
+                                isDayMenuOpen = false
+                            }
+                        },
+                        onMove: moveDay,
+                    )
+                    .offset(y: 72)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                    .zIndex(20)
+                }
             }
-            .padding(10)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
-            .overlay { RoundedRectangle(cornerRadius: 20).stroke(AppTheme.border, lineWidth: 1) }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .zIndex(isDayMenuOpen ? 20 : 0)
 
             VStack(spacing: 0) {
                 NumberedTripMap(pins: pins).frame(height: 192)
@@ -2062,6 +2085,110 @@ private struct AndroidSightsScreen: View {
             try? await Task.sleep(for: .seconds(1.5))
             await MainActor.run { withAnimation(.easeOut(duration: 0.15)) { copied = false } }
         }
+    }
+
+    private func moveDay(from index: Int, to targetIndex: Int) {
+        guard !isReorderingDays,
+              overview.sightDays.count == dayOptions.count,
+              index != targetIndex,
+              overview.sightDays.indices.contains(index),
+              overview.sightDays.indices.contains(targetIndex)
+        else { return }
+
+        let currentIDs = overview.sightDays.map(\.id)
+        var orderedIDs = currentIDs
+        orderedIDs.insert(orderedIDs.remove(at: index), at: targetIndex)
+        let previousSelectedDay = selectedDay
+        if selectedDay - 1 == index {
+            selectedDay = targetIndex + 1
+        } else if selectedDay - 1 == targetIndex {
+            selectedDay = index + 1
+        }
+
+        isReorderingDays = true
+        Task { @MainActor in
+            defer { isReorderingDays = false }
+            do {
+                try await onReorderDays(currentIDs, orderedIDs)
+                withAnimation(.easeOut(duration: 0.16)) { isDayMenuOpen = false }
+            } catch {
+                selectedDay = previousSelectedDay
+            }
+        }
+    }
+}
+
+private struct AndroidSightDayMenu: View {
+    let options: [(number: Int, title: String)]
+    let selectedDay: Int
+    let canEdit: Bool
+    let isSaving: Bool
+    let onSelect: (Int) -> Void
+    let onMove: (_ index: Int, _ targetIndex: Int) -> Void
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.offset) { index, item in
+                    let option = item.element
+                    let selected = option.number == selectedDay
+                    HStack(spacing: 0) {
+                        Button { onSelect(option.number) } label: {
+                            HStack(spacing: 0) {
+                                Text("ДЕНЬ \(option.number)")
+                                    .font(AppTheme.font(10, .extrabold))
+                                    .foregroundStyle(selected ? AppTheme.purple : AppTheme.muted)
+                                    .frame(width: 72, alignment: .leading)
+                                Text(iosSightCityName(option.title))
+                                    .font(AppTheme.font(14, .extrabold))
+                                    .foregroundStyle(selected ? AppTheme.purple : AppTheme.ink)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+
+                        if canEdit {
+                            Button { onMove(index, index - 1) } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(index > 0 && !isSaving ? AppTheme.purple : AppTheme.muted.opacity(0.35))
+                                    .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(index == 0 || isSaving)
+
+                            Button { onMove(index, index + 1) } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(index < options.count - 1 && !isSaving ? AppTheme.purple : AppTheme.muted.opacity(0.35))
+                                    .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(index == options.count - 1 || isSaving)
+                        }
+
+                        if selected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(AppTheme.purple)
+                                .frame(width: 24, height: 30)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 43)
+                    .background(selected ? AppTheme.lavender.opacity(0.5) : Color.clear, in: RoundedRectangle(cornerRadius: 11))
+                }
+            }
+            .padding(7)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(maxHeight: 340)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 18))
+        .overlay { RoundedRectangle(cornerRadius: 18).stroke(AppTheme.border, lineWidth: 1) }
+        .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
     }
 }
 
