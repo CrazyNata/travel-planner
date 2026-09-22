@@ -1043,41 +1043,67 @@ private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
     let onSelect: (String) -> Void
+    @State private var isExpanded = false
     private let options = ["RU", "EN", "ES", "DE"]
 
     var body: some View {
-        Menu {
-            ForEach(options, id: \.self) { code in
-                Button {
-                    onSelect(code)
-                } label: {
-                    HStack {
-                        Text(code)
-                        if language.uppercased() == code {
-                            Image(systemName: "checkmark")
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeOut(duration: 0.16)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "globe")
+                        .frame(width: 22)
+                    Text("Языки")
+                    Spacer()
+                    Text(languageTitle)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .font(AppTheme.font(14, .bold))
+                .foregroundStyle(AppTheme.ink)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.language.row")
+
+            if isExpanded {
+                VStack(spacing: 4) {
+                    ForEach(options, id: \.self) { code in
+                        Button {
+                            isExpanded = false
+                            onSelect(code)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text(code)
+                                    .font(AppTheme.font(12, .bold))
+                                Spacer()
+                                if language.uppercased() == code {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 13, weight: .bold))
+                                }
+                            }
+                            .foregroundStyle(language.uppercased() == code ? .white : AppTheme.ink)
+                            .padding(.horizontal, 11)
+                            .frame(minHeight: 42)
+                            .background(
+                                language.uppercased() == code ? AppTheme.purple : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 9, style: .continuous),
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("settings.language.\(code)")
                     }
                 }
-                .accessibilityIdentifier("settings.language.\(code)")
+                .padding(4)
+                .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.bottom, 10)
             }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "globe")
-                    .frame(width: 22)
-                Text("Языки")
-                Spacer()
-                Text(languageTitle)
-                    .font(AppTheme.font(12, .semibold))
-                    .foregroundStyle(AppTheme.muted)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-            }
-            .font(AppTheme.font(14, .bold))
-            .foregroundStyle(AppTheme.ink)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         }
-        .menuStyle(.borderlessButton)
-        .accessibilityIdentifier("settings.language.row")
     }
 }
 
