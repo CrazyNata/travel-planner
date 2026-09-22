@@ -2361,10 +2361,15 @@ private struct AndroidPetsScreen: View {
 
     private var cityOptions: [String] {
         var values = ["Все города"]
-        for city in overview.cities + overview.petPlaces.map(\.city) {
-            let clean = city.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !clean.isEmpty && !values.contains(where: { iosFilterCityKey($0) == iosFilterCityKey(clean) }) {
-                values.append(clean)
+        let sourceCities = overview.cities +
+            overview.routeLegs.flatMap { [$0.from, $0.to] } +
+            overview.petPlaces.map(\.city)
+        for rawCity in sourceCities {
+            for city in rawCity.split(separator: ",") {
+                let clean = city.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty && !values.contains(where: { iosFilterCityKey($0) == iosFilterCityKey(clean) }) {
+                    values.append(clean)
+                }
             }
         }
         return values
@@ -2548,34 +2553,62 @@ private struct AndroidPetsScreen: View {
     }
 
     private func loadCatalog() async {
-        let cities = selectedCity == "Все города" ? Array(cityOptions.dropFirst()) : [selectedCity]
+        // Keep the first screen fast and match Android: search several cities
+        // concurrently instead of waiting for every city one after another.
+        let cities = selectedCity == "Все города"
+            ? Array(cityOptions.dropFirst().prefix(6))
+            : [selectedCity]
+        catalogEntries = []
+        catalogMessage = nil
         guard !cities.isEmpty else {
-            catalogEntries = []
+            isLoadingCatalog = false
+            catalogMessage = "Добавьте город в маршрут, чтобы найти места для питомцев."
             return
         }
         isLoadingCatalog = true
-        catalogMessage = nil
         var loaded: [CatalogEntry] = []
-        var lastError: Error?
-        for city in cities {
-            guard !Task.isCancelled else { return }
-            do {
-                loaded += try await model.searchCatalog(
-                    kind: .pet,
-                    city: city,
-                    query: searchText,
-                    language: model.profile.language,
-                    petType: selectedType,
-                )
-            } catch {
-                lastError = error
+        var errors: [String] = []
+
+        await withTaskGroup(of: ([CatalogEntry], String?).self) { group in
+            for city in cities {
+                group.addTask {
+                    do {
+                        let entries = try await model.searchCatalog(
+                            kind: .pet,
+                            city: city,
+                            query: searchText,
+                            language: model.profile.language,
+                            petType: selectedType,
+                        )
+                        return (entries, nil)
+                    } catch {
+                        return ([], error.localizedDescription)
+                    }
+                }
+            }
+
+            for await (entries, errorMessage) in group {
+                loaded += entries
+                if let errorMessage { errors.append(errorMessage) }
+
+                var seen = Set<String>()
+                let uniqueEntries = loaded.filter { seen.insert($0.id).inserted }
+                if !uniqueEntries.isEmpty {
+                    catalogEntries = uniqueEntries
+                    isLoadingCatalog = false
+                }
             }
         }
-        guard !Task.isCancelled else { return }
+
+        if Task.isCancelled {
+            isLoadingCatalog = false
+            return
+        }
+
         var seen = Set<String>()
         catalogEntries = loaded.filter { seen.insert($0.id).inserted }
-        if catalogEntries.isEmpty, let lastError {
-            catalogMessage = lastError.localizedDescription
+        if catalogEntries.isEmpty, let firstError = errors.first {
+            catalogMessage = firstError
         }
         isLoadingCatalog = false
     }
