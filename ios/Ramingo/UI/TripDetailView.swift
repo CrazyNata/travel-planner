@@ -4207,7 +4207,7 @@ private func dayFromDate(_ date: String) -> String {
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         return String(calendar.component(.day, from: parsed))
     }
-    date.split(whereSeparator: { !$0.isNumber }).first.map(String.init) ?? "—"
+    return date.split(whereSeparator: { !$0.isNumber }).first.map(String.init) ?? "—"
 }
 
 private func monthFromDate(_ date: String) -> String {
