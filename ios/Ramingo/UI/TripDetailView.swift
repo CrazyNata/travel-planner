@@ -2652,33 +2652,65 @@ private struct AndroidRestaurantCard: View {
     var body: some View {
         VStack(spacing: 11) {
             HStack(alignment: .top, spacing: 12) {
-                RemotePhotoView(reference: restaurant.photos.first, client: client, contentMode: .fill, cornerRadius: 12)
+                RemotePhotoView(reference: photoReference, client: client, contentMode: .fill, cornerRadius: 14)
                     .frame(width: 78, height: 78)
+                    .clipped()
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(restaurant.name).font(AppTheme.font(16, .extrabold)).lineLimit(1)
-                    Text(restaurant.city).font(AppTheme.font(13, .semibold)).foregroundStyle(AppTheme.muted)
+                    Text(restaurant.name)
+                        .font(AppTheme.font(15, .extrabold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(displayCity)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     HStack(spacing: 7) {
                         if let rating = restaurant.rating {
                             Text("★ \(rating, specifier: "%.1f")")
-                                .foregroundStyle(AppTheme.ink).padding(.horizontal, 8).frame(height: 28)
+                                .foregroundStyle(AppTheme.ink)
+                                .padding(.horizontal, 8)
+                                .frame(height: 25)
                                 .background(Color(hex: 0xFFF9E9), in: RoundedRectangle(cornerRadius: 8))
                         }
-                        if !restaurant.price.isEmpty { Text(restaurant.price).foregroundStyle(AppTheme.purple) }
-                        if !restaurant.note.isEmpty { Text(restaurant.note).lineLimit(1) }
+                        if !restaurant.price.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(restaurant.price)
+                                .foregroundStyle(AppTheme.purple)
+                                .padding(.horizontal, 8)
+                                .frame(height: 25)
+                                .background(AppTheme.lavender.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        if !displayedNote.isEmpty {
+                            Text(displayedNote)
+                                .foregroundStyle(AppTheme.muted)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .padding(.horizontal, 8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(height: 25)
+                                .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 8))
+                        }
                     }
-                    .font(AppTheme.font(12, .bold))
+                    .font(AppTheme.font(11.5, .bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
                 if !restaurant.link.isEmpty {
                     Button { openRestaurantLink() } label: {
-                        Image(systemName: "arrow.up.right.square").font(.system(size: 18, weight: .semibold)).foregroundStyle(AppTheme.purple)
-                    }.buttonStyle(.plain)
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(AppTheme.purple)
+                            .frame(width: 28, height: 36)
+                    }
+                    .buttonStyle(.plain)
                 }
                 AndroidIconButton(icon: "pencil", action: onEdit)
             }
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
             Divider().overlay(AppTheme.border)
             HStack {
-                Text(restaurant.reviews.isEmpty ? "Нет отзывов" : "\(restaurant.reviews) отзывов")
+                Text(reviewsLabel)
                     .font(AppTheme.font(12, .bold)).foregroundStyle(AppTheme.muted)
                 Spacer()
                 Button {
@@ -2696,7 +2728,35 @@ private struct AndroidRestaurantCard: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
+    }
+
+    private var photoReference: String? {
+        restaurant.photos.first {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var displayCity: String {
+        restaurant.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Город не указан"
+            : restaurant.city.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var displayedNote: String {
+        let note = restaurant.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        return note.localizedCaseInsensitiveContains("http") ? "" : note
+    }
+
+    private var reviewsLabel: String {
+        let raw = restaurant.reviews.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return "Нет отзывов" }
+        let alreadyLocalized = ["отзыв", "review", "reseña", "bewertung"].contains {
+            raw.localizedCaseInsensitiveContains($0)
+        }
+        return alreadyLocalized ? raw : "\(raw) отзывов"
     }
 
     private func openRestaurantLink() {
