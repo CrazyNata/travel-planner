@@ -113,7 +113,7 @@ struct TripDetailView: View {
             }
         }
         .sheet(item: $routeCheckInEditor) { leg in
-            RouteCheckInEditorSheet(
+            RouteEditorSheet(
                 leg: leg,
                 isSaving: isSavingRouteCheckIn,
                 errorMessage: routeCheckInError,
@@ -121,8 +121,11 @@ struct TripDetailView: View {
                     routeCheckInEditor = nil
                     routeCheckInError = nil
                 },
-                onSave: { checkIn in
-                    Task { await saveRouteCheckIn(leg, value: checkIn) }
+                onSave: { draft in
+                    Task { await saveRouteLeg(leg, draft: draft) }
+                },
+                onDelete: {
+                    Task { await deleteRouteLeg(leg) }
                 },
             )
         }
@@ -310,29 +313,45 @@ struct TripDetailView: View {
         routeCheckInEditor = leg
     }
 
-    private func saveRouteCheckIn(_ leg: RouteLeg, value: String) async {
+    private func saveRouteLeg(_ leg: RouteLeg, draft: RouteEditDraft) async {
         guard !isSavingRouteCheckIn else { return }
         isSavingRouteCheckIn = true
         routeCheckInError = nil
         defer { isSavingRouteCheckIn = false }
 
         do {
+            let date = draft.date.trimmingCharacters(in: .whitespacesAndNewlines)
             try await model.updateRouteLegDetails(
                 id: tripID,
                 dayID: leg.id,
-                from: leg.from,
-                to: leg.to,
-                checkIn: value.trimmingCharacters(in: .whitespacesAndNewlines),
-                checkOut: leg.checkOut,
+                from: draft.from.trimmingCharacters(in: .whitespacesAndNewlines),
+                to: draft.to.trimmingCharacters(in: .whitespacesAndNewlines),
+                checkIn: draft.checkIn.trimmingCharacters(in: .whitespacesAndNewlines),
+                checkOut: draft.checkOut.trimmingCharacters(in: .whitespacesAndNewlines),
                 notes: leg.notes,
-                mapsURL: leg.mapsURL,
-                date: leg.date,
-                dateDay: leg.dateDay,
-                dateMonth: leg.dateMonth,
-                weekday: leg.weekday,
+                mapsURL: draft.mapsURL.trimmingCharacters(in: .whitespacesAndNewlines),
+                date: date,
+                dateDay: dayFromDate(date),
+                dateMonth: monthFromDate(date),
+                weekday: weekdayFromDate(date),
                 distance: leg.distance,
                 travelTime: leg.travelTime,
             )
+            routeCheckInEditor = nil
+            await load()
+        } catch {
+            routeCheckInError = error.localizedDescription
+        }
+    }
+
+    private func deleteRouteLeg(_ leg: RouteLeg) async {
+        guard !isSavingRouteCheckIn else { return }
+        isSavingRouteCheckIn = true
+        routeCheckInError = nil
+        defer { isSavingRouteCheckIn = false }
+
+        do {
+            try await model.deleteTripItem(id: tripID, section: "days", itemID: leg.id)
             routeCheckInEditor = nil
             await load()
         } catch {
@@ -1689,97 +1708,217 @@ private struct AndroidRouteLegCard: View {
     }
 }
 
-private struct RouteCheckInEditorSheet: View {
+private struct RouteEditDraft {
+    var from: String
+    var to: String
+    var date: String
+    var checkIn: String
+    var checkOut: String
+    var mapsURL: String
+
+    init(leg: RouteLeg) {
+        from = leg.from
+        to = leg.to
+        date = leg.date
+        checkIn = leg.checkIn
+        checkOut = leg.checkOut
+        mapsURL = leg.mapsURL
+    }
+}
+
+private struct RouteEditorSheet: View {
     let leg: RouteLeg
     let isSaving: Bool
     let errorMessage: String?
     let onCancel: () -> Void
-    let onSave: (String) -> Void
-    @State private var checkIn: String
+    let onSave: (RouteEditDraft) -> Void
+    let onDelete: () -> Void
+    @State private var draft: RouteEditDraft
+    @State private var showDatePicker = false
+    @State private var showDeleteConfirmation = false
 
     init(
         leg: RouteLeg,
         isSaving: Bool,
         errorMessage: String?,
         onCancel: @escaping () -> Void,
-        onSave: @escaping (String) -> Void,
+        onSave: @escaping (RouteEditDraft) -> Void,
+        onDelete: @escaping () -> Void,
     ) {
         self.leg = leg
         self.isSaving = isSaving
         self.errorMessage = errorMessage
         self.onCancel = onCancel
         self.onSave = onSave
-        _checkIn = State(initialValue: leg.checkIn)
+        self.onDelete = onDelete
+        _draft = State(initialValue: RouteEditDraft(leg: leg))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Изменить переезд")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text("День маршрута")
                         .font(AppTheme.font(23, .extrabold))
                         .foregroundStyle(AppTheme.ink)
-                    Text("Обновите время заселения для этого переезда.")
-                        .font(AppTheme.font(13, .semibold))
-                        .foregroundStyle(AppTheme.muted)
+                    Spacer(minLength: 0)
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(AppTheme.muted)
+                            .frame(width: 37, height: 37)
+                            .background(AppTheme.surface2, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
                 }
-                Spacer(minLength: 0)
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(AppTheme.muted)
-                        .frame(width: 36, height: 36)
-                        .background(AppTheme.surface2, in: Circle())
+
+                HStack(spacing: 12) {
+                    routeEditorTextField("Откуда", text: $draft.from)
+                    routeEditorTextField("Куда", text: $draft.to)
                 }
-                .buttonStyle(.plain)
-                .disabled(isSaving)
-            }
 
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Время заселения")
-                    .font(AppTheme.font(12, .extrabold))
-                    .foregroundStyle(AppTheme.muted)
-                TextField("23:00", text: $checkIn)
-                    .font(AppTheme.font(17, .bold))
-                    .keyboardType(.numbersAndPunctuation)
-                    .textInputAutocapitalization(.never)
-                    .padding(.horizontal, 13)
-                    .frame(height: 52)
-                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.purple, lineWidth: 1) }
-            }
+                routeEditorDateField
+                routeEditorTextField("Заселение до", text: $draft.checkIn, placeholder: "—", keyboard: .numbersAndPunctuation)
+                routeEditorTextField("Выселение до", text: $draft.checkOut, placeholder: "—", keyboard: .numbersAndPunctuation)
+                routeEditorTextField(
+                    "Ссылка на карту",
+                    text: $draft.mapsURL,
+                    placeholder: "https://maps.app.goo.gl/...",
+                    keyboard: .URL,
+                )
 
-            if let errorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(AppTheme.font(12, .semibold))
-                    .foregroundStyle(AppTheme.error)
-            }
+                if let errorMessage, !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .font(AppTheme.font(12, .semibold))
+                        .foregroundStyle(AppTheme.error)
+                }
 
-            HStack(spacing: 10) {
-                Button("Отмена", action: onCancel)
-                    .font(AppTheme.font(14, .extrabold))
-                    .foregroundStyle(AppTheme.ink)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+                HStack(spacing: 10) {
+                    Button {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(AppTheme.error)
+                            .frame(width: 54, height: 54)
+                            .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .buttonStyle(.plain)
                     .disabled(isSaving)
 
-                Button(isSaving ? "Сохраняем…" : "Сохранить") {
-                    onSave(checkIn)
+                    Button("Отмена", action: onCancel)
+                        .font(AppTheme.font(14, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+                        .disabled(isSaving)
+
+                    Button(isSaving ? "Сохраняем…" : "Сохранить") {
+                        onSave(draft)
+                    }
+                    .font(AppTheme.font(14, .extrabold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 14))
+                    .disabled(isSaving)
                 }
-                .font(AppTheme.font(14, .extrabold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(AppTheme.purple, in: RoundedRectangle(cornerRadius: 14))
-                .disabled(isSaving)
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 8)
         }
-        .padding(18)
-        .background(AppTheme.background)
-        .presentationDetents([.height(300)])
+        .scrollDismissesKeyboard(.interactively)
+        .background(AppTheme.background.ignoresSafeArea())
+        .presentationDetents([.height(780)])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showDatePicker) {
+            NavigationStack {
+                DatePicker("Дата", selection: dateBinding, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal, 10)
+                    .navigationTitle("Дата поездки")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Готово") { showDatePicker = false }
+                                .font(AppTheme.font(14, .bold))
+                        }
+                    }
+            }
+            .presentationDetents([.medium])
+            .environment(\.locale, Locale(identifier: "ru_RU"))
+        }
+        .confirmationDialog(
+            "Удалить день маршрута?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible,
+        ) {
+            Button("Удалить день", role: .destructive) { onDelete() }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("День маршрута будет удалён из поездки.")
+        }
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { routeEditorDateValue(draft.date) ?? Date() },
+            set: { draft.date = routeEditorISODate($0) },
+        )
+    }
+
+    private var routeEditorDateField: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Дата")
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            Button { showDatePicker = true } label: {
+                HStack(spacing: 8) {
+                    Text(routeEditorDateLabel(draft.date))
+                        .font(AppTheme.font(14, .semibold))
+                        .foregroundStyle(draft.date.isEmpty ? AppTheme.muted : AppTheme.ink)
+                    Spacer(minLength: 0)
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AppTheme.purple)
+                }
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+        }
+    }
+
+    @ViewBuilder
+    private func routeEditorTextField(
+        _ label: String,
+        text: Binding<String>,
+        placeholder: String = "",
+        keyboard: UIKeyboardType = .default,
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(AppTheme.font(12, .extrabold))
+                .foregroundStyle(AppTheme.ink)
+            TextField(placeholder, text: text)
+                .font(AppTheme.font(14, .semibold))
+                .keyboardType(keyboard)
+                .textInputAutocapitalization(keyboard == .URL ? .never : .sentences)
+                .autocorrectionDisabled(keyboard == .URL)
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
+        }
     }
 }
 
@@ -4218,6 +4357,32 @@ private func monthFromDate(_ date: String) -> String {
     }
     let parts = date.split(separator: " ")
     return parts.count > 1 ? String(parts[1].prefix(3)) : ""
+}
+
+private func routeEditorDateValue(_ value: String) -> Date? {
+    iosWeatherTripDateRange(value)?.0
+}
+
+private func routeEditorISODate(_ date: Date) -> String {
+    iosWeatherISODate(date)
+}
+
+private func routeEditorDateLabel(_ value: String) -> String {
+    guard let date = routeEditorDateValue(value) else {
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Дата не указана"
+    }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+    let months = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+    return "\(calendar.component(.day, from: date)) \(months[calendar.component(.month, from: date) - 1]) \(calendar.component(.year, from: date))"
+}
+
+private func weekdayFromDate(_ value: String) -> String {
+    guard let date = routeEditorDateValue(value) else { return "" }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+    let weekdays = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"]
+    return weekdays[calendar.component(.weekday, from: date) - 1]
 }
 
 private extension Array where Element == String {
