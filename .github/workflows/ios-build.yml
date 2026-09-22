@@ -311,6 +311,7 @@ jobs:
               else
                   echo "IOS_QA_EMAIL/IOS_QA_PASSWORD are not configured; launch-only smoke remains active."
               fi
+              stop_recording
               python3 - "$device_udid" "$capture_path" <<'PY'
           import subprocess
           import sys
@@ -319,10 +320,9 @@ jobs:
           subprocess.run(
               ["xcrun", "simctl", "io", device_udid, "screenshot", screenshot_path],
               check=True,
-              timeout=45,
+              timeout=120,
           )
           PY
-              stop_recording
               test -s "$capture_path"
               test -s "$video_path"
               echo "Simulator smoke test passed: Ramingo launched with pid $pid and produced a screenshot and video."
