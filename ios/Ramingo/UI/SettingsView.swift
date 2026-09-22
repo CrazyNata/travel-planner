@@ -19,7 +19,6 @@ struct SettingsView: View {
     @State private var language = "RU"
     @State private var themePreference: ThemePreference = .system
     @State private var themePickerOpen = false
-    @State private var languagePickerOpen = false
     @State private var didLoadProfile = false
     @State private var isSaving = false
     @State private var isSigningOut = false
@@ -33,11 +32,10 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
-                ZStack {
-                    AppTheme.background.ignoresSafeArea()
-                ScrollViewReader { scrollProxy in
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 18) {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
                         profileCard
                         settingsSection("ВНЕШНИЙ ВИД") {
                             SettingsButtonRow(icon: "paintpalette", title: "Тема", value: themeTitle) {
@@ -57,15 +55,6 @@ struct SettingsView: View {
                             LanguageSettingsRow(
                                 language: $language,
                                 languageTitle: languageTitle,
-                                isExpanded: $languagePickerOpen,
-                                onExpansionChanged: { expanded in
-                                    guard expanded else { return }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                        withAnimation(.easeOut(duration: 0.16)) {
-                                            scrollProxy.scrollTo("settings.language.options", anchor: .center)
-                                        }
-                                    }
-                                },
                                 onSelect: { selected in
                                     guard selected.uppercased() != language.uppercased() else { return }
                                     let previous = language
@@ -127,10 +116,9 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isSigningOut || isDeleting)
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 34)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 34)
                 }
             }
             .navigationDestination(for: SettingsRoute.self) { route in
@@ -1054,72 +1042,50 @@ private struct ThemePreferenceSelector: View {
 private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
-    @Binding var isExpanded: Bool
-    let onExpansionChanged: (Bool) -> Void
     let onSelect: (String) -> Void
     private let options = ["RU", "EN", "ES", "DE"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeOut(duration: 0.16)) {
-                    isExpanded.toggle()
-                }
-                onExpansionChanged(isExpanded)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "globe")
-                        .frame(width: 22)
-                    Text("Языки")
-                    Spacer()
-                    Text(languageTitle)
-                        .font(AppTheme.font(12, .semibold))
-                        .foregroundStyle(AppTheme.muted)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                }
-                .font(AppTheme.font(14, .bold))
-                .foregroundStyle(AppTheme.ink)
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "globe")
+                    .frame(width: 22)
+                Text("Языки")
+                Spacer()
+                Text(languageTitle)
+                    .font(AppTheme.font(12, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
             }
-            .buttonStyle(.plain)
+            .font(AppTheme.font(14, .bold))
+            .foregroundStyle(AppTheme.ink)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             .accessibilityIdentifier("settings.language.row")
             .accessibilityValue(languageTitle)
 
-            if isExpanded {
-                VStack(spacing: 4) {
-                    ForEach(options, id: \.self) { code in
-                        Button {
-                            isExpanded = false
-                            onSelect(code)
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(code)
-                                    .font(AppTheme.font(12, .bold))
-                                Spacer()
-                                if language.uppercased() == code {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 13, weight: .bold))
-                                }
-                            }
-                            .foregroundStyle(language.uppercased() == code ? .white : AppTheme.ink)
-                            .padding(.horizontal, 11)
-                            .frame(minHeight: 42)
+            HStack(spacing: 4) {
+                ForEach(options, id: \.self) { code in
+                    Button {
+                        onSelect(code)
+                    } label: {
+                        Text(code)
+                            .font(AppTheme.font(12, .bold))
+                            .foregroundStyle(language.uppercased() == code ? .white : AppTheme.muted)
+                            .frame(maxWidth: .infinity, minHeight: 42)
                             .background(
                                 language.uppercased() == code ? AppTheme.purple : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 9, style: .continuous),
                             )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(code)
-                        .accessibilityIdentifier("settings.language.\(code)")
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(code)
+                    .accessibilityIdentifier("settings.language.\(code)")
                 }
-                .padding(4)
-                .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(.bottom, 10)
-                .id("settings.language.options")
             }
+            .padding(4)
+            .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.bottom, 10)
         }
     }
 }
