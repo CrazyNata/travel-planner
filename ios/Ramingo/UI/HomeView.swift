@@ -332,7 +332,7 @@ private struct TripCardView: View {
                 routeSummary
                     .padding(.top, 9)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.top, 15)
             .padding(.bottom, 17)
         }
