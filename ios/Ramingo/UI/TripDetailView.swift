@@ -2129,7 +2129,8 @@ private struct AndroidSightDayMenu: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: 0) {
-                ForEach(Array(options.enumerated()), id: \.offset) { index, item in
+                ForEach(Array(options.enumerated()), id: \.offset) { item in
+                    let index = item.offset
                     let option = item.element
                     let selected = option.number == selectedDay
                     HStack(spacing: 0) {
