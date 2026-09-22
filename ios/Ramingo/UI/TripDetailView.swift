@@ -625,7 +625,6 @@ private struct AndroidOverviewScreen: View {
                 .padding(.horizontal, 12)
                 .frame(minHeight: 39)
                 .background(AppTheme.lavender.opacity(0.65), in: RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal, 16)
                 .padding(.top, 9)
             }
 
@@ -633,14 +632,17 @@ private struct AndroidOverviewScreen: View {
                 Text(actionMessage)
                     .font(AppTheme.font(12, .bold))
                     .foregroundStyle(AppTheme.error)
-                    .padding(.horizontal, 16)
                     .padding(.top, 8)
             }
 
-            ForEach(orderedBlocks, id: \.self) { block in
-                editableBlock(block)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(orderedBlocks, id: \.self) { block in
+                    editableBlock(block)
+                }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18)
         .onAppear { syncEditorState() }
         .onChange(of: overview.overviewBlocks) { _, _ in syncEditorState() }
         .onChange(of: overview.overviewMapPoints) { _, _ in syncEditorState() }
@@ -808,17 +810,13 @@ private struct AndroidOverviewScreen: View {
                 .padding(.horizontal, 7)
             }
         }
-        .padding(.horizontal, 16)
         .padding(.top, 2)
     }
 
     private var mapBlock: some View {
         VStack(spacing: 0) {
             NumberedTripMap(pins: mapPins, routeCoordinates: roadRoute, showsUserLocation: true)
-                .frame(height: 176)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .frame(height: 200)
             HStack {
                 Text("Общий маршрут")
                     .font(AppTheme.font(13, .semibold))
@@ -827,35 +825,34 @@ private struct AndroidOverviewScreen: View {
                 Text(routeSummary)
                     .font(AppTheme.font(14, .extrabold))
                     .foregroundStyle(AppTheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .padding(.horizontal, 16)
             .frame(height: 46)
             .background(AppTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .padding(.horizontal, 16)
         }
+        .background(AppTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var weatherBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Погода по маршруту")
-                .font(AppTheme.font(23, .extrabold))
+                .font(AppTheme.font(20, .extrabold))
                 .foregroundStyle(AppTheme.ink)
-                .padding(.horizontal, 16)
-                .padding(.top, 13)
+                .padding(.top, 2)
             Text(showTripWeather ? "Прогноз на даты поездки" : "Текущая погода для городов маршрута")
-                .font(AppTheme.font(13, .semibold))
+                .font(AppTheme.font(12, .semibold))
                 .foregroundStyle(AppTheme.muted)
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 8)
             HStack(spacing: 0) {
                 weatherModeButton("Сейчас", trip: false)
                 weatherModeButton("На даты поездки", trip: true)
             }
             .padding(4)
             .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13))
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
+            .padding(.top, 8)
 
             if weatherLoading {
                 HStack(spacing: 8) {
@@ -865,8 +862,7 @@ private struct AndroidOverviewScreen: View {
                         .font(AppTheme.font(12, .bold))
                         .foregroundStyle(AppTheme.muted)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, 8)
             } else if !weatherCities.isEmpty && weather.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "wifi.exclamationmark")
@@ -881,8 +877,7 @@ private struct AndroidOverviewScreen: View {
                 .padding(.horizontal, 12)
                 .frame(minHeight: 42)
                 .background(AppTheme.lavender.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, 8)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -899,9 +894,8 @@ private struct AndroidOverviewScreen: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
             }
-            .padding(.top, 9)
+            .padding(.top, 8)
         }
     }
 
@@ -1023,11 +1017,10 @@ private struct AndroidOverviewScreen: View {
             withAnimation(.easeOut(duration: 0.16)) { showTripWeather = trip }
         } label: {
             Text(title)
-                .font(AppTheme.font(14, .bold))
+                .font(AppTheme.font(13, .bold))
                 .foregroundStyle(showTripWeather == trip ? AppTheme.ink : Color(hex: 0x9999A3))
                 .padding(.horizontal, 14)
-                .frame(maxWidth: trip ? .infinity : nil)
-                .frame(height: 38)
+                .frame(height: 32)
                 .background(showTripWeather == trip ? AppTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
