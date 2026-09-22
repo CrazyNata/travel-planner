@@ -632,7 +632,7 @@ private struct AndroidOverviewScreen: View {
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
 
         let transitions = overview.routeLegs.enumerated().compactMap { index, leg -> (Date, String, String, Int)? in
-            let date = iosWeatherTripDateRange(leg.date)?.0 ?? dates.first.map { calendar.date(byAdding: .day, value: index, to: $0) }
+            let date = iosWeatherTripDateRange(leg.date)?.0 ?? dates.first.flatMap { calendar.date(byAdding: .day, value: index, to: $0) }
             guard let date else { return nil }
             return (date, leg.from, leg.to, index)
         }
