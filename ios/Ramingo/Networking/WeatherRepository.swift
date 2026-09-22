@@ -146,7 +146,7 @@ final class WeatherRepository {
         let weather = try JSONDecoder().decode(WeatherResponse.self, from: data)
         let tripDateRange = iosWeatherTripDateRange(tripDates)
         let targetDate = tripDateRange?.0
-        let tripDatesToLoad = tripDateRange.map { iosWeatherTripDates(tripDates) } ?? []
+        let tripDatesToLoad = tripDateRange == nil ? [] : iosWeatherTripDates(tripDates)
         var tripDays = weatherTripDays(from: weather.daily)
         let missingTripDates = tripDatesToLoad.filter { tripDays[iosWeatherISODate($0)] == nil }
         var calendar = Calendar(identifier: .gregorian)
