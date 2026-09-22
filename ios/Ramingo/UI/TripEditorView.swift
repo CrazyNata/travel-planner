@@ -135,10 +135,17 @@ struct TripEditorView: View {
             .sheet(item: $itemEditor) { item in
                 ItemEditorSheet(
                     initial: item,
-                    onCancel: { itemEditor = nil },
-                    onSave: { updated in
+                    onCancel: {
                         itemEditor = nil
-                        Task { await saveItem(updated) }
+                        if initialCreateSection != nil { dismiss() }
+                    },
+                    onSave: { updated in
+                        Task {
+                            if await saveItem(updated) {
+                                itemEditor = nil
+                                if initialCreateSection != nil { dismiss() }
+                            }
+                        }
                     },
                 )
             }
@@ -640,8 +647,9 @@ struct TripEditorView: View {
         endSave()
     }
 
-    private func saveItem(_ item: EditableItem) async {
+    private func saveItem(_ item: EditableItem) async -> Bool {
         beginSave()
+        var didSave = false
         do {
             guard item.isValid else { throw EditorError.validation(item.validationMessage) }
             if item.isNew {
@@ -650,10 +658,12 @@ struct TripEditorView: View {
                 try await model.updateTripArrayItem(id: tripID, section: item.kind.section, itemID: item.id, fields: item.fields)
             }
             try await reload()
+            didSave = true
         } catch {
             alertMessage = error.localizedDescription
         }
         endSave()
+        return didSave
     }
 
     private func addCatalogEntry(_ entry: CatalogEntry, walkDay: Int) async {

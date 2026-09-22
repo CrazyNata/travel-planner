@@ -5,6 +5,13 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+private struct TripEditorRequest: Identifiable {
+    let id = UUID()
+    let section: String
+    let itemID: String?
+    let createNew: Bool
+}
+
 struct TripDetailView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -16,9 +23,7 @@ struct TripDetailView: View {
     @State private var localError: String?
     @State private var showDrawer = false
     @State private var overviewEditMode = false
-    @State private var showFullEditor = false
-    @State private var fullEditorSection = "details"
-    @State private var fullEditorItemID: String?
+    @State private var fullEditorRequest: TripEditorRequest?
     @State private var routeCheckInEditor: RouteLeg?
     @State private var isSavingRouteCheckIn = false
     @State private var routeCheckInError: String?
@@ -101,14 +106,14 @@ struct TripDetailView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: tripID) { await load() }
-        .sheet(isPresented: $showFullEditor, onDismiss: { Task { await load() } }) {
+        .sheet(item: $fullEditorRequest, onDismiss: { Task { await load() } }) { request in
             if let overview {
                 TripEditorView(
                     tripID: overview.id,
                     initial: overview,
-                    initialSection: fullEditorSection,
-                    initialItemID: fullEditorItemID,
-                    initialCreateSection: fullEditorItemID == nil ? fullEditorSection : nil,
+                    initialSection: request.section,
+                    initialItemID: request.itemID,
+                    initialCreateSection: request.createNew ? request.section : nil,
                 )
                     .environmentObject(model)
             }
@@ -312,10 +317,11 @@ struct TripDetailView: View {
     }
 
     private func openFullEditor(section: String, itemID: String? = nil, createNew: Bool = false) {
-        fullEditorSection = section
-        fullEditorItemID = itemID
-        if createNew { fullEditorItemID = nil }
-        showFullEditor = true
+        fullEditorRequest = TripEditorRequest(
+            section: section,
+            itemID: createNew ? nil : itemID,
+            createNew: createNew,
+        )
     }
 
     private func openRouteCheckInEditor(_ leg: RouteLeg) {
