@@ -54,7 +54,8 @@ final class RamingoUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Погода по маршруту"].waitForExistence(timeout: 15), "Главный экран поездки не показал блок погоды")
         if app.buttons["На даты поездки"].waitForExistence(timeout: 5) {
             app.buttons["На даты поездки"].tap()
-            XCTAssertTrue(app.staticTexts["Прогноз на даты поездки"].waitForExistence(timeout: 5), "Переключатель прогноза на даты не сработал")
+            let tripDateSubtitle = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Погода на")).firstMatch
+            XCTAssertTrue(tripDateSubtitle.waitForExistence(timeout: 5), "Переключатель прогноза на даты не сработал")
             app.buttons["Сейчас"].tap()
             XCTAssertTrue(app.staticTexts["Текущая погода для городов маршрута"].waitForExistence(timeout: 5), "Переключатель текущей погоды не сработал")
         }

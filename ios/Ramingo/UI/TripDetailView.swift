@@ -572,6 +572,8 @@ private struct AndroidOverviewScreen: View {
     let onChanged: () -> Void
     @State private var photoIndex = 0
     @State private var showTripWeather = false
+    @State private var selectedTripDate: Date?
+    @State private var selectedWeatherCity: String?
     @State private var roadRoute: [Coordinate] = []
     @State private var roadRouteDistanceMeters: CLLocationDistance?
     @State private var orderedBlocks: [String] = ["photo", "map", "weather"]
@@ -618,6 +620,74 @@ private struct AndroidOverviewScreen: View {
         return values.uniqued(by: iosFilterCityKey)
     }
 
+    private var tripDates: [Date] {
+        iosWeatherTripDates(overview.dates)
+    }
+
+    private var tripCityByDate: [Date: String] {
+        let dates = tripDates
+        guard !dates.isEmpty else { return [:] }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+
+        let transitions = overview.routeLegs.enumerated().compactMap { index, leg -> (Date, String, String, Int)? in
+            let date = iosWeatherTripDateRange(leg.date)?.0 ?? dates.first.map { calendar.date(byAdding: .day, value: index, to: $0) }
+            guard let date else { return nil }
+            return (date, leg.from, leg.to, index)
+        }
+        .sorted { lhs, rhs in
+            if lhs.0 != rhs.0 { return lhs.0 < rhs.0 }
+            return lhs.3 < rhs.3
+        }
+
+        var currentCity = transitions.first?.1 ?? overview.accommodations.first?.city ?? ""
+        var transitionIndex = 0
+        var result: [Date: String] = [:]
+
+        for date in dates {
+            if let accommodationCity = overview.accommodations.first(where: { accommodation in
+                guard let range = iosWeatherTripDateRange(accommodation.dates) else { return false }
+                if range.0 == range.1 {
+                    return calendar.isDate(date, inSameDayAs: range.0) && !accommodation.city.isEmpty
+                }
+                return date >= range.0 && date < range.1 && !accommodation.city.isEmpty
+            })?.city {
+                result[date] = accommodationCity
+                continue
+            }
+
+            while transitionIndex < transitions.count && transitions[transitionIndex].0 <= date {
+                currentCity = transitions[transitionIndex].2
+                transitionIndex += 1
+            }
+            if !currentCity.isEmpty { result[date] = currentCity }
+        }
+        return result
+    }
+
+    private var weatherSubtitle: String {
+        guard showTripWeather, let selectedTripDate else {
+            return "Текущая погода для городов маршрута"
+        }
+        return "Погода на \(iosWeatherDateLabel(selectedTripDate))"
+    }
+
+    private var selectedForecastAvailable: Bool {
+        guard showTripWeather, let selectedTripDate else { return true }
+        let key = iosWeatherISODate(selectedTripDate)
+        return weatherCities.contains { city in
+            weatherSnapshot(for: city)?.tripDays[key].map { $0.temperature != nil || $0.condition != nil } == true
+        }
+    }
+
+    private var defaultWeatherCityForTrip: String? {
+        guard let firstDate = tripDates.first,
+              let firstCity = tripCityByDate[firstDate]
+        else { return weatherCities.first }
+        return weatherCities.first(where: { iosFilterCityKey($0) == iosFilterCityKey(firstCity) }) ?? weatherCities.first
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if editMode {
@@ -650,10 +720,15 @@ private struct AndroidOverviewScreen: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 18)
-        .onAppear { syncEditorState() }
+        .onAppear {
+            syncEditorState()
+            syncWeatherState()
+        }
         .onChange(of: overview.overviewBlocks) { _, _ in syncEditorState() }
         .onChange(of: overview.overviewMapPoints) { _, _ in syncEditorState() }
         .onChange(of: overview.overviewWeatherCities) { _, _ in syncEditorState() }
+        .onChange(of: overview.dates) { _, _ in syncWeatherState() }
+        .onChange(of: weatherCities) { _, _ in syncWeatherState() }
         .onChange(of: editMode) { _, next in
             if next { syncEditorState() }
         }
@@ -849,7 +924,7 @@ private struct AndroidOverviewScreen: View {
                 .font(AppTheme.font(20, .extrabold))
                 .foregroundStyle(AppTheme.ink)
                 .padding(.top, 2)
-            Text(showTripWeather ? "Прогноз на даты поездки" : "Текущая погода для городов маршрута")
+            Text(weatherSubtitle)
                 .font(AppTheme.font(12, .semibold))
                 .foregroundStyle(AppTheme.muted)
                 .padding(.top, 8)
@@ -858,19 +933,21 @@ private struct AndroidOverviewScreen: View {
                 weatherModeButton("На даты поездки", trip: true)
             }
             .padding(4)
-            .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13))
-            .padding(.top, 8)
-
-            if weatherLoading {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(AppTheme.purple)
-                    Text("Загружаем погоду…")
-                        .font(AppTheme.font(12, .bold))
-                        .foregroundStyle(AppTheme.muted)
-                }
+                .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13))
                 .padding(.top, 8)
-            } else if !weatherCities.isEmpty && weather.isEmpty {
+
+            if showTripWeather, selectedTripDate != nil, !weatherLoading, !selectedForecastAvailable {
+                Text("Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.")
+                    .font(AppTheme.font(11, .bold))
+                    .foregroundStyle(AppTheme.purple)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.lavender.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.top, 8)
+            }
+
+            if !weatherLoading && !weatherCities.isEmpty && weather.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "wifi.exclamationmark")
                         .foregroundStyle(AppTheme.purple)
@@ -890,18 +967,37 @@ private struct AndroidOverviewScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(weatherCities, id: \.self) { city in
-                        AndroidWeatherCard(
-                            city: city,
-                            snapshot: weatherSnapshot(for: city),
-                            isLoading: weatherLoading,
-                            showTripWeather: showTripWeather,
-                            photo: photos.first(where: { iosFilterCityKey($0.city) == iosFilterCityKey(city) })?.reference ?? photos.first?.reference,
-                            client: client
-                        )
+                        Button {
+                            selectedWeatherCity = city
+                        } label: {
+                            AndroidWeatherCard(
+                                city: city,
+                                snapshot: weatherSnapshot(for: city),
+                                isLoading: weatherLoading,
+                                isSelected: showTripWeather && iosFilterCityKey(selectedWeatherCity ?? "") == iosFilterCityKey(city),
+                                showTripWeather: showTripWeather,
+                                tripDate: showTripWeather ? selectedTripDate : nil,
+                                photo: photos.first(where: { iosFilterCityKey($0.city) == iosFilterCityKey(city) })?.reference ?? photos.first?.reference,
+                                client: client
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(.top, 8)
+
+            if showTripWeather, !tripDates.isEmpty {
+                IOSWeatherTripDayPanel(
+                    dates: tripDates,
+                    selectedDate: selectedTripDate ?? tripDates[0],
+                    selectedCity: selectedWeatherCity ?? weatherCities.first,
+                    cityByDate: tripCityByDate,
+                    weather: weather,
+                    onDateSelected: { selectedTripDate = $0 },
+                )
+                .padding(.top, 8)
+            }
         }
     }
 
@@ -919,6 +1015,22 @@ private struct AndroidOverviewScreen: View {
         orderedBlocks = storedBlocks.isEmpty ? allowed : storedBlocks
         selectedMapCities = overview.overviewMapPoints.isEmpty ? mapCities : overview.overviewMapPoints
         selectedWeatherCities = overview.overviewWeatherCities.isEmpty ? weatherCities : overview.overviewWeatherCities
+    }
+
+    private func syncWeatherState() {
+        let dates = tripDates
+        if let selectedTripDate, dates.contains(selectedTripDate) {
+            // Keep the selected day when the weather response refreshes.
+        } else {
+            selectedTripDate = dates.first
+        }
+
+        if let selectedWeatherCity,
+           weatherCities.contains(where: { iosFilterCityKey($0) == iosFilterCityKey(selectedWeatherCity) }) {
+            // Keep the selected city when the overview is refreshed.
+        } else {
+            selectedWeatherCity = defaultWeatherCityForTrip
+        }
     }
 
     private func moveBlock(at index: Int, by offset: Int) {
@@ -1148,7 +1260,9 @@ private struct AndroidWeatherCard: View {
     let city: String
     let snapshot: WeatherSnapshot?
     let isLoading: Bool
+    let isSelected: Bool
     let showTripWeather: Bool
+    let tripDate: Date?
     let photo: String?
     let client: SupabaseClient
 
@@ -1167,9 +1281,9 @@ private struct AndroidWeatherCard: View {
                     Text("Загружаем…")
                         .font(AppTheme.font(11, .semibold))
                 } else {
-                    Text(showTripWeather ? (snapshot?.tripTemperature ?? "—") : (snapshot?.temperature ?? "—"))
+                    Text(displayedTemperature)
                         .font(AppTheme.font(26, .extrabold))
-                    Text(showTripWeather ? (snapshot?.tripCondition ?? "Нет прогноза") : (snapshot?.condition ?? "Нет данных"))
+                    Text(displayedCondition)
                         .font(AppTheme.font(11, .semibold))
                 }
             }
@@ -1177,7 +1291,269 @@ private struct AndroidWeatherCard: View {
             .padding(12)
         }
         .frame(width: 120, height: 150)
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AppTheme.purple, lineWidth: 3)
+            }
+        }
     }
+
+    private var selectedTripDay: WeatherDaySnapshot? {
+        guard let tripDate, let snapshot else { return nil }
+        return snapshot.tripDays[iosWeatherISODate(tripDate)]
+    }
+
+    private var displayedTemperature: String {
+        if showTripWeather {
+            return selectedTripDay?.temperature ?? (tripDate == nil ? snapshot?.tripTemperature : nil) ?? "—"
+        }
+        return snapshot?.temperature ?? "—"
+    }
+
+    private var displayedCondition: String {
+        if showTripWeather {
+            return selectedTripDay?.condition ?? (tripDate == nil ? snapshot?.tripCondition : nil) ?? "Нет прогноза"
+        }
+        return snapshot?.condition ?? "Нет данных"
+    }
+}
+
+private struct IOSWeatherTripDayPanel: View {
+    let dates: [Date]
+    let selectedDate: Date
+    let selectedCity: String?
+    let cityByDate: [Date: String]
+    let weather: [String: WeatherSnapshot]
+    let onDateSelected: (Date) -> Void
+
+    @State private var visibleDateStart = 0
+
+    private let pageSize = 8
+
+    private var visibleDates: [Date] {
+        dates.dropFirst(visibleDateStart).prefix(pageSize).map { $0 }
+    }
+
+    private var nextDateStart: Int {
+        min(visibleDateStart + pageSize, dates.count)
+    }
+
+    private var previousDateStart: Int {
+        max(visibleDateStart - pageSize, 0)
+    }
+
+    private var selectedWeather: WeatherDaySnapshot? {
+        guard let selectedCity,
+              let snapshot = snapshot(for: selectedCity)
+        else { return nil }
+        return snapshot.tripDays[iosWeatherISODate(selectedDate)]
+    }
+
+    private var selectedCityDateCount: Int {
+        guard let selectedCity else { return 0 }
+        return dates.filter {
+            iosFilterCityKey(cityByDate[$0] ?? "") == iosFilterCityKey(selectedCity)
+        }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Каждый день поездки")
+                        .font(AppTheme.font(15, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                    Text(
+                        selectedCityDateCount > 0
+                            ? "Дни в \(selectedCity ?? "городе") подсвечены"
+                            : "Выбранный день"
+                    )
+                    .font(AppTheme.font(11, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                }
+
+                Spacer(minLength: 8)
+
+                HStack(spacing: 2) {
+                    if visibleDateStart > 0 {
+                        Button {
+                            onDateSelected(dates[previousDateStart])
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(AppTheme.purple)
+                                .frame(width: 30, height: 32)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Text("\(dates.count) \(iosWeatherDayWord(dates.count))")
+                        .font(AppTheme.font(11, .extrabold))
+                        .foregroundStyle(AppTheme.purple)
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(AppTheme.lavender.opacity(0.45), in: Capsule())
+                    if nextDateStart < dates.count {
+                        Button {
+                            onDateSelected(dates[nextDateStart])
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(AppTheme.purple)
+                                .frame(width: 30, height: 32)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(visibleDates, id: \.self) { date in
+                        dateTile(date)
+                    }
+                    if nextDateStart < dates.count {
+                        Button {
+                            onDateSelected(dates[nextDateStart])
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text("+\(dates.count - nextDateStart)")
+                                    .font(AppTheme.font(14, .extrabold))
+                                Text("дней")
+                                    .font(AppTheme.font(10, .bold))
+                                    .foregroundStyle(AppTheme.muted)
+                            }
+                            .frame(width: 64, height: 70)
+                            .foregroundStyle(AppTheme.ink)
+                            .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(height: 1)
+
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(iosWeatherDateLabel(selectedDate)) · \(selectedCity ?? "Города маршрута")")
+                        .font(AppTheme.font(12, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(
+                        selectedWeather.flatMap { $0.condition }.map { "\($0) · хороший день для прогулки" } ?? "Прогноз появится позже"
+                    )
+                    .font(AppTheme.font(11, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                    .lineLimit(2)
+                }
+                Spacer(minLength: 6)
+                Text(weatherDayTemperature(selectedWeather?.temperature, isEstimate: selectedWeather?.isEstimate == true))
+                    .font(AppTheme.font(27, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+            }
+        }
+        .padding(14)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .onAppear { alignVisibleDatePage() }
+        .onChange(of: selectedDate) { _, _ in alignVisibleDatePage() }
+        .onChange(of: dates) { _, _ in alignVisibleDatePage() }
+    }
+
+    @ViewBuilder
+    private func dateTile(_ date: Date) -> some View {
+        let selected = calendar.isDate(date, inSameDayAs: selectedDate)
+        let isSelectedCityDate = selectedCity != nil &&
+            iosFilterCityKey(cityByDate[date] ?? "") == iosFilterCityKey(selectedCity ?? "")
+        let dayWeather = selectedCity.flatMap { snapshot(for: $0)?.tripDays[iosWeatherISODate(date)] }
+
+        Button {
+            onDateSelected(date)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(calendar.component(.day, from: date).description)
+                    .font(AppTheme.font(14, .extrabold))
+                Text(iosWeatherShortMonth(date))
+                    .font(AppTheme.font(10, .bold))
+                    .padding(.top, 2)
+                Spacer(minLength: 0)
+                Text(weatherDayTemperature(dayWeather?.temperature, isEstimate: dayWeather?.isEstimate == true))
+                    .font(AppTheme.font(12, .extrabold))
+            }
+            .foregroundStyle(selected ? Color(hex: 0x315C7C) : AppTheme.ink)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .frame(width: 66, height: 78, alignment: .leading)
+            .background(
+                selected ? Color(hex: 0xDCE9F3) : isSelectedCityDate ? Color(hex: 0xE8F2F8) : AppTheme.surface2,
+                in: RoundedRectangle(cornerRadius: 13, style: .continuous),
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(
+                        selected || isSelectedCityDate ? AppTheme.purple : .clear,
+                        lineWidth: selected ? 1 : 2,
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var calendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return value
+    }
+
+    private func alignVisibleDatePage() {
+        guard let selectedIndex = dates.firstIndex(where: { calendar.isDate($0, inSameDayAs: selectedDate) }) else { return }
+        visibleDateStart = (selectedIndex / pageSize) * pageSize
+    }
+
+    private func snapshot(for city: String) -> WeatherSnapshot? {
+        weather[city]
+            ?? weather.first(where: { iosFilterCityKey($0.key) == iosFilterCityKey(city) })?.value
+    }
+}
+
+private func iosWeatherDayWord(_ count: Int) -> String {
+    switch count % 100 {
+    case 11...14: return "дней"
+    default:
+        switch count % 10 {
+        case 1: return "день"
+        case 2...4: return "дня"
+        default: return "дней"
+        }
+    }
+}
+
+private func iosWeatherShortMonth(_ date: Date) -> String {
+    let months = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+    return months[calendar.component(.month, from: date) - 1]
+}
+
+private func iosWeatherDateLabel(_ date: Date) -> String {
+    let months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+    return "\(calendar.component(.day, from: date)) \(months[calendar.component(.month, from: date) - 1])"
+}
+
+private func weatherDayTemperature(_ value: String?, isEstimate: Bool) -> String {
+    guard let value, !value.isEmpty else { return "—" }
+    let normalized = value
+        .replacingOccurrences(of: "°C", with: "°")
+    return "\(isEstimate ? "≈ " : "")\(normalized)"
 }
 
 private struct AndroidRouteScreen: View {
