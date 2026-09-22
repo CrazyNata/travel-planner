@@ -1561,17 +1561,33 @@ private struct AndroidRouteScreen: View {
     let onEdit: (RouteLeg) -> Void
     let onAdd: () -> Void
 
+    private var routeCityCount: Int {
+        let values = overview.overviewMapPoints.isEmpty
+            ? overview.routeLegs.flatMap { [$0.from, $0.to] }
+            : overview.overviewMapPoints
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .uniqued(by: iosFilterCityKey)
+            .count
+    }
+
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 14) {
-            Text("\(tripDayCount(overview.dates)) ДНЕЙ · \(overview.cities.count) ГОРОДОВ")
+            Text("\(tripDayCount(overview.dates)) ДНЕЙ · \(routeCityCount) ГОРОДОВ")
                 .font(AppTheme.font(12, .extrabold))
                 .foregroundStyle(AppTheme.purple)
                 .padding(.bottom, 4)
             if overview.routeLegs.isEmpty {
                 AndroidEmptyCard(icon: "point.topleft.down.to.point.bottomright.curvepath", text: "Добавьте города и переезды")
             } else {
-                ForEach(overview.routeLegs) { leg in
-                    AndroidRouteLegCard(leg: leg, onEdit: { onEdit(leg) })
+                ForEach(Array(overview.routeLegs.enumerated()), id: \.element.id) { index, leg in
+                    AndroidRouteLegCard(
+                        leg: leg,
+                        tripDates: overview.dates,
+                        dayIndex: index,
+                        onEdit: { onEdit(leg) },
+                    )
                 }
             }
             if overview.canEdit {
@@ -1580,22 +1596,27 @@ private struct AndroidRouteScreen: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.top, 24)
+        .padding(.top, 18)
     }
 }
 
 private struct AndroidRouteLegCard: View {
     let leg: RouteLeg
+    let tripDates: String
+    let dayIndex: Int
     let onEdit: () -> Void
     @State private var copied = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        let dateParts = routeDateParts(for: leg)
+        let timing = routeTiming(leg)
+
+        VStack(spacing: 13) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(spacing: 1) {
-                    Text(leg.dateDay.isEmpty ? dayFromDate(leg.date) : leg.dateDay)
+                    Text(dateParts.day)
                         .font(AppTheme.font(24, .extrabold)).foregroundStyle(AppTheme.purple)
-                    Text((leg.dateMonth.isEmpty ? monthFromDate(leg.date) : leg.dateMonth).uppercased())
+                    Text(dateParts.month)
                         .font(AppTheme.font(10, .bold)).foregroundStyle(AppTheme.purpleDeep)
                 }
                 .frame(width: 39)
@@ -1610,26 +1631,61 @@ private struct AndroidRouteLegCard: View {
             }
             HStack(spacing: 12) {
                 Image(systemName: "key.fill").font(.system(size: 13)).foregroundStyle(AppTheme.purple)
-                Text("Заселение").font(AppTheme.font(14, .bold))
+                Text(timing.label).font(AppTheme.font(14, .bold))
                 Spacer()
-                Text(routeTime(leg)).font(AppTheme.font(14, .bold))
+                Text(timing.value).font(AppTheme.font(14, .bold))
             }
             .padding(.horizontal, 13)
-            .frame(height: 40)
+            .padding(.vertical, 11)
             .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 13))
-            .padding(.top, 16)
+            .overlay { RoundedRectangle(cornerRadius: 13).stroke(AppTheme.border, lineWidth: 1) }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
+        .frame(minHeight: 158, alignment: .top)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func copyLeg() {
-        UIPasteboard.general.string = "\(leg.date) · \(leg.from) → \(leg.to) · Заселение: \(routeTime(leg))"
+        let timing = routeTiming(leg)
+        UIPasteboard.general.string = "\(leg.date) · \(leg.from) → \(leg.to) · \(timing.label): \(timing.value)"
         withAnimation(.easeOut(duration: 0.15)) { copied = true }
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             await MainActor.run { withAnimation(.easeOut(duration: 0.15)) { copied = false } }
         }
+    }
+
+    private func routeDateParts(for leg: RouteLeg) -> (day: String, month: String) {
+        if let date = iosWeatherTripDateRange(leg.date)?.0 {
+            return iosRouteDateParts(date)
+        }
+        if leg.date.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           (!leg.dateDay.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                !leg.dateMonth.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+            return (
+                leg.dateDay.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "—",
+                leg.dateMonth.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty?.uppercased() ?? "—",
+            )
+        }
+        if let date = iosWeatherTripDates(tripDates).dropFirst(dayIndex).first {
+            return iosRouteDateParts(date)
+        }
+        return (
+            leg.dateDay.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "—",
+            leg.dateMonth.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty?.uppercased() ?? "—",
+        )
+    }
+
+    private func iosRouteDateParts(_ date: Date) -> (day: String, month: String) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let months = ["ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК"]
+        return (
+            String(calendar.component(.day, from: date)),
+            months[calendar.component(.month, from: date) - 1],
+        )
     }
 }
 
@@ -4134,6 +4190,10 @@ private extension TripSection {
 }
 
 private func tripDayCount(_ dates: String) -> Int {
+    let parsedDateCount = iosWeatherTripDates(dates).count
+    if parsedDateCount > 0 {
+        return parsedDateCount
+    }
     for part in dates.components(separatedBy: "·") where part.lowercased().contains("дн") {
         let digits = part.filter(\.isNumber)
         if let value = Int(digits), value > 0 { return value }
@@ -4142,10 +4202,20 @@ private func tripDayCount(_ dates: String) -> Int {
 }
 
 private func dayFromDate(_ date: String) -> String {
+    if let parsed = iosWeatherTripDateRange(date)?.0 {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return String(calendar.component(.day, from: parsed))
+    }
     date.split(whereSeparator: { !$0.isNumber }).first.map(String.init) ?? "—"
 }
 
 private func monthFromDate(_ date: String) -> String {
+    if let parsed = iosWeatherTripDateRange(date)?.0 {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"][calendar.component(.month, from: parsed) - 1]
+    }
     let parts = date.split(separator: " ")
     return parts.count > 1 ? String(parts[1].prefix(3)) : ""
 }
@@ -4158,8 +4228,15 @@ private extension Array where Element == String {
 }
 
 private func routeTime(_ leg: RouteLeg) -> String {
-    let values = [leg.checkIn, leg.checkOut].filter { !$0.isEmpty }
-    return values.isEmpty ? "—" : values.joined(separator: " - ")
+    routeTiming(leg).value
+}
+
+private func routeTiming(_ leg: RouteLeg) -> (label: String, value: String) {
+    let checkIn = leg.checkIn.trimmingCharacters(in: .whitespacesAndNewlines)
+    let checkOut = leg.checkOut.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !checkIn.isEmpty { return ("Заселение", checkIn) }
+    if !checkOut.isEmpty { return ("Выселение", checkOut) }
+    return ("Заселение", "—")
 }
 
 private func cityFlag(_ city: String) -> String {
