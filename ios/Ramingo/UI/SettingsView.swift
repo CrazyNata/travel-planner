@@ -33,10 +33,11 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
-            ZStack {
-                AppTheme.background.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
+                ZStack {
+                    AppTheme.background.ignoresSafeArea()
+                ScrollViewReader { scrollProxy in
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
                         profileCard
                         settingsSection("ВНЕШНИЙ ВИД") {
                             SettingsButtonRow(icon: "paintpalette", title: "Тема", value: themeTitle) {
@@ -57,6 +58,14 @@ struct SettingsView: View {
                                 language: $language,
                                 languageTitle: languageTitle,
                                 isExpanded: $languagePickerOpen,
+                                onExpansionChanged: { expanded in
+                                    guard expanded else { return }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        withAnimation(.easeOut(duration: 0.16)) {
+                                            scrollProxy.scrollTo("settings.language.options", anchor: .center)
+                                        }
+                                    }
+                                },
                                 onSelect: { selected in
                                     guard selected.uppercased() != language.uppercased() else { return }
                                     let previous = language
@@ -118,9 +127,10 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isSigningOut || isDeleting)
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 34)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 34)
                 }
             }
             .navigationDestination(for: SettingsRoute.self) { route in
@@ -1045,6 +1055,7 @@ private struct LanguageSettingsRow: View {
     @Binding var language: String
     let languageTitle: String
     @Binding var isExpanded: Bool
+    let onExpansionChanged: (Bool) -> Void
     let onSelect: (String) -> Void
     private let options = ["RU", "EN", "ES", "DE"]
 
@@ -1054,6 +1065,7 @@ private struct LanguageSettingsRow: View {
                 withAnimation(.easeOut(duration: 0.16)) {
                     isExpanded.toggle()
                 }
+                onExpansionChanged(isExpanded)
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "globe")
@@ -1106,7 +1118,7 @@ private struct LanguageSettingsRow: View {
                 .padding(4)
                 .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.bottom, 10)
-                .accessibilityElement(children: .contain)
+                .id("settings.language.options")
             }
         }
     }
