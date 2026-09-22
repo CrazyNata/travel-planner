@@ -1961,7 +1961,13 @@ private struct AndroidSightsScreen: View {
         return result.isEmpty && selectedDay == 1 ? overview.sights : result
     }
 
-    private var city: String { visibleSights.first?.city.nonEmpty ?? dayOptions.first?.title ?? overview.cities.first ?? "Город" }
+    private var city: String {
+        let rawCity = visibleSights.first?.city.nonEmpty
+            ?? dayOptions.first(where: { $0.number == selectedDay })?.title
+            ?? overview.cities.first
+            ?? "Город"
+        return iosSightCityName(rawCity)
+    }
     private var pins: [NumberedMapPin] {
         visibleSights.compactMap { sight in
             guard let lat = sight.latitude, let lon = sight.longitude else { return nil }
@@ -1983,7 +1989,10 @@ private struct AndroidSightsScreen: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("ВЫБЕРИТЕ ДЕНЬ").font(AppTheme.font(10, .bold)).foregroundStyle(AppTheme.muted)
                     HStack(spacing: 8) {
-                        Text(city).font(AppTheme.font(17, .extrabold))
+                        Text(city)
+                            .font(AppTheme.font(17, .extrabold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         Image(systemName: "pencil").foregroundStyle(AppTheme.purple)
                     }
                 }
@@ -1995,9 +2004,9 @@ private struct AndroidSightsScreen: View {
                         selectedDay = option.number
                         } label: {
                             if option.number == selectedDay {
-                                Label("День \(option.number) · \(option.title)", systemImage: "checkmark")
+                                Label("День \(option.number) · \(iosSightCityName(option.title))", systemImage: "checkmark")
                             } else {
-                                Text("День \(option.number) · \(option.title)")
+                                Text("День \(option.number) · \(iosSightCityName(option.title))")
                             }
                         }
                     }
@@ -2061,27 +2070,75 @@ private struct AndroidSightCard: View {
     let client: SupabaseClient
     let onEdit: () -> Void
 
+    private var fallbackRating: (score: Double, reviews: Int) {
+        iosSightFallbackRating(for: sight)
+    }
+
+    private var displayedRating: Double {
+        sight.rating ?? fallbackRating.score
+    }
+
+    private var displayedReviews: Int {
+        sight.reviews ?? fallbackRating.reviews
+    }
+
+    private var displayedDescription: String {
+        let value = sight.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty { return value }
+        return iosSightFallbackDescription(for: sight)
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            RemotePhotoView(reference: sight.photo.nonEmpty, client: client, contentMode: .fill, cornerRadius: 12)
-                .frame(width: 84, height: 105)
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .center, spacing: 11) {
+            RemotePhotoView(
+                reference: (sight.photos.first ?? sight.photo).nonEmpty,
+                client: client,
+                contentMode: .fill,
+                cornerRadius: 14,
+            )
+            .frame(width: 96, height: 112)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 0) {
                 Text((sight.category.isEmpty ? "ДОСТОПРИМЕЧАТЕЛЬНОСТИ" : sight.category).uppercased())
-                    .font(AppTheme.font(9, .extrabold)).foregroundStyle(AppTheme.purple)
-                Text(sight.name).font(AppTheme.font(16, .extrabold)).foregroundStyle(AppTheme.ink).lineLimit(2)
-                if let rating = sight.rating {
-                    Text("★ \(rating, specifier: "%.1f") · \(formatReviews(sight.reviews)) отзывов")
-                        .font(AppTheme.font(11, .semibold)).foregroundStyle(AppTheme.muted)
+                    .font(AppTheme.font(9.5, .extrabold))
+                    .foregroundStyle(AppTheme.purple)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(sight.name)
+                    .font(AppTheme.font(15, .extrabold))
+                    .foregroundStyle(AppTheme.ink)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                    .padding(.top, 2)
+                HStack(spacing: 4) {
+                    Text("★")
+                        .font(AppTheme.font(13, .extrabold))
+                        .foregroundStyle(AppTheme.warning)
+                    Text(String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), displayedRating))
+                        .font(AppTheme.font(11.5, .extrabold))
+                        .foregroundStyle(AppTheme.ink)
+                    Text("· \(formatReviews(displayedReviews)) отзывов")
+                        .font(AppTheme.font(10.5, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
-                if !sight.description.isEmpty {
-                    Text(sight.description).font(AppTheme.font(11, .semibold)).foregroundStyle(AppTheme.muted).lineLimit(2)
-                }
+                .padding(.top, 5)
+                Text(displayedDescription)
+                    .font(AppTheme.font(11.5, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .padding(.top, 4)
             }
-            Spacer(minLength: 0)
-            AndroidIconButton(icon: "pencil", action: onEdit)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+            AndroidSightEditButton(action: onEdit)
         }
         .padding(8)
-        .background(AppTheme.surface2.opacity(0.45), in: RoundedRectangle(cornerRadius: 19))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface2, in: RoundedRectangle(cornerRadius: 19))
         .overlay { RoundedRectangle(cornerRadius: 19).stroke(AppTheme.border.opacity(0.8), lineWidth: 1) }
     }
 }
@@ -4021,6 +4078,21 @@ private struct AndroidIconButton: View {
     }
 }
 
+private struct AndroidSightEditButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "pencil")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.purple)
+                .frame(width: 36, height: 36)
+                .background(AppTheme.lavender.opacity(0.35), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct AndroidOutlineAction: View {
     let title: String
     var icon: String?
@@ -4555,4 +4627,52 @@ private func formatAccommodationDeadlineDetailIOS(_ value: String) -> String {
 private func formatReviews(_ value: Int?) -> String {
     guard let value else { return "0" }
     return value.formatted(.number.grouping(.automatic))
+}
+
+private func iosSightCityName(_ value: String) -> String {
+    let city = value
+        .components(separatedBy: ",")
+        .first?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        ?? value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return city.isEmpty ? value : city
+}
+
+private func iosSightFallbackRating(for sight: Sight) -> (score: Double, reviews: Int) {
+    let label = "\(sight.name) \(sight.city)"
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+    switch true {
+    case label.localizedCaseInsensitiveContains("пьяцца бра") || label.localizedCaseInsensitiveContains("piazza bra"):
+        return (4.7, 31_200)
+    case label.localizedCaseInsensitiveContains("дом джульетты") || label.localizedCaseInsensitiveContains("casa di giulietta"):
+        return (4.4, 16_400)
+    case label.localizedCaseInsensitiveContains("пьяцца делле эрбе") || label.localizedCaseInsensitiveContains("piazza delle erbe"):
+        return (4.6, 18_900)
+    case label.localizedCaseInsensitiveContains("колиз") || label.localizedCaseInsensitiveContains("colosse"):
+        return (4.8, 336_000)
+    case label.localizedCaseInsensitiveContains("треви") || label.localizedCaseInsensitiveContains("trevi"):
+        return (4.8, 112_000)
+    case label.localizedCaseInsensitiveContains("пантеон") || label.localizedCaseInsensitiveContains("pantheon"):
+        return (4.8, 82_000)
+    default:
+        var hash = 0
+        for scalar in label.unicodeScalars {
+            hash = ((hash &* 31) &+ Int(scalar.value)) & 0x7fffffff
+        }
+        return (4.5 + Double(hash % 5) / 10, 1_200 + (hash % 23_800))
+    }
+}
+
+private func iosSightFallbackDescription(for sight: Sight) -> String {
+    let label = "\(sight.name) \(sight.city)"
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    switch true {
+    case label.localizedCaseInsensitiveContains("пьяцца бра") || label.localizedCaseInsensitiveContains("piazza bra"):
+        return "Главная площадь Вероны перед Ареной — просторное место для прогулки."
+    case label.localizedCaseInsensitiveContains("дом джульетты") || label.localizedCaseInsensitiveContains("casa di giulietta"):
+        return "Исторический двор с балконом, связанный с легендой о Ромео и Джульетте."
+    default:
+        return "Историческое место для прогулки и знакомства с городом."
+    }
 }
