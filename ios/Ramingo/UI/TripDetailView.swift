@@ -2241,6 +2241,7 @@ private struct AndroidAccommodationCard: View {
     let accommodation: Accommodation
     let client: SupabaseClient
     let onEdit: () -> Void
+    @EnvironmentObject private var model: AppModel
     @Environment(\.openURL) private var openURL
     @State private var photoIndex = 0
 
@@ -2260,64 +2261,73 @@ private struct AndroidAccommodationCard: View {
                     contentMode: .fill,
                     cornerRadius: 0,
                 )
-                    .frame(height: 205)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 210)
+                    .clipped()
                 HStack {
                     carouselButton("arrow.left", delta: -1)
                     Spacer()
                     carouselButton("arrow.right", delta: 1)
                 }
-                .padding(.horizontal, 10).padding(.bottom, 85)
+                .padding(.horizontal, 10).padding(.bottom, 87)
                 Text("\(photoReferences.isEmpty ? 1 : photoIndex + 1)/\(max(photoReferences.count, 1))")
                     .font(AppTheme.font(11, .extrabold)).foregroundStyle(.white)
                     .padding(.horizontal, 10).frame(height: 27).background(.black.opacity(0.62), in: Capsule())
                     .padding(.bottom, 10)
             }
-            VStack(alignment: .leading, spacing: 10) {
+            .frame(maxWidth: .infinity)
+            .frame(height: 210)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(accommodation.name).font(AppTheme.font(18, .extrabold)).lineLimit(2)
-                    Spacer()
-                    Text(accommodation.price).font(AppTheme.font(18, .extrabold)).foregroundStyle(AppTheme.purple)
+                    Text(accommodation.name)
+                        .font(AppTheme.font(16, .extrabold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !accommodation.price.isEmpty {
+                        Text(accommodation.price)
+                            .font(AppTheme.font(15, .extrabold))
+                            .foregroundStyle(AppTheme.purple)
+                            .lineLimit(1)
+                    }
                 }
                 Text("\(cityFlag(accommodation.city)) \(accommodation.city)")
-                    .font(AppTheme.font(13, .semibold)).foregroundStyle(AppTheme.muted)
+                    .font(AppTheme.font(12, .semibold))
+                    .foregroundStyle(AppTheme.muted)
+                    .lineLimit(1)
+                    .padding(.top, 4)
                 if !accommodation.dates.isEmpty {
-                    Label(accommodation.dates, systemImage: "calendar")
-                        .font(AppTheme.font(14, .bold)).foregroundStyle(AppTheme.ink)
+                    Label(formatAccommodationDatesIOS(accommodation.dates), systemImage: "calendar")
+                        .font(AppTheme.font(12.5, .bold))
+                        .foregroundStyle(AppTheme.ink)
+                        .lineLimit(1)
+                        .padding(.top, 7)
                 }
                 if let rating = accommodation.rating {
                     Text("★  \(rating, specifier: "%.1f") · \(formatReviews(accommodation.reviewCount)) отзывов")
-                        .font(AppTheme.font(12, .semibold)).foregroundStyle(AppTheme.muted)
+                        .font(AppTheme.font(11, .semibold))
+                        .foregroundStyle(AppTheme.muted)
+                        .padding(.top, 11)
                 }
-                if !accommodation.deadline.isEmpty {
-                    VStack(spacing: 9) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "checkmark").font(.system(size: 23, weight: .bold)).foregroundStyle(AppTheme.success)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Бесплатная отмена").font(AppTheme.font(13, .extrabold)).foregroundStyle(AppTheme.success)
-                                Text("до \(accommodation.deadline)").font(AppTheme.font(11, .semibold)).foregroundStyle(AppTheme.muted)
-                            }
-                            Spacer()
-                        }
-                        Divider().overlay(AppTheme.success.opacity(0.25))
-                        HStack(spacing: 10) {
-                            Image(systemName: "calendar").font(.system(size: 19, weight: .semibold)).foregroundStyle(AppTheme.purple)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Оплатить до").font(AppTheme.font(13, .extrabold)).foregroundStyle(AppTheme.purple)
-                                Text(accommodation.deadline).font(AppTheme.font(11, .semibold)).foregroundStyle(AppTheme.muted)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .padding(11)
-                    .background(AppTheme.success.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                    .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.success.opacity(0.35), lineWidth: 1) }
+                if !accommodation.deadline.isEmpty || !accommodation.paymentDeadline.isEmpty {
+                    IOSAccommodationDeadlineCard(
+                        deadline: accommodation.deadline,
+                        paymentDeadline: accommodation.paymentDeadline,
+                        remindersEnabled: model.profile.notificationsEnabled,
+                    )
+                    .padding(.top, 10)
                 }
                 HStack(spacing: 9) {
                     AndroidOutlineAction(title: "Редактировать", icon: "pencil", action: onEdit)
                     AndroidOutlineAction(title: "Открыть ссылку", icon: "arrow.up.right.square", action: openLink)
                 }
+                .padding(.top, accommodation.deadline.isEmpty && accommodation.paymentDeadline.isEmpty ? 12 : 15)
             }
-            .padding(15)
+            .padding(.horizontal, 15)
+            .padding(.top, 13)
+            .padding(.bottom, 15)
+            .background(AppTheme.surface)
         }
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20))
         .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -2328,8 +2338,8 @@ private struct AndroidAccommodationCard: View {
             guard !photoReferences.isEmpty else { return }
             photoIndex = (photoIndex + delta + photoReferences.count) % photoReferences.count
         } label: {
-            Image(systemName: icon).font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 38, height: 38).background(.black.opacity(0.55), in: Circle())
+            Image(systemName: icon).font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 36, height: 36).background(.black.opacity(0.55), in: Circle())
         }
         .buttonStyle(.plain)
     }
@@ -2337,6 +2347,97 @@ private struct AndroidAccommodationCard: View {
     private func openLink() {
         guard let url = URL(string: link), !link.isEmpty else { return }
         openURL(url)
+    }
+}
+
+private struct IOSAccommodationDeadlineCard: View {
+    let deadline: String
+    let paymentDeadline: String
+    let remindersEnabled: Bool
+
+    private var daysRemaining: Int? {
+        guard let date = accommodationDateIOS(deadline) else { return nil }
+        let calendar = Calendar.current
+        return calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: Date()),
+            to: calendar.startOfDay(for: date),
+        ).day
+    }
+
+    private var accent: Color {
+        guard let daysRemaining else { return AppTheme.success }
+        if daysRemaining < 0 { return AppTheme.error }
+        if daysRemaining <= 3 { return AppTheme.warning }
+        return AppTheme.success
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if !deadline.isEmpty {
+                HStack(spacing: 10) {
+                    Text(daysRemaining.map { $0 >= 0 ? "✓" : "!" } ?? "✓")
+                        .font(AppTheme.font(19, .extrabold))
+                        .foregroundStyle(accent)
+                        .frame(width: 23)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Бесплатная отмена")
+                            .font(AppTheme.font(12.5, .extrabold))
+                            .foregroundStyle(accent)
+                        Text("до \(formatAccommodationDeadlineDetailIOS(deadline))")
+                            .font(AppTheme.font(9.5, .semibold))
+                            .foregroundStyle(AppTheme.muted)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 8)
+                    if let daysRemaining {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text(daysRemaining >= 0 ? "\(daysRemaining)" : "—")
+                                .font(AppTheme.font(21, .extrabold))
+                                .foregroundStyle(daysRemaining >= 0 ? AppTheme.purple : accent)
+                            Text(daysRemaining >= 0 ? "дней осталось" : "истёк")
+                                .font(AppTheme.font(8.5, .extrabold))
+                                .foregroundStyle(AppTheme.muted)
+                        }
+                    }
+                }
+            }
+
+            if !deadline.isEmpty && !paymentDeadline.isEmpty {
+                Rectangle()
+                    .fill(accent.opacity(0.25))
+                    .frame(height: 1)
+                    .padding(.leading, 23)
+            }
+
+            if !paymentDeadline.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(AppTheme.purple)
+                        .frame(width: 23)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Оплатить до")
+                            .font(AppTheme.font(12.5, .extrabold))
+                            .foregroundStyle(AppTheme.purple)
+                        Text(formatAccommodationDeadlineDetailIOS(paymentDeadline))
+                            .font(AppTheme.font(9.5, .semibold))
+                            .foregroundStyle(AppTheme.muted)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 6)
+                    Text(remindersEnabled ? "✓ Напоминания включены" : "Напоминания выключены")
+                        .font(AppTheme.font(8.5, .extrabold))
+                        .foregroundStyle(remindersEnabled ? AppTheme.success : AppTheme.muted)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.28), lineWidth: 1) }
     }
 }
 
@@ -3761,6 +3862,63 @@ private func fallbackCurrencyPerRubRate(_ code: String) -> Double {
 
 private func formatMoney(_ value: Double) -> String {
     value.formatted(.number.grouping(.automatic).precision(.fractionLength(value.rounded() == value ? 0 : 2)))
+}
+
+private struct IOSAccommodationDateParts {
+    let year: Int
+    let month: Int
+    let day: Int
+}
+
+private let iosAccommodationMonths = [
+    "янв", "фев", "мар", "апр", "май", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+]
+
+private func accommodationDatePartsIOS(_ value: String) -> IOSAccommodationDateParts? {
+    let pattern = #"(\d{4})-(\d{2})-(\d{2})"#
+    guard let match = value.range(of: pattern, options: .regularExpression) else { return nil }
+    let value = String(value[match])
+    let parts = value.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3, (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
+    return IOSAccommodationDateParts(year: parts[0], month: parts[1], day: parts[2])
+}
+
+private func accommodationDateIOS(_ value: String) -> Date? {
+    guard let parts = accommodationDatePartsIOS(value) else { return nil }
+    var components = DateComponents()
+    components.calendar = Calendar(identifier: .gregorian)
+    components.timeZone = .current
+    components.year = parts.year
+    components.month = parts.month
+    components.day = parts.day
+    return components.date
+}
+
+private func formatAccommodationDatesIOS(_ value: String) -> String {
+    let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parts = raw.components(separatedBy: " – ").count == 2
+        ? raw.components(separatedBy: " – ")
+        : raw.components(separatedBy: " - ")
+    guard parts.count == 2,
+          let start = accommodationDatePartsIOS(parts[0]),
+          let end = accommodationDatePartsIOS(parts[1])
+    else { return raw }
+
+    if start.month == end.month {
+        return "\(start.day)–\(end.day) \(iosAccommodationMonths[end.month - 1])"
+    }
+    return "\(start.day) \(iosAccommodationMonths[start.month - 1]) – \(end.day) \(iosAccommodationMonths[end.month - 1])"
+}
+
+private func formatAccommodationDeadlineDetailIOS(_ value: String) -> String {
+    guard let parts = accommodationDatePartsIOS(value) else {
+        return value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    let date = "\(parts.day) \(iosAccommodationMonths[parts.month - 1]) \(parts.year)"
+    let time = value.range(of: #"\b\d{1,2}:\d{2}\b"#, options: .regularExpression).map { String(value[$0]) }
+    if let time { return "\(date) · \(time) по местному времени" }
+    return date
 }
 
 private func formatReviews(_ value: Int?) -> String {
