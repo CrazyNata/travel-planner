@@ -371,6 +371,7 @@ private val Manrope = FontFamily(
 private val OdysseyNoFontPadding = PlatformTextStyle(includeFontPadding = false)
 private val OdysseyFontPadding = PlatformTextStyle(includeFontPadding = true)
 private const val NotificationSettingsPageScale = 1.10f
+private const val PrivacyPolicyUrl = "https://ramingo.online/#/privacy"
 private val LocalDarkTheme = staticCompositionLocalOf { false }
 private val LocalLanguage = staticCompositionLocalOf { "RU" }
 private val LocalDeviceLocation = staticCompositionLocalOf<DeviceLocation?> { null }
@@ -3072,6 +3073,7 @@ private fun AuthScreen(
 ) {
     val darkTheme = LocalDarkTheme.current
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val language = LocalLanguage.current
     var isRegistration by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -3605,6 +3607,18 @@ private fun AuthScreen(
                 },
             )
         }
+        }
+        TextButton(
+            onClick = { uriHandler.openUri(PrivacyPolicyUrl) },
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        ) {
+            Text(
+                text = localized("Политика конфиденциальности", "Privacy policy", "Política de privacidad", "Datenschutzerklärung"),
+                color = primaryColor(),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W700,
+                fontSize = 13.sp,
+            )
         }
     }
 }

@@ -17298,7 +17298,8 @@ type LegalPageKind = "privacy" | "terms";
 
 const legalEntityName =
   import.meta.env.VITE_LEGAL_ENTITY_NAME || "Ramingo";
-const legalContactEmail = import.meta.env.VITE_LEGAL_CONTACT_EMAIL || "";
+const legalContactEmail =
+  import.meta.env.VITE_LEGAL_CONTACT_EMAIL || "support@ramingo.online";
 const legalEffectiveDate =
   import.meta.env.VITE_LEGAL_EFFECTIVE_DATE || "7 августа 2026 года";
 
@@ -17770,7 +17771,10 @@ export function App() {
         if (
           location.pathname !== "/auth" &&
           view !== "housing-preview" &&
-          view !== "public-trip"
+          view !== "public-trip" &&
+          view !== "delete-account" &&
+          view !== "privacy" &&
+          view !== "terms"
         ) {
           const next = `${location.pathname}${location.search}`;
           navigate(`/auth?next=${encodeURIComponent(next)}`, { replace: true });
@@ -17806,7 +17810,12 @@ export function App() {
           setOnboardingMode(null);
           setDarkTheme(false);
           setIsAuthenticated(false);
-          navigate("/auth", { replace: true });
+          const currentPath = window.location.hash.startsWith("#/")
+            ? window.location.hash.slice(1).split("?")[0]
+            : window.location.pathname;
+          const isPublicPage = ["/privacy", "/terms", "/delete-account"].includes(currentPath) ||
+            /^\/p\/[^/]+\/?$/.test(currentPath);
+          if (!isPublicPage) navigate("/auth", { replace: true });
         }
       },
     );
