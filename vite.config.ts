@@ -1,10 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const repository = process.env.GITHUB_REPOSITORY?.split("/")[1];
-
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS && repository ? `/${repository}/` : "/",
+  // Keep assets working both at a custom-domain root and on GitHub Pages' project path.
+  base: "./",
   plugins: [react()],
   server: {
     allowedHosts: ["ramingo.online", "www.ramingo.online", "travelplanner.muntim.ru"],
