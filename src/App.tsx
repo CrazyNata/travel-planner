@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Map } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { Upload as TusUpload } from "tus-js-client";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
 import { AccommodationPrototype } from "./AccommodationPrototype";
@@ -6249,22 +6250,44 @@ function waitBeforePhotoRetry(attempt: number) {
   return new Promise((resolve) => window.setTimeout(resolve, 700 * (attempt + 1)));
 }
 
-async function uploadTripPhotoWithRetry(path: string, file: File) {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
-      cacheControl: "31536000",
-      contentType: file.type,
-      // Each upload gets a content-based path. Upsert makes a retry safe if the
-      // server stored the file but the iPhone lost the response.
-      upsert: true,
+function tripPhotoResumableEndpoint() {
+  const supabaseUrl = new URL(String(import.meta.env.VITE_SUPABASE_URL || ""));
+  const project = supabaseUrl.hostname.match(/^([a-z0-9-]+)\.supabase\.co$/i)?.[1];
+  const storageOrigin = project
+    ? `${supabaseUrl.protocol}//${project}.storage.supabase.co`
+    : supabaseUrl.origin;
+  return `${storageOrigin}/storage/v1/upload/resumable`;
+}
+
+function uploadTripPhotoWithRetry(
+  path: string,
+  file: File,
+  accessToken: string,
+  onProgress?: (uploaded: number, total: number) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const upload = new TusUpload(file, {
+      endpoint: tripPhotoResumableEndpoint(),
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "x-upsert": "true",
+      },
+      uploadDataDuringCreation: true,
+      storeFingerprintForResuming: false,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: {
+        bucketName: "trip-photos",
+        objectName: path,
+        contentType: file.type,
+        cacheControl: "31536000",
+      },
+      onError: reject,
+      onProgress,
+      onSuccess: () => resolve(),
     });
-    if (!error) return;
-    lastError = error;
-    if (!isRetryablePhotoError(error) || attempt === 2) break;
-    await waitBeforePhotoRetry(attempt);
-  }
-  throw lastError;
+    upload.start();
+  });
 }
 
 async function signedTripPhotoUrlWithRetry(path: string) {
@@ -12611,7 +12634,17 @@ function Photos({
             continue;
           }
           setUploadStatus(`Отправка фото ${index + 1} из ${selectedFiles.length}…`);
-          await uploadTripPhotoWithRetry(path, file);
+          await uploadTripPhotoWithRetry(
+            path,
+            file,
+            session.access_token,
+            (uploaded, total) => {
+              const progress = total ? Math.floor((uploaded / total) * 100) : 0;
+              setUploadStatus(
+                `Отправка фото ${index + 1} из ${selectedFiles.length}… ${progress}%`,
+              );
+            },
+          );
           const photoMetadata = await readPhotoMetadata(originalFile).catch((metadataError) => {
             console.warn("Could not read optional trip photo metadata.", metadataError);
             return {};
