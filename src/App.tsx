@@ -13320,15 +13320,11 @@ function Photos({
                     <img
                       className="photo-image"
                       src={photo.image}
-                      alt={displayPhotoLocation(photo)}
+                      alt=""
                       loading={isFirstVisiblePhoto ? "eager" : "lazy"}
                       decoding="async"
                       fetchPriority={isFirstVisiblePhoto ? "high" : "auto"}
                     />
-                    <span className="photo-label">
-                      <span className="photo-label-location">{displayPhotoLocation(photo)}</span>
-                      {time && <small className="photo-label-time">{time}</small>}
-                    </span>
                   </button>
                 );
               })}

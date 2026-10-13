@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f9">
+  <title>Ramingo — подписи на фотографиях</title>
+  <style>
+    :root { font-family: Inter, Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202331; background: #f5f6f9; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button { font: inherit; cursor: pointer; }
+    button:focus-visible { outline: 3px solid #7a69ed; outline-offset: 3px; }
+    .chooser { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #e7e8ef; background: #fffffff0; backdrop-filter: blur(18px); }
+    .chooser-inner { max-width: 1180px; margin: auto; padding: 13px 24px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .chooser-title strong { display: block; font-size: 13px; letter-spacing: -.02em; }
+    .chooser-title span { display: block; margin-top: 3px; color: #9296a4; font-size: 11px; }
+    .variants { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+    .variants::-webkit-scrollbar { display: none; }
+    .variants button { flex: none; border: 1px solid transparent; border-radius: 11px; background: transparent; padding: 10px 12px; color: #717588; font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .variants button[aria-selected="true"] { border-color: #dedafa; background: #efedff; color: #5748d4; }
+    .page { max-width: 1180px; margin: auto; padding: 28px 24px 80px; }
+    .intro { display: flex; align-items: start; gap: 15px; margin-bottom: 27px; }
+    .intro-letter { flex: none; display: grid; place-items: center; width: 41px; height: 41px; border-radius: 13px; background: #eae7ff; color: #5a4ad8; font-size: 18px; font-weight: 850; }
+    .intro h1 { margin: 1px 0 5px; font-size: 22px; letter-spacing: -.045em; }
+    .intro p { margin: 0; color: #8a8f9d; font-size: 13px; line-height: 1.5; }
+    .album { max-width: 1040px; margin: 0 auto; }
+    .album-title { display: flex; align-items: start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    .album-title h2 { margin: 0; font-size: 30px; letter-spacing: -.055em; }
+    .album-title p { margin: 4px 0 0; color: #9da2af; font-size: 13px; }
+    .upload { border: 0; border-radius: 12px; background: linear-gradient(135deg, #5145d7, #7362eb); box-shadow: 0 8px 18px #584dd130; padding: 13px 17px; color: white; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .search { display: flex; align-items: center; gap: 11px; width: min(100%, 470px); height: 47px; border: 1px solid #dcdcf1; border-radius: 25px; background: white; padding: 0 17px; color: #9ca2b2; font-size: 12px; box-shadow: 0 4px 18px #2d2c5506; }
+    .search b { color: #6254dc; font-size: 18px; line-height: 1; }
+    .picker { display: flex; align-items: center; gap: 10px; width: 272px; max-width: 100%; min-height: 47px; margin: 12px 0 29px; border: 1px solid #deddf0; border-radius: 13px; background: #fff; padding: 8px 12px; color: #303244; font-size: 13px; font-weight: 700; }
+    .picker-icon { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 8px; background: #f0eeff; color: #6555da; font-size: 16px; }
+    .picker-count { margin-left: auto; color: #a1a5b0; font-size: 11px; font-weight: 500; }
+    .picker-chevron { color: #8e92a0; font-size: 11px; }
+    .day { margin-top: 27px; }
+    .day-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 13px; }
+    .day-heading h3 { margin: 0; font-size: 17px; letter-spacing: -.04em; white-space: nowrap; }
+    .day-heading span { color: #9ca1ad; font-size: 11px; white-space: nowrap; }
+    .day-heading::after { content: ""; height: 1px; flex: 1; background: #e2e4eb; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { min-width: 0; margin: 0; }
+    .image-wrap { position: relative; overflow: hidden; height: 203px; border-radius: 14px; background: #e8e9ed; }
+    .image-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .image-wrap.large img { object-position: 50% 43%; }
+    .card figcaption { display: none; }
+    .time-overlay { display: none; }
+    .mode-a .time-overlay { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; justify-content: center; min-width: 43px; height: 25px; border: 1px solid #ffffff39; border-radius: 8px; background: #181d29b8; padding: 0 7px; color: #fff; font-size: 11px; font-weight: 750; letter-spacing: .01em; backdrop-filter: blur(8px); }
+    .mode-c .image-wrap { border-radius: 14px 14px 0 0; }
+    .mode-c .card { overflow: hidden; border: 1px solid #e6e8ee; border-radius: 15px; background: #fff; }
+    .mode-c .card figcaption { display: block; min-height: 31px; padding: 8px 11px; color: #777e8e; font-size: 11px; font-weight: 650; }
+    .example-note { margin: 25px 0 0; color: #a0a5b1; font-size: 11px; line-height: 1.5; }
+    [hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      .chooser-inner { align-items: stretch; flex-direction: column; gap: 9px; padding: 11px 16px; }
+      .variants { margin: 0 -3px; }
+      .variants button { padding: 9px 11px; }
+      .page { padding: 23px 14px 52px; }
+      .intro { gap: 11px; margin-bottom: 21px; }
+      .intro h1 { font-size: 18px; }
+      .intro p { font-size: 12px; }
+      .intro-letter { width: 35px; height: 35px; font-size: 15px; }
+      .album-title h2 { font-size: 25px; }
+      .upload { padding: 12px; }
+      .picker { margin-bottom: 24px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+      .image-wrap { height: 158px; border-radius: 10px; }
+      .mode-c .image-wrap { border-radius: 10px 10px 0 0; }
+      .mode-c .card { border-radius: 11px; }
+      .day-heading { gap: 9px; }
+      .day-heading h3 { font-size: 15px; }
+      .day-heading span { font-size: 10px; }
+    }
+  </style>
+</head>
+<body class="mode-b">
+  <header class="chooser">
+    <div class="chooser-inner">
+      <div class="chooser-title"><strong>Подписи в фотоальбоме</strong><span>Три варианта без повторения названия города</span></div>
+      <nav class="variants" aria-label="Варианты оформления">
+        <button type="button" data-mode="a" aria-selected="false">A · Время на фото</button>
+        <button type="button" data-mode="b" aria-selected="true">B · Без подписей</button>
+        <button type="button" data-mode="c" aria-selected="false">C · Время под фото</button>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <div class="intro">
+      <span class="intro-letter" id="variant-letter">B</span>
+      <div><h1 id="variant-title">Фотографии без подписей</h1><p id="variant-description">На плитках нет ни города, ни времени. День указан над группой, остальные сведения видны при открытии снимка.</p></div>
+    </div>
+    <section class="album" aria-label="Пример фотоальбома">
+      <div class="album-title"><div><h2>Фотоальбом</h2><p>53 фото · фотографии поездки</p></div><button class="upload" type="button">↑ Загрузить</button></div>
+      <div class="search"><b>⌕</b> Поиск по дате или месту</div>
+      <div class="picker"><span class="picker-icon">⌖</span> Все места <span class="picker-count">53 фото</span><span class="picker-chevron">⌄</span></div>
+      <section class="day"><div class="day-heading"><h3>13 октября</h3><span>Вторник · 3 фото</span></div><div class="grid">
+        <figure class="card"><div class="image-wrap large"><img src="../public/sight-photos/munich-square.png" alt="Демонстрационный снимок площади"><span class="time-overlay">18:16</span></div><figcaption>18:16</figcaption></figure>
+        <figure class="card"><div class="image-wrap"><img src="../public/sight-photos/munich-street.png" alt="Демонстрационный снимок улицы"><span class="time-overlay">18:16</span></div><figcaption>18:16</figcaption></figure>
+        <figure class="card"><div class="image-wrap"><img src="../public/sight-photos/munich-gate.png" alt="Демонстрационный снимок здания"><span class="time-overlay">15:07</span></div><figcaption>15:07</figcaption></figure>
+      </div></section>
+      <section class="day"><div class="day-heading"><h3>12 октября</h3><span>Понедельник · 11 фото</span></div><div class="grid">
+        <figure class="card"><div class="image-wrap"><img src="../public/sight-photos/munich-gate.png" alt="Демонстрационный снимок здания"><span class="time-overlay">21:18</span></div><figcaption>21:18</figcaption></figure>
+        <figure class="card"><div class="image-wrap"><img src="../public/sight-photos/munich-square.png" alt="Демонстрационный снимок площади"><span class="time-overlay">18:18</span></div><figcaption>18:18</figcaption></figure>
+        <figure class="card"><div class="image-wrap"><img src="../public/sight-photos/munich-street.png" alt="Демонстрационный снимок улицы"><span class="time-overlay">18:11</span></div><figcaption>18:11</figcaption></figure>
+      </div></section>
+      <p class="example-note">Фотографии здесь демонстрационные. Даты и время показывают, как будут выглядеть подписи; место съёмки остаётся доступно в поиске и при открытии снимка.</p>
+    </section>
+  </main>
+  <script>
+    const variants = {
+      a: {letter: 'A', title: 'Только время съёмки', description: 'На фотографии остаётся небольшая отметка времени. Город не повторяется на каждом снимке.'},
+      b: {letter: 'B', title: 'Фотографии без подписей', description: 'На плитках нет ни города, ни времени. День указан над группой, остальные сведения видны при открытии снимка.'},
+      c: {letter: 'C', title: 'Время под фотографией', description: 'Снимок полностью открыт, время стоит на светлой полосе под ним. Город в плитке не показывается.'}
+    };
+    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+      const mode = button.dataset.mode;
+      document.body.className = `mode-${mode}`;
+      document.querySelectorAll('[data-mode]').forEach(item => item.setAttribute('aria-selected', String(item === button)));
+      document.getElementById('variant-letter').textContent = variants[mode].letter;
+      document.getElementById('variant-title').textContent = variants[mode].title;
+      document.getElementById('variant-description').textContent = variants[mode].description;
+    }));
+  </script>
+</body>
+</html>
