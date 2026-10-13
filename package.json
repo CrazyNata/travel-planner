@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/ensure-web-env.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
