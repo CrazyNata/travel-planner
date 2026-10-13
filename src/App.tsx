@@ -12990,7 +12990,7 @@ function Photos({
             </small>
           )}
           <small className="photos-location-attribution">
-            Город определяется по GPS · данные <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+            Для поиска города округлённые GPS-координаты отправляются в <a href="https://photon.komoot.io" target="_blank" rel="noreferrer">Photon</a> · данные <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
           </small>
         </div>
         <button
