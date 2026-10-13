@@ -12427,7 +12427,6 @@ function Photos({
   onUpdateTrip: (trip: TripSummary) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     completed: number;
@@ -12519,31 +12518,6 @@ function Photos({
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
   );
-  const expandedPhotoIndex = expandedPhotoId
-    ? visiblePhotos.findIndex((photo) => photo.id === expandedPhotoId)
-    : -1;
-  const expandedPhoto = expandedPhotoIndex >= 0 ? visiblePhotos[expandedPhotoIndex] : null;
-
-  useEffect(() => {
-    if (!expandedPhoto) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpandedPhotoId(null);
-      if (visiblePhotos.length < 2) return;
-      if (event.key === "ArrowLeft") {
-        setExpandedPhotoId(visiblePhotos[(expandedPhotoIndex - 1 + visiblePhotos.length) % visiblePhotos.length].id);
-      }
-      if (event.key === "ArrowRight") {
-        setExpandedPhotoId(visiblePhotos[(expandedPhotoIndex + 1) % visiblePhotos.length].id);
-      }
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [expandedPhotoId, expandedPhotoIndex, visiblePhotos.length]);
   return (
     <section className="photos-page">
       <input
@@ -12590,20 +12564,14 @@ function Photos({
         <span>⌕</span>
         <input
           value={query}
-          onChange={(event) => {
-            setExpandedPhotoId(null);
-            setQuery(event.target.value);
-          }}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="Поиск по дате или месту"
         />
       </label>
       <div className="photo-grid">
         {visiblePhotos.map((photo, index) => (
-          <button
+          <div
             className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
-            type="button"
-            aria-label={`Открыть фото: ${photo.city || "Место не определено"}${photo.date ? `, ${photo.date}` : ""}`}
-            onClick={() => setExpandedPhotoId(photo.id)}
             key={photo.id}
           >
             <img
@@ -12616,7 +12584,7 @@ function Photos({
               {photo.city || "Место не определено"}
               {photo.date ? ` · ${photo.date}` : ""}
             </span>
-          </button>
+          </div>
         ))}
         {!visiblePhotos.length && (
           <div className="photos-empty">
@@ -12626,60 +12594,6 @@ function Photos({
           </div>
         )}
       </div>
-      {expandedPhoto && (
-        <div
-          className="accommodation-photo-lightbox photo-album-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Просмотр фотографии поездки"
-          onClick={() => setExpandedPhotoId(null)}
-        >
-          <img
-            src={expandedPhoto.image}
-            alt={expandedPhoto.city || "Фотография поездки"}
-            onClick={(event) => event.stopPropagation()}
-          />
-          {visiblePhotos.length > 1 && (
-            <>
-              <button
-                className="lightbox-previous"
-                type="button"
-                aria-label="Предыдущее фото"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setExpandedPhotoId(visiblePhotos[(expandedPhotoIndex - 1 + visiblePhotos.length) % visiblePhotos.length].id);
-                }}
-              >
-                ‹
-              </button>
-              <button
-                className="lightbox-next"
-                type="button"
-                aria-label="Следующее фото"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setExpandedPhotoId(visiblePhotos[(expandedPhotoIndex + 1) % visiblePhotos.length].id);
-                }}
-              >
-                ›
-              </button>
-            </>
-          )}
-          <button
-            className="lightbox-close"
-            type="button"
-            aria-label="Закрыть фото"
-            onClick={() => setExpandedPhotoId(null)}
-          >
-            ×
-          </button>
-          {(expandedPhoto.city || expandedPhoto.date) && (
-            <span className="photo-lightbox-caption">
-              {[expandedPhoto.city, expandedPhoto.date].filter(Boolean).join(" · ")}
-            </span>
-          )}
-        </div>
-      )}
     </section>
   );
 }

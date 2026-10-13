@@ -4921,15 +4921,8 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   position: relative;
   overflow: hidden;
   border-radius: 14px;
-  padding: 0;
-  border: 0;
   background: linear-gradient(135deg, #5a54d8, #8f89ec);
-  color: inherit;
-  text-align: left;
-  cursor: zoom-in;
-  -webkit-tap-highlight-color: transparent;
 }
-.photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .photo-image {
   display: block;
   width: 100%;
@@ -4975,20 +4968,6 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
   padding: 4px 9px;
   color: #fff;
   font-size: 9px;
-}
-.photo-label { pointer-events: none; }
-.photo-album-lightbox { z-index: 120; cursor: zoom-out; }
-.photo-album-lightbox .photo-lightbox-caption {
-  position: fixed;
-  right: 64px;
-  bottom: max(18px, env(safe-area-inset-bottom));
-  left: 64px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: center;
-  text-shadow: 0 1px 6px #000;
-  pointer-events: none;
 }
 .photo-add {
   display: flex;
