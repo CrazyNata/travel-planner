@@ -12461,10 +12461,14 @@ function Photos({
               upsert: false,
             });
           if (error) throw error;
+          const photoMetadata = await readPhotoMetadata(originalFile).catch((metadataError) => {
+            console.warn("Could not read optional trip photo metadata.", metadataError);
+            return {};
+          });
           uploadedPhotos.push({
             id: crypto.randomUUID(),
             image: await signedTripPhotoUrl(path),
-            ...(await readPhotoMetadata(originalFile)),
+            ...photoMetadata,
           });
         } catch (error) {
           failures.push({
