@@ -12509,6 +12509,7 @@ function Photos({
   onUpdateTrip: (trip: TripSummary) => void | Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [visiblePhotoCount, setVisiblePhotoCount] = useState(6);
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
@@ -12640,6 +12641,7 @@ function Photos({
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
   );
+  const displayedPhotos = visiblePhotos.slice(0, visiblePhotoCount);
   const expandedPhotoIndex = expandedPhotoId
     ? visiblePhotos.findIndex((photo) => photo.id === expandedPhotoId)
     : -1;
@@ -12711,12 +12713,15 @@ function Photos({
         <span>⌕</span>
         <input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setVisiblePhotoCount(6);
+          }}
           placeholder="Поиск по дате или месту"
         />
       </label>
       <div className="photo-grid">
-        {visiblePhotos.map((photo, index) => (
+        {displayedPhotos.map((photo, index) => (
           <button
             className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
             type="button"
@@ -12728,7 +12733,9 @@ function Photos({
               className="photo-image"
               src={photo.image}
               alt={photo.city || "Фотография поездки"}
-              loading="lazy"
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={index === 0 ? "high" : "auto"}
             />
             <span className="photo-label">
               {photo.city || "Место не определено"}
@@ -12744,6 +12751,15 @@ function Photos({
           </div>
         )}
       </div>
+      {displayedPhotos.length < visiblePhotos.length && (
+        <button
+          className="photos-load-more"
+          type="button"
+          onClick={() => setVisiblePhotoCount((count) => count + 8)}
+        >
+          Показать ещё {Math.min(8, visiblePhotos.length - displayedPhotos.length)} фото
+        </button>
+      )}
       {expandedPhoto && (
         <div
           className="accommodation-photo-lightbox photo-album-lightbox"
