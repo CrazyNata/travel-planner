@@ -1046,6 +1046,67 @@ function photoCity(latitude?: number, longitude?: number) {
   return nearest && nearest.distanceKm <= 45 ? nearest.city : undefined;
 }
 
+function photoGeocodeCoordinateKey(latitude: number, longitude: number) {
+  // City lookup does not need street-level precision. Rounding also avoids
+  // sending a photo's exact GPS position to the geocoder.
+  const roundedLatitude = (Math.round(latitude * 1000) / 1000).toFixed(3);
+  const roundedLongitude = (Math.round(longitude * 1000) / 1000).toFixed(3);
+  return `${roundedLatitude},${roundedLongitude}`;
+}
+
+async function reverseGeocodePhotoCity(
+  latitude: number,
+  longitude: number,
+  signal: AbortSignal,
+): Promise<string | undefined> {
+  const params = new URLSearchParams({
+    lat: (Math.round(latitude * 1000) / 1000).toFixed(3),
+    lon: (Math.round(longitude * 1000) / 1000).toFixed(3),
+    lang: "en",
+    limit: "10",
+  });
+  params.append("layer", "city");
+  params.append("layer", "locality");
+  params.append("layer", "county");
+  const response = await fetch(`https://photon.komoot.io/reverse?${params}`, {
+    signal,
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return undefined;
+  const payload = (await response.json()) as {
+    features?: Array<{
+      properties?: {
+        city?: unknown;
+        county?: unknown;
+        locality?: unknown;
+        name?: unknown;
+        osm_value?: unknown;
+      };
+    }>;
+  };
+  const features = Array.isArray(payload.features) ? payload.features : [];
+  const cityFromContext = features
+    .map((feature) => feature.properties?.city)
+    .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  if (cityFromContext) return photoCity(latitude, longitude) || cityFromContext.trim();
+
+  const namedPlace = features
+    .filter((feature) =>
+      ["city", "locality", "town", "village", "municipality", "hamlet"].includes(
+        String(feature.properties?.osm_value || "").toLowerCase(),
+      ),
+    )
+    .map((feature) => feature.properties?.name)
+    .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  if (namedPlace) return photoCity(latitude, longitude) || namedPlace.trim();
+
+  const county = features
+    .map((feature) => feature.properties?.county)
+    .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  return county?.trim();
+}
+
 function photoExifDate(value: unknown) {
   if (value instanceof Date && Number.isFinite(value.getTime())) {
     const pad = (part: number) => String(part).padStart(2, "0");
@@ -1528,6 +1589,7 @@ const catalog = [
 
 const mapLocations: Record<string, [number, number]> = {
   Прага: [14.4378, 50.0755],
+  Дрезден: [13.7373, 51.0504],
   Зальцбург: [13.045, 47.8095],
   Инцелль: [12.75, 47.76],
   Инцель: [12.75, 47.76],
@@ -12530,8 +12592,13 @@ function Photos({
     total: number;
   } | null>(null);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [resolvedPhotoCities, setResolvedPhotoCities] = useState<Record<string, string>>({});
   const input = useRef<HTMLInputElement>(null);
   const touchStartX = useRef<number | null>(null);
+  const tripRef = useRef(trip);
+  const onUpdateTripRef = useRef(onUpdateTrip);
+  tripRef.current = trip;
+  onUpdateTripRef.current = onUpdateTrip;
   const uploadPhotos = async (selectedFiles: File[]) => {
     if (!selectedFiles.length) return;
     setUploading(true);
@@ -12733,6 +12800,127 @@ function Photos({
     }
   };
   const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
+  const photoCityStateKey = (photo: CoverPhoto) =>
+    `${trip.id}:${photo.id}:${photo.latitude === undefined || photo.longitude === undefined
+      ? ""
+      : photoGeocodeCoordinateKey(photo.latitude, photo.longitude)}`;
+  const displayPhotoLocation = (photo: CoverPhoto) =>
+    photoLocationLabel({
+      ...photo,
+      city: photo.city || resolvedPhotoCities[photoCityStateKey(photo)],
+    });
+
+  useEffect(() => {
+    const photosToResolve = photos.filter(
+      (photo) =>
+        !photo.city &&
+        photo.latitude !== undefined &&
+        photo.longitude !== undefined &&
+        Number.isFinite(photo.latitude) &&
+        Number.isFinite(photo.longitude) &&
+        Math.abs(photo.latitude) <= 90 &&
+        Math.abs(photo.longitude) <= 180,
+    );
+    if (!photosToResolve.length) return;
+
+    const controller = new AbortController();
+    let disposed = false;
+    const coordinates = new globalThis.Map<
+      string,
+      { latitude: number; longitude: number }
+    >();
+    photosToResolve.forEach((photo) => {
+      const latitude = photo.latitude!;
+      const longitude = photo.longitude!;
+      const key = photoGeocodeCoordinateKey(latitude, longitude);
+      if (!coordinates.has(key)) coordinates.set(key, { latitude, longitude });
+    });
+
+    void (async () => {
+      const resolvedByCoordinate = new globalThis.Map<string, string>();
+      const coordinateEntries = Array.from(coordinates.entries());
+      for (let index = 0; index < coordinateEntries.length; index += 4) {
+        const batch = coordinateEntries.slice(index, index + 4);
+        const results = await Promise.all(
+          batch.map(async ([key, coordinate]) => {
+            try {
+              return {
+                key,
+                city: await reverseGeocodePhotoCity(
+                  coordinate.latitude,
+                  coordinate.longitude,
+                  controller.signal,
+                ),
+              };
+            } catch (error) {
+              if (!controller.signal.aborted) {
+                console.warn("Could not resolve a trip photo city.", error);
+              }
+              return { key, city: undefined };
+            }
+          }),
+        );
+        if (disposed || controller.signal.aborted) return;
+
+        results.forEach(({ key, city }) => {
+          if (city) resolvedByCoordinate.set(key, city);
+        });
+        if (resolvedByCoordinate.size) {
+          setResolvedPhotoCities((current) => {
+            const next = { ...current };
+            photosToResolve.forEach((photo) => {
+              if (photo.latitude === undefined || photo.longitude === undefined) return;
+              const city = resolvedByCoordinate.get(
+                photoGeocodeCoordinateKey(photo.latitude, photo.longitude),
+              );
+              if (city) next[photoCityStateKey(photo)] = city;
+            });
+            return next;
+          });
+        }
+      }
+
+      if (!resolvedByCoordinate.size || disposed) return;
+      const latestTrip = tripRef.current;
+      if (latestTrip.id !== trip.id) return;
+      const latestPhotos = latestTrip.photos?.length
+        ? latestTrip.photos
+        : latestTrip.coverPhotos || [];
+      let changed = false;
+      const enrichedPhotos = latestPhotos.map((photo) => {
+        if (photo.city || photo.latitude === undefined || photo.longitude === undefined) {
+          return photo;
+        }
+        const city = resolvedByCoordinate.get(
+          photoGeocodeCoordinateKey(photo.latitude, photo.longitude),
+        );
+        if (!city) return photo;
+        changed = true;
+        return { ...photo, city };
+      });
+      if (!changed) return;
+
+      const nextTrip = latestTrip.photos?.length
+        ? { ...latestTrip, photos: enrichedPhotos }
+        : latestTrip.coverPhotos?.length
+          ? { ...latestTrip, coverPhotos: enrichedPhotos }
+          : { ...latestTrip, photos: enrichedPhotos };
+      try {
+        const saved = await onUpdateTripRef.current(nextTrip);
+        if (saved === false) {
+          console.warn("Resolved photo cities were not saved to the trip.");
+        }
+      } catch (error) {
+        console.error("Could not save resolved trip photo cities.", error);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      controller.abort();
+    };
+  }, [trip.id, trip.photos, trip.coverPhotos]);
+
   const uploadedPhotos = photos.filter((photo) =>
     tripPhotoPath(photo.image)?.includes("/album/"),
   );
@@ -12741,7 +12929,7 @@ function Photos({
   );
   const orderedPhotos = [...uploadedPhotos.reverse(), ...routePhotos];
   const visiblePhotos = orderedPhotos.filter((photo) =>
-    `${photoLocationLabel(photo)} ${photo.date || ""} ${photo.description || ""}`
+    `${displayPhotoLocation(photo)} ${photo.date || ""} ${photo.description || ""}`
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
   );
@@ -12801,6 +12989,9 @@ function Photos({
               {uploadStatus}
             </small>
           )}
+          <small className="photos-location-attribution">
+            Город определяется по GPS · данные <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+          </small>
         </div>
         <button
           className="accent"
@@ -12829,20 +13020,20 @@ function Photos({
           <button
             className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
             type="button"
-            aria-label={`Открыть фото: ${photoLocationLabel(photo)}${photo.date ? `, ${photo.date}` : ""}`}
+            aria-label={`Открыть фото: ${displayPhotoLocation(photo)}${photo.date ? `, ${photo.date}` : ""}`}
             onClick={() => setExpandedPhotoId(photo.id)}
             key={photo.id}
           >
             <img
               className="photo-image"
               src={photo.image}
-              alt={photoLocationLabel(photo)}
+              alt={displayPhotoLocation(photo)}
               loading={index === 0 ? "eager" : "lazy"}
               decoding="async"
               fetchPriority={index === 0 ? "high" : "auto"}
             />
             <span className="photo-label">
-              {photoLocationLabel(photo)}
+              {displayPhotoLocation(photo)}
               {photo.date ? ` · ${photo.date}` : ""}
             </span>
           </button>
@@ -12889,7 +13080,7 @@ function Photos({
         >
           <img
             src={expandedPhoto.image}
-            alt={photoLocationLabel(expandedPhoto)}
+            alt={displayPhotoLocation(expandedPhoto)}
             onClick={(event) => event.stopPropagation()}
           />
           {visiblePhotos.length > 1 && (
@@ -12928,7 +13119,7 @@ function Photos({
           </button>
           {(expandedPhoto.city || expandedPhoto.date || expandedPhoto.latitude !== undefined) && (
             <span className="photo-lightbox-caption">
-              {[photoLocationLabel(expandedPhoto), expandedPhoto.date]
+              {[displayPhotoLocation(expandedPhoto), expandedPhoto.date]
                 .filter((value) => value && value !== "Место не определено")
                 .join(" · ")}
             </span>
