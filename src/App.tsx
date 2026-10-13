@@ -59,6 +59,8 @@ type CoverPhoto = {
   image: string;
   city?: string;
   date?: string;
+  latitude?: number;
+  longitude?: number;
   description?: string;
   textColor?: string;
 };
@@ -1007,111 +1009,99 @@ function cityFlag(city: string) {
   );
 }
 
-type PhotoMetadata = { date?: string; city?: string };
+type PhotoMetadata = {
+  date?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+};
 
 function photoCity(latitude?: number, longitude?: number) {
-  if (latitude === undefined || longitude === undefined) return undefined;
-  const cities = [
-    [41.9, 12.5, "Рим"],
-    [43.77, 11.25, "Флоренция"],
-    [45.44, 12.33, "Венеция"],
-  ] as const;
-  return cities
-    .map(([lat, lng, city]) => ({
-      city,
-      distance: Math.hypot(latitude - lat, longitude - lng),
-    }))
-    .sort((a, b) => a.distance - b.distance)[0]?.distance < 0.55
-    ? cities
-        .map(([lat, lng, city]) => ({
-          city,
-          distance: Math.hypot(latitude - lat, longitude - lng),
-        }))
-        .sort((a, b) => a.distance - b.distance)[0]?.city
-    : undefined;
+  if (
+    latitude === undefined ||
+    longitude === undefined ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return undefined;
+  }
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const nearest = Object.entries(mapLocations)
+    .filter(([city]) => /[а-яё]/i.test(city))
+    .map(([city, [cityLongitude, cityLatitude]]) => {
+      const latitudeDelta = toRadians(cityLatitude - latitude);
+      const longitudeDelta = toRadians(cityLongitude - longitude);
+      const haversine =
+        Math.sin(latitudeDelta / 2) ** 2 +
+        Math.cos(toRadians(latitude)) *
+          Math.cos(toRadians(cityLatitude)) *
+          Math.sin(longitudeDelta / 2) ** 2;
+      return {
+        city,
+        distanceKm: 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)),
+      };
+    })
+    .sort((left, right) => left.distanceKm - right.distanceKm)[0];
+  return nearest && nearest.distanceKm <= 45 ? nearest.city : undefined;
+}
+
+function photoExifDate(value: unknown) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    const pad = (part: number) => String(part).padStart(2, "0");
+    return `${value.getFullYear()}.${pad(value.getMonth() + 1)}.${pad(value.getDate())} · ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+  }
+  if (typeof value !== "string") return undefined;
+  const match = value.match(
+    /^(\d{4})[:.-](\d{2})[:.-](\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/,
+  );
+  if (!match) return undefined;
+  const [, year, month, day, hour, minute, second] = match;
+  return `${year}.${month}.${day}${hour ? ` · ${hour}:${minute}:${second}` : ""}`;
 }
 
 async function readPhotoMetadata(file: File): Promise<PhotoMetadata> {
-  if (!file.type.includes("jpeg")) return {};
-  const data = new DataView(await file.arrayBuffer());
-  let offset = 2;
-  while (offset + 4 < data.byteLength) {
-    if (data.getUint8(offset) !== 0xff) break;
-    const marker = data.getUint8(offset + 1);
-    const size = data.getUint16(offset + 2, false);
-    if (marker !== 0xe1 || data.getUint32(offset + 4, false) !== 0x45786966) {
-      offset += size + 2;
-      continue;
-    }
-    const tiff = offset + 10;
-    const little = data.getUint16(tiff, false) === 0x4949;
-    const u16 = (position: number) => data.getUint16(position, little);
-    const u32 = (position: number) => data.getUint32(position, little);
-    const ascii = (position: number, length: number) =>
-      String.fromCharCode(
-        ...Array.from({ length: length - 1 }, (_, index) =>
-          data.getUint8(position + index),
-        ),
-      );
-    const ifd = (position: number) => {
-      const count = u16(position);
-      return Array.from({ length: count }, (_, index) => {
-        const entry = position + 2 + index * 12;
-        return {
-          tag: u16(entry),
-          type: u16(entry + 2),
-          count: u32(entry + 4),
-          value: entry + 8,
-          offset: u32(entry + 8),
-        };
-      });
-    };
-    const base = tiff;
-    const entries = ifd(base + u32(base + 4));
-    const dateEntry = entries.find(
-      (entry) => entry.tag === 0x9003 || entry.tag === 0x0132,
-    );
-    const gpsEntry = entries.find((entry) => entry.tag === 0x8825);
-    const date = dateEntry
-      ? ascii(base + dateEntry.offset, dateEntry.count)
-          .replace(/:/g, ".")
-          .replace(" ", " · ")
+  const exifr = await import("exifr");
+  const [exif, gps] = await Promise.all([
+    exifr
+      .parse(file, {
+        ifd0: { pick: ["DateTime"] },
+        exif: { pick: ["DateTimeOriginal", "DateTimeDigitized", "CreateDate"] },
+        xmp: { pick: ["DateCreated", "CreateDate"] },
+      })
+      .catch(() => undefined),
+    exifr.gps(file).catch(() => undefined),
+  ]);
+  const date = [
+    exif?.DateTimeOriginal,
+    exif?.DateCreated,
+    exif?.CreateDate,
+    exif?.DateTimeDigitized,
+    exif?.DateTime,
+  ]
+    .map(photoExifDate)
+    .find(Boolean);
+  const latitude =
+    typeof gps?.latitude === "number" && Math.abs(gps.latitude) <= 90
+      ? gps.latitude
       : undefined;
-    if (!gpsEntry) return { date };
-    const gps = ifd(base + gpsEntry.offset);
-    const gpsValue = (tag: number) => gps.find((entry) => entry.tag === tag);
-    const rational = (entry?: { offset: number; count: number }) =>
-      entry
-        ? Array.from({ length: entry.count }, (_, index) => {
-            const point = base + entry.offset + index * 8;
-            return u32(point) / u32(point + 4);
-          })
-        : [];
-    const latitudeParts = rational(gpsValue(2));
-    const longitudeParts = rational(gpsValue(4));
-    const latitude =
-      latitudeParts.length === 3
-        ? latitudeParts[0] + latitudeParts[1] / 60 + latitudeParts[2] / 3600
-        : undefined;
-    const longitude =
-      longitudeParts.length === 3
-        ? longitudeParts[0] + longitudeParts[1] / 60 + longitudeParts[2] / 3600
-        : undefined;
-    const ref = (tag: number) => {
-      const entry = gpsValue(tag);
-      return entry
-        ? String.fromCharCode(data.getUint8(base + entry.offset))
-        : "";
-    };
-    return {
-      date,
-      city: photoCity(
-        ref(1) === "S" && latitude ? -latitude : latitude,
-        ref(3) === "W" && longitude ? -longitude : longitude,
-      ),
-    };
+  const longitude =
+    typeof gps?.longitude === "number" && Math.abs(gps.longitude) <= 180
+      ? gps.longitude
+      : undefined;
+  return {
+    ...(date ? { date } : {}),
+    ...(latitude !== undefined ? { latitude } : {}),
+    ...(longitude !== undefined ? { longitude } : {}),
+    city: photoCity(latitude, longitude),
+  };
+}
+
+function photoLocationLabel(photo: Pick<CoverPhoto, "city" | "latitude" | "longitude">) {
+  if (photo.city) return photo.city;
+  if (photo.latitude === undefined || photo.longitude === undefined) {
+    return "Место не определено";
   }
-  return {};
+  return `GPS ${photo.latitude.toFixed(4)}, ${photo.longitude.toFixed(4)}`;
 }
 
 function savedTrip(payload: StoredTripPayload): TripSummary | null {
@@ -12533,6 +12523,8 @@ function Photos({
       let currentTrip = trip;
       let savedCount = 0;
       let duplicateCount = 0;
+      let duplicateMetadataUpdatedCount = 0;
+      let duplicateMetadataSaveFailureCount = 0;
       for (const [index, originalFile] of selectedFiles.entries()) {
         try {
           setUploadStatus(`Подготовка фото ${index + 1} из ${selectedFiles.length}…`);
@@ -12549,9 +12541,73 @@ function Photos({
             : currentTrip.coverPhotos || [];
           const extension = extensionByType[file.type] || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${photoId}.${extension}`;
-          if (currentPhotos.some((photo) => tripPhotoPath(photo.image) === path)) {
+          const existingPhotoIndex = currentPhotos.findIndex(
+            (photo) => tripPhotoPath(photo.image) === path,
+          );
+          if (existingPhotoIndex >= 0) {
             duplicateCount += 1;
-            setUploadStatus(`Фото ${index + 1} из ${selectedFiles.length} уже есть в альбоме.`);
+            const existingPhoto = currentPhotos[existingPhotoIndex];
+            if (
+              !existingPhoto.date ||
+              !existingPhoto.city ||
+              existingPhoto.latitude === undefined ||
+              existingPhoto.longitude === undefined
+            ) {
+              const photoMetadata = await readPhotoMetadata(originalFile).catch(
+                (): PhotoMetadata => ({}),
+              );
+              const enrichedPhoto: CoverPhoto = {
+                ...existingPhoto,
+                ...(!existingPhoto.date && photoMetadata.date
+                  ? { date: photoMetadata.date }
+                  : {}),
+                ...(!existingPhoto.city && photoMetadata.city
+                  ? { city: photoMetadata.city }
+                  : {}),
+                ...(existingPhoto.latitude === undefined && photoMetadata.latitude !== undefined
+                  ? { latitude: photoMetadata.latitude }
+                  : {}),
+                ...(existingPhoto.longitude === undefined && photoMetadata.longitude !== undefined
+                  ? { longitude: photoMetadata.longitude }
+                  : {}),
+              };
+              const metadataWasAdded =
+                enrichedPhoto.date !== existingPhoto.date ||
+                enrichedPhoto.city !== existingPhoto.city ||
+                enrichedPhoto.latitude !== existingPhoto.latitude ||
+                enrichedPhoto.longitude !== existingPhoto.longitude;
+              if (metadataWasAdded) {
+                const nextPhotos = currentPhotos.map((photo, photoIndex) =>
+                  photoIndex === existingPhotoIndex ? enrichedPhoto : photo,
+                );
+                const nextTrip = { ...currentTrip, photos: nextPhotos };
+                let saved = false;
+                for (let saveAttempt = 0; saveAttempt < 3; saveAttempt += 1) {
+                  try {
+                    const result = await onUpdateTrip(nextTrip);
+                    if (result !== false) {
+                      saved = true;
+                      break;
+                    }
+                  } catch (saveError) {
+                    console.error("Could not save photo metadata.", saveError);
+                  }
+                  if (saveAttempt < 2) await waitBeforePhotoRetry(saveAttempt);
+                }
+                if (saved) {
+                  currentTrip = nextTrip;
+                  duplicateMetadataUpdatedCount += 1;
+                  setUploadStatus(`Данные фото ${index + 1} из ${selectedFiles.length} обновлены.`);
+                } else {
+                  duplicateMetadataSaveFailureCount += 1;
+                  setUploadStatus(`Фото ${index + 1} уже в альбоме, но данные не сохранились.`);
+                }
+              } else {
+                setUploadStatus(`Фото ${index + 1} из ${selectedFiles.length} уже есть в альбоме.`);
+              }
+            } else {
+              setUploadStatus(`Фото ${index + 1} из ${selectedFiles.length} уже есть в альбоме.`);
+            }
             continue;
           }
           setUploadStatus(`Отправка фото ${index + 1} из ${selectedFiles.length}…`);
@@ -12607,10 +12663,18 @@ function Photos({
           setUploadProgress({ completed: index + 1, total: selectedFiles.length });
         }
       }
-      if (savedCount) {
-        setUploadStatus(
-          `Готово: добавлено фото ${savedCount} из ${selectedFiles.length}${duplicateCount ? `. Уже были в альбоме: ${duplicateCount}` : ""}.`,
-        );
+      if (savedCount || duplicateCount) {
+        const resultParts = [
+          `Готово: добавлено фото ${savedCount} из ${selectedFiles.length}`,
+        ];
+        if (duplicateCount) resultParts.push(`уже были в альбоме: ${duplicateCount}`);
+        if (duplicateMetadataUpdatedCount) {
+          resultParts.push(`метаданные обновлены: ${duplicateMetadataUpdatedCount}`);
+        }
+        if (duplicateMetadataSaveFailureCount) {
+          resultParts.push(`не удалось сохранить метаданные: ${duplicateMetadataSaveFailureCount}`);
+        }
+        setUploadStatus(`${resultParts.join(" · ")}.`);
       }
       if (failures.length) {
         const reason = `${failures[0].name}: ${failures[0].message}`;
@@ -12637,7 +12701,7 @@ function Photos({
   };
   const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
   const visiblePhotos = photos.filter((photo) =>
-    `${photo.city || ""} ${photo.date || ""} ${photo.description || ""}`
+    `${photoLocationLabel(photo)} ${photo.date || ""} ${photo.description || ""}`
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
   );
@@ -12725,20 +12789,20 @@ function Photos({
           <button
             className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
             type="button"
-            aria-label={`Открыть фото: ${photo.city || "Место не определено"}${photo.date ? `, ${photo.date}` : ""}`}
+            aria-label={`Открыть фото: ${photoLocationLabel(photo)}${photo.date ? `, ${photo.date}` : ""}`}
             onClick={() => setExpandedPhotoId(photo.id)}
             key={photo.id}
           >
             <img
               className="photo-image"
               src={photo.image}
-              alt={photo.city || "Фотография поездки"}
+              alt={photoLocationLabel(photo)}
               loading={index === 0 ? "eager" : "lazy"}
               decoding="async"
               fetchPriority={index === 0 ? "high" : "auto"}
             />
             <span className="photo-label">
-              {photo.city || "Место не определено"}
+              {photoLocationLabel(photo)}
               {photo.date ? ` · ${photo.date}` : ""}
             </span>
           </button>
@@ -12785,7 +12849,7 @@ function Photos({
         >
           <img
             src={expandedPhoto.image}
-            alt={expandedPhoto.city || "Фотография поездки"}
+            alt={photoLocationLabel(expandedPhoto)}
             onClick={(event) => event.stopPropagation()}
           />
           {visiblePhotos.length > 1 && (
@@ -12822,9 +12886,11 @@ function Photos({
           >
             ×
           </button>
-          {(expandedPhoto.city || expandedPhoto.date) && (
+          {(expandedPhoto.city || expandedPhoto.date || expandedPhoto.latitude !== undefined) && (
             <span className="photo-lightbox-caption">
-              {[expandedPhoto.city, expandedPhoto.date].filter(Boolean).join(" · ")}
+              {[photoLocationLabel(expandedPhoto), expandedPhoto.date]
+                .filter((value) => value && value !== "Место не определено")
+                .join(" · ")}
             </span>
           )}
         </div>
