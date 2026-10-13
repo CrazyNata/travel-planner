@@ -12428,18 +12428,25 @@ function Photos({
 }) {
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const uploadPhotos = async (files: FileList | null) => {
     const selectedFiles = Array.from(files || []);
     if (!selectedFiles.length) return;
     setUploading(true);
+    setUploadProgress({ completed: 0, total: selectedFiles.length });
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user) throw new Error("No active session");
-      const uploadResults = await Promise.allSettled(
-        selectedFiles.map(async (originalFile) => {
+      const uploadedPhotos: CoverPhoto[] = [];
+      const failures: unknown[] = [];
+      for (const [index, originalFile] of selectedFiles.entries()) {
+        try {
           const file = await prepareTripPhoto(originalFile);
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${crypto.randomUUID()}.${extension}`;
@@ -12451,19 +12458,17 @@ function Photos({
               upsert: false,
             });
           if (error) throw error;
-          return {
+          uploadedPhotos.push({
             id: crypto.randomUUID(),
             image: await signedTripPhotoUrl(path),
             ...(await readPhotoMetadata(originalFile)),
-          };
-        }),
-      );
-      const uploadedPhotos = uploadResults.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      );
-      const failures = uploadResults.flatMap((result) =>
-        result.status === "rejected" ? [result.reason] : [],
-      );
+          });
+        } catch (error) {
+          failures.push(error);
+        } finally {
+          setUploadProgress({ completed: index + 1, total: selectedFiles.length });
+        }
+      }
       if (uploadedPhotos.length) {
         const currentPhotos = trip.photos?.length
           ? trip.photos
@@ -12486,6 +12491,7 @@ function Photos({
       window.alert(photoUploadFailureMessage(error));
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
   const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
@@ -12519,7 +12525,9 @@ function Photos({
           onClick={() => input.current?.click()}
           disabled={uploading}
         >
-          {uploading ? "Загружаем…" : "↑ Загрузить"}
+          {uploading
+            ? `Загружаем ${uploadProgress?.completed ?? 0}/${uploadProgress?.total ?? 0}…`
+            : "↑ Загрузить"}
         </button>
       </header>
       <label className="photo-search">
