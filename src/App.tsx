@@ -1166,6 +1166,63 @@ function photoLocationLabel(photo: Pick<CoverPhoto, "city" | "latitude" | "longi
   return `GPS ${photo.latitude.toFixed(4)}, ${photo.longitude.toFixed(4)}`;
 }
 
+function photoDateParts(value?: string) {
+  if (!value) return undefined;
+  const match = value.match(
+    /^\s*(\d{4})[.\-/:](\d{1,2})[.\-/:](\d{1,2})(?:[T\s·]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/,
+  );
+  if (!match) return undefined;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = hourText === undefined ? 0 : Number(hourText);
+  const minute = minuteText === undefined ? 0 : Number(minuteText);
+  const second = secondText === undefined ? 0 : Number(secondText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return undefined;
+  }
+  return {
+    key: `${yearText}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    timestamp: Date.UTC(year, month - 1, day, hour, minute, second),
+    date,
+    time: hourText === undefined ? undefined : `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+  };
+}
+
+const photoDayFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+});
+const photoDayYearFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const photoWeekdayFormatter = new Intl.DateTimeFormat("ru-RU", {
+  weekday: "long",
+  timeZone: "UTC",
+});
+
+function photoDayLabel(date: Date, includeYear: boolean) {
+  return (includeYear ? photoDayYearFormatter : photoDayFormatter).format(date);
+}
+
+function photoWeekdayLabel(date: Date) {
+  const weekday = photoWeekdayFormatter.format(date);
+  return `${weekday.slice(0, 1).toLocaleUpperCase("ru-RU")}${weekday.slice(1)}`;
+}
+
 function savedTrip(payload: StoredTripPayload): TripSummary | null {
   const storedDays = payload.data?.days;
   if (!storedDays?.length) return null;
@@ -12584,6 +12641,7 @@ function Photos({
   onUpdateTrip: (trip: TripSummary) => void | Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [selectedPhotoLocation, setSelectedPhotoLocation] = useState("__all__");
   const [visiblePhotoCount, setVisiblePhotoCount] = useState(6);
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -12599,6 +12657,12 @@ function Photos({
   const onUpdateTripRef = useRef(onUpdateTrip);
   tripRef.current = trip;
   onUpdateTripRef.current = onUpdateTrip;
+  useEffect(() => {
+    setQuery("");
+    setSelectedPhotoLocation("__all__");
+    setVisiblePhotoCount(6);
+    setExpandedPhotoId(null);
+  }, [trip.id]);
   const uploadPhotos = async (selectedFiles: File[]) => {
     if (!selectedFiles.length) return;
     setUploading(true);
@@ -12804,11 +12868,14 @@ function Photos({
     `${trip.id}:${photo.id}:${photo.latitude === undefined || photo.longitude === undefined
       ? ""
       : photoGeocodeCoordinateKey(photo.latitude, photo.longitude)}`;
+  const photoCityLabel = (photo: CoverPhoto) =>
+    photo.city ||
+    (photo.latitude !== undefined && photo.longitude !== undefined
+      ? photoCity(photo.latitude, photo.longitude)
+      : undefined) ||
+    resolvedPhotoCities[photoCityStateKey(photo)];
   const displayPhotoLocation = (photo: CoverPhoto) =>
-    photoLocationLabel({
-      ...photo,
-      city: photo.city || resolvedPhotoCities[photoCityStateKey(photo)],
-    });
+    photoLocationLabel({ ...photo, city: photoCityLabel(photo) });
 
   useEffect(() => {
     const photosToResolve = photos.filter(
@@ -12843,6 +12910,8 @@ function Photos({
         const batch = coordinateEntries.slice(index, index + 4);
         const results = await Promise.all(
           batch.map(async ([key, coordinate]) => {
+            const nearbyCity = photoCity(coordinate.latitude, coordinate.longitude);
+            if (nearbyCity) return { key, city: nearbyCity };
             try {
               return {
                 key,
@@ -12928,12 +12997,93 @@ function Photos({
     (photo) => !tripPhotoPath(photo.image)?.includes("/album/"),
   );
   const orderedPhotos = [...uploadedPhotos.reverse(), ...routePhotos];
-  const visiblePhotos = orderedPhotos.filter((photo) =>
-    `${displayPhotoLocation(photo)} ${photo.date || ""} ${photo.description || ""}`
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
+  const photoDateById = new globalThis.Map<string, ReturnType<typeof photoDateParts>>(
+    orderedPhotos.map((photo) => [photo.id, photoDateParts(photo.date)] as const),
   );
+  const photoLocationCounts = new globalThis.Map<string, number>();
+  let photosWithoutCityCount = 0;
+  orderedPhotos.forEach((photo) => {
+    const city = photoCityLabel(photo);
+    if (city) {
+      photoLocationCounts.set(city, (photoLocationCounts.get(city) || 0) + 1);
+    } else {
+      photosWithoutCityCount += 1;
+    }
+  });
+  const matchingPhotos = orderedPhotos.filter((photo) => {
+    const city = photoCityLabel(photo);
+    if (selectedPhotoLocation === "__without_city__" && city) return false;
+    if (
+      selectedPhotoLocation !== "__all__" &&
+      selectedPhotoLocation !== "__without_city__" &&
+      city !== selectedPhotoLocation
+    ) {
+      return false;
+    }
+    const date = photoDateById.get(photo.id);
+    const searchableText = [
+      displayPhotoLocation(photo),
+      photo.date || "",
+      date ? photoDayLabel(date.date, true) : "",
+      photo.description || "",
+    ]
+      .join(" ")
+      .toLocaleLowerCase("ru-RU");
+    return searchableText.includes(query.trim().toLocaleLowerCase("ru-RU"));
+  });
+  const photoGroupsByDate = new globalThis.Map<
+    string,
+    { date: Date | null; photos: CoverPhoto[] }
+  >();
+  matchingPhotos.forEach((photo) => {
+    const date = photoDateById.get(photo.id);
+    const key = date?.key || "undated";
+    const group = photoGroupsByDate.get(key) || {
+      date: date?.date || null,
+      photos: [],
+    };
+    group.photos.push(photo);
+    photoGroupsByDate.set(key, group);
+  });
+  const originalPhotoPosition = new globalThis.Map<string, number>(
+    orderedPhotos.map((photo, index) => [photo.id, index] as const),
+  );
+  const photoGroups = Array.from(photoGroupsByDate.entries())
+    .sort(([left], [right]) => {
+      if (left === "undated") return right === "undated" ? 0 : 1;
+      if (right === "undated") return -1;
+      return right.localeCompare(left);
+    })
+    .map(([key, group]) => ({
+      key,
+      date: group.date,
+      photos: group.photos.sort((left, right) => {
+        const leftTime = photoDateById.get(left.id)?.timestamp;
+        const rightTime = photoDateById.get(right.id)?.timestamp;
+        if (leftTime !== undefined && rightTime !== undefined && leftTime !== rightTime) {
+          return rightTime - leftTime;
+        }
+        if (leftTime !== undefined && rightTime === undefined) return -1;
+        if (leftTime === undefined && rightTime !== undefined) return 1;
+        return (originalPhotoPosition.get(left.id) || 0) -
+          (originalPhotoPosition.get(right.id) || 0);
+      }),
+    }));
+  const visiblePhotos = photoGroups.flatMap((group) => group.photos);
   const displayedPhotos = visiblePhotos.slice(0, visiblePhotoCount);
+  const displayedPhotoIds = new Set(displayedPhotos.map((photo) => photo.id));
+  const displayedPhotoGroups = photoGroups
+    .map((group) => ({
+      ...group,
+      totalCount: group.photos.length,
+      photos: group.photos.filter((photo) => displayedPhotoIds.has(photo.id)),
+    }))
+    .filter((group) => group.photos.length > 0);
+  const photoYears = new Set(
+    photoGroups
+      .map((group) => group.date?.getUTCFullYear())
+      .filter((year): year is number => year !== undefined),
+  );
   const expandedPhotoIndex = expandedPhotoId
     ? visiblePhotos.findIndex((photo) => photo.id === expandedPhotoId)
     : -1;
@@ -12982,7 +13132,7 @@ function Photos({
         <div>
           <h2>Фотоальбом</h2>
           <p>
-            {photos.length} {photos.length === 1 ? "фото" : "фото"} · фотографии поездки
+            {photos.length} фото · группировка по дате съёмки
           </p>
           {uploadStatus && (
             <small className="photos-upload-status" role="status" aria-live="polite">
@@ -13015,28 +13165,96 @@ function Photos({
           placeholder="Поиск по дате или месту"
         />
       </label>
-      <div className="photo-grid">
-        {displayedPhotos.map((photo, index) => (
+      <div className="photo-filters" role="group" aria-label="Фильтр фотографий по месту">
+        <button
+          className={selectedPhotoLocation === "__all__" ? "active" : ""}
+          type="button"
+          aria-pressed={selectedPhotoLocation === "__all__"}
+          onClick={() => {
+            setSelectedPhotoLocation("__all__");
+            setVisiblePhotoCount(6);
+          }}
+        >
+          Все фото <span>{photos.length}</span>
+        </button>
+        {Array.from(photoLocationCounts.entries())
+          .sort(([leftName, leftCount], [rightName, rightCount]) =>
+            rightCount - leftCount || leftName.localeCompare(rightName, "ru"),
+          )
+          .map(([city, count]) => (
+            <button
+              className={selectedPhotoLocation === city ? "active" : ""}
+              type="button"
+              aria-pressed={selectedPhotoLocation === city}
+              onClick={() => {
+                setSelectedPhotoLocation(city);
+                setVisiblePhotoCount(6);
+              }}
+              key={city}
+            >
+              {city} <span>{count}</span>
+            </button>
+          ))}
+        {photosWithoutCityCount > 0 && (
           <button
-            className={`photo ${index === 0 ? "hero-photo" : `p${index % 6}`}`}
+            className={selectedPhotoLocation === "__without_city__" ? "active" : ""}
             type="button"
-            aria-label={`Открыть фото: ${displayPhotoLocation(photo)}${photo.date ? `, ${photo.date}` : ""}`}
-            onClick={() => setExpandedPhotoId(photo.id)}
-            key={photo.id}
+            aria-pressed={selectedPhotoLocation === "__without_city__"}
+            onClick={() => {
+              setSelectedPhotoLocation("__without_city__");
+              setVisiblePhotoCount(6);
+            }}
           >
-            <img
-              className="photo-image"
-              src={photo.image}
-              alt={displayPhotoLocation(photo)}
-              loading={index === 0 ? "eager" : "lazy"}
-              decoding="async"
-              fetchPriority={index === 0 ? "high" : "auto"}
-            />
-            <span className="photo-label">
-              {displayPhotoLocation(photo)}
-              {photo.date ? ` · ${photo.date}` : ""}
-            </span>
+            Без места <span>{photosWithoutCityCount}</span>
           </button>
+        )}
+      </div>
+      <div className="photo-album-days">
+        {displayedPhotoGroups.map((group) => (
+          <section className="photo-day" key={group.key}>
+            <header className="photo-day-heading">
+              <div>
+                <h3>
+                  {group.date
+                    ? photoDayLabel(group.date, photoYears.size > 1)
+                    : "Дата не указана"}
+                </h3>
+                <p>
+                  {group.date ? `${photoWeekdayLabel(group.date)} · ` : ""}
+                  {group.totalCount} фото
+                </p>
+              </div>
+            </header>
+            <div className={`photo-grid photo-day-grid ${group.photos.length >= 4 ? "has-feature" : ""}`}>
+              {group.photos.map((photo, index) => {
+                const time = photoDateById.get(photo.id)?.time;
+                const featured = group.photos.length >= 4 && index === 0;
+                const isFirstVisiblePhoto = visiblePhotos[0]?.id === photo.id;
+                return (
+                  <button
+                    className={`photo photo-day-card ${featured ? "photo-featured" : `p${(index % 5) + 1}`}`}
+                    type="button"
+                    aria-label={`Открыть фото: ${displayPhotoLocation(photo)}${time ? `, ${time}` : ""}`}
+                    onClick={() => setExpandedPhotoId(photo.id)}
+                    key={photo.id}
+                  >
+                    <img
+                      className="photo-image"
+                      src={photo.image}
+                      alt={displayPhotoLocation(photo)}
+                      loading={isFirstVisiblePhoto ? "eager" : "lazy"}
+                      decoding="async"
+                      fetchPriority={isFirstVisiblePhoto ? "high" : "auto"}
+                    />
+                    <span className="photo-label">
+                      <span className="photo-label-location">{displayPhotoLocation(photo)}</span>
+                      {time && <small className="photo-label-time">{time}</small>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         ))}
         {!visiblePhotos.length && (
           <div className="photos-empty">

@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f8">
+  <title>Ramingo — варианты дизайна фотоальбома</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #171923; background: #f5f6f8; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    button { font: inherit; cursor: pointer; }
+    .prototype-bar { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.94); backdrop-filter: blur(16px); border-bottom: 1px solid #e8e9ef; }
+    .prototype-inner { max-width: 1440px; margin: auto; padding: 13px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .prototype-label { min-width: 210px; }
+    .prototype-label strong { display: block; font-size: 13px; letter-spacing: .02em; }
+    .prototype-label span { color: #858995; font-size: 11px; }
+    .switcher { display: flex; gap: 7px; padding: 5px; border: 1px solid #e9eaf0; border-radius: 14px; background: #f6f7f9; }
+    .switcher button { border: 0; background: transparent; border-radius: 10px; color: #676b78; padding: 9px 14px; font-size: 12px; font-weight: 700; transition: .2s; }
+    .switcher button.active { background: #fff; color: #282044; box-shadow: 0 2px 10px #20134214; }
+    .variant-counter { min-width: 210px; text-align: right; color: #8b8e99; font-size: 11px; }
+    .variant-counter b { color: #5c46d5; }
+    .prototype { display: none; min-height: calc(100vh - 65px); }
+    .prototype.active { display: block; }
+    .shell { max-width: 1240px; margin: auto; padding: 0 34px 72px; }
+    .appbar { height: 75px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e8e9ee; }
+    .brand { font-weight: 850; font-size: 21px; letter-spacing: -.055em; display: flex; align-items: center; gap: 9px; }
+    .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; color: white; font-size: 14px; border-radius: 9px; background: linear-gradient(135deg,#8272ff,#5046cf); }
+    .topnav { display: flex; align-items: center; gap: 28px; color: #777b87; font-size: 13px; }
+    .topnav .current { color: #242333; font-weight: 750; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #5b4cbd; background: #e8e3ff; font-size: 12px; font-weight: 800; }
+    .trip-heading { padding: 31px 0 21px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; color: #858995; text-transform: uppercase; font-size: 10px; letter-spacing: .12em; font-weight: 750; }
+    .dot { width: 6px; height: 6px; background: #44af82; border-radius: 50%; }
+    h1 { margin: 10px 0 6px; font-size: clamp(30px,4vw,46px); line-height: 1.05; letter-spacing: -.055em; }
+    .trip-meta { color: #8c909b; font-size: 13px; }
+    .trip-tabs { display: flex; gap: 25px; overflow-x: auto; border-bottom: 1px solid #e9eaf0; white-space: nowrap; }
+    .trip-tabs span { padding: 15px 0 13px; color: #828590; font-size: 12px; font-weight: 650; }
+    .trip-tabs .selected { color: #29263c; box-shadow: inset 0 -2px #6452df; }
+    .page-title-row { margin: 26px 0 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+    .page-title-row h2 { margin: 0; font-size: 27px; letter-spacing: -.05em; }
+    .page-title-row p { margin: 4px 0 0; color: #9699a3; font-size: 12px; }
+    .primary { border: 0; border-radius: 14px; padding: 13px 19px; background: linear-gradient(135deg,#7969f2,#5648d7); color: white; box-shadow: 0 8px 20px #6754df30; font-size: 12px; font-weight: 750; }
+    .search { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border: 1px solid #e4e5eb; border-radius: 24px; color: #9a9ca7; background: #fff; font-size: 12px; }
+    .search .glass { color: #6756d2; font-size: 18px; }
+    .filter-row { display: flex; gap: 8px; overflow-x: auto; padding: 14px 0 21px; }
+    .filter { border: 1px solid #e6e7ed; border-radius: 20px; padding: 8px 13px; background: #fff; color: #727582; white-space: nowrap; font-size: 11px; }
+    .filter.selected { border-color: #d5cffb; color: #5948cd; background: #f2f0ff; }
+    .photo { position: relative; overflow: hidden; border-radius: 15px; background: #e5e5e5; cursor: zoom-in; }
+    .photo img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .45s cubic-bezier(.2,.7,.2,1); }
+    .photo:hover img { transform: scale(1.035); }
+    .photo::after { position: absolute; inset: 48% 0 0; content: ""; background: linear-gradient(transparent,rgba(15,17,23,.56)); pointer-events: none; }
+    .photo-caption { position: absolute; z-index: 1; left: 13px; right: 13px; bottom: 12px; color: #fff; font-size: 11px; font-weight: 650; text-shadow: 0 1px 5px #0007; }
+    .photo-caption small { display: block; margin-top: 3px; font-size: 9px; opacity: .83; font-weight: 500; }
+
+    /* Concept 1 — calm chronological photo stream */
+    .chrono { background: #f7f8fa; }
+    .chrono .section-heading { display: flex; align-items: center; gap: 15px; margin: 17px 0 12px; }
+    .chrono .section-heading h3 { margin: 0; font-size: 17px; letter-spacing: -.035em; }
+    .chrono .section-heading span { color: #a0a2ab; font-size: 10px; }
+    .chrono-grid { display: grid; grid-template-columns: 1.55fr 1fr 1fr; grid-template-rows: 210px 178px; gap: 9px; }
+    .chrono-grid .photo:first-child { grid-row: span 2; }
+    .chrono-grid .photo:nth-child(2) img { object-position: 56% 42%; }
+    .chrono-grid .photo:nth-child(3) img { object-position: 70% 50%; }
+    .chrono-grid .photo:nth-child(4) img { object-position: 20% 60%; }
+    .chrono-grid .photo:nth-child(5) img { object-position: 83% 60%; }
+    .chrono-grid .photo-caption { font-size: 10px; }
+    .chrono-grid .photo:first-child .photo-caption { font-size: 13px; }
+    .date-rule { display: flex; align-items: center; gap: 12px; margin-top: 23px; color: #7f828e; font-size: 11px; font-weight: 750; }
+    .date-rule::after { content: ""; height: 1px; flex: 1; background: #e6e7ed; }
+    .mini-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 9px; margin-top: 12px; }
+    .mini-grid .photo { height: 125px; }
+    .mini-grid .photo-caption { font-size: 9px; }
+
+    /* Concept 2 — a keepsake travel journal */
+    .journal { background: #f2eee6; color: #24231f; }
+    .journal .shell { max-width: 1120px; }
+    .journal .appbar { border-color: #ded8cc; }
+    .journal .brand-mark { background: #bd623f; border-radius: 50%; }
+    .journal .topnav .current { color: #a74f33; }
+    .journal .trip-heading { padding: 27px 0 18px; }
+    .journal .eyebrow { color: #9a816f; }
+    .journal h1 { font: 500 clamp(39px,6vw,72px)/.98 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
+    .journal .trip-meta { color: #897e72; font-family: Georgia,serif; font-size: 14px; }
+    .journal .trip-tabs { border-color: #ded8cc; }
+    .journal .trip-tabs .selected { color: #9e4b31; box-shadow: inset 0 -2px #bb6544; }
+    .journal .journal-cover { position: relative; height: clamp(310px,45vw,500px); overflow: hidden; background: #514539; }
+    .journal .journal-cover img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 46%; filter: saturate(.85); }
+    .journal .journal-cover::after { content: ""; position: absolute; inset: 25% 0 0; background: linear-gradient(transparent,rgba(21,20,18,.72)); }
+    .cover-copy { position: absolute; z-index: 2; left: clamp(22px,5vw,60px); bottom: 32px; color: #fff; max-width: 540px; }
+    .cover-copy .issue { text-transform: uppercase; letter-spacing: .16em; font-size: 9px; }
+    .cover-copy h2 { margin: 12px 0 8px; font: 500 clamp(35px,6vw,66px)/.95 Georgia,serif; letter-spacing: -.04em; }
+    .cover-copy p { max-width: 390px; margin: 0; color: #eee5da; font: 14px/1.5 Georgia,serif; }
+    .journal-actions { position: absolute; z-index: 3; top: 18px; right: 18px; display: flex; gap: 8px; }
+    .journal-actions button { border: 1px solid #ffffff88; border-radius: 20px; padding: 9px 13px; color: white; background: #17130f55; font-size: 10px; backdrop-filter: blur(8px); }
+    .journal-section { display: grid; grid-template-columns: 1fr 1.65fr; gap: 35px; padding: 31px 0; border-bottom: 1px solid #ded8cc; }
+    .journal-kicker { color: #ae6346; text-transform: uppercase; letter-spacing: .16em; font-size: 9px; font-weight: 750; }
+    .journal-section h3 { margin: 9px 0; font: 500 31px/.98 Georgia,serif; letter-spacing: -.04em; }
+    .journal-section p { color: #81766b; font: 13px/1.65 Georgia,serif; }
+    .journal-photos { display: grid; grid-template-columns: 1.3fr 1fr; grid-template-rows: 160px 115px; gap: 9px; }
+    .journal-photos .photo:first-child { grid-row: span 2; border-radius: 1px; }
+    .journal-photos .photo { border-radius: 1px; }
+    .journal-photos .photo-caption { font-family: Georgia,serif; }
+
+    /* Concept 3 — photo atlas with a geographic index */
+    .atlas { background: #111b29; color: #f3f3f1; }
+    .atlas .shell { max-width: 1380px; }
+    .atlas .appbar { border-color: #2b3746; }
+    .atlas .brand-mark { background: #b5fa82; color: #152420; border-radius: 50%; }
+    .atlas .topnav { color: #9daaba; }
+    .atlas .topnav .current { color: #e9fae0; }
+    .atlas .avatar { color: #d9f3c6; background: #354a3d; }
+    .atlas .eyebrow { color: #a7b59f; }
+    .atlas .trip-meta, .atlas .page-title-row p { color: #a0a9b5; }
+    .atlas .trip-tabs { border-color: #2b3746; }
+    .atlas .trip-tabs span { color: #98a1ad; }
+    .atlas .trip-tabs .selected { color: #d7f5c3; box-shadow: inset 0 -2px #b5fa82; }
+    .atlas .page-title-row h2 { color: #f4f2eb; }
+    .atlas-layout { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,.75fr); gap: 14px; }
+    .map-panel { position: relative; min-height: 490px; overflow: hidden; border: 1px solid #334354; border-radius: 20px; background-color: #182a35; background-image: linear-gradient(20deg,transparent 48%,#263c44 49%,#263c44 50%,transparent 51%), linear-gradient(110deg,transparent 47%,#223843 48%,#223843 50%,transparent 51%), linear-gradient(75deg,transparent 47%,#233842 48%,#233842 50%,transparent 51%), linear-gradient(155deg,transparent 47%,#253c43 48%,#253c43 50%,transparent 51%), linear-gradient(90deg,#1c3039 1px,transparent 1px),linear-gradient(#1c3039 1px,transparent 1px); background-size: 100% 100%,100% 100%,100% 100%,100% 100%,44px 44px,44px 44px; }
+    .map-panel::before { content: ""; position: absolute; width: 115%; height: 73px; left: -6%; top: 52%; transform: rotate(-23deg); border-radius: 50%; background: #25535a; border: 1px solid #34717a; opacity: .85; }
+    .map-panel::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 43%,transparent 0 42%,#111b2966 85%); pointer-events: none; }
+    .map-title { position: absolute; z-index: 2; top: 21px; left: 23px; color: #d7e3d3; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .map-city { position: absolute; z-index: 2; color: #7d969a; font-size: 10px; letter-spacing: .03em; }
+    .map-city.one { top: 31%; left: 19%; }.map-city.two { top: 69%; left: 70%; }.map-city.three { top: 22%; left: 69%; }
+    .route-line { position: absolute; z-index: 2; left: 24%; top: 43%; width: 52%; height: 30%; border: 2px dashed #b5fa82; border-color: transparent transparent #b5fa82 #b5fa82; border-radius: 0 0 0 85%; transform: rotate(-14deg); opacity: .85; }
+    .pin { position: absolute; z-index: 3; width: 34px; height: 34px; display: grid; place-items: center; border: 3px solid #16242d; border-radius: 50% 50% 50% 5px; transform: rotate(-45deg); color: #18241f; background: #b5fa82; box-shadow: 0 5px 18px #0006; font-size: 10px; font-weight: 800; }
+    .pin span { transform: rotate(45deg); }.pin.p1 { left: 22%; top: 39%; }.pin.p2 { left: 50%; top: 54%; background: #9be9e0; }.pin.p3 { left: 74%; top: 31%; background: #ffc77c; }
+    .map-legend { position: absolute; z-index: 2; left: 20px; bottom: 18px; display: flex; gap: 12px; border: 1px solid #45545c; border-radius: 12px; padding: 10px 12px; background: #14232bd9; color: #ced5ce; font-size: 9px; }
+    .map-legend i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #b5fa82; }
+    .atlas-side { border: 1px solid #2e3b4a; border-radius: 20px; padding: 15px; background: #172331; }
+    .atlas-side-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 1px 12px; color: #e7ebdf; font-size: 13px; font-weight: 750; }
+    .atlas-side-head span { color: #91a0a8; font-size: 10px; font-weight: 500; }
+    .place-row { display: flex; align-items: center; gap: 10px; border-top: 1px solid #2e3b49; padding: 11px 2px; }
+    .place-num { display: grid; place-items: center; width: 23px; height: 23px; flex: 0 0 23px; border-radius: 50%; background: #314435; color: #c4f1a3; font-size: 9px; font-weight: 800; }
+    .place-row b { display: block; color: #edf0e7; font-size: 11px; }
+    .place-row small { color: #92a0aa; font-size: 9px; }
+    .place-row .count { margin-left: auto; color: #b3c0c0; font-size: 9px; }
+    .place-photos { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-top: 14px; }
+    .place-photos .photo { height: 83px; border-radius: 8px; }
+    .place-photos .photo-caption { display: none; }
+    .atlas .filter { border-color: #34414f; color: #b1bac2; background: #1b2938; }
+    .atlas .filter.selected { border-color: #607f54; color: #d5f0bf; background: #26392c; }
+
+    .lightbox { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 24px; background: #08090be8; }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: min(100%,1100px); max-height: 82vh; object-fit: contain; border-radius: 10px; }
+    .lightbox button { position: absolute; top: 22px; right: 22px; width: 42px; height: 42px; border: 1px solid #ffffff55; border-radius: 50%; color: white; background: #ffffff20; font-size: 22px; }
+    .lightbox-caption { position: absolute; bottom: 18px; color: #fff; font-size: 12px; }
+    @media (max-width: 760px) {
+      .prototype-inner { padding: 9px 12px; display: block; }
+      .prototype-label { display: none; }
+      .switcher { width: 100%; justify-content: space-between; gap: 2px; padding: 4px; }
+      .switcher button { flex: 1; padding: 10px 4px; font-size: 10px; }
+      .variant-counter { display: none; }
+      .prototype { min-height: calc(100vh - 55px); }
+      .shell { padding: 0 16px 40px; }
+      .appbar { height: 58px; }
+      .brand { font-size: 19px; }
+      .topnav { display: none; }
+      .avatar { width: 31px; height: 31px; }
+      .trip-heading { padding: 23px 0 17px; }
+      .trip-tabs { gap: 22px; margin-right: -16px; padding-right: 16px; }
+      .trip-tabs span { padding: 13px 0 11px; }
+      .page-title-row { margin: 21px 0 15px; align-items: center; }
+      .page-title-row h2 { font-size: 23px; }
+      .primary { padding: 11px 13px; border-radius: 12px; font-size: 11px; }
+      .chrono-grid { grid-template-columns: 1.1fr 1fr; grid-template-rows: 190px 132px 132px; gap: 7px; }
+      .chrono-grid .photo:first-child { grid-row: span 2; }
+      .chrono-grid .photo:nth-child(5) { display: none; }
+      .mini-grid { grid-template-columns: repeat(3,1fr); gap: 7px; }
+      .mini-grid .photo { height: 105px; }
+      .journal .shell { padding-left: 0; padding-right: 0; }
+      .journal .appbar, .journal .trip-heading, .journal .trip-tabs { margin-left: 16px; margin-right: 16px; }
+      .journal .trip-tabs { margin-right: 0; padding-right: 16px; }
+      .journal .journal-cover { height: 430px; }
+      .cover-copy { bottom: 26px; left: 20px; right: 18px; }
+      .cover-copy h2 { font-size: 49px; }
+      .journal-actions { top: 13px; right: 13px; }
+      .journal-actions button { padding: 8px 10px; }
+      .journal-section { margin: 0 17px; grid-template-columns: 1fr; gap: 12px; padding: 25px 0; }
+      .journal-section h3 { font-size: 29px; }
+      .journal-section p { max-width: 430px; }
+      .journal-photos { grid-template-rows: 145px 102px; }
+      .atlas .page-title-row { align-items: flex-end; }
+      .atlas-layout { grid-template-columns: 1fr; }
+      .map-panel { min-height: 390px; }
+      .atlas-side { padding: 13px; }
+      .place-photos .photo { height: 100px; }
+      .atlas .filter-row { padding-bottom: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="prototype-bar">
+    <div class="prototype-inner">
+      <div class="prototype-label"><strong>Выберите направление дизайна</strong><span>Три разных способа показать фото поездки</span></div>
+      <nav class="switcher" aria-label="Варианты дизайна">
+        <button class="active" data-view="chrono">01 · Хронология</button>
+        <button data-view="journal">02 · Журнал</button>
+        <button data-view="atlas">03 · Атлас</button>
+      </nav>
+      <div class="variant-counter"><b id="variant-number">Вариант 1 из 3</b><br><span id="variant-caption">Фото по дням</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="prototype chrono active" id="chrono" aria-label="Фотоальбом, хронологическая лента">
+      <div class="shell">
+        <header class="appbar"><div class="brand"><span class="brand-mark">r</span>ramingo</div><nav class="topnav"><span>Мои поездки</span><span class="current">Мюнхен с семьёй</span><span>Вдохновение</span></nav><div class="avatar">Н</div></header>
+        <div class="trip-heading"><div class="eyebrow"><i class="dot"></i> поездка завершена · 12–20 октября</div><h1>Мюнхен с семьёй</h1><div class="trip-meta">Прогулки и маленькие открытия · 32 фотографии</div></div>
+        <nav class="trip-tabs"><span>Обзор</span><span>Маршрут</span><span>Жильё</span><span>Бюджет</span><span>Участники</span><span class="selected">Фото</span></nav>
+        <div class="page-title-row"><div><h2>Фотоальбом</h2><p>Все воспоминания — в порядке путешествия</p></div><button class="primary">↑ &nbsp;Загрузить</button></div>
+        <div class="search"><span class="glass">⌕</span> Поиск по дате или месту</div>
+        <div class="filter-row"><button class="filter selected">Все 32</button><button class="filter">Мюнхен · 18</button><button class="filter">Старый город · 9</button><button class="filter">Без места · 5</button></div>
+        <div class="section-heading"><h3>18 октября</h3><span>Суббота · 12 фотографий</span></div>
+        <div class="chrono-grid">
+          <div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Ворота в историческом центре Мюнхена"><div class="photo-caption">Вечер в старом городе<small>18:17 · Мюнхен</small></div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Площадь Мюнхена"><div class="photo-caption">Мариенплац<small>17:42</small></div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица старого города"><div class="photo-caption">По дороге домой<small>16:08</small></div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица в городе"><div class="photo-caption">Узкие улочки<small>15:36</small></div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Архитектура города"><div class="photo-caption">Старинная архитектура<small>15:02</small></div></div>
+        </div>
+        <div class="date-rule">17 октября <span>Пятница · 8 фотографий</span></div>
+        <div class="mini-grid">
+          <div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Площадь"><div class="photo-caption">Центр · 16:22</div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Ворота"><div class="photo-caption">Вечер · 17:03</div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица"><div class="photo-caption">Прогулка · 17:40</div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Башни"><div class="photo-caption">Старый город · 18:05</div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Здание"><div class="photo-caption">Площадь · 18:16</div></div>
+          <div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица вечером"><div class="photo-caption">В пути · 18:47</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="prototype journal" id="journal" aria-label="Фотоальбом, тревел-журнал">
+      <div class="shell">
+        <header class="appbar"><div class="brand"><span class="brand-mark">r</span>ramingo</div><nav class="topnav"><span>МОИ ПОЕЗДКИ</span><span class="current">ДНЕВНИК</span><span>КОЛЛЕКЦИЯ</span></nav><div class="avatar">Н</div></header>
+        <div class="trip-heading"><div class="eyebrow">ПУТЕВОЙ ДНЕВНИК &nbsp; / &nbsp; ВЫПУСК № 04</div><h1>Мюнхен с семьёй</h1><div class="trip-meta">12—20 октября &nbsp; · &nbsp; 9 дней, которые хочется сохранить</div></div>
+        <nav class="trip-tabs"><span>История поездки</span><span>Маршрут</span><span>Заметки</span><span class="selected">Фотографии</span></nav>
+        <div class="journal-cover"><img src="../public/sight-photos/munich-gate.png" alt="Вечерняя панорама старого Мюнхена"><div class="journal-actions"><button>Поделиться дневником</button><button>Добавить фото ＋</button></div><div class="cover-copy"><div class="issue">Германия · 18 октября · глава третья</div><h2>Вечер<br>в старом городе</h2><p>Золотой свет, тихие улочки и день, который закончился совсем не по плану.</p></div></div>
+        <section class="journal-section"><div><div class="journal-kicker">01 &nbsp; / &nbsp; день третий</div><h3>Медленный день<br>без расписания</h3><p>Оставили карту в отеле и просто пошли туда, куда вела улица. В итоге нашли самую красивую площадь и семейное кафе.</p><div class="journal-kicker">МЮНХЕН &nbsp; · &nbsp; 18 ОКТЯБРЯ</div></div><div class="journal-photos"><div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Мюнхенская площадь"><div class="photo-caption">Город просыпается</div></div><div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица в Мюнхене"><div class="photo-caption">Дорога к площади</div></div><div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Башни старого города"><div class="photo-caption">Тёплый вечер</div></div></div></section>
+        <section class="journal-section"><div><div class="journal-kicker">02 &nbsp; / &nbsp; маленькая находка</div><h3>Архитектура<br>на каждом углу</h3><p>Тут даже короткая дорога за кофе превращается в отдельную прогулку.</p></div><div class="journal-photos"><div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Башни города"><div class="photo-caption">Башни над крышами</div></div><div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Историческое здание"><div class="photo-caption">Старый город</div></div><div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Мощёная улица"><div class="photo-caption">Без спешки</div></div></div></section>
+      </div>
+    </section>
+
+    <section class="prototype atlas" id="atlas" aria-label="Фотоальбом, географический атлас">
+      <div class="shell">
+        <header class="appbar"><div class="brand"><span class="brand-mark">r</span>ramingo</div><nav class="topnav"><span>Поездки</span><span class="current">Карта воспоминаний</span><span>Сохранённое</span></nav><div class="avatar">Н</div></header>
+        <div class="trip-heading"><div class="eyebrow"><i class="dot"></i> АТЛАС ПОЕЗДКИ · 12—20 ОКТЯБРЯ</div><h1>Мюнхен с семьёй</h1><div class="trip-meta">Ваши фотографии на карте путешествия</div></div>
+        <nav class="trip-tabs"><span>Обзор</span><span>Маршрут</span><span>Жильё</span><span>Расходы</span><span>Участники</span><span class="selected">Атлас фото</span></nav>
+        <div class="page-title-row"><div><h2>Места и моменты</h2><p>32 кадра · 4 места · маршрут 86 км</p></div><button class="primary">＋ &nbsp;Добавить фото</button></div>
+        <div class="filter-row"><button class="filter selected">Карта</button><button class="filter">По дням</button><button class="filter">Все фото · 32</button></div>
+        <div class="atlas-layout">
+          <div class="map-panel"><div class="map-title">✦ &nbsp; Маршрут поездки</div><span class="map-city one">Старый город</span><span class="map-city two">Изар</span><span class="map-city three">Музейный квартал</span><div class="route-line"></div><div class="pin p1"><span>12</span></div><div class="pin p2"><span>08</span></div><div class="pin p3"><span>12</span></div><div class="map-legend"><span><i></i>место с фото</span><span>— маршрут</span><span>выберите точку</span></div></div>
+          <aside class="atlas-side"><div class="atlas-side-head">Фото по местам <span>32 всего</span></div><div class="place-row"><span class="place-num">1</span><div><b>Старый город</b><small>18 октября · 16:08–18:47</small></div><span class="count">12 фото</span></div><div class="place-row"><span class="place-num">2</span><div><b>Набережная Изара</b><small>18 октября · 14:20–15:40</small></div><span class="count">8 фото</span></div><div class="place-row"><span class="place-num">3</span><div><b>Музейный квартал</b><small>17 октября · 10:15–13:05</small></div><span class="count">7 фото</span></div><div class="place-row"><span class="place-num">4</span><div><b>Без точного места</b><small>Геопозиция не сохранена</small></div><span class="count">5 фото</span></div><div class="place-photos"><div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Ворота"><div class="photo-caption">Старый город</div></div><div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Площадь"><div class="photo-caption">Площадь</div></div><div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Улица"><div class="photo-caption">Улица</div></div><div class="photo"><img src="../public/sight-photos/munich-square.png" alt="Здание"><div class="photo-caption">Архитектура</div></div><div class="photo"><img src="../public/sight-photos/munich-street.png" alt="Переулок"><div class="photo-caption">Переулок</div></div><div class="photo"><img src="../public/sight-photos/munich-gate.png" alt="Башня"><div class="photo-caption">Башня</div></div></div></aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фотографии"><button aria-label="Закрыть">×</button><img src="" alt=""><div class="lightbox-caption"></div></div>
+  <script>
+    const captions = ['Фото по дням', 'История поездки как красивый журнал', 'Места и фото на карте'];
+    const buttons = [...document.querySelectorAll('.switcher button')];
+    buttons.forEach((button, index) => button.addEventListener('click', () => {
+      document.querySelectorAll('.prototype').forEach(view => view.classList.toggle('active', view.id === button.dataset.view));
+      buttons.forEach(item => item.classList.toggle('active', item === button));
+      document.getElementById('variant-number').textContent = `Вариант ${index + 1} из 3`;
+      document.getElementById('variant-caption').textContent = captions[index];
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }));
+    const lightbox = document.querySelector('.lightbox');
+    document.querySelectorAll('.photo').forEach(card => card.addEventListener('click', () => {
+      const source = card.querySelector('img');
+      lightbox.querySelector('img').src = source.src;
+      lightbox.querySelector('img').alt = source.alt;
+      lightbox.querySelector('.lightbox-caption').textContent = card.querySelector('.photo-caption')?.textContent || source.alt;
+      lightbox.classList.add('open');
+    }));
+    lightbox.addEventListener('click', event => { if (event.target === lightbox || event.target.closest('button')) lightbox.classList.remove('open'); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') lightbox.classList.remove('open'); });
+  </script>
+</body>
+</html>
