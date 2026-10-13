@@ -12432,11 +12432,12 @@ function Photos({
     completed: number;
     total: number;
   } | null>(null);
+  const [uploadStatus, setUploadStatus] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const uploadPhotos = async (files: FileList | null) => {
-    const selectedFiles = Array.from(files || []);
+  const uploadPhotos = async (selectedFiles: File[]) => {
     if (!selectedFiles.length) return;
     setUploading(true);
+    setUploadStatus(`Получено фотографий: ${selectedFiles.length}.`);
     setUploadProgress({ completed: 0, total: selectedFiles.length });
     try {
       const {
@@ -12444,10 +12445,12 @@ function Photos({
       } = await supabase.auth.getSession();
       if (!session?.user) throw new Error("No active session");
       const uploadedPhotos: CoverPhoto[] = [];
-      const failures: unknown[] = [];
+      const failures: { name: string; message: string }[] = [];
       for (const [index, originalFile] of selectedFiles.entries()) {
         try {
+          setUploadStatus(`Подготовка фото ${index + 1} из ${selectedFiles.length}…`);
           const file = await prepareTripPhoto(originalFile);
+          setUploadStatus(`Отправка фото ${index + 1} из ${selectedFiles.length}…`);
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${crypto.randomUUID()}.${extension}`;
           const { error } = await supabase.storage
@@ -12464,7 +12467,10 @@ function Photos({
             ...(await readPhotoMetadata(originalFile)),
           });
         } catch (error) {
-          failures.push(error);
+          failures.push({
+            name: originalFile.name || `Фото ${index + 1}`,
+            message: photoUploadFailureMessage(error),
+          });
         } finally {
           setUploadProgress({ completed: index + 1, total: selectedFiles.length });
         }
@@ -12477,9 +12483,15 @@ function Photos({
           ...trip,
           photos: [...currentPhotos, ...uploadedPhotos],
         });
+        setUploadStatus(`Готово: загружено фото ${uploadedPhotos.length} из ${selectedFiles.length}.`);
       }
       if (failures.length) {
-        const reason = photoUploadFailureMessage(failures[0]);
+        const reason = `${failures[0].name}: ${failures[0].message}`;
+        setUploadStatus(
+          uploadedPhotos.length
+            ? `Загружено фото ${uploadedPhotos.length} из ${selectedFiles.length}. Ошибка: ${reason}`
+            : `Фото не загружено: ${reason}`,
+        );
         window.alert(
           uploadedPhotos.length
             ? `Загружено ${uploadedPhotos.length} из ${selectedFiles.length}. ${reason}`
@@ -12488,7 +12500,9 @@ function Photos({
       }
     } catch (error) {
       console.error("Could not upload trip photos.", error);
-      window.alert(photoUploadFailureMessage(error));
+      const message = photoUploadFailureMessage(error);
+      setUploadStatus(`Фото не загружено: ${message}`);
+      window.alert(message);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -12509,8 +12523,14 @@ function Photos({
         accept="image/*"
         multiple
         onChange={(event) => {
-          void uploadPhotos(event.target.files);
-          event.target.value = "";
+          const selectedFiles = Array.from(event.currentTarget.files || []);
+          event.currentTarget.value = "";
+          if (!selectedFiles.length) {
+            setUploadStatus("iPhone не передал фотографии. Подтвердите выбор синей галочкой и попробуйте снова.");
+            return;
+          }
+          setUploadStatus(`Браузер передал фото: ${selectedFiles.length}.`);
+          void uploadPhotos(selectedFiles);
         }}
       />
       <header className="photos-heading">
@@ -12519,9 +12539,15 @@ function Photos({
           <p>
             {photos.length} {photos.length === 1 ? "фото" : "фото"} · фотографии поездки
           </p>
+          {uploadStatus && (
+            <small className="photos-upload-status" role="status" aria-live="polite">
+              {uploadStatus}
+            </small>
+          )}
         </div>
         <button
           className="accent"
+          type="button"
           onClick={() => input.current?.click()}
           disabled={uploading}
         >
