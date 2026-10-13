@@ -12642,6 +12642,8 @@ function Photos({
 }) {
   const [query, setQuery] = useState("");
   const [selectedPhotoLocation, setSelectedPhotoLocation] = useState("__all__");
+  const [photoLocationMenuOpen, setPhotoLocationMenuOpen] = useState(false);
+  const [photoLocationQuery, setPhotoLocationQuery] = useState("");
   const [visiblePhotoCount, setVisiblePhotoCount] = useState(6);
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -12652,6 +12654,8 @@ function Photos({
   const [uploadStatus, setUploadStatus] = useState("");
   const [resolvedPhotoCities, setResolvedPhotoCities] = useState<Record<string, string>>({});
   const input = useRef<HTMLInputElement>(null);
+  const photoLocationPickerRef = useRef<HTMLDivElement>(null);
+  const photoLocationTriggerRef = useRef<HTMLButtonElement>(null);
   const touchStartX = useRef<number | null>(null);
   const tripRef = useRef(trip);
   const onUpdateTripRef = useRef(onUpdateTrip);
@@ -12660,9 +12664,31 @@ function Photos({
   useEffect(() => {
     setQuery("");
     setSelectedPhotoLocation("__all__");
+    setPhotoLocationMenuOpen(false);
+    setPhotoLocationQuery("");
     setVisiblePhotoCount(6);
     setExpandedPhotoId(null);
   }, [trip.id]);
+  useEffect(() => {
+    if (!photoLocationMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!photoLocationPickerRef.current?.contains(event.target as Node)) {
+        setPhotoLocationMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPhotoLocationMenuOpen(false);
+        photoLocationTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [photoLocationMenuOpen]);
   const uploadPhotos = async (selectedFiles: File[]) => {
     if (!selectedFiles.length) return;
     setUploading(true);
@@ -13010,6 +13036,36 @@ function Photos({
       photosWithoutCityCount += 1;
     }
   });
+  const locationOptions = Array.from(photoLocationCounts.entries()).sort(
+    ([leftName, leftCount], [rightName, rightCount]) =>
+      rightCount - leftCount || leftName.localeCompare(rightName, "ru"),
+  );
+  const locationSearch = photoLocationQuery.trim().toLocaleLowerCase("ru-RU");
+  const visibleLocationOptions = locationOptions.filter(([city]) =>
+    city.toLocaleLowerCase("ru-RU").includes(locationSearch),
+  );
+  const showAllLocations = "все места".includes(locationSearch);
+  const showWithoutLocation =
+    photosWithoutCityCount > 0 && "без места".includes(locationSearch);
+  const selectedLocationLabel =
+    selectedPhotoLocation === "__all__"
+      ? "Все места"
+      : selectedPhotoLocation === "__without_city__"
+        ? "Без места"
+        : selectedPhotoLocation;
+  const selectedLocationCount =
+    selectedPhotoLocation === "__all__"
+      ? photos.length
+      : selectedPhotoLocation === "__without_city__"
+        ? photosWithoutCityCount
+        : photoLocationCounts.get(selectedPhotoLocation) || 0;
+  const selectPhotoLocation = (location: string) => {
+    setSelectedPhotoLocation(location);
+    setVisiblePhotoCount(6);
+    setPhotoLocationMenuOpen(false);
+    setPhotoLocationQuery("");
+    photoLocationTriggerRef.current?.focus();
+  };
   const matchingPhotos = orderedPhotos.filter((photo) => {
     const city = photoCityLabel(photo);
     if (selectedPhotoLocation === "__without_city__" && city) return false;
@@ -13165,49 +13221,72 @@ function Photos({
           placeholder="Поиск по дате или месту"
         />
       </label>
-      <div className="photo-filters" role="group" aria-label="Фильтр фотографий по месту">
+      <div className="photo-location-picker" ref={photoLocationPickerRef}>
         <button
-          className={selectedPhotoLocation === "__all__" ? "active" : ""}
+          className="photo-location-trigger"
+          ref={photoLocationTriggerRef}
           type="button"
-          aria-pressed={selectedPhotoLocation === "__all__"}
-          onClick={() => {
-            setSelectedPhotoLocation("__all__");
-            setVisiblePhotoCount(6);
-          }}
+          aria-label={`Выбрать город: ${selectedLocationLabel}, ${selectedLocationCount} фото`}
+          aria-expanded={photoLocationMenuOpen}
+          aria-controls="photo-location-menu"
+          onClick={() => setPhotoLocationMenuOpen((open) => !open)}
         >
-          Все фото <span>{photos.length}</span>
+          <span className="photo-location-icon" aria-hidden="true">⌖</span>
+          <strong>{selectedLocationLabel}</strong>
+          <small>{selectedLocationCount} фото</small>
+          <span className="photo-location-chevron" aria-hidden="true">⌄</span>
         </button>
-        {Array.from(photoLocationCounts.entries())
-          .sort(([leftName, leftCount], [rightName, rightCount]) =>
-            rightCount - leftCount || leftName.localeCompare(rightName, "ru"),
-          )
-          .map(([city, count]) => (
-            <button
-              className={selectedPhotoLocation === city ? "active" : ""}
-              type="button"
-              aria-pressed={selectedPhotoLocation === city}
-              onClick={() => {
-                setSelectedPhotoLocation(city);
-                setVisiblePhotoCount(6);
-              }}
-              key={city}
-            >
-              {city} <span>{count}</span>
-            </button>
-          ))}
-        {photosWithoutCityCount > 0 && (
-          <button
-            className={selectedPhotoLocation === "__without_city__" ? "active" : ""}
-            type="button"
-            aria-pressed={selectedPhotoLocation === "__without_city__"}
-            onClick={() => {
-              setSelectedPhotoLocation("__without_city__");
-              setVisiblePhotoCount(6);
-            }}
-          >
-            Без места <span>{photosWithoutCityCount}</span>
-          </button>
-        )}
+        <div
+          className="photo-location-menu"
+          id="photo-location-menu"
+          role="group"
+          aria-label="Города фотографий"
+          hidden={!photoLocationMenuOpen}
+        >
+            <input
+              className="photo-location-menu-search"
+              type="search"
+              value={photoLocationQuery}
+              onChange={(event) => setPhotoLocationQuery(event.target.value)}
+              placeholder="Найти город…"
+              aria-label="Найти город"
+            />
+            <span className="photo-location-menu-title">Выбрать место</span>
+            {showAllLocations && (
+              <button
+                className={selectedPhotoLocation === "__all__" ? "active" : ""}
+                type="button"
+                aria-pressed={selectedPhotoLocation === "__all__"}
+                onClick={() => selectPhotoLocation("__all__")}
+              >
+                <span>Все места</span><small>{photos.length}</small>
+              </button>
+            )}
+            {visibleLocationOptions.map(([city, count]) => (
+              <button
+                className={selectedPhotoLocation === city ? "active" : ""}
+                type="button"
+                aria-pressed={selectedPhotoLocation === city}
+                onClick={() => selectPhotoLocation(city)}
+                key={city}
+              >
+                <span>{city}</span><small>{count}</small>
+              </button>
+            ))}
+            {showWithoutLocation && (
+              <button
+                className={selectedPhotoLocation === "__without_city__" ? "active" : ""}
+                type="button"
+                aria-pressed={selectedPhotoLocation === "__without_city__"}
+                onClick={() => selectPhotoLocation("__without_city__")}
+              >
+                <span>Без места</span><small>{photosWithoutCityCount}</small>
+              </button>
+            )}
+            {!showAllLocations && !visibleLocationOptions.length && !showWithoutLocation && (
+              <p className="photo-location-menu-empty">Город не найден</p>
+            )}
+        </div>
       </div>
       <div className="photo-album-days">
         {displayedPhotoGroups.map((group) => (
