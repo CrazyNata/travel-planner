@@ -732,6 +732,20 @@ function parseTripDateRange(value: string) {
     июль: 7, июля: 7, август: 8, августа: 8, сентябрь: 9, сентября: 9,
     октябрь: 10, октября: 10, ноябрь: 11, ноября: 11, декабрь: 12, декабря: 12,
   };
+  const iso = (year: string, month: number, day: string) =>
+    `${year}-${String(month).padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const compactMatch = value.toLowerCase().match(
+    /(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+([а-яё]+)\s+(\d{4})/,
+  );
+  if (compactMatch) {
+    const month = months[compactMatch[3]];
+    if (month) {
+      return [
+        iso(compactMatch[4], month, compactMatch[1]),
+        iso(compactMatch[4], month, compactMatch[2]),
+      ] as const;
+    }
+  }
   const match = value.toLowerCase().match(
     /(\d{1,2})\s+([а-яё]+)\s+(\d{4})\s*[–—-]\s*(\d{1,2})\s+([а-яё]+)\s+(\d{4})/,
   );
@@ -739,9 +753,58 @@ function parseTripDateRange(value: string) {
   const startMonth = months[match[2]];
   const endMonth = months[match[5]];
   if (!startMonth || !endMonth) return null;
-  const iso = (year: string, month: number, day: string) =>
-    `${year}-${String(month).padStart(2, "0")}-${day.padStart(2, "0")}`;
   return [iso(match[3], startMonth, match[1]), iso(match[6], endMonth, match[4])] as const;
+}
+
+function tripHasDateRange(trip: Pick<TripSummary, "startDate" | "endDate" | "dates">) {
+  const parsedDates = parseTripDateRange(trip.dates || "");
+  const startDate = trip.startDate || parsedDates?.[0];
+  const endDate = trip.endDate || parsedDates?.[1];
+  return Boolean(startDate && endDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate));
+}
+
+function effectiveTripStatus(trip: TripSummary, today: string) {
+  const status = trip.status || "";
+  if (status.toLocaleLowerCase("ru-RU").includes("чернов")) return status;
+  const parsedDates = parseTripDateRange(trip.dates || "");
+  const startDate = trip.startDate || parsedDates?.[0];
+  const endDate = trip.endDate || parsedDates?.[1];
+  if (
+    !startDate ||
+    !endDate ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(endDate)
+  ) {
+    return status;
+  }
+  if (today < startDate) return "Предстоящее";
+  if (today > endDate) return "Завершённое";
+  return "Текущее";
+}
+
+function localIsoDateToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function useLocalIsoToday() {
+  const [today, setToday] = useState(() => localIsoDateToday());
+  useEffect(() => {
+    let timeout: number | undefined;
+    const scheduleNextMidnight = () => {
+      const nextMidnight = new Date();
+      nextMidnight.setHours(24, 0, 0, 50);
+      timeout = window.setTimeout(() => {
+        setToday(localIsoDateToday());
+        scheduleNextMidnight();
+      }, Math.max(0, nextMidnight.getTime() - Date.now()));
+    };
+    scheduleNextMidnight();
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, []);
+  return today;
 }
 
 function formatWeatherTripDates(
@@ -6051,6 +6114,111 @@ function compressCoverPhoto(file: File) {
   });
 }
 
+const maxTripPhotoBytes = 10 * 1024 * 1024;
+
+async function prepareTripPhoto(file: File) {
+  const extension = file.name.split(".").pop()?.toLocaleLowerCase("en-US") || "";
+  const inferredTypes: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    avif: "image/avif",
+    heic: "image/heic",
+    heif: "image/heif",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    tif: "image/tiff",
+    tiff: "image/tiff",
+  };
+  const contentType = file.type || inferredTypes[extension] || "";
+  if (!contentType.startsWith("image/") || contentType === "image/svg+xml") {
+    throw new Error("Выберите файл фотографии в формате JPG, PNG, WebP, AVIF или HEIC.");
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    throw new Error("Фото больше 100 МБ. Выберите файл поменьше.");
+  }
+  const normalizedFile = file.type === contentType
+    ? file
+    : new File([file], file.name, { type: contentType, lastModified: file.lastModified });
+  if (
+    file.size <= maxTripPhotoBytes &&
+    ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType)
+  ) {
+    return normalizedFile;
+  }
+
+  const source = URL.createObjectURL(normalizedFile);
+  const image = new Image();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error(
+        "Браузер не смог прочитать это фото. Сохраните его как JPG или PNG и попробуйте снова.",
+      ));
+      image.src = source;
+    });
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+
+  let maxSide = 2400;
+  for (let resizeAttempt = 0; resizeAttempt < 6; resizeAttempt += 1) {
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Не удалось подготовить фото для загрузки.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.84, 0.76, 0.68, 0.58]) {
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", quality),
+      );
+      if (blob && blob.size <= maxTripPhotoBytes) {
+        const name = file.name.replace(/\.[^.]+$/, "") || "photo";
+        return new File([blob], `${name}.jpg`, {
+          type: "image/jpeg",
+          lastModified: file.lastModified,
+        });
+      }
+    }
+    maxSide = Math.round(maxSide * 0.78);
+  }
+  throw new Error("Не удалось уменьшить фото до допустимого размера.");
+}
+
+function photoUploadFailureMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (
+    message.startsWith("Выберите файл фотографии") ||
+    message.startsWith("Фото больше") ||
+    message.startsWith("Браузер не смог") ||
+    message.startsWith("Не удалось подготовить") ||
+    message.startsWith("Не удалось уменьшить")
+  ) {
+    return message;
+  }
+  const details = error && typeof error === "object"
+    ? error as { statusCode?: unknown; error?: unknown; code?: unknown }
+    : {};
+  const code = String(details.statusCode || details.error || details.code || "");
+  if (code === "401" || message.includes("No active session")) {
+    return "Сессия закончилась. Войдите в аккаунт и попробуйте загрузить фото ещё раз.";
+  }
+  if (
+    code === "403" ||
+    message.toLocaleLowerCase("en-US").includes("row-level security") ||
+    message.toLocaleLowerCase("en-US").includes("permission denied")
+  ) {
+    return "Нет доступа для загрузки в это путешествие. Нужна роль владельца или редактора.";
+  }
+  if (code === "404" || code === "NoSuchBucket") {
+    return "Хранилище фотографий сейчас недоступно. Попробуйте позже.";
+  }
+  return "Не удалось загрузить фото. Проверьте интернет и попробуйте снова.";
+}
+
 function TripMap({
   city,
   places = emptyPlaces,
@@ -7320,11 +7488,15 @@ function Trips({
   const [filter, setFilter] = useState("all");
   const [editingTrip, setEditingTrip] = useState<TripSummary | null>(null);
   const [restoringTripId, setRestoringTripId] = useState<string | null>(null);
+  const today = useLocalIsoToday();
   const allTrips = drafts;
   const deletedTrips = allTrips.filter(isTripDeleted);
-  const activeTrips = allTrips.filter((trip) => !isTripDeleted(trip));
+  const activeTrips = allTrips
+    .filter((trip) => !isTripDeleted(trip))
+    .map((trip) => ({ ...trip, status: effectiveTripStatus(trip, today) }));
   const filters: [string, string][] = [
     ["all", `Все · ${activeTrips.length}`],
+    ["current", "Текущие"],
     ["upcoming", "Предстоящие"],
     ["draft", "Черновики"],
     ["completed", "Завершённые"],
@@ -7333,6 +7505,7 @@ function Trips({
     filters.push(["deleted", `Удалённые · ${deletedTrips.length}`]);
   }
   const statusByFilter: Record<string, string> = {
+    current: "Текущее",
     upcoming: "Предстоящее",
     draft: "Черновик",
     completed: "Завершённое",
@@ -7384,7 +7557,8 @@ function Trips({
             className={`trip-card${deleted ? " deleted-trip-card" : ""}`}
             key={trip.id}
             onClick={() => {
-              if (!deleted) onOpenTrip(trip);
+              if (!deleted)
+                onOpenTrip(allTrips.find((item) => item.id === trip.id) || trip);
             }}
           >
             <div
@@ -7403,7 +7577,9 @@ function Trips({
                   <button
                     type="button"
                     className="trip-card-menu-trigger"
-                    onClick={() => setEditingTrip(trip)}
+                    onClick={() =>
+                      setEditingTrip(allTrips.find((item) => item.id === trip.id) || trip)
+                    }
                     aria-label={`Настройки: ${trip.title}`}
                     aria-haspopup="dialog"
                   >
@@ -8169,11 +8345,12 @@ function RouteTab({
   onReorderDraftDays?: (from: number, to: number) => void;
 }) {
   const [day, setDay] = useState(0);
-  const [selectedRouteDay, setSelectedRouteDay] = useState(0);
+  const [selectedRouteDay, setSelectedRouteDay] = useState<number | null>(null);
   const [draggedDay, setDraggedDay] = useState<number | null>(null);
   const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const [variant, setVariant] = useState<"rail" | "tabs" | "feed">("rail");
+  const today = useLocalIsoToday();
   const orderedDraftDays = draftDays
     .map((draftDay, sourceIndex) => ({
       draftDay,
@@ -8189,10 +8366,27 @@ function RouteTab({
       if (right.routeDate) return 1;
       return left.sourceIndex - right.sourceIndex;
     });
-  const visibleDraftDays = orderedDraftDays.filter(
+  const visibleDraftDaysByDate = orderedDraftDays.filter(
     ({ draftDay, sourceIndex }) =>
       Boolean(draftDay.roadLeg) || editingRoadDay === sourceIndex,
   );
+  const datedCurrentAndUpcomingDays = visibleDraftDaysByDate.filter(
+    ({ routeDate }) => routeDate && routeDate >= today,
+  );
+  const datedPastDays = visibleDraftDaysByDate.filter(
+    ({ routeDate }) => routeDate && routeDate < today,
+  );
+  const undatedDays = visibleDraftDaysByDate.filter(({ routeDate }) => !routeDate);
+  const visibleDraftDays = datedCurrentAndUpcomingDays.length
+    ? [...datedCurrentAndUpcomingDays, ...datedPastDays, ...undatedDays]
+    : datedPastDays.length
+      ? [datedPastDays[datedPastDays.length - 1], ...datedPastDays.slice(0, -1), ...undatedDays]
+      : undatedDays;
+  const activeRouteDayIndex = Math.max(
+    0,
+    visibleDraftDays.findIndex(({ sourceIndex }) => sourceIndex === selectedRouteDay),
+  );
+  const activeRouteSourceIndex = visibleDraftDays[activeRouteDayIndex]?.sourceIndex;
   const routePaths = routeDistancePathsFor(draftDays);
   useEffect(
     () =>
@@ -8235,10 +8429,10 @@ function RouteTab({
               routeDate={routeDate}
               editing={editingRoadDay === sourceIndex}
               dragDisabled={editingRoadDay !== null}
-              selected={selectedRouteDay === index}
+              selected={activeRouteSourceIndex === sourceIndex}
               dragging={draggedDay === index}
               dropTarget={dropTargetDay === index && draggedDay !== index}
-              onSelect={() => setSelectedRouteDay(index)}
+              onSelect={() => setSelectedRouteDay(sourceIndex)}
               onEdit={() => {
                 setDraggedDay(null);
                 setDropTargetDay(null);
@@ -8287,7 +8481,7 @@ function RouteTab({
         <aside className="map-card">
           <TripMap
             routeDays={visibleDraftDays.map(({ draftDay }) => draftDay)}
-            activeDay={selectedRouteDay}
+            activeDay={activeRouteDayIndex}
           />
           <footer>
             <span>Общий маршрут</span>
@@ -8639,10 +8833,12 @@ function RestaurantPage({
   places,
   onChange,
   availableCities = [],
+  tripId,
 }: {
   places: ImportedRestaurant[];
   onChange: (restaurants: ImportedRestaurant[]) => void;
   availableCities?: string[];
+  tripId?: string;
 }) {
   const [filterCity, setFilterCity] = useState("Все города");
   const [filterCuisine, setFilterCuisine] = useState("Все кухни");
@@ -9061,6 +9257,7 @@ function RestaurantPage({
       <RestaurantEditor
         restaurant={editing}
         cities={cities}
+        tripId={tripId}
         onClose={() => setEditing(null)}
         onSave={saveRestaurant}
         onDelete={() => deleteRestaurant(editing.id)}
@@ -9353,12 +9550,14 @@ function RestaurantForm({
 function RestaurantEditor({
   restaurant,
   cities,
+  tripId,
   onClose,
   onSave,
   onDelete,
 }: {
   restaurant: ImportedRestaurant;
   cities: string[];
+  tripId?: string;
   onClose: () => void;
   onSave: (restaurant: ImportedRestaurant) => void;
   onDelete: () => void;
@@ -9382,8 +9581,8 @@ function RestaurantEditor({
   const [uploading, setUploading] = useState<number | null>(null);
   const uploadPhoto = async (file: File | undefined, index: number) => {
     if (!file) return;
-    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
-      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
+    if (!tripId) {
+      window.alert("Не удалось определить путешествие для фото.");
       return;
     }
     setUploading(index);
@@ -9392,18 +9591,20 @@ function RestaurantEditor({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${session.user.id}/restaurants/${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+      const uploadFile = await prepareTripPhoto(file);
+      const extension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/${tripId}/restaurants/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("trip-photos").upload(path, uploadFile, {
         cacheControl: "31536000",
-        contentType: file.type,
+        contentType: uploadFile.type,
         upsert: false,
       });
       if (error) throw error;
       const url = await signedTripPhotoUrl(path);
       setPhotos((current) => current.map((photo, photoIndex) => photoIndex === index ? url : photo));
-    } catch {
-      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } catch (error) {
+      console.error("Could not upload restaurant photo.", error);
+      window.alert(photoUploadFailureMessage(error));
     } finally {
       setUploading(null);
     }
@@ -9495,7 +9696,7 @@ function RestaurantEditor({
           <div>
             {photos.map((photo, index) => (
               <label key={index}>
-                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(event) => { void uploadPhoto(event.target.files?.[0], index); event.target.value = ""; }} />
+                <input type="file" accept="image/*" disabled={uploading !== null} onChange={(event) => { void uploadPhoto(event.target.files?.[0], index); event.target.value = ""; }} />
                 {photo ? <img src={photo} alt="" /> : <span>{uploading === index ? "Загрузка..." : "＋ Фото"}</span>}
               </label>
             ))}
@@ -9696,6 +9897,7 @@ function Restaurants({
     <div className="restaurants-with-add">
       <RestaurantPage
         places={trip.restaurants || []}
+        tripId={trip.id}
         availableCities={restaurantCities}
         onChange={(restaurants) => onUpdateTrip({ ...trip, restaurants })}
       />
@@ -10461,10 +10663,6 @@ function AccommodationForm({
   const isBusy = isUploading || deletingPhotos;
   const uploadPhoto = async (file: File | undefined, index: number) => {
     if (!file) return;
-    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
-      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
-      return;
-    }
     setUploadingPhotos((current) =>
       current.map((uploading, photoIndex) =>
         photoIndex === index ? true : uploading,
@@ -10475,13 +10673,14 @@ function AccommodationForm({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const uploadFile = await prepareTripPhoto(file);
+      const extension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
       const path = `${session.user.id}/${tripId}/accommodations/${crypto.randomUUID()}.${extension}`;
       const { error } = await supabase.storage
         .from("trip-photos")
-        .upload(path, file, {
+        .upload(path, uploadFile, {
           cacheControl: "31536000",
-          contentType: file.type,
+          contentType: uploadFile.type,
           upsert: false,
         });
       if (error) throw error;
@@ -10491,8 +10690,9 @@ function AccommodationForm({
           photoIndex === index ? publicUrl : photo,
         ),
       );
-    } catch {
-      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } catch (error) {
+      console.error("Could not upload accommodation photo.", error);
+      window.alert(photoUploadFailureMessage(error));
     } finally {
       setUploadingPhotos((current) =>
         current.map((uploading, photoIndex) =>
@@ -10619,7 +10819,7 @@ function AccommodationForm({
               >
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*"
                   onChange={(event) => {
                     void uploadPhoto(event.target.files?.[0], index);
                     event.target.value = "";
@@ -12230,24 +12430,17 @@ function Photos({
   const [uploading, setUploading] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const uploadPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    const validFiles = Array.from(files).filter(
-      (file) =>
-        /^image\/(jpeg|png|webp)$/.test(file.type) &&
-        file.size <= 10 * 1024 * 1024,
-    );
-    if (!validFiles.length) {
-      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
-      return;
-    }
+    const selectedFiles = Array.from(files || []);
+    if (!selectedFiles.length) return;
     setUploading(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.user) throw new Error("No active session");
-      const uploadedPhotos = await Promise.all(
-        validFiles.map(async (file) => {
+      const uploadResults = await Promise.allSettled(
+        selectedFiles.map(async (originalFile) => {
+          const file = await prepareTripPhoto(originalFile);
           const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${crypto.randomUUID()}.${extension}`;
           const { error } = await supabase.storage
@@ -12261,20 +12454,36 @@ function Photos({
           return {
             id: crypto.randomUUID(),
             image: await signedTripPhotoUrl(path),
-            ...(await readPhotoMetadata(file)),
+            ...(await readPhotoMetadata(originalFile)),
           };
         }),
       );
-      const currentPhotos = trip.photos?.length
-        ? trip.photos
-        : trip.coverPhotos || [];
-      onUpdateTrip({
-        ...trip,
-        photos: [...currentPhotos, ...uploadedPhotos],
-      });
+      const uploadedPhotos = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      const failures = uploadResults.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (uploadedPhotos.length) {
+        const currentPhotos = trip.photos?.length
+          ? trip.photos
+          : trip.coverPhotos || [];
+        onUpdateTrip({
+          ...trip,
+          photos: [...currentPhotos, ...uploadedPhotos],
+        });
+      }
+      if (failures.length) {
+        const reason = photoUploadFailureMessage(failures[0]);
+        window.alert(
+          uploadedPhotos.length
+            ? `Загружено ${uploadedPhotos.length} из ${selectedFiles.length}. ${reason}`
+            : reason,
+        );
+      }
     } catch (error) {
       console.error("Could not upload trip photos.", error);
-      window.alert("Не удалось загрузить фотографии. Попробуйте ещё раз.");
+      window.alert(photoUploadFailureMessage(error));
     } finally {
       setUploading(false);
     }
@@ -12604,13 +12813,23 @@ function TripCardEditor({
   onLeaveTrip: (trip: TripSummary) => Promise<void>;
   onClose: () => void;
 }) {
-  const parsedDates = parseTripDateRange(trip.dates);
+  const parsedDates = parseTripDateRange(trip.dates || "");
   const photoInput = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(trip.title);
   const [cities, setCities] = useState(trip.cities);
   const [startDate, setStartDate] = useState(trip.startDate || parsedDates?.[0] || "");
   const [endDate, setEndDate] = useState(trip.endDate || parsedDates?.[1] || "");
-  const [status, setStatus] = useState(trip.status);
+  const [status, setStatus] = useState(trip.status || "Предстоящее");
+  const today = useLocalIsoToday();
+  const editorTrip = {
+    ...trip,
+    status,
+    startDate,
+    endDate,
+    dates: startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates,
+  };
+  const displayedStatus = effectiveTripStatus(editorTrip, today);
+  const statusAutomatic = tripHasDateRange(editorTrip) && status !== "Черновик";
   const [coverImage, setCoverImage] = useState(trip.coverImage || "");
   const [coverChanged, setCoverChanged] = useState(false);
   const [accessKind, setAccessKind] = useState<"loading" | "owner" | "collaborator">("loading");
@@ -12637,13 +12856,14 @@ function TripCardEditor({
     };
   }, [trip.id]);
   const selectCover = (file?: File) => {
-    if (!file?.type.startsWith("image/")) return;
-    void compressCoverPhoto(file)
+    if (!file) return;
+    void prepareTripPhoto(file)
+      .then(compressCoverPhoto)
       .then((image) => {
         setCoverImage(image);
         setCoverChanged(true);
       })
-      .catch(() => window.alert("Не удалось обработать фотографию."));
+      .catch((error) => window.alert(photoUploadFailureMessage(error)));
   };
   const save = () => {
     if ((startDate && !endDate) || (!startDate && endDate)) {
@@ -12714,7 +12934,15 @@ function TripCardEditor({
           <div className="trip-editor-summary">
             <span>R</span>
             <div>
-              <b>{status === "Черновик" ? "Черновик" : status === "Завершённое" ? "Прошедшее путешествие" : "Предстоящее путешествие"}</b>
+              <b>{
+                displayedStatus === "Черновик"
+                  ? "Черновик"
+                  : displayedStatus === "Завершённое"
+                    ? "Прошедшее путешествие"
+                    : displayedStatus === "Текущее" || displayedStatus === "Активное"
+                      ? "Текущее путешествие"
+                      : "Предстоящее путешествие"
+              }</b>
               <small>{startDate && endDate ? formatTripDates(startDate, endDate) : trip.dates}</small>
             </div>
           </div>
@@ -12746,7 +12974,7 @@ function TripCardEditor({
             <input
               ref={photoInput}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               onChange={(event) => {
                 selectCover(event.target.files?.[0]);
                 event.target.value = "";
@@ -12790,22 +13018,40 @@ function TripCardEditor({
 
           <div className="trip-editor-status-group">
             <p>Статус</p>
-            <div className="trip-editor-status">
-              {[
-                ["Предстоящее", "Предстоящие"],
-                ["Черновик", "Черновики"],
-                ["Завершённое", "Прошедшие"],
-              ].map(([value, label]) => (
-                <button
-                  className={status === value ? "selected" : ""}
-                  type="button"
-                  onClick={() => setStatus(value)}
-                  key={value}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {statusAutomatic ? (
+              <>
+                <small>Статус путешествия автоматически определяется по датам.</small>
+                <div className="trip-editor-status">
+                  <button className="selected" type="button" disabled>
+                    {displayedStatus}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatus("Черновик")}
+                  >
+                    Черновик
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="trip-editor-status">
+                {[
+                  ["Предстоящее", "Предстоящие"],
+                  ["Текущее", "Текущие"],
+                  ["Черновик", "Черновики"],
+                  ["Завершённое", "Прошедшие"],
+                ].map(([value, label]) => (
+                  <button
+                    className={status === value ? "selected" : ""}
+                    type="button"
+                    onClick={() => setStatus(value)}
+                    key={value}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <footer>
@@ -12904,11 +13150,11 @@ function OverviewEditor({
     if (nextCity) setWeatherCities((cities) => [...cities, nextCity]);
   };
   const selectPhotos = (files?: FileList | File[] | null) => {
-    const images = Array.from(files || []).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    if (!images.length) return;
-    void Promise.all(images.map(compressCoverPhoto))
+    const selectedFiles = Array.from(files || []);
+    if (!selectedFiles.length) return;
+    void Promise.all(selectedFiles.map(async (file) =>
+      compressCoverPhoto(await prepareTripPhoto(file)),
+    ))
       .then((images) => {
         const photos = images.map((image) => ({
           id: crypto.randomUUID(),
@@ -12920,7 +13166,7 @@ function OverviewEditor({
         setSavedPhotos((current) => [...current, ...photos]);
         setActivePhotoId(photos[0]?.id || null);
       })
-      .catch(() => undefined);
+      .catch((error) => window.alert(photoUploadFailureMessage(error)));
   };
   const selectPhoto = (file?: File) => selectPhotos(file ? [file] : []);
   const save = () => {
@@ -14046,13 +14292,16 @@ function TripOverview({
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) throw new Error("No active session");
-    const path = `${session.user.id}/${trip.id}/${crypto.randomUUID()}.${extension}`;
+    const sourceFile = new File([file], `photo.${extension}`, { type: file.type });
+    const uploadFile = await prepareTripPhoto(sourceFile);
+    const uploadExtension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${session.user.id}/${trip.id}/${crypto.randomUUID()}.${uploadExtension}`;
     const { error } = await supabase.storage
       .from("trip-photos")
-      .upload(path, file, {
+      .upload(path, uploadFile, {
         cacheControl: "31536000",
         upsert: false,
-        contentType: file.type || "image/jpeg",
+        contentType: uploadFile.type,
       });
     if (error) throw error;
     return signedTripPhotoUrl(path);
@@ -14060,7 +14309,7 @@ function TripOverview({
   const addCoverPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     try {
-      const uploadedPhotos = await Promise.all(
+      const uploadResults = await Promise.allSettled(
         Array.from(files).map(async (file, index) => ({
           id: crypto.randomUUID(),
           image: await uploadCoverPhoto(
@@ -14072,6 +14321,13 @@ function TripOverview({
             overviewCities[overviewCities.length - 1],
         })),
       );
+      const uploadedPhotos = uploadResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      const failures = uploadResults.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (!uploadedPhotos.length && failures.length) throw failures[0];
       const nextPhotos = [...coverPhotos, ...uploadedPhotos];
       onUpdateTrip({
         ...trip,
@@ -14079,10 +14335,14 @@ function TripOverview({
         coverPhotos: nextPhotos,
       });
       setActivePhoto(nextPhotos.length - uploadedPhotos.length);
-    } catch {
-      window.alert(
-        "Не удалось загрузить фотографию. Попробуйте файл JPG, PNG или WebP до 10 МБ.",
-      );
+      if (failures.length) {
+        window.alert(
+          `Загружено ${uploadedPhotos.length} из ${files.length}. ${photoUploadFailureMessage(failures[0])}`,
+        );
+      }
+    } catch (error) {
+      console.error("Could not upload trip cover photo.", error);
+      window.alert(photoUploadFailureMessage(error));
     }
   };
   useEffect(() => {
@@ -14162,7 +14422,7 @@ function TripOverview({
                 ref={photoInputRef}
                 className="cover-file-input"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 multiple
                 onChange={(event) => void addCoverPhotos(event.target.files)}
               />
@@ -14277,7 +14537,7 @@ function TripOverview({
                 ref={photoInputRef}
                 className="cover-file-input"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 multiple
                 onChange={(event) => void addCoverPhotos(event.target.files)}
               />
@@ -14758,6 +15018,7 @@ function WalkingMap({
 }
 
 function Sights({
+  tripId,
   sights,
   days,
   defaultCity,
@@ -14768,6 +15029,7 @@ function Sights({
   onDeleteDay,
   onReorderDay,
 }: {
+  tripId: string;
   sights: StoredSight[];
   days: { id: string; title: string; photo?: string; photoPosition?: number }[];
   defaultCity?: string;
@@ -14780,7 +15042,6 @@ function Sights({
 }) {
   const [addingDay, setAddingDay] = useState(false);
   const [dayEditorOpen, setDayEditorOpen] = useState(false);
-  const [routeCopied, setRouteCopied] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [activeSightId, setActiveSightId] = useState<string | null>(null);
   const [focusVersion, setFocusVersion] = useState(0);
@@ -14884,7 +15145,7 @@ function Sights({
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [routePhotoKey]);
-  const copyRoute = async () => {
+  const openRouteInGoogleMaps = () => {
     if (routeSights.length < 2) return;
     const points = routeSights.map((sight) =>
       sight.lnglat
@@ -14900,9 +15161,7 @@ function Sights({
     url.searchParams.set("destination", points.at(-1) || "");
     if (points.length > 2) url.searchParams.set("waypoints", points.slice(1, -1).join("|"));
     url.searchParams.set("travelmode", travelMode);
-    await navigator.clipboard.writeText(url.toString()).catch(() => undefined);
-    setRouteCopied(true);
-    window.setTimeout(() => setRouteCopied(false), 1800);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   };
   const [categoryFilter, setCategoryFilter] = useState("Все");
   const [statusFilter, setStatusFilter] = useState("Все");
@@ -15199,10 +15458,11 @@ function Sights({
               <span>{city || "Маршрут"} · маршрут дня</span>
               <button
                 type="button"
-                onClick={() => void copyRoute()}
+                onClick={openRouteInGoogleMaps}
                 disabled={routeSights.length < 2}
+                aria-label="Открыть весь маршрут в Google Картах"
               >
-                {routeCopied ? "Скопировано" : "Копировать"}
+                Google Maps ↗
               </button>
             </div>
             <WalkingMap
@@ -15284,6 +15544,7 @@ function Sights({
       {dayEditorOpen && (
         <DayEditor
           dayNumber={selectedDay + 1}
+          tripId={tripId}
           defaultCity=""
           cities={cityOptions}
           onClose={() => setDayEditorOpen(false)}
@@ -15322,12 +15583,14 @@ function Sights({
 
 function DayEditor({
   dayNumber,
+  tripId,
   defaultCity,
   cities = accommodationCities,
   onClose,
   onSave,
 }: {
   dayNumber: number;
+  tripId: string;
   defaultCity: string;
   cities?: string[];
   onClose: () => void;
@@ -15438,27 +15701,25 @@ function DayEditor({
     setPlacePhotoPosition(50);
   };
   const uploadPlacePhoto = async (file: File) => {
-    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
-      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
-      return;
-    }
     setUploadingPlacePhoto(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${session.user.id}/sight-days/${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+      const uploadFile = await prepareTripPhoto(file);
+      const extension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${session.user.id}/${tripId}/sight-days/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("trip-photos").upload(path, uploadFile, {
         cacheControl: "31536000",
-        contentType: file.type,
+        contentType: uploadFile.type,
         upsert: false,
       });
       if (error) throw error;
       return await signedTripPhotoUrl(path);
-    } catch {
-      window.alert("Не удалось загрузить фото. Попробуйте ещё раз.");
+    } catch (error) {
+      console.error("Could not upload route-day photo.", error);
+      window.alert(photoUploadFailureMessage(error));
       return null;
     } finally {
       setUploadingPlacePhoto(false);
@@ -15519,7 +15780,7 @@ function DayEditor({
           <div className="day-place-details">
             <input value={placeDescription} onChange={(event) => setPlaceDescription(event.target.value)} placeholder="Короткое описание" />
             <label className="day-place-photo-upload">
-              <input type="file" accept="image/jpeg,image/png,image/webp" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0] || null; setPlacePhotoFile(file); setPlacePhoto(file ? URL.createObjectURL(file) : undefined); }} />
+              <input type="file" accept="image/*" aria-label="Фото места" onChange={(event) => { const file = event.target.files?.[0] || null; setPlacePhotoFile(file); setPlacePhoto(file ? URL.createObjectURL(file) : undefined); }} />
               {placePhoto ? <img className={draggingPlacePhoto ? "dragging" : ""} src={placePhoto} alt="Фото места" style={{ objectPosition: `center ${placePhotoPosition}%` }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); placePhotoDrag.current = { y: event.clientY, position: placePhotoPosition }; setDraggingPlacePhoto(true); }} onPointerMove={(event) => { const start = placePhotoDrag.current; if (!start) return; const height = event.currentTarget.getBoundingClientRect().height; const next = start.position - ((event.clientY - start.y) / height) * 100; setPlacePhotoPosition(Math.max(0, Math.min(100, next))); }} onPointerUp={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} onPointerCancel={() => { placePhotoDrag.current = null; setDraggingPlacePhoto(false); }} /> : <span>＋ Добавить фото</span>}
               {placePhoto && <small>Перетащите фото, чтобы выбрать кадр</small>}
             </label>
@@ -15742,27 +16003,25 @@ function PetPlaceForm({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const uploadPhoto = async (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.match(/^image\/(jpeg|png|webp)$/) || file.size > 10 * 1024 * 1024) {
-      window.alert("Выберите JPG, PNG или WebP до 10 МБ.");
-      return;
-    }
     setUploadingPhoto(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const uploadFile = await prepareTripPhoto(file);
+      const extension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
       const path = `${session.user.id}/${tripId}/pets/${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabase.storage.from("trip-photos").upload(path, file, {
+      const { error } = await supabase.storage.from("trip-photos").upload(path, uploadFile, {
         cacheControl: "31536000",
-        contentType: file.type,
+        contentType: uploadFile.type,
         upsert: false,
       });
       if (error) throw error;
       setPhotoUrl(await signedTripPhotoUrl(path));
-    } catch {
-      window.alert("Не удалось загрузить фотографию. Попробуйте ещё раз.");
+    } catch (error) {
+      console.error("Could not upload pet-place photo.", error);
+      window.alert(photoUploadFailureMessage(error));
     } finally {
       setUploadingPhoto(false);
     }
@@ -15798,8 +16057,8 @@ function PetPlaceForm({
         <section><b>Тип места</b><div className="pets-choice-row"><button type="button" className={type === "shop" ? "active" : ""} onClick={() => setType("shop")}>Зоомагазин</button><button type="button" className={type === "vet" ? "active" : ""} onClick={() => setType("vet")}>Ветеринар</button></div></section>
         <label>Описание<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Что важно знать" rows={3} /></label>
         <section className="pets-form-photo-section"><b>Фото места</b><div className="pets-photo-picker-row"><label className={`pets-photo-picker ${photoUrl ? "has-photo" : ""}`}>
-          <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingPhoto} onChange={(event) => { void uploadPhoto(event.target.files?.[0]); event.target.value = ""; }} />
-          {photoUrl ? <img src={photoUrl} alt="Фото места" /> : <span className="pets-photo-placeholder"><span>▧</span><b>Добавить фото</b><small>JPG, PNG или WebP до 10 МБ</small></span>}
+          <input ref={photoInputRef} type="file" accept="image/*" disabled={uploadingPhoto} onChange={(event) => { void uploadPhoto(event.target.files?.[0]); event.target.value = ""; }} />
+          {photoUrl ? <img src={photoUrl} alt="Фото места" /> : <span className="pets-photo-placeholder"><span>▧</span><b>Добавить фото</b><small>Фото до 100 МБ</small></span>}
         </label>{photoUrl && <button type="button" className="pets-photo-remove" onClick={() => setPhotoUrl("")} disabled={uploadingPhoto}>Удалить фото</button>}</div>{uploadingPhoto && <small className="pets-photo-uploading">Загружаем фото…</small>}</section>
         <footer><button type="button" onClick={onClose} disabled={uploadingPhoto}>Отмена</button><button className="accent" type="submit" disabled={uploadingPhoto}>{uploadingPhoto ? "Загружаем…" : "Сохранить"}</button></footer>
       </form>
@@ -15977,6 +16236,11 @@ function Workspace({
   const [overviewEditorOpen, setOverviewEditorOpen] = useState(false);
   const [selectedSightDayId, setSelectedSightDayId] = useState("sights-day-1");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const today = useLocalIsoToday();
+  const displayedTripStatus = effectiveTripStatus(trip, today);
+  const statusAutomatic =
+    tripHasDateRange(trip) &&
+    !String(trip.status || "").toLocaleLowerCase("ru-RU").includes("чернов");
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
@@ -16245,14 +16509,14 @@ function Workspace({
             <h1>
               {trip.title}{" "}
               {readOnly ? (
-                <span className="status-picker status-read-only">● {trip.status}</span>
+                <span className="status-picker status-read-only">● {displayedTripStatus}</span>
               ) : (
                 <button
                   className="status-picker"
                   onClick={() => setStatusMenuOpen((open) => !open)}
                   aria-expanded={statusMenuOpen}
                 >
-                  ● {trip.status}
+                  ● {displayedTripStatus}
                 </button>
               )}
             </h1>
@@ -16267,20 +16531,44 @@ function Workspace({
                 role="dialog"
                 aria-label="Статус путешествия"
               >
-                <b>Статус путешествия</b>
-                {["Активное", "Предстоящее", "Черновик", "Завершённое"].map(
-                  (status) => (
+                {statusAutomatic ? (
+                  <>
+                    <b>Статус определяется по датам поездки</b>
                     <button
-                      className={trip.status === status ? "selected" : ""}
+                      className="selected"
+                      type="button"
+                      disabled
+                    >
+                      ● {displayedTripStatus}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
-                        onUpdateTrip({ ...trip, status });
+                        onUpdateTrip({ ...trip, status: "Черновик" });
                         setStatusMenuOpen(false);
                       }}
-                      key={status}
                     >
-                      ● {status}
+                      ● Черновик
                     </button>
-                  ),
+                  </>
+                ) : (
+                  <>
+                    <b>Статус путешествия</b>
+                    {["Активное", "Предстоящее", "Текущее", "Черновик", "Завершённое"].map(
+                      (status) => (
+                        <button
+                          className={trip.status === status ? "selected" : ""}
+                          onClick={() => {
+                            onUpdateTrip({ ...trip, status });
+                            setStatusMenuOpen(false);
+                          }}
+                          key={status}
+                        >
+                          ● {status}
+                        </button>
+                      ),
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -16371,6 +16659,7 @@ function Workspace({
         {tab === "sights" && (
           <>
             <Sights
+              tripId={trip.id}
               sights={tripSights}
               days={sightDays}
               defaultCity={trip.cities.split(",")[0]?.trim()}
