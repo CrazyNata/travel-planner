@@ -12733,7 +12733,14 @@ function Photos({
     }
   };
   const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
-  const visiblePhotos = photos.filter((photo) =>
+  const uploadedPhotos = photos.filter((photo) =>
+    tripPhotoPath(photo.image)?.includes("/album/"),
+  );
+  const routePhotos = photos.filter(
+    (photo) => !tripPhotoPath(photo.image)?.includes("/album/"),
+  );
+  const orderedPhotos = [...uploadedPhotos.reverse(), ...routePhotos];
+  const visiblePhotos = orderedPhotos.filter((photo) =>
     `${photoLocationLabel(photo)} ${photo.date || ""} ${photo.description || ""}`
       .toLowerCase()
       .includes(query.trim().toLowerCase()),
