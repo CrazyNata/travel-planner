@@ -6,7 +6,8 @@ Private Cloudflare R2 bucket `ramingo-photos` in the EU jurisdiction, served by
 The Worker checks Supabase Auth and the caller's existing trip RLS permissions.
 Reads use HMAC links valid for one hour; uploads require an owner or editor and
 an object prefix belonging to the authenticated uploader. There is no public
-bucket access or delete/list endpoint. Secrets live in Wrangler secret storage:
+bucket access or delete/list endpoint. Automatic R2 cleanup during account
+deletion requires separate user approval; it has not been enabled. Secrets live in Wrangler secret storage:
 `SUPABASE_KEY` (publishable key) and `SIGNING_SECRET` (random signing key).
 
 The web album resolves private R2 copies in batches of 12, displays 720px JPEG

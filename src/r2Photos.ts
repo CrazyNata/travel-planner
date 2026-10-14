@@ -17,7 +17,7 @@ async function photoRequest(url: string, options: RequestInit, signal?: AbortSig
 export function albumStorageKey(image: string): string | null {
   try {
     const path = decodeURIComponent(new URL(image).pathname).match(/\/storage\/v1\/object\/(?:sign|public)\/trip-photos\/(.+)$/)?.[1];
-    return path && /^[a-f0-9-]{36}\/[a-f0-9-]{36}\/album\/[a-f0-9]{64}\.(jpg|jpeg|png|webp)$/i.test(path) ? path : null;
+    return path && /^[a-f0-9-]{36}\/[a-f0-9-]{36}\/album\/[a-z0-9_][a-z0-9_.-]{0,180}\.(jpg|jpeg|png|webp)$/i.test(path) ? path : null;
   } catch { return null; }
 }
 async function authorization() {

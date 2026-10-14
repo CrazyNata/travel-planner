@@ -10,7 +10,8 @@ test('private photo access, role enforcement, signed links and size limits', asy
   const env={SUPABASE_URL:'https://example.supabase.co',SUPABASE_KEY:'test',SIGNING_SECRET:'test-only-signing-secret',PHOTOS:{
     head:async key=>objects.get(key)||null,
     put:async (key,body,options)=>objects.set(key,{size:body.byteLength,body,httpMetadata:options.httpMetadata}),
-    get:async key=>objects.get(key)||null
+    get:async key=>objects.get(key)||null,
+    delete:async keys=>keys.forEach(key=>objects.delete(key))
   }};
   const nativeFetch=globalThis.fetch;
   let role='owner';
@@ -25,6 +26,10 @@ test('private photo access, role enforcement, signed links and size limits', asy
     role='reader'; assert.equal((await put()).status,403); assert.equal(objects.size,0);
     role='outsider'; assert.equal((await put()).status,403);
     role='editor'; assert.equal((await put()).status,204);
+    const oldKey=`33333333-3333-3333-3333-333333333333/${trip}/album/1726000000000-old-photo.jpg`;
+    const putLegacy=()=>call(`/object/original/${oldKey}`,{method:'PUT',headers:{...auth,'content-type':'image/jpeg','content-length':'3'},body:new Uint8Array([1,2,3])});
+    assert.equal((await putLegacy()).status,403);
+    role='owner'; assert.equal((await putLegacy()).status,204);
     assert.equal((await call(`/object/thumbnail/${key}`,{method:'PUT',headers:{...auth,'content-type':'image/jpeg','content-length':'999999'}})).status,413);
     const resolved=await call('/resolve',{method:'POST',headers:auth,body:JSON.stringify({keys:[key]})});
     assert.equal(resolved.status,200);

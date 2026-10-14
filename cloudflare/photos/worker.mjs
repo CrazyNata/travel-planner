@@ -1,6 +1,6 @@
 const origins = new Set(['https://ramingo.online', 'https://travelplanner.muntim.ru', 'http://localhost:5173', 'http://127.0.0.1:5173']);
 const encoder = new TextEncoder();
-const keyPattern = /^([a-f0-9-]{36})\/([a-f0-9-]{36})\/album\/([a-f0-9]{64})\.(jpg|jpeg|png|webp)$/i;
+const keyPattern = /^([a-f0-9-]{36})\/([a-f0-9-]{36})\/album\/([a-z0-9_][a-z0-9_.-]{0,180})\.(jpg|jpeg|png|webp)$/i;
 const maxBytes = 10 * 1024 * 1024;
 
 async function signature(env, key, expires) {
@@ -27,9 +27,10 @@ async function access(env, context, tripId, write) {
   if (!response.ok) throw new Response('Forbidden', {status:403});
   const trip = (await response.json())[0];
   if (!trip) throw new Response('Forbidden', {status:403});
-  if (!write || trip.owner_id === context.user.id) return;
+  if (!write || trip.owner_id === context.user.id) return trip;
   const membership = await fetch(`${env.SUPABASE_URL}/rest/v1/trip_collaborators?trip_id=eq.${tripId}&user_id=eq.${context.user.id}&select=role`, {headers:context.headers});
   if (!membership.ok || !(await membership.json()).some(row=>row.role === 'Редактор')) throw new Response('Forbidden', {status:403});
+  return trip;
 }
 export default {
   async fetch(request, env) {
@@ -65,8 +66,8 @@ export default {
       if (request.method === 'PUT') {
         const context = await userContext(request,env);
         const parts = keyPattern.exec(key);
-        if (parts[1] !== context.user.id) return respond('Forbidden',403);
-        await access(env,context,parts[2],true);
+        const trip = await access(env,context,parts[2],true);
+        if (parts[1] !== context.user.id && trip.owner_id !== context.user.id) return respond('Forbidden',403);
         const type = request.headers.get('content-type')?.split(';')[0];
         if (!['image/jpeg','image/png','image/webp'].includes(type)) return respond('Invalid image type',415);
         const limit = variant === 'thumbnail' ? 512*1024 : maxBytes;

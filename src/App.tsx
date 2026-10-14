@@ -12927,7 +12927,7 @@ function Photos({
         setR2Ready(true);
         const { data: { session } } = await supabase.auth.getSession();
         const missing = r2Sources.filter(photo => !resolved[photo.key]?.thumbnail || !resolved[photo.key]?.original)
-          .filter(photo => photo.key.startsWith(`${session?.user.id}/`));
+          .filter(photo => trip.isOwner || photo.key.startsWith(`${session?.user.id}/`));
         // Sequential copies keep memory bounded on iPhones. Existing trip data and originals are untouched.
         for (const [index, photo] of missing.entries()) {
           if (disposed) break;
