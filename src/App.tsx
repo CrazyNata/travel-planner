@@ -200,6 +200,8 @@ type TripSummary = {
   coverImage?: string;
   coverPhotos?: CoverPhoto[];
   photos?: CoverPhoto[];
+  /** An explicitly edited album can be empty without falling back to cover photos. */
+  photoAlbumInitialized?: boolean;
   coverCity?: string;
   coverDescription?: string;
   coverTextColor?: string;
@@ -12634,13 +12636,42 @@ function Budget({
   );
 }
 
+function tripAlbumPhotos(trip: TripSummary): CoverPhoto[] {
+  return trip.photoAlbumInitialized ? trip.photos || []
+    : trip.photos?.length ? trip.photos : trip.coverPhotos || [];
+}
+
 function Photos({
   trip,
   onUpdateTrip,
+  readOnly = false,
 }: {
   trip: TripSummary;
-  onUpdateTrip: (trip: TripSummary) => void | Promise<boolean>;
+  onUpdateTrip: (trip: TripSummary, persistBeforeUpdate?: boolean) => void | Promise<boolean>;
+  readOnly?: boolean;
 }) {
+  const [canEditPhotos, setCanEditPhotos] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const deletingPhotoRef = useRef(false);
+  useEffect(() => {
+    let disposed = false;
+    setCanEditPhotos(false);
+    if (!readOnly) void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data: row, error } = await supabase.from("trips")
+        .select("owner_id").eq("id", trip.id).maybeSingle();
+      if (error || !row || disposed) return;
+      if (row.owner_id === session.user.id) {
+        setCanEditPhotos(true);
+        return;
+      }
+      const { data: membership } = await supabase.from("trip_collaborators")
+        .select("role").eq("trip_id", trip.id).eq("user_id", session.user.id).maybeSingle();
+      if (!disposed) setCanEditPhotos(membership?.role === "Редактор");
+    })().catch(() => { /* Editing remains disabled if access cannot be verified. */ });
+    return () => { disposed = true; };
+  }, [trip.id, readOnly]);
   const [query, setQuery] = useState("");
   const [r2Photos, setR2Photos] = useState<Record<string, R2Photo>>({});
   const [r2Ready, setR2Ready] = useState(!r2PhotosEnabled);
@@ -12701,7 +12732,7 @@ function Photos({
     };
   }, [photoLocationMenuOpen]);
   const uploadPhotos = async (selectedFiles: File[]) => {
-    if (!selectedFiles.length) return;
+    if (!selectedFiles.length || !canEditPhotos || deletingPhotoRef.current) return;
     setUploading(true);
     setUploadStatus(`Получено фотографий: ${selectedFiles.length}.`);
     setUploadProgress({ completed: 0, total: selectedFiles.length });
@@ -12727,9 +12758,7 @@ function Photos({
             "image/webp": "webp",
             "image/gif": "gif",
           };
-          const currentPhotos = currentTrip.photos?.length
-            ? currentTrip.photos
-            : currentTrip.coverPhotos || [];
+          const currentPhotos = tripAlbumPhotos(currentTrip);
           const extension = extensionByType[file.type] || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${photoId}.${extension}`;
           const existingPhotoIndex = currentPhotos.findIndex(
@@ -12908,7 +12937,36 @@ function Photos({
       setUploadProgress(null);
     }
   };
-  const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
+  // An explicitly empty album must stay empty instead of restoring cover photos.
+  const photos = tripAlbumPhotos(trip);
+  const deleteAlbumPhoto = async (photo: CoverPhoto) => {
+    if (!canEditPhotos || uploading || deletingPhotoRef.current) return;
+    if (!window.confirm("Удалить это фото из альбома? Оно исчезнет из альбома этого путешествия для всех участников.")) return;
+    deletingPhotoRef.current = true;
+    setDeletingPhoto(true);
+    try {
+      const latestTrip = tripRef.current;
+      if (latestTrip.id !== trip.id) return;
+      const latestPhotos = tripAlbumPhotos(latestTrip);
+      const nextTrip = {
+        ...latestTrip,
+        photoAlbumInitialized: true,
+        photos: latestPhotos.filter(item => item.id !== photo.id),
+      };
+      // Wait for persistence before removing the photo from the visible album.
+      // Media copies are retained; this only removes the selected album entry.
+      const saved = await onUpdateTripRef.current(nextTrip, true);
+      if (saved !== true) throw new Error("Photo deletion was not saved");
+      setExpandedPhotoId(null);
+      setUploadStatus("Фото удалено из альбома.");
+    } catch (error) {
+      console.error("Could not remove album photo.", error);
+      window.alert("Не удалось удалить фото. Проверьте интернет и попробуйте ещё раз.");
+    } finally {
+      deletingPhotoRef.current = false;
+      setDeletingPhoto(false);
+    }
+  };
   const r2Sources = photos.flatMap(photo => {
     const key = albumStorageKey(photo.image);
     return key && photo.image.includes("/object/sign/") ? [{ key, image: photo.image }] : [];
@@ -13039,9 +13097,7 @@ function Photos({
       if (!resolvedByCoordinate.size || disposed) return;
       const latestTrip = tripRef.current;
       if (latestTrip.id !== trip.id) return;
-      const latestPhotos = latestTrip.photos?.length
-        ? latestTrip.photos
-        : latestTrip.coverPhotos || [];
+      const latestPhotos = tripAlbumPhotos(latestTrip);
       let changed = false;
       const enrichedPhotos = latestPhotos.map((photo) => {
         if (photo.city || photo.latitude === undefined || photo.longitude === undefined) {
@@ -13054,9 +13110,9 @@ function Photos({
         changed = true;
         return { ...photo, city };
       });
-      if (!changed) return;
+      if (!changed || deletingPhotoRef.current || readOnly || !canEditPhotos) return;
 
-      const nextTrip = latestTrip.photos?.length
+      const nextTrip = latestTrip.photoAlbumInitialized || latestTrip.photos?.length
         ? { ...latestTrip, photos: enrichedPhotos }
         : latestTrip.coverPhotos?.length
           ? { ...latestTrip, coverPhotos: enrichedPhotos }
@@ -13075,7 +13131,7 @@ function Photos({
       disposed = true;
       controller.abort();
     };
-  }, [trip.id, trip.photos, trip.coverPhotos]);
+  }, [trip.id, trip.photos, trip.coverPhotos, canEditPhotos, readOnly]);
 
   const uploadedPhotos = photos.filter((photo) =>
     tripPhotoPath(photo.image)?.includes("/album/"),
@@ -13264,7 +13320,7 @@ function Photos({
           className="accent"
           type="button"
           onClick={() => input.current?.click()}
-          disabled={uploading}
+          disabled={uploading || deletingPhoto || !canEditPhotos}
         >
           {uploading
             ? `Загружаем ${uploadProgress?.completed ?? 0}/${uploadProgress?.total ?? 0}…`
@@ -13477,6 +13533,19 @@ function Photos({
           >
             ×
           </button>
+          {canEditPhotos && (
+            <button
+              className="photo-lightbox-delete"
+              type="button"
+              disabled={deletingPhoto || uploading}
+              onClick={(event) => {
+                event.stopPropagation();
+                void deleteAlbumPhoto(expandedPhoto);
+              }}
+            >
+              {deletingPhoto ? "Удаляем…" : "Удалить фото"}
+            </button>
+          )}
           {(expandedPhoto.city || expandedPhoto.date || expandedPhoto.latitude !== undefined) && (
             <span className="photo-lightbox-caption">
               {[displayPhotoLocation(expandedPhoto), expandedPhoto.date]
@@ -17156,7 +17225,7 @@ function Workspace({
 }: {
   go: (view: View) => void;
   trip: TripSummary;
-  onUpdateTrip: (trip: TripSummary) => void | Promise<boolean>;
+  onUpdateTrip: (trip: TripSummary, persistBeforeUpdate?: boolean) => void | Promise<boolean>;
   tab: Tab;
   onTabChange: (tab: Tab) => void;
   darkTheme?: boolean;
@@ -17763,7 +17832,7 @@ function Workspace({
         )}
         {tab === "pets" && <Pets trip={trip} onUpdateTrip={onUpdateTrip} />}
         {tab === "photos" && (
-          <Photos trip={trip} onUpdateTrip={onUpdateTrip} />
+          <Photos trip={trip} onUpdateTrip={onUpdateTrip} readOnly={readOnly} />
         )}
         {tab === "members" && (
           <Members trip={trip} onUpdateTrip={onUpdateTrip} />
@@ -19046,74 +19115,79 @@ export function App() {
     const trip = [...drafts, ...trips].find((item) => item.id === routeTripId);
     if (trip) setActiveTrip(trip);
   }, [drafts, routeTripId]);
-  const updateTrip = (trip: TripSummary): Promise<boolean> => {
-    setActiveTrip(trip);
-    setDrafts((items) =>
-      items.map((item) => (item.id === trip.id ? trip : item)),
-    );
+  const updateTrip = (trip: TripSummary, persistBeforeUpdate = false): Promise<boolean> => {
     const saved = saveTripToSupabase(trip);
-    if (trip.id !== "supabase-main" || !storedPayload?.data) return saved;
-    const currentDays = storedPayload.data.days || [];
-    const updatedDays: StoredDay[] = (trip.days || []).map((day, index) => {
-      const existing = currentDays[index] || {};
-      const leg = day.roadLeg;
-      return {
-        ...existing,
-        id: existing.id || day.id,
-        city: leg ? `${leg.from} → ${leg.to}` : existing.city,
-        date: leg?.date || existing.date,
-        dayMapUrl:
-          leg?.mapsUrl ||
-          (leg ? mapsUrl(leg.from, leg.to) : existing.dayMapUrl),
-        checkInFrom: leg?.checkInFrom || undefined,
-        checkInTo: leg?.checkInTo || undefined,
-        checkOutFrom: leg?.checkOutFrom || undefined,
-        checkOutTo: leg?.checkOutTo || undefined,
-        completed: leg?.completed || [],
-        items: day.places.map((title, itemIndex) => ({
-          ...existing.items?.[itemIndex],
-          id: existing.items?.[itemIndex]?.id || crypto.randomUUID(),
-          title,
-        })),
-      };
-    });
-    const nextPayload: StoredTripPayload = canonicalTripPhotoUrls({
-      ...storedPayload,
-      data: {
-        ...storedPayload.data,
-        days: updatedDays,
-        sights: trip.sights,
-        trip: {
-          ...storedPayload.data.trip,
-          title: trip.title,
-          start: trip.startDate,
-          end: trip.endDate,
-          isDraft: true,
-          status: trip.status,
-          coverImage: trip.coverImage,
-          coverPhotos: trip.coverPhotos,
-          photos: trip.photos,
-          coverTextColor: trip.coverTextColor,
-          overviewMapPoints: trip.overviewMapPoints,
-          sightDays: trip.sightDays,
-          sightDaysVersion: trip.sightDaysVersion,
-          sightNotes: trip.sightNotes,
-          petPlaces: trip.petPlaces,
-          members: trip.members,
-          publicLinkEnabled: trip.publicLinkEnabled,
-          published: trip.published,
-        },
-      },
-    });
-    setStoredPayload(nextPayload);
-    void supabase
-      .from("trip_state")
-      .update({ payload: nextPayload })
-      .eq("id", "main")
-      .then(({ error }) => {
-        if (error) console.error("Could not save the trip.", error);
+    const applyTripUpdate = () => {
+      setActiveTrip(trip);
+      setDrafts((items) =>
+        items.map((item) => (item.id === trip.id ? trip : item)),
+      );
+      if (trip.id !== "supabase-main" || !storedPayload?.data) return saved;
+      const currentDays = storedPayload.data.days || [];
+      const updatedDays: StoredDay[] = (trip.days || []).map((day, index) => {
+        const existing = currentDays[index] || {};
+        const leg = day.roadLeg;
+        return {
+          ...existing,
+          id: existing.id || day.id,
+          city: leg ? `${leg.from} → ${leg.to}` : existing.city,
+          date: leg?.date || existing.date,
+          dayMapUrl:
+            leg?.mapsUrl ||
+            (leg ? mapsUrl(leg.from, leg.to) : existing.dayMapUrl),
+          checkInFrom: leg?.checkInFrom || undefined,
+          checkInTo: leg?.checkInTo || undefined,
+          checkOutFrom: leg?.checkOutFrom || undefined,
+          checkOutTo: leg?.checkOutTo || undefined,
+          completed: leg?.completed || [],
+          items: day.places.map((title, itemIndex) => ({
+            ...existing.items?.[itemIndex],
+            id: existing.items?.[itemIndex]?.id || crypto.randomUUID(),
+            title,
+          })),
+        };
       });
-    return saved;
+      const nextPayload: StoredTripPayload = canonicalTripPhotoUrls({
+        ...storedPayload,
+        data: {
+          ...storedPayload.data,
+          days: updatedDays,
+          sights: trip.sights,
+          trip: {
+            ...storedPayload.data.trip,
+            title: trip.title,
+            start: trip.startDate,
+            end: trip.endDate,
+            isDraft: true,
+            status: trip.status,
+            coverImage: trip.coverImage,
+            coverPhotos: trip.coverPhotos,
+            photos: trip.photos,
+            coverTextColor: trip.coverTextColor,
+            overviewMapPoints: trip.overviewMapPoints,
+            sightDays: trip.sightDays,
+            sightDaysVersion: trip.sightDaysVersion,
+            sightNotes: trip.sightNotes,
+            petPlaces: trip.petPlaces,
+            members: trip.members,
+            publicLinkEnabled: trip.publicLinkEnabled,
+            published: trip.published,
+          },
+        },
+      });
+      setStoredPayload(nextPayload);
+      void supabase
+        .from("trip_state")
+        .update({ payload: nextPayload })
+        .eq("id", "main")
+        .then(({ error }) => {
+          if (error) console.error("Could not save the trip.", error);
+        });
+      return saved;
+    };
+    return persistBeforeUpdate
+      ? saved.then(result => result ? applyTripUpdate() : false)
+      : applyTripUpdate();
   };
   useEffect(() => {
     drafts.forEach((trip) => {
