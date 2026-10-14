@@ -13,6 +13,7 @@ import { Upload as TusUpload } from "tus-js-client";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
 import { albumStorageKey, mirrorR2Photo, r2PhotosEnabled, resolveR2Photos, type R2Photo } from "./r2Photos";
+import { findDuplicatePhoto, photoContentHash } from "./photoDuplicates";
 import { AccommodationPrototype } from "./AccommodationPrototype";
 import {
   WebOnboarding,
@@ -65,6 +66,8 @@ type CoverPhoto = {
   longitude?: number;
   description?: string;
   textColor?: string;
+  contentHash?: string;
+  sourceHash?: string;
 };
 const tripPhotoUrlLifetimeSeconds = 24 * 60 * 60;
 
@@ -6313,6 +6316,7 @@ function photoUploadFailureMessage(error: unknown) {
     message.startsWith("Фото больше") ||
     message.startsWith("Браузер не смог") ||
     message.startsWith("Не удалось подготовить") ||
+    message.startsWith("Не удалось проверить") ||
     message.startsWith("Не удалось уменьшить")
   ) {
     return message;
@@ -6426,7 +6430,7 @@ async function signedTripPhotoUrlWithRetry(path: string) {
   throw lastError;
 }
 
-async function tripPhotoContentId(file: File) {
+async function tripPhotoContentId(file: Blob) {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -12653,6 +12657,7 @@ function Photos({
   const [canEditPhotos, setCanEditPhotos] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const deletingPhotoRef = useRef(false);
+  const uploadInFlightRef = useRef(false);
   useEffect(() => {
     let disposed = false;
     setCanEditPhotos(false);
@@ -12732,7 +12737,8 @@ function Photos({
     };
   }, [photoLocationMenuOpen]);
   const uploadPhotos = async (selectedFiles: File[]) => {
-    if (!selectedFiles.length || !canEditPhotos || deletingPhotoRef.current) return;
+    if (!selectedFiles.length || !canEditPhotos || deletingPhotoRef.current || uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
     setUploading(true);
     setUploadStatus(`Получено фотографий: ${selectedFiles.length}.`);
     setUploadProgress({ completed: 0, total: selectedFiles.length });
@@ -12742,7 +12748,46 @@ function Photos({
       } = await supabase.auth.getSession();
       if (!session?.user) throw new Error("No active session");
       const failures: { name: string; message: string }[] = [];
-      let currentTrip = trip;
+      // Start with the persisted album so an older tab cannot restore removed copies.
+      await tripSaveQueues.get(trip.id);
+      const { data: latestRow, error: latestError } = await supabase.from("trips")
+        .select("id,payload").eq("id", trip.id).single();
+      if (latestError || !latestRow?.payload) throw new Error("Не удалось проверить текущий альбом. Попробуйте ещё раз.");
+      let currentTrip = await signTripPhotoUrls({
+        ...(latestRow.payload as TripSummary), id: trip.id, isOwner: trip.isOwner,
+      });
+      const indexedPhotos: CoverPhoto[] = [];
+      let indexedCount = 0;
+      const albumPhotos = tripAlbumPhotos(currentTrip);
+      for (const [index, photo] of albumPhotos.entries()) {
+        if (!tripPhotoPath(photo.image)?.includes("/album/") || photoContentHash(photo)) {
+          indexedPhotos.push(photo);
+          continue;
+        }
+        setUploadStatus(`Проверяем ранее загруженные фото: ${index + 1} из ${albumPhotos.length}…`);
+        try {
+          const controller = new AbortController();
+          const timer = window.setTimeout(() => controller.abort(), 30000);
+          let blob: Blob;
+          try {
+            const response = await fetch(photo.image, { signal: controller.signal });
+            if (!response.ok) throw new Error(`Photo unavailable: ${response.status}`);
+            blob = await response.blob();
+          } finally { window.clearTimeout(timer); }
+          const contentHash = await tripPhotoContentId(blob);
+          indexedPhotos.push({ ...photo, contentHash });
+          indexedCount += 1;
+        } catch {
+          throw new Error("Не удалось проверить ранее загруженные фото. Проверьте интернет и попробуйте ещё раз.");
+        }
+      }
+      if (indexedCount) {
+        const indexedTrip = { ...currentTrip, photos: indexedPhotos };
+        if (await onUpdateTripRef.current(indexedTrip, true) !== true) {
+          throw new Error("Не удалось проверить и сохранить данные фотографий. Попробуйте ещё раз.");
+        }
+        currentTrip = indexedTrip;
+      }
       let savedCount = 0;
       let duplicateCount = 0;
       let duplicateMetadataUpdatedCount = 0;
@@ -12752,6 +12797,7 @@ function Photos({
           setUploadStatus(`Подготовка фото ${index + 1} из ${selectedFiles.length}…`);
           const file = await prepareTripPhoto(originalFile);
           const photoId = await tripPhotoContentId(file);
+          const sourceHash = file === originalFile ? photoId : await tripPhotoContentId(originalFile);
           const extensionByType: Record<string, string> = {
             "image/jpeg": "jpg",
             "image/png": "png",
@@ -12761,14 +12807,12 @@ function Photos({
           const currentPhotos = tripAlbumPhotos(currentTrip);
           const extension = extensionByType[file.type] || "jpg";
           const path = `${session.user.id}/${trip.id}/album/${photoId}.${extension}`;
-          const existingPhotoIndex = currentPhotos.findIndex(
-            (photo) => tripPhotoPath(photo.image) === path,
-          );
+          const existingPhotoIndex = findDuplicatePhoto(currentPhotos, sourceHash, photoId);
           if (existingPhotoIndex >= 0) {
             duplicateCount += 1;
             const existingPhoto = currentPhotos[existingPhotoIndex];
             if (
-              !existingPhoto.date ||
+              !existingPhoto.contentHash || !existingPhoto.sourceHash || !existingPhoto.date ||
               !existingPhoto.city ||
               existingPhoto.latitude === undefined ||
               existingPhoto.longitude === undefined
@@ -12778,6 +12822,8 @@ function Photos({
               );
               const enrichedPhoto: CoverPhoto = {
                 ...existingPhoto,
+                contentHash: photoContentHash(existingPhoto) || photoId,
+                sourceHash: existingPhoto.sourceHash || sourceHash,
                 ...(!existingPhoto.date && photoMetadata.date
                   ? { date: photoMetadata.date }
                   : {}),
@@ -12792,6 +12838,8 @@ function Photos({
                   : {}),
               };
               const metadataWasAdded =
+                enrichedPhoto.contentHash !== existingPhoto.contentHash ||
+                enrichedPhoto.sourceHash !== existingPhoto.sourceHash ||
                 enrichedPhoto.date !== existingPhoto.date ||
                 enrichedPhoto.city !== existingPhoto.city ||
                 enrichedPhoto.latitude !== existingPhoto.latitude ||
@@ -12856,6 +12904,8 @@ function Photos({
           });
           const photo: CoverPhoto = {
             id: photoId,
+            contentHash: photoId,
+            sourceHash,
             image: await signedTripPhotoUrlWithRetry(path),
             ...photoMetadata,
           };
@@ -12933,6 +12983,7 @@ function Photos({
       setUploadStatus(`Фото не загружено: ${message}`);
       window.alert(message);
     } finally {
+      uploadInFlightRef.current = false;
       setUploading(false);
       setUploadProgress(null);
     }
@@ -13113,7 +13164,7 @@ function Photos({
         changed = true;
         return { ...photo, city };
       });
-      if (!changed || deletingPhotoRef.current || readOnly || !canEditPhotos) return;
+      if (!changed || deletingPhotoRef.current || uploadInFlightRef.current || readOnly || !canEditPhotos) return;
 
       const nextTrip = latestTrip.photoAlbumInitialized || latestTrip.photos?.length
         ? { ...latestTrip, photos: enrichedPhotos }
@@ -13134,7 +13185,7 @@ function Photos({
       disposed = true;
       controller.abort();
     };
-  }, [trip.id, trip.photos, trip.coverPhotos, canEditPhotos, readOnly]);
+  }, [trip.id, trip.photos, trip.coverPhotos, canEditPhotos, readOnly, uploading]);
 
   const uploadedPhotos = photos.filter((photo) =>
     tripPhotoPath(photo.image)?.includes("/album/"),
