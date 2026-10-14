@@ -1,0 +1,65 @@
+import { supabase } from './supabase';
+
+const endpoint = String(import.meta.env.VITE_PHOTO_API_URL || '').replace(/\/$/, '');
+export const r2PhotosEnabled = Boolean(endpoint);
+export type R2Photo = { original?: string; thumbnail?: string };
+
+async function photoRequest(url: string, options: RequestInit, signal?: AbortSignal, timeout=15000) {
+  const controller=new AbortController();
+  const abort=()=>controller.abort();
+  signal?.addEventListener('abort',abort,{once:true});
+  if (signal?.aborted) controller.abort();
+  const timer=window.setTimeout(abort,timeout);
+  try {return await fetch(url,{...options,signal:controller.signal});}
+  finally {window.clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+}
+
+export function albumStorageKey(image: string): string | null {
+  try {
+    const path = decodeURIComponent(new URL(image).pathname).match(/\/storage\/v1\/object\/(?:sign|public)\/trip-photos\/(.+)$/)?.[1];
+    return path && /^[a-f0-9-]{36}\/[a-f0-9-]{36}\/album\/[a-f0-9]{64}\.(jpg|jpeg|png|webp)$/i.test(path) ? path : null;
+  } catch { return null; }
+}
+async function authorization() {
+  const {data:{session}} = await supabase.auth.getSession();
+  if (!session) throw new Error('No active session');
+  return {authorization:`Bearer ${session.access_token}`};
+}
+export async function resolveR2Photos(keys: string[], signal?: AbortSignal): Promise<Record<string,R2Photo>> {
+  if (!endpoint || !keys.length) return {};
+  const headers = {...await authorization(), 'content-type':'application/json'};
+  const result: Record<string,R2Photo> = {};
+  for (let start=0; start<keys.length; start+=12) {
+    const response = await photoRequest(`${endpoint}/resolve`, {method:'POST',headers,body:JSON.stringify({keys:keys.slice(start,start+12)})},signal);
+    if (!response.ok) throw new Error(`Photo lookup failed: ${response.status}`);
+    Object.assign(result,await response.json());
+  }
+  return result;
+}
+async function thumbnail(blob: Blob): Promise<Blob> {
+  const objectUrl=URL.createObjectURL(blob);
+  try {
+    const image=new Image();
+    await new Promise<void>((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error('Cannot decode preview'));image.src=objectUrl;});
+    const scale=Math.min(1,720/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+    canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+    const context=canvas.getContext('2d');
+    if (!context) throw new Error('Cannot create preview');
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    const preview=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/jpeg',0.72));
+    if (!preview || preview.size>512*1024) throw new Error('Invalid preview size');
+    return preview;
+  } finally {URL.revokeObjectURL(objectUrl);}
+}
+export async function mirrorR2Photo(key: string, original: Blob, signal?: AbortSignal): Promise<R2Photo> {
+  if (!endpoint) return {};
+  const preview=await thumbnail(original);
+  const headers=await authorization();
+  for (const [variant,blob] of [['thumbnail',preview],['original',original]] as const) {
+    const response=await photoRequest(`${endpoint}/object/${variant}/${key}`,{method:'PUT',headers:{...headers,'content-type':blob.type},body:blob},signal,120000);
+    if (!response.ok) throw new Error(`Photo copy failed: ${response.status}`);
+  }
+  return (await resolveR2Photos([key],signal))[key] || {};
+}

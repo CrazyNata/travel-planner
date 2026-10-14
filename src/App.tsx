@@ -12,6 +12,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { Upload as TusUpload } from "tus-js-client";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { setAuthSessionPersistence, supabase } from "./supabase";
+import { albumStorageKey, mirrorR2Photo, r2PhotosEnabled, resolveR2Photos, type R2Photo } from "./r2Photos";
 import { AccommodationPrototype } from "./AccommodationPrototype";
 import {
   WebOnboarding,
@@ -12641,6 +12642,15 @@ function Photos({
   onUpdateTrip: (trip: TripSummary) => void | Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [r2Photos, setR2Photos] = useState<Record<string, R2Photo>>({});
+  const [r2Ready, setR2Ready] = useState(!r2PhotosEnabled);
+  const [previewProgress, setPreviewProgress] = useState("");
+  const [r2Refresh, setR2Refresh] = useState(0);
+  useEffect(() => {
+    if (!r2PhotosEnabled) return;
+    const timer = window.setInterval(() => setR2Refresh(value => value + 1), 50 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [selectedPhotoLocation, setSelectedPhotoLocation] = useState("__all__");
   const [photoLocationMenuOpen, setPhotoLocationMenuOpen] = useState(false);
   const [photoLocationQuery, setPhotoLocationQuery] = useState("");
@@ -12802,6 +12812,14 @@ function Photos({
               );
             },
           );
+          if (r2PhotosEnabled) {
+            try {
+              const copy = await mirrorR2Photo(path, file);
+              setR2Photos(current => ({ ...current, [path]: copy }));
+            } catch (error) {
+              console.warn("Photo saved; R2 preview will be retried when the album opens.", error);
+            }
+          }
           const photoMetadata = await readPhotoMetadata(originalFile).catch((metadataError) => {
             console.warn("Could not read optional trip photo metadata.", metadataError);
             return {};
@@ -12890,6 +12908,47 @@ function Photos({
     }
   };
   const photos = trip.photos?.length ? trip.photos : trip.coverPhotos || [];
+  const r2Sources = photos.flatMap(photo => {
+    const key = albumStorageKey(photo.image);
+    return key && photo.image.includes("/object/sign/") ? [{ key, image: photo.image }] : [];
+  });
+  const r2SourceKey = r2Sources.map(photo => `${photo.key}:${photo.image}`).join("|");
+  useEffect(() => {
+    if (!r2PhotosEnabled) return;
+    const controller = new AbortController();
+    let disposed = false;
+    setR2Ready(false);
+    setPreviewProgress("");
+    void (async () => {
+      try {
+        const resolved = await resolveR2Photos(r2Sources.map(photo => photo.key), controller.signal);
+        if (disposed) return;
+        setR2Photos(resolved);
+        setR2Ready(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        const missing = r2Sources.filter(photo => !resolved[photo.key]?.thumbnail || !resolved[photo.key]?.original)
+          .filter(photo => photo.key.startsWith(`${session?.user.id}/`));
+        // Sequential copies keep memory bounded on iPhones. Existing trip data and originals are untouched.
+        for (const [index, photo] of missing.entries()) {
+          if (disposed) break;
+          setPreviewProgress(`Подготовка быстрого просмотра: ${index + 1} из ${missing.length}…`);
+          try {
+            const response = await fetch(photo.image, { signal: controller.signal });
+            if (!response.ok) throw new Error(`Original unavailable: ${response.status}`);
+            const copy = await mirrorR2Photo(photo.key, await response.blob(), controller.signal);
+            if (!disposed) setR2Photos(current => ({ ...current, [photo.key]: copy }));
+          } catch (error) {
+            if (!disposed) console.warn("Could not prepare optional R2 photo copy.", error);
+          }
+        }
+      } catch (error) {
+        if (!disposed) console.warn("R2 unavailable; using existing photo storage.", error);
+      } finally {
+        if (!disposed) { setR2Ready(true); setPreviewProgress(""); }
+      }
+    })();
+    return () => { disposed = true; controller.abort(); };
+  }, [trip.id, r2SourceKey, r2Refresh]);
   const photoCityStateKey = (photo: CoverPhoto) =>
     `${trip.id}:${photo.id}:${photo.latitude === undefined || photo.longitude === undefined
       ? ""
@@ -13289,6 +13348,7 @@ function Photos({
         </div>
       </div>
       <div className="photo-album-days">
+        {previewProgress && <small className="photos-upload-status" role="status">{previewProgress}</small>}
         {displayedPhotoGroups.map((group) => (
           <section className="photo-day" key={group.key}>
             <header className="photo-day-heading">
@@ -13317,14 +13377,18 @@ function Photos({
                     onClick={() => setExpandedPhotoId(photo.id)}
                     key={photo.id}
                   >
-                    <img
+                    {(r2Ready || !albumStorageKey(photo.image)) && <img
                       className="photo-image"
-                      src={photo.image}
+                      src={r2Photos[albumStorageKey(photo.image) || ""]?.thumbnail || photo.image}
                       alt=""
+                      onError={() => {
+                        const key = albumStorageKey(photo.image);
+                        if (key && r2Photos[key]?.thumbnail) setR2Photos(current => ({...current, [key]: {...current[key], thumbnail: undefined}}));
+                      }}
                       loading={isFirstVisiblePhoto ? "eager" : "lazy"}
                       decoding="async"
                       fetchPriority={isFirstVisiblePhoto ? "high" : "auto"}
-                    />
+                    />}
                   </button>
                 );
               })}
@@ -13372,7 +13436,7 @@ function Photos({
           }}
         >
           <img
-            src={expandedPhoto.image}
+            src={r2Photos[albumStorageKey(expandedPhoto.image) || ""]?.original || expandedPhoto.image}
             alt={displayPhotoLocation(expandedPhoto)}
             onClick={(event) => event.stopPropagation()}
           />
@@ -18512,7 +18576,8 @@ function LegalPage({ kind }: { kind: LegalPageKind }) {
               <h2>Сторонние сервисы</h2>
               <p>
                 Для работы функций сервис обращается к Supabase (авторизация, база
-                данных, функции и хранилище), Mapbox (карты и маршруты), Open-Meteo
+                данных, функции и хранилище), Cloudflare R2 (фотографии альбома и
+                их миниатюры в ЕС), Mapbox (карты и маршруты), Open-Meteo
                 (погода), а также к сервисам изображений и электронной почты,
                 подключённым в production-конфигурации. Эти сервисы получают только
                 данные, необходимые для соответствующего запроса.

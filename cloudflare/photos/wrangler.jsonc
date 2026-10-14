@@ -1,0 +1,9 @@
+{
+  "name": "ramingo-photos",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-14",
+  "account_id": "2dca6e77bd9ab855262a74022c497575",
+  "workers_dev": true,
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "ramingo-photos", "jurisdiction": "eu" }],
+  "vars": { "SUPABASE_URL": "https://hxcavgtlucyoqudbrgse.supabase.co" }
+}
