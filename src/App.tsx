@@ -13537,19 +13537,28 @@ function Photos({
             aria-label="Закрыть фото"
             onClick={() => setExpandedPhotoId(null)}
           >
-            ×
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
           </button>
           {canEditPhotos && (
             <button
               className="photo-lightbox-delete"
               type="button"
               disabled={deletingPhoto || uploading}
+              aria-label={deletingPhoto ? "Удаляем фото…" : "Удалить фото"}
+              aria-busy={deletingPhoto}
+              title={deletingPhoto ? "Удаляем фото…" : "Удалить фото"}
               onClick={(event) => {
                 event.stopPropagation();
                 void deleteAlbumPhoto(expandedPhoto);
               }}
             >
-              {deletingPhoto ? "Удаляем…" : "Удалить фото"}
+              {deletingPhoto ? <span className="photo-delete-spinner" aria-hidden="true" /> : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" />
+                </svg>
+              )}
             </button>
           )}
           {(expandedPhoto.city || expandedPhoto.date || expandedPhoto.latitude !== undefined) && (
