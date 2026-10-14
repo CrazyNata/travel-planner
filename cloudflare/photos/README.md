@@ -10,8 +10,11 @@ bucket access or delete/list endpoint. Automatic R2 cleanup during account
 deletion requires separate user approval; it has not been enabled. Secrets live in Wrangler secret storage:
 `SUPABASE_KEY` (publishable key) and `SIGNING_SECRET` (random signing key).
 
-The web album resolves private R2 copies in batches of 12, displays 720px JPEG
-thumbnails, and loads originals only in the expanded viewer. Missing copies are
+The web album resolves private R2 copies in batches of 12, with up to three
+batches in flight. Recent dated photos are requested first, and each completed
+batch renders immediately without waiting for the rest of the album. The Worker
+checks up to six R2 objects concurrently and reuses one signing key per batch.
+The album displays 720px JPEG thumbnails and loads originals only in the expanded viewer. Missing copies are
 prepared sequentially while the uploader has the album open. New web uploads
 also prepare both R2 variants. Existing trip payloads and Supabase originals are
 preserved, including EXIF-derived metadata. Supabase copies remain necessary for

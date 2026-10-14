@@ -3,8 +3,11 @@ const encoder = new TextEncoder();
 const keyPattern = /^([a-f0-9-]{36})\/([a-f0-9-]{36})\/album\/([a-z0-9_][a-z0-9_.-]{0,180})\.(jpg|jpeg|png|webp)$/i;
 const maxBytes = 10 * 1024 * 1024;
 
-async function signature(env, key, expires) {
-  const secret = await crypto.subtle.importKey('raw', encoder.encode(env.SIGNING_SECRET), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+async function signingKey(env) {
+  return crypto.subtle.importKey('raw', encoder.encode(env.SIGNING_SECRET), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+}
+async function signature(env, key, expires, secret = null) {
+  secret ||= await signingKey(env);
   const bytes = await crypto.subtle.sign('HMAC', secret, encoder.encode(`${key}\n${expires}`));
   return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2,'0')).join('');
 }
@@ -48,15 +51,21 @@ export default {
         if (!Array.isArray(keys) || keys.length > 12 || keys.some(key=>typeof key !== 'string' || !keyPattern.test(key))) return respond('Invalid keys',400);
         for (const tripId of new Set(keys.map(key=>keyPattern.exec(key)[2]))) await access(env,context,tripId,false);
         const expires = Math.floor(Date.now()/1000)+3600;
+        const signer = await signingKey(env);
         const result = {};
-        for (const key of new Set(keys)) {
-          const entry = {};
-          for (const variant of ['original','thumbnail']) {
+        const tasks = [...new Set(keys)].flatMap(key => {
+          result[key] = {};
+          return ['thumbnail','original'].map(variant => ({key,variant}));
+        });
+        let nextTask = 0;
+        // Bound R2 concurrency to six operations rather than serializing every head.
+        await Promise.all(Array.from({length:Math.min(6,tasks.length)}, async () => {
+          while (nextTask < tasks.length) {
+            const {key,variant} = tasks[nextTask++];
             const objectKey = `${variant}/${key}`;
-            if (await env.PHOTOS.head(objectKey)) entry[variant] = `${url.origin}/object/${objectKey}?expires=${expires}&signature=${await signature(env,objectKey,expires)}`;
+            if (await env.PHOTOS.head(objectKey)) result[key][variant] = `${url.origin}/object/${objectKey}?expires=${expires}&signature=${await signature(env,objectKey,expires,signer)}`;
           }
-          result[key] = entry;
-        }
+        }));
         return respond(JSON.stringify(result),200,{'Content-Type':'application/json'});
       }
       const match = url.pathname.match(/^\/object\/(original|thumbnail)\/(.+)$/);

@@ -12969,8 +12969,9 @@ function Photos({
   };
   const r2Sources = photos.flatMap(photo => {
     const key = albumStorageKey(photo.image);
-    return key && photo.image.includes("/object/sign/") ? [{ key, image: photo.image }] : [];
-  });
+    return key && photo.image.includes("/object/sign/")
+      ? [{ key, image: photo.image, timestamp: photoDateParts(photo.date)?.timestamp ?? -Infinity }] : [];
+  }).reverse().sort((left,right) => right.timestamp - left.timestamp);
   const r2SourceKey = r2Sources.map(photo => `${photo.key}:${photo.image}`).join("|");
   useEffect(() => {
     if (!r2PhotosEnabled) return;
@@ -12980,7 +12981,9 @@ function Photos({
     setPreviewProgress("");
     void (async () => {
       try {
-        const resolved = await resolveR2Photos(r2Sources.map(photo => photo.key), controller.signal);
+        const resolved = await resolveR2Photos(r2Sources.map(photo => photo.key), controller.signal, batch => {
+          if (!disposed) setR2Photos(current => ({ ...current, ...batch }));
+        });
         if (disposed) return;
         setR2Photos(resolved);
         setR2LookupKey(r2SourceKey);
@@ -13436,7 +13439,10 @@ function Photos({
                     key={photo.id}
                   >
                     {(!albumStorageKey(photo.image) || !r2PhotosEnabled ||
-                      (r2Ready && r2LookupKey === r2SourceKey && photo.image.includes("/object/sign/"))) && <img
+                      (photo.image.includes("/object/sign/") && (
+                        Object.hasOwn(r2Photos, albumStorageKey(photo.image) || "") ||
+                        (r2Ready && r2LookupKey === r2SourceKey)
+                      ))) && <img
                       className="photo-image"
                       src={r2Photos[albumStorageKey(photo.image) || ""]?.thumbnail || photo.image}
                       alt=""

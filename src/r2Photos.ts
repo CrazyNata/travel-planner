@@ -25,15 +25,37 @@ async function authorization() {
   if (!session) throw new Error('No active session');
   return {authorization:`Bearer ${session.access_token}`};
 }
-export async function resolveR2Photos(keys: string[], signal?: AbortSignal): Promise<Record<string,R2Photo>> {
+export async function resolveR2Photos(
+  keys: string[],
+  signal?: AbortSignal,
+  onBatch?: (photos: Record<string,R2Photo>) => void,
+): Promise<Record<string,R2Photo>> {
   if (!endpoint || !keys.length) return {};
   const headers = {...await authorization(), 'content-type':'application/json'};
   const result: Record<string,R2Photo> = {};
-  for (let start=0; start<keys.length; start+=12) {
-    const response = await photoRequest(`${endpoint}/resolve`, {method:'POST',headers,body:JSON.stringify({keys:keys.slice(start,start+12)})},signal);
-    if (!response.ok) throw new Error(`Photo lookup failed: ${response.status}`);
-    Object.assign(result,await response.json());
-  }
+  const uniqueKeys = [...new Set(keys)];
+  let nextBatch = 0;
+  const failures: unknown[] = [];
+  await Promise.all(Array.from({length:Math.min(3,Math.ceil(uniqueKeys.length/12))},async () => {
+    while (nextBatch < uniqueKeys.length) {
+      const start = nextBatch;
+      nextBatch += 12;
+      const batch = uniqueKeys.slice(start,start+12);
+      try {
+        const response = await photoRequest(`${endpoint}/resolve`, {method:'POST',headers,body:JSON.stringify({keys:batch})},signal);
+        if (!response.ok) throw new Error(`Photo lookup failed: ${response.status}`);
+        const photos: Record<string,R2Photo> = await response.json();
+        Object.assign(result,photos);
+        onBatch?.(photos);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        failures.push(error);
+        // Let this batch use its Supabase fallback without blocking other batches.
+        onBatch?.(Object.fromEntries(batch.map(key=>[key,{}])));
+      }
+    }
+  }));
+  if (failures.length) throw failures[0];
   return result;
 }
 async function thumbnail(blob: Blob): Promise<Blob> {
