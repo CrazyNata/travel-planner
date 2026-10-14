@@ -12644,6 +12644,7 @@ function Photos({
   const [query, setQuery] = useState("");
   const [r2Photos, setR2Photos] = useState<Record<string, R2Photo>>({});
   const [r2Ready, setR2Ready] = useState(!r2PhotosEnabled);
+  const [r2LookupKey, setR2LookupKey] = useState("");
   const [previewProgress, setPreviewProgress] = useState("");
   const [r2Refresh, setR2Refresh] = useState(0);
   useEffect(() => {
@@ -12924,6 +12925,7 @@ function Photos({
         const resolved = await resolveR2Photos(r2Sources.map(photo => photo.key), controller.signal);
         if (disposed) return;
         setR2Photos(resolved);
+        setR2LookupKey(r2SourceKey);
         setR2Ready(true);
         const { data: { session } } = await supabase.auth.getSession();
         const missing = r2Sources.filter(photo => !resolved[photo.key]?.thumbnail || !resolved[photo.key]?.original)
@@ -12944,7 +12946,7 @@ function Photos({
       } catch (error) {
         if (!disposed) console.warn("R2 unavailable; using existing photo storage.", error);
       } finally {
-        if (!disposed) { setR2Ready(true); setPreviewProgress(""); }
+        if (!disposed) { setR2LookupKey(r2SourceKey); setR2Ready(true); setPreviewProgress(""); }
       }
     })();
     return () => { disposed = true; controller.abort(); };
@@ -13377,7 +13379,8 @@ function Photos({
                     onClick={() => setExpandedPhotoId(photo.id)}
                     key={photo.id}
                   >
-                    {(r2Ready || !albumStorageKey(photo.image)) && <img
+                    {(!albumStorageKey(photo.image) || !r2PhotosEnabled ||
+                      (r2Ready && r2LookupKey === r2SourceKey && photo.image.includes("/object/sign/"))) && <img
                       className="photo-image"
                       src={r2Photos[albumStorageKey(photo.image) || ""]?.thumbnail || photo.image}
                       alt=""
