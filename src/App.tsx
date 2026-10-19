@@ -1,6 +1,7 @@
 import {
   useEffect,
   useEffectEvent,
+  useId,
   useRef,
   useState,
   type FormEvent,
@@ -7105,6 +7106,7 @@ function AccommodationCityPicker({
   allOption?: string;
   className?: string;
 }) {
+  const optionsId = `accommodation-city-options-${useId()}`;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(allOption && value === allOption ? "" : value);
   const [remoteOptions, setRemoteOptions] = useState<string[]>([]);
@@ -7257,7 +7259,7 @@ function AccommodationCityPicker({
         autoComplete="new-password"
         role="combobox"
         aria-expanded={open}
-        aria-controls="accommodation-city-options"
+        aria-controls={optionsId}
       />
       <button
         type="button"
@@ -7270,7 +7272,7 @@ function AccommodationCityPicker({
       </button>
       {open && (
         <div
-          id="accommodation-city-options"
+          id={optionsId}
           className="accommodation-city-suggestions"
           role="listbox"
         >
@@ -14383,14 +14385,30 @@ function OverviewEditor({
       ? parseTripCityValues(trip.overviewMapPoints)
       : routeCities,
   );
+  const [addingMapPoint, setAddingMapPoint] = useState(false);
+  const [mapPointDraft, setMapPointDraft] = useState("");
+  const [addingWeatherCity, setAddingWeatherCity] = useState(false);
+  const [weatherCityDraft, setWeatherCityDraft] = useState("");
   const city = routeCities[cityIndex] || "Город";
   const addMapPoint = () => {
-    const point = window.prompt("Точка маршрута")?.trim();
-    if (point) setMapPoints((points) => [...points, point]);
+    const point = mapPointDraft.trim();
+    if (!point) return;
+    setMapPoints((points) => [...points, point]);
+    setMapPointDraft("");
+    setAddingMapPoint(false);
   };
   const addWeatherCity = () => {
-    const nextCity = window.prompt("Город для погоды")?.trim();
-    if (nextCity) setWeatherCities((cities) => [...cities, nextCity]);
+    const nextCity = weatherCityDraft.trim();
+    if (!nextCity) return;
+    setWeatherCities((cities) =>
+      cities.some(
+        (city) => city.trim().localeCompare(nextCity, "ru", { sensitivity: "base" }) === 0,
+      )
+        ? cities
+        : [...cities, nextCity],
+    );
+    setWeatherCityDraft("");
+    setAddingWeatherCity(false);
   };
   const selectPhotos = (files?: FileList | File[] | null) => {
     const selectedFiles = Array.from(files || []);
@@ -14642,9 +14660,44 @@ function OverviewEditor({
                 </button>
               ))}
             </div>
-            <button type="button" className="editor-add" onClick={addMapPoint}>
-              ＋ Добавить точку
-            </button>
+            {addingMapPoint ? (
+              <div className="editor-city-add-form">
+                <AccommodationCityPicker
+                  value={mapPointDraft}
+                  onChange={setMapPointDraft}
+                  cities={routeCities}
+                  placeholder="Выберите город или введите точку"
+                />
+                <div className="editor-city-add-actions">
+                  <button
+                    type="button"
+                    className="editor-add"
+                    onClick={addMapPoint}
+                    disabled={!mapPointDraft.trim()}
+                  >
+                    Добавить точку
+                  </button>
+                  <button
+                    type="button"
+                    className="editor-add editor-add-secondary"
+                    onClick={() => {
+                      setMapPointDraft("");
+                      setAddingMapPoint(false);
+                    }}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="editor-add"
+                onClick={() => setAddingMapPoint(true)}
+              >
+                ＋ Добавить точку
+              </button>
+            )}
           </section>
           <section className="editor-section">
             <header>
@@ -14652,19 +14705,25 @@ function OverviewEditor({
             </header>
             <div className="editor-weather-cities">
               {weatherCities.map((weatherCity, index) => (
-                <label key={`${weatherCity}-${index}`}>
-                  <input
+                <div
+                  className="editor-weather-city-row"
+                  key={`${weatherCity}-${index}`}
+                >
+                  <AccommodationCityPicker
                     value={weatherCity}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setWeatherCities((cities) =>
                         cities.map((item, cityIndex) =>
-                          cityIndex === index ? event.target.value : item,
+                          cityIndex === index ? value : item,
                         ),
                       )
                     }
+                    cities={routeCities}
+                    placeholder="Выберите или введите город"
                   />
                   <button
                     type="button"
+                    aria-label={`Удалить город ${weatherCity || index + 1}`}
                     onClick={() =>
                       setWeatherCities((cities) =>
                         cities.filter((_, cityIndex) => cityIndex !== index),
@@ -14673,16 +14732,47 @@ function OverviewEditor({
                   >
                     ×
                   </button>
-                </label>
+                </div>
               ))}
             </div>
-            <button
-              type="button"
-              className="editor-add"
-              onClick={addWeatherCity}
-            >
-              ＋ Добавить город
-            </button>
+            {addingWeatherCity ? (
+              <div className="editor-city-add-form">
+                <AccommodationCityPicker
+                  value={weatherCityDraft}
+                  onChange={setWeatherCityDraft}
+                  cities={routeCities}
+                  placeholder="Начните вводить город"
+                />
+                <div className="editor-city-add-actions">
+                  <button
+                    type="button"
+                    className="editor-add"
+                    onClick={addWeatherCity}
+                    disabled={!weatherCityDraft.trim()}
+                  >
+                    Добавить город
+                  </button>
+                  <button
+                    type="button"
+                    className="editor-add editor-add-secondary"
+                    onClick={() => {
+                      setWeatherCityDraft("");
+                      setAddingWeatherCity(false);
+                    }}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="editor-add"
+                onClick={() => setAddingWeatherCity(true)}
+              >
+                ＋ Добавить город
+              </button>
+            )}
           </section>
         </div>
         <footer>

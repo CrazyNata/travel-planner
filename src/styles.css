@@ -1658,7 +1658,7 @@ button {
 .overview-editor > header > button,
 .overview-editor > footer > button:not(.accent),
 .editor-city-head button,
-.editor-weather-cities button {
+.editor-weather-cities .editor-weather-city-row > button {
   border: 0;
   border-radius: 10px;
   background: #f1f2f6;
@@ -1782,7 +1782,20 @@ button {
 .editor-chips i { margin-left: 8px; color: #8b88df; font-style: normal; }
 .editor-add { border: 1px dashed #bfc3cf; border-radius: 9px; background: #fff; padding: 8px 11px; color: var(--accent); font-size: 12px; font-weight: 800; }
 .editor-weather-cities { display: grid; gap: 8px; margin: 13px 0 10px; }
-.editor-weather-cities label { display: flex; gap: 10px; }.editor-weather-cities button { width: 36px; flex: none; font-size: 17px; }
+.editor-weather-cities .editor-weather-city-row { display: flex; gap: 10px; }
+.editor-weather-cities .editor-weather-city-row > button { width: 36px; flex: none; font-size: 17px; }
+.editor-weather-cities .accommodation-city-picker { flex: 1; min-width: 0; }
+.editor-weather-cities .accommodation-city-picker > input { width: 100%; min-width: 0; padding-right: 38px; }
+.editor-city-add-form { display: grid; gap: 8px; margin: 13px 0 10px; }
+.editor-city-add-form .accommodation-city-picker > input { width: 100%; border: 1px solid #dfe2e8; border-radius: 11px; background: #fbfbfc; padding: 12px 38px 12px 14px; color: #1d2636; font: 14px Manrope, sans-serif; }
+.editor-city-add-form .accommodation-city-picker > input:focus,
+.editor-weather-cities .accommodation-city-picker > input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px #5e55df14; }
+.editor-city-add-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.editor-city-add-actions .editor-add-secondary { border-style: solid; background: #f1f2f6; color: #657083; }
+.editor-city-add-actions .editor-add:disabled { cursor: not-allowed; opacity: .55; }
+.editor-weather-cities .accommodation-city-chevron { border: 0; border-radius: 7px; background: transparent; }
+.editor-weather-add-form .accommodation-city-suggestions,
+.editor-weather-cities .accommodation-city-suggestions { top: auto; bottom: calc(100% + 6px); }
 .overview-editor > footer { justify-content: flex-end; gap: 10px; border-top: 1px solid #e8e9ed; }
 .overview-editor > footer > button { padding: 11px 16px; }.overview-editor > footer .accent { border: 0; border-radius: 11px; background: var(--accent); padding: 11px 18px; color: #fff; font-weight: 800; }
 .tabs {
