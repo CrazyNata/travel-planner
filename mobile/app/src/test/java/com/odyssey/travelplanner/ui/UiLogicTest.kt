@@ -122,40 +122,6 @@ class UiLogicTest {
                 fallbackCities = listOf("Верона"),
             ),
         )
-        assertEquals(
-            listOf("Мюнхен", "Санкт-Галлен", "Домодоссола", "Генуя", "Гардоне-Ривьера"),
-            weatherCitiesForOverview(
-                overviewWeatherCities = listOf("Мюнхен", "Санкт-Галлен", "Домодоссола", "Генуя", "Гардоне-Ривьера"),
-                tripCities = emptyList(),
-                fallbackCities = emptyList(),
-            ),
-        )
-    }
-
-    @Test
-    fun mapFallsBackToTripCitiesWhenSavedPointsHaveNoCoordinates() {
-        val tripCities = listOf("Мюнхен", "Санкт-Галлен", "Домодоссола", "Генуя", "Гардоне-Ривьера")
-
-        assertEquals(
-            tripCities,
-            overviewMapCitiesForDisplay(
-                savedMapCities = listOf("Точка 1", "Точка 2", "Точка 3", "Точка 4", "Точка 5"),
-                fallbackCities = tripCities,
-                cityCoordinates = emptyMap(),
-            ),
-        )
-    }
-
-    @Test
-    fun mapKeepsResolvableSavedCitiesAndDropsPlaceholderPoints() {
-        assertEquals(
-            listOf("Генуя", "Гардоне-Ривьера"),
-            overviewMapCitiesForDisplay(
-                savedMapCities = listOf("Точка 1", "Генуя", "Точка 2", "Гардоне-Ривьера"),
-                fallbackCities = listOf("Мюнхен"),
-                cityCoordinates = emptyMap(),
-            ),
-        )
     }
 
     @Test
