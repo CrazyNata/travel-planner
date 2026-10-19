@@ -8774,6 +8774,20 @@ internal fun weatherCitiesForOverview(
     .filter(String::isNotBlank)
     .distinctBy { it.lowercase(Locale.ROOT) }
 
+internal fun overviewMapCitiesForDisplay(
+    savedMapCities: List<String>,
+    fallbackCities: List<String>,
+    cityCoordinates: Map<String, CityLocation>,
+): List<String> {
+    fun resolvable(cities: List<String>) = cities
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinctBy { cityFilterKey(it) }
+        .filter { mapCoordinate(it, cityCoordinates) != null }
+
+    return resolvable(savedMapCities).ifEmpty { resolvable(fallbackCities) }
+}
+
 @Composable
 private fun TripOverviewScreen(
     tripId: String,
@@ -23880,11 +23894,18 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
     var tripDatesWeather by remember { mutableStateOf(false) }
     val photos = overview.coverPhotos
     val activePhoto = photos.getOrNull(photoIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0)))
-    val routeCities = overview.overviewMapPoints
-        .ifEmpty { overview.routeLegs.flatMap { listOf(it.from, it.to) } }
+    val fallbackMapCities = (overview.cities + overview.routeLegs.flatMap { listOf(it.from, it.to) })
         .filter(String::isNotBlank)
         .distinctBy { cityFilterKey(it) }
-    val weatherCities = (overview.overviewMapPoints.ifEmpty { routeCities })
+    val routeCities = overview.overviewMapPoints.ifEmpty { fallbackMapCities }
+        .filter(String::isNotBlank)
+        .distinctBy { cityFilterKey(it) }
+    val mapCities = overviewMapCitiesForDisplay(
+        savedMapCities = overview.overviewMapPoints,
+        fallbackCities = fallbackMapCities,
+        cityCoordinates = overview.cityCoordinates,
+    )
+    val weatherCities = (overview.overviewWeatherCities.ifEmpty { fallbackMapCities.ifEmpty { routeCities } })
         .distinctBy { cityFilterKey(it) }
     val routeDistanceSummary = rememberTripRouteDistanceSummary(overview)
     val previousPhotoDescription = localized("Предыдущее фото", "Previous photo", "Foto anterior", "Vorheriges Foto")
@@ -23971,7 +23992,7 @@ private fun OverviewContentLegacy(overview: TripOverview, weather: Map<String, W
         item {
             OverviewMapCard(
                 legs = overview.routeLegs,
-                cities = routeCities,
+                cities = mapCities,
                 cityCoordinates = overview.cityCoordinates,
                 routeDistanceSummary = routeDistanceSummary,
             )
@@ -24048,7 +24069,11 @@ private fun OverviewContent(
             .filter(String::isNotBlank)
             .distinctBy { cityFilterKey(it) }
     }
-    val defaultMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+    val defaultMapCities = overviewMapCitiesForDisplay(
+        savedMapCities = overview.overviewMapPoints,
+        fallbackCities = routeCities,
+        cityCoordinates = overview.cityCoordinates,
+    )
     val selectedWeatherCitiesForDisplay = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
     val firstTripCity = remember(overview.dates, overview.routeLegs, overview.accommodations) {
         weatherCityByDate(
@@ -24063,8 +24088,8 @@ private fun OverviewContent(
     val weatherEditorCities = (selectableWeatherCities + selectedWeatherCities)
         .distinctBy { cityFilterKey(it) }
 
-    LaunchedEffect(overview.id, overview.overviewMapPoints, overview.routeLegs, overview.cities) {
-        selectedMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+    LaunchedEffect(overview.id, overview.overviewMapPoints, overview.routeLegs, overview.cities, overview.cityCoordinates) {
+        selectedMapCities = defaultMapCities
     }
     LaunchedEffect(overview.id, overview.overviewWeatherCities, overview.overviewMapPoints, overview.routeLegs, overview.cities) {
         selectedWeatherCities = overview.overviewWeatherCities.ifEmpty { defaultMapCities }
@@ -24210,7 +24235,7 @@ private fun OverviewContent(
                         when (block) {
                             "photo" -> if (!uploadingPhoto) photoPicker.launch("image/*")
                             "map" -> {
-                                selectedMapCities = overview.overviewMapPoints.ifEmpty { routeCities }
+                                selectedMapCities = defaultMapCities
                                 editSheet = OverviewEditSheet.MAP
                             }
                             "weather" -> {

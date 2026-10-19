@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class CityCatalogTest {
     @Test
@@ -26,6 +27,17 @@ class CityCatalogTest {
             assertEquals(entry.english, entry.localized("EN"))
             assertEquals(entry.spanish, entry.localized("ES"))
             assertEquals(entry.german, entry.localized("DE"))
+        }
+    }
+
+    @Test
+    fun italianRouteWeatherCitiesResolveToValidCoordinates() {
+        listOf("Санкт-Галлен", "Домодоссола", "Генуя", "Гардоне-Ривьера").forEach { name ->
+            val entry = cityCatalogEntry(name)
+            val resolved = assertNotNull(entry, "No catalog coordinates for $name")
+
+            assertTrue(resolved.latitude in -90.0..90.0, "Invalid latitude for $name")
+            assertTrue(resolved.longitude in -180.0..180.0, "Invalid longitude for $name")
         }
     }
 
