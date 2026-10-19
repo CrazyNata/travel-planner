@@ -12694,6 +12694,7 @@ function Photos({
   const [visiblePhotoCount, setVisiblePhotoCount] = useState(6);
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingPhotoFiles, setPendingPhotoFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{
     completed: number;
     total: number;
@@ -12740,7 +12741,8 @@ function Photos({
     if (!selectedFiles.length || !canEditPhotos || deletingPhotoRef.current || uploadInFlightRef.current) return;
     uploadInFlightRef.current = true;
     setUploading(true);
-    setUploadStatus(`Получено фотографий: ${selectedFiles.length}.`);
+    setPendingPhotoFiles([]);
+    setUploadStatus(`Начинаем загрузку ${selectedFiles.length} фото. Проверяем альбом…`);
     setUploadProgress({ completed: 0, total: selectedFiles.length });
     try {
       const {
@@ -12879,29 +12881,32 @@ function Photos({
             continue;
           }
           setUploadStatus(`Отправка фото ${index + 1} из ${selectedFiles.length}…`);
-          await uploadTripPhotoWithRetry(
+          const metadataPromise = readPhotoMetadata(originalFile).catch((metadataError) => {
+            console.warn("Could not read optional trip photo metadata.", metadataError);
+            return {};
+          });
+          // Independent storage copies overlap; neither blocks the other from starting.
+          const copyPromise = r2PhotosEnabled
+            ? mirrorR2Photo(path, file).catch(error => {
+              console.warn("R2 copy unavailable; it will be retried after the album is saved.", error);
+              return null;
+            })
+            : Promise.resolve(null);
+          const uploadPromise = uploadTripPhotoWithRetry(
             path,
             file,
             session.access_token,
             (uploaded, total) => {
               const progress = total ? Math.floor((uploaded / total) * 100) : 0;
               setUploadStatus(
-                `Отправка фото ${index + 1} из ${selectedFiles.length}… ${progress}%`,
+                progress < 100
+                  ? `Отправка фото ${index + 1} из ${selectedFiles.length}… ${progress}%`
+                  : `Фото ${index + 1} передано. Завершаем сохранение копий…`,
               );
             },
           );
-          if (r2PhotosEnabled) {
-            try {
-              const copy = await mirrorR2Photo(path, file);
-              setR2Photos(current => ({ ...current, [path]: copy }));
-            } catch (error) {
-              console.warn("Photo saved; R2 preview will be retried when the album opens.", error);
-            }
-          }
-          const photoMetadata = await readPhotoMetadata(originalFile).catch((metadataError) => {
-            console.warn("Could not read optional trip photo metadata.", metadataError);
-            return {};
-          });
+          const [, copy, photoMetadata] = await Promise.all([uploadPromise, copyPromise, metadataPromise]);
+          if (copy) setR2Photos(current => ({ ...current, [path]: copy }));
           const photo: CoverPhoto = {
             id: photoId,
             contentHash: photoId,
@@ -13025,7 +13030,8 @@ function Photos({
   }).reverse().sort((left,right) => right.timestamp - left.timestamp);
   const r2SourceKey = r2Sources.map(photo => `${photo.key}:${photo.image}`).join("|");
   useEffect(() => {
-    if (!r2PhotosEnabled) return;
+    // Reserve the connection for selected files instead of preparing older copies too.
+    if (!r2PhotosEnabled || uploading) return;
     const controller = new AbortController();
     let disposed = false;
     setR2Ready(false);
@@ -13062,7 +13068,7 @@ function Photos({
       }
     })();
     return () => { disposed = true; controller.abort(); };
-  }, [trip.id, r2SourceKey, r2Refresh]);
+  }, [trip.id, r2SourceKey, r2Refresh, uploading]);
   const photoCityStateKey = (photo: CoverPhoto) =>
     `${trip.id}:${photo.id}:${photo.latitude === undefined || photo.longitude === undefined
       ? ""
@@ -13348,11 +13354,12 @@ function Photos({
           const selectedFiles = Array.from(event.currentTarget.files || []);
           event.currentTarget.value = "";
           if (!selectedFiles.length) {
-            setUploadStatus("iPhone не передал фотографии. Подтвердите выбор синей галочкой и попробуйте снова.");
+            setUploadStatus("Фото не выбраны. Выберите фотографии и подтвердите выбор в окне телефона.");
             return;
           }
-          setUploadStatus(`Браузер передал фото: ${selectedFiles.length}.`);
-          void uploadPhotos(selectedFiles);
+          if (uploadInFlightRef.current) return;
+          setPendingPhotoFiles(selectedFiles);
+          setUploadStatus("");
         }}
       />
       <header className="photos-heading">
@@ -13373,14 +13380,22 @@ function Photos({
         <button
           className="accent"
           type="button"
-          onClick={() => input.current?.click()}
+          onClick={() => pendingPhotoFiles.length ? void uploadPhotos(pendingPhotoFiles) : input.current?.click()}
           disabled={uploading || deletingPhoto || !canEditPhotos}
         >
           {uploading
             ? `Загружаем ${uploadProgress?.completed ?? 0}/${uploadProgress?.total ?? 0}…`
-            : "↑ Загрузить"}
+            : pendingPhotoFiles.length ? `↑ Загрузить ${pendingPhotoFiles.length} фото` : "Выбрать фото"}
         </button>
       </header>
+      {!!pendingPhotoFiles.length && !uploading && (
+        <div className="photos-selection" role="status" aria-live="polite">
+          <strong>Выбрано {pendingPhotoFiles.length} фото · {(pendingPhotoFiles.reduce((total, file) => total + file.size, 0) / 1024 / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ</strong>
+          <p>Готовы к загрузке. Нажмите «Загрузить {pendingPhotoFiles.length} фото», чтобы добавить их в альбом.</p>
+          <button type="button" onClick={() => input.current?.click()}>Изменить выбор</button>
+          <button type="button" onClick={() => setPendingPhotoFiles([])}>Отменить</button>
+        </div>
+      )}
       <label className="photo-search">
         <span>⌕</span>
         <input
