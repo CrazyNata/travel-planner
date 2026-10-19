@@ -1,0 +1,8 @@
+01. Map of a 13-leg, 11-city European trip and the next driving leg.
+02. A driving leg and a numbered city walking route in Verona.
+03. Four saved driving legs between Italian cities and San Marino.
+04. A route map and two saved restaurant cards in Chioggia, Italy.
+05. Vet and pet-shop catalog entries with add controls.
+06. Trip sections for routes, sights, restaurants, lodging, pets, budget, members and photos.
+07. Empty invitation form with Viewer access selected.
+Feature graphic: Illustrated Italian coast with one winding route connecting three stops, beside Ramingo and “Every stop. One clear plan.”

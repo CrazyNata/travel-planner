@@ -1,0 +1,932 @@
+[
+  {
+    "file": "concepts-overview.png",
+    "size": [
+      1536,
+      880
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 290295
+  },
+  {
+    "file": "feature-graphic\\concepts\\en-explore.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 21576
+  },
+  {
+    "file": "feature-graphic\\concepts\\en-minimal.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 19150
+  },
+  {
+    "file": "feature-graphic\\concepts\\en-plan.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 539338
+  },
+  {
+    "file": "feature-graphic\\concepts\\ru-explore.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 19919
+  },
+  {
+    "file": "feature-graphic\\concepts\\ru-minimal.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 19043
+  },
+  {
+    "file": "feature-graphic\\concepts\\ru-plan.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 535072
+  },
+  {
+    "file": "feature-graphic\\final\\feature-graphic.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 539338
+  },
+  {
+    "file": "feature-graphic\\final\\ru\\feature-graphic.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 535072
+  },
+  {
+    "file": "feature-graphic\\source\\ramingo-empty-coastal-road.png",
+    "size": [
+      1774,
+      887
+    ],
+    "mode": "RGB",
+    "sRGB": false,
+    "bytes": 2617626
+  },
+  {
+    "file": "feature-graphic\\source\\ramingo-itinerary-artwork-v2.png",
+    "size": [
+      1768,
+      890
+    ],
+    "mode": "RGB",
+    "sRGB": false,
+    "bytes": 2616552
+  },
+  {
+    "file": "feature-graphic\\source\\ramingo-itinerary-artwork.png",
+    "size": [
+      1768,
+      889
+    ],
+    "mode": "RGB",
+    "sRGB": false,
+    "bytes": 2861770
+  },
+  {
+    "file": "feature-graphic\\source\\ramingo-road-trip-hero.png",
+    "size": [
+      1774,
+      887
+    ],
+    "mode": "RGB",
+    "sRGB": false,
+    "bytes": 2659482
+  },
+  {
+    "file": "feature-graphic\\source\\ramingo-trip-scene.png",
+    "size": [
+      1774,
+      887
+    ],
+    "mode": "RGB",
+    "sRGB": false,
+    "bytes": 2880073
+  },
+  {
+    "file": "preview-en.png",
+    "size": [
+      1960,
+      690
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 380190
+  },
+  {
+    "file": "preview-ru.png",
+    "size": [
+      1960,
+      690
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 398647
+  },
+  {
+    "file": "release-package\\en\\feature-graphic.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 539337
+  },
+  {
+    "file": "release-package\\en\\screenshots\\01-road-trip.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 859582
+  },
+  {
+    "file": "release-package\\en\\screenshots\\02-routes.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 535788
+  },
+  {
+    "file": "release-package\\en\\screenshots\\03-stops.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 225500
+  },
+  {
+    "file": "release-package\\en\\screenshots\\04-places.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 566614
+  },
+  {
+    "file": "release-package\\en\\screenshots\\05-pets.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 323590
+  },
+  {
+    "file": "release-package\\en\\screenshots\\06-organize.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 183056
+  },
+  {
+    "file": "release-package\\en\\screenshots\\07-share.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 145646
+  },
+  {
+    "file": "release-package\\ru\\feature-graphic.png",
+    "size": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 535071
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\01-road-trip.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 880708
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\02-routes.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 549503
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\03-stops.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 232819
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\04-places.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 565993
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\05-pets.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 323953
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\06-organize.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 195325
+  },
+  {
+    "file": "release-package\\ru\\screenshots\\07-share.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 162558
+  },
+  {
+    "file": "release-package\\shared\\play-icon-512.png",
+    "size": [
+      512,
+      512
+    ],
+    "mode": "RGBA",
+    "sRGB": false,
+    "bytes": 12752
+  },
+  {
+    "file": "screenshots\\drafts\\en-direction-ivory.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 859583
+  },
+  {
+    "file": "screenshots\\drafts\\en-direction-peach.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 859146
+  },
+  {
+    "file": "screenshots\\drafts\\en-direction-violet.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 855698
+  },
+  {
+    "file": "screenshots\\drafts\\ru-direction-ivory.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 880709
+  },
+  {
+    "file": "screenshots\\drafts\\ru-direction-peach.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 880511
+  },
+  {
+    "file": "screenshots\\drafts\\ru-direction-violet.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 877387
+  },
+  {
+    "file": "screenshots\\final\\01-road-trip.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 859583
+  },
+  {
+    "file": "screenshots\\final\\02-routes.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 535789
+  },
+  {
+    "file": "screenshots\\final\\03-stops.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 225501
+  },
+  {
+    "file": "screenshots\\final\\04-places.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 566615
+  },
+  {
+    "file": "screenshots\\final\\05-pets.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 323591
+  },
+  {
+    "file": "screenshots\\final\\06-organize.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 183057
+  },
+  {
+    "file": "screenshots\\final\\07-share.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 145647
+  },
+  {
+    "file": "screenshots\\final\\ru\\01-road-trip.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 880709
+  },
+  {
+    "file": "screenshots\\final\\ru\\02-routes.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 549504
+  },
+  {
+    "file": "screenshots\\final\\ru\\03-stops.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 232820
+  },
+  {
+    "file": "screenshots\\final\\ru\\04-places.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 565994
+  },
+  {
+    "file": "screenshots\\final\\ru\\05-pets.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 323954
+  },
+  {
+    "file": "screenshots\\final\\ru\\06-organize.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 195326
+  },
+  {
+    "file": "screenshots\\final\\ru\\07-share.png",
+    "size": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 162559
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\01-road-trip.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 770810
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\02-routes.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 523230
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\03-stops.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 249178
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\04-places.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 554927
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\05-pets.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 356863
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\06-organize.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 211870
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\en\\07-share.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 223817
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\01-road-trip.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 809786
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\02-routes.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 551307
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\03-stops.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 260427
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\04-places.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 556088
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\05-pets.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 352439
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\06-organize.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 229425
+  },
+  {
+    "file": "screenshots\\optional-1080x1920\\ru\\07-share.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 244582
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-invite.png",
+    "size": [
+      656,
+      419
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 21113
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-leg.png",
+    "size": [
+      650,
+      278
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 15587
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-map.png",
+    "size": [
+      656,
+      444
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 303840
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-pet-tabs.png",
+    "size": [
+      648,
+      104
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 6585
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-rest-map.png",
+    "size": [
+      648,
+      294
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 151202
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-restaurant.png",
+    "size": [
+      435,
+      170
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 11271
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-restaurant2.png",
+    "size": [
+      435,
+      170
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 12489
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-route.png",
+    "size": [
+      650,
+      1184
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 69085
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-sections.png",
+    "size": [
+      460,
+      934
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 34046
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-shop.png",
+    "size": [
+      434,
+      205
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 18879
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-stay.png",
+    "size": [
+      517,
+      53
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 5109
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-vet.png",
+    "size": [
+      434,
+      205
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 16762
+  },
+  {
+    "file": "screenshots\\sources\\ui\\en-walk.png",
+    "size": [
+      656,
+      714
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 216697
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-invite.png",
+    "size": [
+      656,
+      419
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 23984
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-leg.png",
+    "size": [
+      650,
+      278
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 14890
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-map.png",
+    "size": [
+      656,
+      484
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 308134
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-pet-tabs.png",
+    "size": [
+      648,
+      104
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 6632
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-rest-map.png",
+    "size": [
+      648,
+      294
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 151627
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-restaurant.png",
+    "size": [
+      435,
+      170
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 11257
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-restaurant2.png",
+    "size": [
+      435,
+      170
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 12278
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-route.png",
+    "size": [
+      650,
+      1184
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 70551
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-sections.png",
+    "size": [
+      460,
+      934
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 35573
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-shop.png",
+    "size": [
+      434,
+      205
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 19351
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-stay.png",
+    "size": [
+      517,
+      53
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 5109
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-vet.png",
+    "size": [
+      434,
+      205
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 16567
+  },
+  {
+    "file": "screenshots\\sources\\ui\\ru-walk.png",
+    "size": [
+      656,
+      714
+    ],
+    "mode": "RGB",
+    "sRGB": true,
+    "bytes": 216836
+  }
+]

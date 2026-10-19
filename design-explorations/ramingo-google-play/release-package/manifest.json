@@ -1,0 +1,234 @@
+[
+  {
+    "file": "en/app-title.txt",
+    "bytes": 28,
+    "sha256": "1ebae7ada9a5168f7b2d198c2a4ad03daa08dc50c2bddbb0e6f9a8d7ea55dab3"
+  },
+  {
+    "file": "en/feature-graphic.png",
+    "bytes": 537030,
+    "sha256": "8107ed93f337aa05d00cb44fdde78a1c0ab3b12005bd74c7d67e23c0703cdd35",
+    "dimensions": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/full-description.txt",
+    "bytes": 1681,
+    "sha256": "1346733d2a0267e3bb4d6ae13bdc6fb4ddfa210f39862031b947279d29d57b9d"
+  },
+  {
+    "file": "en/image-alt-text.txt",
+    "bytes": 622,
+    "sha256": "5cb6d3555911855fa1b5e8296f1265fc03f0ccca7292d646fb15a8105877a8d7"
+  },
+  {
+    "file": "en/screenshots/01-road-trip.png",
+    "bytes": 859583,
+    "sha256": "36e5f815a5ed5590df5f4143d96878a20e69e365f139caaaa857a2fcfa0cb724",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/02-routes.png",
+    "bytes": 535789,
+    "sha256": "f5ed0f096c2ad589fb928ae2f67d6e46910225824eb1aee1139dc51555c6fcbf",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/03-stops.png",
+    "bytes": 225501,
+    "sha256": "ab517ed25576928dd0ecb32b0bfd4288a89779b5cdac67eacc76db79a7f96b9a",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/04-places.png",
+    "bytes": 566615,
+    "sha256": "f7ebc55b634c24fd19118f2e938c34d1ff56069ecd713714cc1c9e5ae51c0f10",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/05-pets.png",
+    "bytes": 323591,
+    "sha256": "090b83e794f087de2bfc7b20aaf426675faa42fc38ff83990d5025c7059c5075",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/06-organize.png",
+    "bytes": 183057,
+    "sha256": "844ce15e9c7009c59e3163481177d077fec75a39531ce22b02f21f1f4ab746a5",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/screenshots/07-share.png",
+    "bytes": 145647,
+    "sha256": "54c672e1bedce1b9cf876e83bf146fa7dcc0dedcd5db1f6795ac9d1185fefcf8",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "en/short-description.txt",
+    "bytes": 72,
+    "sha256": "034a9759f82bcd58ab10c89e79b113a0364226c5f09c65b562b81b272e032ed0"
+  },
+  {
+    "file": "README.md",
+    "bytes": 861,
+    "sha256": "fb10f9a68a1ec4e2f7cb4c3cf561de05e6a2f04462b3d3467aa85ac478f665c9"
+  },
+  {
+    "file": "ru/app-title.txt",
+    "bytes": 48,
+    "sha256": "f0a331658f82208538026d03e18ce2d2c9f20d6c0819b04e5faac902ab4d8c8e"
+  },
+  {
+    "file": "ru/feature-graphic.png",
+    "bytes": 534391,
+    "sha256": "cd7b81b27f2498fc1de8d3125b093a2dbc8df975be6214eb17a4b649b47e79c1",
+    "dimensions": [
+      1024,
+      500
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/full-description.txt",
+    "bytes": 2630,
+    "sha256": "d51910f1d5e5def0462dee67e1ed93dcd21b99a7dd71f52e1a72f3ae4c063cda"
+  },
+  {
+    "file": "ru/image-alt-text.txt",
+    "bytes": 1157,
+    "sha256": "87e2771ac19bb7e85d2bda9ce2842b242e6569e12241d0b3ea6342e37058f756"
+  },
+  {
+    "file": "ru/screenshots/01-road-trip.png",
+    "bytes": 880709,
+    "sha256": "2ff6069b7827729715d79afc0ae4fcad53ea89367ff59e52dabb626f2c479927",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/02-routes.png",
+    "bytes": 549504,
+    "sha256": "2cbf452f423e82bac65f8ff596174a31a02609ef2a98a8915e46c74f3b3e6150",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/03-stops.png",
+    "bytes": 232820,
+    "sha256": "e2957ec72d4fcf8f1ecfa6697497b32df33e2b725e89737342669b0ad090ceb8",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/04-places.png",
+    "bytes": 565994,
+    "sha256": "213470f77abf8e693c5e8d4415aed3a1ed31a424b327c8387733ce007be8e4f4",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/05-pets.png",
+    "bytes": 323954,
+    "sha256": "fec63b35781155b799433c36a15f538a348e2647202425f64d143be3bf9a2bd8",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/06-organize.png",
+    "bytes": 195326,
+    "sha256": "c2ab054c0add981f827df9d03ec7a220e42795b9849e03814a60fa5edd50fc3e",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/screenshots/07-share.png",
+    "bytes": 162559,
+    "sha256": "594ac0911edbb9c2df2a4ff64a7ff2919fb3c719b465ef6e97c5812e0e3aed50",
+    "dimensions": [
+      1240,
+      2208
+    ],
+    "mode": "RGB",
+    "alpha": false
+  },
+  {
+    "file": "ru/short-description.txt",
+    "bytes": 145,
+    "sha256": "dda359d0d55e582b40787b7ba03876991b5bfcc9c42153cb7a6e4417db72e29b"
+  },
+  {
+    "file": "shared/play-icon-512.png",
+    "bytes": 12752,
+    "sha256": "f071c0ec76637d88aada20d75fda51e5c742c8105baf36e79f037a00b33c3c5c",
+    "dimensions": [
+      512,
+      512
+    ],
+    "mode": "RGBA",
+    "alpha": true
+  }
+]

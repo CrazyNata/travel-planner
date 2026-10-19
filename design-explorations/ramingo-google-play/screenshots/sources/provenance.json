@@ -1,0 +1,366 @@
+[
+  {
+    "asset": "en-map.png",
+    "capture": "en-overview-rome.png",
+    "crop": [
+      32,
+      666,
+      688,
+      1110
+    ],
+    "source_sha256": "8875806a349886ade495ff8811f80549723d18476029150c146a8f688a766253",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-map.png",
+    "capture": "ru-overview.png",
+    "crop": [
+      32,
+      666,
+      688,
+      1150
+    ],
+    "source_sha256": "b3a9e8a80f8f9ae166f26cd91d4d2f746bc2bf4001cfa00861cf512898e8f269",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-walk.png",
+    "capture": "en-sight-days.png",
+    "crop": [
+      32,
+      179,
+      688,
+      893
+    ],
+    "source_sha256": "7bbad2b48b4799c71266902ada18fc91d005235e351e9fbb2e1a86de6bdebf7f",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-walk.png",
+    "capture": "ru-walk.png",
+    "crop": [
+      32,
+      179,
+      688,
+      893
+    ],
+    "source_sha256": "7872d3271c422bb564e41b9315fb2b4f4fc2559eb758c0b44aedc8ff9a8b3b1e",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-route.png",
+    "capture": "en-route-italy.png",
+    "crop": [
+      35,
+      335,
+      685,
+      1519
+    ],
+    "source_sha256": "540a3da391876eddace6136ee365f9436e74c8ae510833d396acff27994d2723",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-route.png",
+    "capture": "ru-route-top.png",
+    "crop": [
+      35,
+      335,
+      685,
+      1519
+    ],
+    "source_sha256": "d40b84ac7e8eac676359a2fc9c62197893210531e94cd674b9838fbddecdd004",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-leg.png",
+    "capture": "en-route-italy.png",
+    "crop": [
+      35,
+      335,
+      685,
+      613
+    ],
+    "source_sha256": "540a3da391876eddace6136ee365f9436e74c8ae510833d396acff27994d2723",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-leg.png",
+    "capture": "ru-route-top.png",
+    "crop": [
+      35,
+      335,
+      685,
+      613
+    ],
+    "source_sha256": "d40b84ac7e8eac676359a2fc9c62197893210531e94cd674b9838fbddecdd004",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-rest-map.png",
+    "capture": "en-restaurants.png",
+    "crop": [
+      36,
+      505,
+      684,
+      799
+    ],
+    "source_sha256": "d779004f01d515e2804e20ee2b5cfdc517386bbf9c4f5a21f2a1e3aec2a6fa55",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-rest-map.png",
+    "capture": "ru-restaurants.png",
+    "crop": [
+      36,
+      505,
+      684,
+      799
+    ],
+    "source_sha256": "2753b89d9cc0218583bfd2ce61ea003357a730f54c6cf0a965b3548615a2287e",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-restaurant.png",
+    "capture": "en-restaurants.png",
+    "crop": [
+      230,
+      856,
+      665,
+      1026
+    ],
+    "source_sha256": "d779004f01d515e2804e20ee2b5cfdc517386bbf9c4f5a21f2a1e3aec2a6fa55",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-restaurant.png",
+    "capture": "ru-restaurants.png",
+    "crop": [
+      230,
+      856,
+      665,
+      1026
+    ],
+    "source_sha256": "2753b89d9cc0218583bfd2ce61ea003357a730f54c6cf0a965b3548615a2287e",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-restaurant2.png",
+    "capture": "en-restaurants.png",
+    "crop": [
+      230,
+      1267,
+      665,
+      1437
+    ],
+    "source_sha256": "d779004f01d515e2804e20ee2b5cfdc517386bbf9c4f5a21f2a1e3aec2a6fa55",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-restaurant2.png",
+    "capture": "ru-restaurants.png",
+    "crop": [
+      230,
+      1267,
+      665,
+      1437
+    ],
+    "source_sha256": "2753b89d9cc0218583bfd2ce61ea003357a730f54c6cf0a965b3548615a2287e",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-stay.png",
+    "capture": "en-lodging.png",
+    "crop": [
+      65,
+      641,
+      582,
+      694
+    ],
+    "source_sha256": "ea95592e9cc72bf32d45f7ee6ecec999623b80f10bf92dd3004a34bb795b04ae",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-stay.png",
+    "capture": "en-lodging.png",
+    "crop": [
+      65,
+      641,
+      582,
+      694
+    ],
+    "source_sha256": "ea95592e9cc72bf32d45f7ee6ecec999623b80f10bf92dd3004a34bb795b04ae",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-pet-tabs.png",
+    "capture": "en-vets.png",
+    "crop": [
+      36,
+      314,
+      684,
+      418
+    ],
+    "source_sha256": "9b7db1c783ccfeb98c4afacea039125f4e7750ff4c461688ac26dc364b87ab87",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-pet-tabs.png",
+    "capture": "ru-vets-tab.png",
+    "crop": [
+      36,
+      314,
+      684,
+      418
+    ],
+    "source_sha256": "283f543e32c34083e0bdc1ff92ce069269bfab1b8597a6a448d9d7dee4eded70",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-vet.png",
+    "capture": "en-vets.png",
+    "crop": [
+      250,
+      850,
+      684,
+      1055
+    ],
+    "source_sha256": "9b7db1c783ccfeb98c4afacea039125f4e7750ff4c461688ac26dc364b87ab87",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-vet.png",
+    "capture": "ru-vets-tab.png",
+    "crop": [
+      250,
+      850,
+      684,
+      1055
+    ],
+    "source_sha256": "283f543e32c34083e0bdc1ff92ce069269bfab1b8597a6a448d9d7dee4eded70",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-shop.png",
+    "capture": "en-pets.png",
+    "crop": [
+      250,
+      850,
+      684,
+      1055
+    ],
+    "source_sha256": "612a7650df9d54d23aca64f768386d8cbd7abef80774ad59ee6dc874eb20ac83",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-shop.png",
+    "capture": "ru-vets.png",
+    "crop": [
+      250,
+      850,
+      684,
+      1055
+    ],
+    "source_sha256": "cbcac232fe7c3e6bc469110d6aa14b36ee6ec7594203377ffabd1c693af660c7",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-sections.png",
+    "capture": "en-drawer-final.png",
+    "crop": [
+      32,
+      106,
+      492,
+      1040
+    ],
+    "source_sha256": "0f53585ef7af6d7a96708794af550ba8874a6563ef85074809daab2a816ca647",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-sections.png",
+    "capture": "ru-organize.png",
+    "crop": [
+      32,
+      106,
+      492,
+      1040
+    ],
+    "source_sha256": "6fa749d0c9d7a2bfed37fee0a2e604356dd33d833d2c22c563bf82bd0a99724a",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "en-invite.png",
+    "capture": "en-viewer-private.png",
+    "crop": [
+      32,
+      730,
+      688,
+      1149
+    ],
+    "source_sha256": "7be180d9e313b982b43040f3df1310ecfebd008880f5edc96b4651a596adac83",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  },
+  {
+    "asset": "ru-invite.png",
+    "capture": "ru-viewer-private.png",
+    "crop": [
+      32,
+      730,
+      688,
+      1149
+    ],
+    "source_sha256": "a3fe34d75c3da031b71694df895fd9208102e4ea3fd3a8f65e70b82475e55739",
+    "trip": "Italy with family",
+    "method": "adb screencap; native Android 0.2.77; light theme",
+    "date": "2026-10-19"
+  }
+]

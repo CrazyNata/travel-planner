@@ -1,0 +1,12 @@
+Use case: ads-marketing
+Asset type: hero artwork for a Google Play feature graphic; artwork only, no words
+Primary request: Create a distinctive, polished Ramingo trip-planning visual that makes a multi-stop journey feel inviting and organized at a glance.
+Scene/backdrop: A panoramic Mediterranean coastal landscape in Italy, with a small hillside town, a harbor-side piazza, and a scenic overlook arranged as three memorable stops along one journey.
+Subject: A single confident winding cream-colored road connecting these three places as an editorial visual metaphor for a planned road trip, with exactly three small, elegant circular stop markers integrated into the landscape (not map pins and not interface elements).
+Style/medium: Premium geometric cut-paper editorial illustration with subtle matte print texture, bold clean silhouettes, carefully controlled shapes, bespoke brand-art direction rather than generic stock illustration.
+Composition/framing: Wide landscape artwork. Compose all three stops and the winding road within the central/right area so it remains legible when cropped into the right 56% of a 1024x500 banner. Make the route itself the visual spine. No text, leave no large blank area.
+Lighting/mood: Warm late-afternoon Mediterranean light, calm and aspirational, sophisticated rather than playful or childish.
+Color palette: Ramingo's warm apricot, coral, violet, deep plum, and warm cream; use a flat intentional palette, no gradients.
+Materials/textures: Matte gouache / layered paper edges, restrained fine grain only.
+Constraints: The road must read as a sequence of trip stops, not turn-by-turn navigation. Exactly one road and exactly three simple stop dots. Keep the large forms crisp and uncluttered.
+Avoid: cars or other vehicles, road lanes or arrows, GPS maps, map pins, compass, airplane, UI cards, interface screenshots, labels, lettering, logos, sun discs, 3D rendering, generic AI gradients, tiny decorative clutter, photorealism, any resemblance to Google Maps.

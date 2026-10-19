@@ -1,0 +1,26 @@
+{
+  "en/app-title": {
+    "characters": 26,
+    "limit": 30
+  },
+  "en/short-description": {
+    "characters": 70,
+    "limit": 80
+  },
+  "en/full-description": {
+    "characters": 1657,
+    "limit": 4000
+  },
+  "ru/app-title": {
+    "characters": 28,
+    "limit": 30
+  },
+  "ru/short-description": {
+    "characters": 76,
+    "limit": 80
+  },
+  "ru/full-description": {
+    "characters": 1418,
+    "limit": 4000
+  }
+}

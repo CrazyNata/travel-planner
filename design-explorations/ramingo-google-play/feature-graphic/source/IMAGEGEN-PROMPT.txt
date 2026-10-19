@@ -1,0 +1,10 @@
+Use case: ads-marketing
+Asset type: Google Play feature graphic background for Ramingo, a road-trip and city-walk planning app
+Primary request: create a premium editorial travel photograph that makes a planned car journey feel inviting and memorable, with the warmth and visual character of a real European road trip.
+Scene/backdrop: an elegant coastal road in northern Italy, winding above the Mediterranean with layered hills and a small seaside town in the distance; late-afternoon clear light, natural colors.
+Subject: a single tasteful, unbranded modern compact car seen from behind, small enough to let the landscape and road lead the eye.
+Composition/framing: very wide landscape composition close to 2:1. Keep the upper-left quarter visually calm and uncluttered so dark brand text can be placed there; let the road sweep through the right half and lower edge, with the car in the right third. No close-up framing.
+Style/medium: high-end travel editorial photography, believable natural detail, restrained color grading, optimistic but not sugary.
+Lighting/mood: warm late-afternoon sunlight, crisp visibility, calm anticipation of a well-planned trip.
+Color palette: sunlit terracotta and muted coral architecture, deep sea blue, warm cream highlights, understated plum shadows; natural and not oversaturated.
+Constraints: one real-looking road and car, coherent perspective, landscape only, no map, no interface, no app icon, no text, no typography, no logos, no watermark. Avoid generic AI gradients, extreme cinematic effects, excessive depth-of-field blur, busy left side, fantasy architecture, and exaggerated 3D.

@@ -1,0 +1,9 @@
+Use case: precise-object-edit
+Asset type: final hero artwork for a Google Play feature graphic
+Primary request: Correct the route geography in this Ramingo itinerary illustration.
+Input image: Image 1 is the artwork to edit; preserve its overall scene, layout, illustration style, palette, towns, coastline, and composition.
+Scene/backdrop: Italian coastal village and harbor at late afternoon, illustrated as matte gouache and layered paper.
+Subject: One cream-colored route connecting the three existing coral stop dots.
+Composition/framing: Keep all three stops visible in the same positions: the hillside village, the harbor town, and the terrace overlook. Make the route stay continuously on solid land, following the coastal hillside and road network. It may curve behind and between buildings, but it must never cross the sea or appear to float over water.
+Constraints: Change only the route's path and the immediate shoreline needed to support a believable land route. Keep exactly three coral dots, no new roads, all three dots on land. Preserve the clean cream ribbon and the current crop-friendly framing.
+Avoid: roads over water, bridges, floating paths, dotted GPS trails, pins, arrows, text, UI cards, vehicles, or changes to the overall art style.
