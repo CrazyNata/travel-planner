@@ -1657,6 +1657,10 @@ const mapLocations: Record<string, [number, number]> = {
   Инцелль: [12.75, 47.76],
   Инцель: [12.75, 47.76],
   Мюнхен: [11.582, 48.1351],
+  "Санкт-Галлен": [9.3767, 47.4245],
+  Домодоссола: [8.2833, 46.1167],
+  Генуя: [8.9463, 44.4056],
+  "Гардоне-Ривьера": [10.5645, 45.6239],
   Барселона: [2.1734, 41.3851],
   Жирона: [2.8214, 41.9794],
   Фигерас: [2.9616, 42.2662],
@@ -2484,6 +2488,79 @@ function mapLocationEntry(city: string) {
   return Object.entries(mapLocations)
     .sort((left, right) => right[0].length - left[0].length)
     .find(([name]) => normalizedCity.includes(name.toLocaleLowerCase("ru")));
+}
+
+type ResolvedCityCoordinates = {
+  name: string;
+  longitude: number;
+  latitude: number;
+};
+
+type CityGeocodingResponse = {
+  results?: Array<{
+    name: string;
+    latitude: number;
+    longitude: number;
+  }>;
+};
+
+const cityCoordinateRequests = new globalThis.Map<
+  string,
+  Promise<ResolvedCityCoordinates | null>
+>();
+
+async function resolveTripCityCoordinates(
+  city: string,
+): Promise<ResolvedCityCoordinates | null> {
+  const value = city.trim();
+  if (!value || /^(точка|point|stop)\s*#?\s*\d+$/i.test(value)) return null;
+
+  const knownLocation = mapLocationEntry(value);
+  if (knownLocation) {
+    return {
+      name: knownLocation[0],
+      longitude: knownLocation[1][0],
+      latitude: knownLocation[1][1],
+    };
+  }
+  const coordinate = coordinateFromMapsPart(value);
+  if (coordinate) {
+    return { name: value, longitude: coordinate[0], latitude: coordinate[1] };
+  }
+
+  const requestKey = value.toLocaleLowerCase("ru");
+  const existingRequest = cityCoordinateRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = (async (): Promise<ResolvedCityCoordinates | null> => {
+    try {
+      const query = new URLSearchParams({
+        name: value,
+        count: "5",
+        language: "ru",
+        format: "json",
+      });
+      const response = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?${query.toString()}`,
+      );
+      if (!response.ok) return null;
+      const payload = (await response.json()) as CityGeocodingResponse;
+      const match = payload.results?.find(
+        (result) =>
+          Number.isFinite(result.latitude) &&
+          Number.isFinite(result.longitude),
+      );
+      return match
+        ? { name: value, longitude: match.longitude, latitude: match.latitude }
+        : null;
+    } catch {
+      return null;
+    }
+  })();
+  cityCoordinateRequests.set(requestKey, request);
+  const result = await request;
+  if (!result) cityCoordinateRequests.delete(requestKey);
+  return result;
 }
 
 type RouteCoordinate = [number, number];
@@ -6441,11 +6518,15 @@ function TripMap({
   city,
   places = emptyPlaces,
   routeDays = emptyRouteDays,
+  mapCities = emptyPlaces,
+  fallbackMapCities = emptyPlaces,
   activeDay,
 }: {
   city?: string;
   places?: string[];
   routeDays?: DraftDay[];
+  mapCities?: string[];
+  fallbackMapCities?: string[];
   activeDay?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -6455,9 +6536,37 @@ function TripMap({
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
   const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
-  const activeRoutePoint = routePointIndexFor(displayedRouteDays, activeDay);
-  const fallbackCoordinates = routeCoordinates.length
-    ? routeCoordinates
+  const [resolvedMapCities, setResolvedMapCities] = useState<ResolvedCityCoordinates[]>([]);
+  const [resolvedFallbackMapCities, setResolvedFallbackMapCities] = useState<ResolvedCityCoordinates[]>([]);
+  const mapCitiesKey = JSON.stringify(mapCities.map((name) => name.trim()).filter(Boolean));
+  const fallbackMapCitiesKey = JSON.stringify(fallbackMapCities.map((name) => name.trim()).filter(Boolean));
+  const mapCityCoordinates = (resolved: ResolvedCityCoordinates[]) => {
+    const coordinates = resolved.map(
+      ({ longitude, latitude }) => [longitude, latitude] as [number, number],
+    );
+    return coordinates.filter(
+      (coordinate, index) =>
+        coordinates.findIndex((candidate) => candidate.join(",") === coordinate.join(",")) === index,
+    );
+  };
+  const explicitMapCoordinates = mapCityCoordinates(resolvedMapCities);
+  const fallbackMapCoordinates = mapCityCoordinates(resolvedFallbackMapCities);
+  const hasSavedMapCities = (JSON.parse(mapCitiesKey) as string[]).length > 0;
+  const selectedCityCoordinates = explicitMapCoordinates.length
+    ? explicitMapCoordinates
+    : hasSavedMapCities
+      ? fallbackMapCoordinates
+      : routeCoordinates.length
+        ? []
+        : fallbackMapCoordinates;
+  const mapRouteCoordinates = selectedCityCoordinates.length
+    ? selectedCityCoordinates
+    : routeCoordinates;
+  const activeRoutePoint = selectedCityCoordinates.length
+    ? undefined
+    : routePointIndexFor(displayedRouteDays, activeDay);
+  const fallbackCoordinates = mapRouteCoordinates.length
+    ? mapRouteCoordinates
     : location
       ? places.length
       ? places.map(
@@ -6490,6 +6599,36 @@ function TripMap({
   const locationKey = location?.join(",") || "";
   const placesKey = places.join("|");
   const browserLocationKey = browserLocation.state.coordinates?.join(",") || "";
+  const mapCoordinatesKey = mapRouteCoordinates
+    .map((coordinate) => coordinate.join(","))
+    .join("|");
+
+  useEffect(() => {
+    const primaryCities = JSON.parse(mapCitiesKey) as string[];
+    const fallbackCities = JSON.parse(fallbackMapCitiesKey) as string[];
+    let cancelled = false;
+    setResolvedMapCities([]);
+    setResolvedFallbackMapCities([]);
+    void Promise.all([
+      Promise.all(primaryCities.map(resolveTripCityCoordinates)),
+      Promise.all(fallbackCities.map(resolveTripCityCoordinates)),
+    ]).then(([primary, fallback]) => {
+      if (cancelled) return;
+      setResolvedMapCities(
+        primary.filter(
+          (city): city is ResolvedCityCoordinates => Boolean(city),
+        ),
+      );
+      setResolvedFallbackMapCities(
+        fallback.filter(
+          (city): city is ResolvedCityCoordinates => Boolean(city),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapCitiesKey, fallbackMapCitiesKey]);
 
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -6510,7 +6649,13 @@ function TripMap({
         container: container.current,
         style: mapStyle(),
         center: userCoordinates ?? fallbackCoordinates[0]!,
-        zoom: userCoordinates ? 13 : routeCoordinates.length ? 5 : location ? 12 : 3,
+        zoom: userCoordinates
+          ? 13
+          : mapRouteCoordinates.length > 1
+            ? 5
+            : mapRouteCoordinates.length === 1 || location
+              ? 12
+              : 3,
         attributionControl: true,
       });
       mapRef.current = map;
@@ -6527,10 +6672,10 @@ function TripMap({
         "top-right",
       );
 
-      if (routeCoordinates.length > 1) {
+      if (mapRouteCoordinates.length > 1) {
         markerElements.current = [];
         const markerOccurrences = new globalThis.Map<string, number>();
-        routeCoordinates.forEach((coordinate, index) => {
+        mapRouteCoordinates.forEach((coordinate, index) => {
           const element = document.createElement("span");
           element.className =
             index === activeRoutePoint ? "map-marker active" : "map-marker";
@@ -6552,7 +6697,7 @@ function TripMap({
             data: {
               type: "Feature",
               properties: {},
-              geometry: { type: "LineString", coordinates: routeCoordinates },
+              geometry: { type: "LineString", coordinates: mapRouteCoordinates },
             },
           });
           map!.addLayer({
@@ -6568,7 +6713,7 @@ function TripMap({
           const activeSegment =
             activeRoutePoint === undefined
               ? []
-              : routeSegment(routeCoordinates, activeRoutePoint);
+              : routeSegment(mapRouteCoordinates, activeRoutePoint);
           if (activeSegment.length > 1) {
             map!.addSource("active-route", {
               type: "geojson",
@@ -6590,10 +6735,10 @@ function TripMap({
             });
           }
           const bounds = new mapboxgl.LngLatBounds(
-            routeCoordinates[0],
-            routeCoordinates[0],
+            mapRouteCoordinates[0],
+            mapRouteCoordinates[0],
           );
-          routeCoordinates
+          mapRouteCoordinates
             .slice(1)
             .forEach((coordinate) => bounds.extend(coordinate));
           map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
@@ -6601,6 +6746,14 @@ function TripMap({
             map!.flyTo({ center: userCoordinates, zoom: 14, duration: 700, essential: true });
           }
         });
+      } else if (mapRouteCoordinates.length === 1) {
+        const element = document.createElement("span");
+        element.className = "map-marker";
+        element.textContent = "1";
+        markerElements.current = [element];
+        new mapboxgl.Marker({ element })
+          .setLngLat(mapRouteCoordinates[0])
+          .addTo(map!);
       } else if (location && places.length) {
         const coordinates = fallbackCoordinates;
         coordinates.forEach((coordinate, index) => {
@@ -6643,15 +6796,23 @@ function TripMap({
       mapRef.current = null;
       markerElements.current = [];
     };
-  }, [city, locationKey, placesKey, routeKey, browserLocationKey]);
+  }, [city, locationKey, placesKey, routeKey, browserLocationKey, mapCoordinatesKey]);
 
   useEffect(() => {
-    const routePoint = routePointIndexFor(displayedRouteDays, activeDay);
+    const routePoint = selectedCityCoordinates.length
+      ? undefined
+      : routePointIndexFor(displayedRouteDays, activeDay);
     const coordinate =
       routePoint === undefined
         ? undefined
         : routeCoordinatesFor(displayedRouteDays)[routePoint];
     if (!mapRef.current) return;
+    if (selectedCityCoordinates.length) {
+      markerElements.current.forEach((element) =>
+        element.classList.remove("active"),
+      );
+      return;
+    }
     markerElements.current.forEach((element, index) =>
       element.classList.toggle("active", index === routePoint),
     );
@@ -6698,7 +6859,7 @@ function TripMap({
       duration: 900,
       essential: true,
     });
-  }, [activeDay, routeKey]);
+  }, [activeDay, routeKey, mapCoordinatesKey]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
@@ -14208,6 +14369,8 @@ function OverviewEditor({
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [draggedNewPhoto, setDraggedNewPhoto] = useState<number | null>(null);
   const [textColor, setTextColor] = useState(trip.coverTextColor || "#ffffff");
+  const [coverCity, setCoverCity] = useState(trip.coverCity || "");
+  const [coverDescription, setCoverDescription] = useState(trip.coverDescription || "");
   const [title, setTitle] = useState(trip.title);
   const [startDate, setStartDate] = useState(trip.startDate || "");
   const [endDate, setEndDate] = useState(trip.endDate || "");
@@ -14239,8 +14402,8 @@ function OverviewEditor({
         const photos = images.map((image) => ({
           id: crypto.randomUUID(),
           image,
-          city: routeCities[0] || "",
-          description: "",
+          city: coverCity.trim() || routeCities[0] || "",
+          description: coverDescription,
           textColor,
         }));
         setSavedPhotos((current) => [...current, ...photos]);
@@ -14267,6 +14430,10 @@ function OverviewEditor({
       cities: weatherCities.join(", "),
       coverImage: savedPhotos[0]?.image,
       coverPhotos: savedPhotos,
+      coverCity: savedPhotos.length ? savedPhotos[0]?.city || "" : coverCity.trim(),
+      coverDescription: savedPhotos.length
+        ? savedPhotos[0]?.description || ""
+        : coverDescription.trim(),
       coverTextColor: textColor,
       overviewMapPoints: mapPoints,
     });
@@ -14367,7 +14534,7 @@ function OverviewEditor({
             )}
           </div>
           <p className="editor-photo-hint">
-            Выберите миниатюру, чтобы указать город и факт о ней.
+            Выберите миниатюру для её описания или заполните город и факт заранее.
           </p>
           <div className="editor-photo-list">
             {savedPhotos.map((photo, index) => (
@@ -14417,21 +14584,21 @@ function OverviewEditor({
           </div>
           <input
             className="editor-field"
-            value={activePhoto?.city || ""}
-            onChange={(event) =>
-              updateActivePhoto({ city: event.target.value })
-            }
+            value={activePhoto?.city ?? coverCity}
+            onChange={(event) => {
+              setCoverCity(event.target.value);
+              updateActivePhoto({ city: event.target.value });
+            }}
             placeholder="Город"
-            disabled={!activePhoto}
           />
           <textarea
             className="editor-caption"
-            value={activePhoto?.description || ""}
-            onChange={(event) =>
-              updateActivePhoto({ description: event.target.value })
-            }
+            value={activePhoto?.description ?? coverDescription}
+            onChange={(event) => {
+              setCoverDescription(event.target.value);
+              updateActivePhoto({ description: event.target.value });
+            }}
             placeholder="Факт о городе"
-            disabled={!activePhoto}
           />
           <div className="editor-colors">
             <b>Цвет текста на фото</b>
@@ -14880,18 +15047,20 @@ function WeatherOverview({
   const [mode, setMode] = useState<"now" | "trip">("now");
   const [weather, setWeather] = useState<Record<string, WeatherSnapshot>>({});
   const [failed, setFailed] = useState(false);
-  const weatherCities = cities.reduce<
-    { name: string; latitude: number; longitude: number }[]
-  >((result, name) => {
-    const match = mapLocationEntry(name);
-    if (!match || result.some((city) => city.name === match[0])) return result;
-    result.push({
-      name: match[0],
-      latitude: match[1][1],
-      longitude: match[1][0],
-    });
-    return result;
-  }, []);
+  const weatherInputCities = cities
+    .map((city) => city.trim())
+    .filter(Boolean)
+    .filter(
+      (city, index, values) =>
+        values.findIndex(
+          (candidate) =>
+            candidate.toLocaleLowerCase("ru") === city.toLocaleLowerCase("ru"),
+        ) === index,
+    );
+  const weatherInputKey = JSON.stringify(weatherInputCities);
+  const [weatherCities, setWeatherCities] = useState<ResolvedCityCoordinates[]>([]);
+  const [unresolvedWeatherCities, setUnresolvedWeatherCities] = useState<string[]>([]);
+  const [resolvingWeatherCities, setResolvingWeatherCities] = useState(false);
   const tripForecastDate =
     tripStartDate || parseTripDateRange(tripDates)?.[0] || "";
   const parsedTripDates = parseTripDateRange(tripDates);
@@ -14907,11 +15076,11 @@ function WeatherOverview({
     accommodations,
     weatherTripStartDate,
   );
-  const weatherCityKey = weatherCities.map((city) => city.name).join("|");
+  const weatherCityKey = weatherCities
+    .map((city) => `${city.name}:${city.latitude},${city.longitude}`)
+    .join("|");
   const [selectedTripDate, setSelectedTripDate] = useState(tripForecastDate);
-  const [selectedWeatherCityName, setSelectedWeatherCityName] = useState(
-    weatherCities[0]?.name || "",
-  );
+  const [selectedWeatherCityName, setSelectedWeatherCityName] = useState("");
   const [visibleTripDateStart, setVisibleTripDateStart] = useState(0);
   const visibleTripDates = weatherDateOptions.slice(
     visibleTripDateStart,
@@ -14942,6 +15111,63 @@ function WeatherOverview({
   }, [tripForecastDate, weatherTripStartDate, weatherTripEndDate]);
 
   useEffect(() => {
+    const cityNames = JSON.parse(weatherInputKey) as string[];
+    const knownCities: ResolvedCityCoordinates[] = [];
+    const citiesToResolve: string[] = [];
+    cityNames.forEach((name) => {
+      const match = mapLocationEntry(name);
+      if (!match) {
+        citiesToResolve.push(name);
+        return;
+      }
+      if (knownCities.some((city) => city.name === match[0])) return;
+      knownCities.push({
+        name: match[0],
+        longitude: match[1][0],
+        latitude: match[1][1],
+      });
+    });
+
+    let cancelled = false;
+    setWeatherCities(knownCities);
+    setUnresolvedWeatherCities([]);
+    setWeather({});
+    setFailed(false);
+    setResolvingWeatherCities(citiesToResolve.length > 0);
+    if (citiesToResolve.length) {
+      void Promise.all(citiesToResolve.map(resolveTripCityCoordinates)).then(
+        (resolvedCities) => {
+          if (cancelled) return;
+          const nextCities = [...knownCities];
+          const unresolved: string[] = [];
+          resolvedCities.forEach((city, index) => {
+            if (!city) {
+              unresolved.push(citiesToResolve[index]);
+              return;
+            }
+            if (
+              nextCities.some(
+                (existing) =>
+                  canonicalWeatherCity(existing.name) ===
+                  canonicalWeatherCity(city.name),
+              )
+            ) {
+              return;
+            }
+            nextCities.push(city);
+          });
+          setWeatherCities(nextCities);
+          setUnresolvedWeatherCities(unresolved);
+          setResolvingWeatherCities(false);
+        },
+      );
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [weatherInputKey]);
+
+  useEffect(() => {
     setSelectedWeatherCityName((current) =>
       weatherCities.some((city) => city.name === current)
         ? current
@@ -14961,6 +15187,7 @@ function WeatherOverview({
   };
 
   useEffect(() => {
+    if (resolvingWeatherCities) return;
     if (!weatherCities.length) {
       setWeather({});
       return;
@@ -15016,7 +15243,7 @@ function WeatherOverview({
     return () => {
       cancelled = true;
     };
-  }, [weatherKey, tripForecastDate]);
+  }, [weatherKey, tripForecastDate, resolvingWeatherCities]);
 
   const hasSelectedTripForecast = weatherCities.length > 0 && weatherCities.every(
     (city) =>
@@ -15070,11 +15297,24 @@ function WeatherOverview({
           Для выбранной даты точный прогноз появится примерно за 16 дней до поездки.
         </p>
       )}
-      {!weatherCities.length && (
+      {resolvingWeatherCities && (
+        <p className="weather-notice" role="status">
+          Ищем координаты городов поездки…
+        </p>
+      )}
+      {unresolvedWeatherCities.length > 0 && (
+        <p className="weather-notice" role="status">
+          Не удалось найти города: {unresolvedWeatherCities.join(", ")}.
+        </p>
+      )}
+      {!weatherCities.length &&
+        !resolvingWeatherCities &&
+        !unresolvedWeatherCities.length &&
+        !weatherInputCities.length && (
         <p className="weather-notice" role="status">
           Не удалось определить города поездки для загрузки погоды.
         </p>
-      )}
+        )}
       <div className="weather-grid">
         {weatherCities.map((city) => {
           const current = weather[city.name];
@@ -15544,7 +15784,11 @@ function TripOverview({
             </section>
           </div>
           <aside className="map-card">
-            <TripMap routeDays={trip.days} />
+            <TripMap
+              routeDays={trip.days}
+              mapCities={savedOverviewMapPoints}
+              fallbackMapCities={weatherCities}
+            />
             <footer>
               <span>Общий маршрут</span>
               <b>{routeSummary}</b>
@@ -15714,7 +15958,11 @@ function TripOverview({
               )}
             </div>
             <aside className="map-card">
-              <TripMap routeDays={trip.days} />
+              <TripMap
+                routeDays={trip.days}
+                mapCities={savedOverviewMapPoints}
+                fallbackMapCities={weatherCities}
+              />
               <footer>
                 <span>Общий маршрут</span>
                 <b>{routeSummary}</b>
