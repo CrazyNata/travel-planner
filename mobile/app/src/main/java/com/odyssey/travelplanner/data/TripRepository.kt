@@ -92,6 +92,13 @@ data class CoverPhoto(
     val imageUrl: String,
     val city: String,
     val date: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val contentHash: String = "",
+    val sourceHash: String = "",
+    /** Stable reference, kept separately from expiring delivery URLs. */
+    val storageReference: String = imageUrl,
+    val albumPhoto: Boolean = false,
 )
 data class RouteLeg(
     val dayId: String,
@@ -436,6 +443,7 @@ data class TripOverview(
     val dates: String,
     val status: String,
     val coverPhotos: List<CoverPhoto>,
+    val albumPhotos: List<CoverPhoto> = emptyList(),
     val overviewMapPoints: List<String>,
     val overviewWeatherCities: List<String> = emptyList(),
     val overviewBlocks: List<String> = emptyList(),
@@ -827,16 +835,23 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val currentUserId = client.auth.currentUserOrNull()?.id?.toString()
         val resolvedUserRole = currentUserRole(row, currentUserId)
         fun text(key: String) = row.payload[key]?.jsonPrimitive?.contentOrNull.orEmpty()
-        val covers = row.payload["coverPhotos"]?.jsonArray.orEmpty().mapNotNull { item ->
+        fun parsePhoto(item: JsonElement): CoverPhoto? {
             val photo = item.jsonObject
-            val imageUrl = photo["image"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-            CoverPhoto(
+            val imageUrl = photo["image"]?.jsonPrimitive?.contentOrNull ?: return null
+            return CoverPhoto(
                 id = photo["id"]?.jsonPrimitive?.contentOrNull ?: imageUrl,
                 imageUrl = imageUrl,
                 city = photo["city"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 date = photo["date"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                latitude = photo["latitude"]?.jsonPrimitive?.doubleOrNull,
+                longitude = photo["longitude"]?.jsonPrimitive?.doubleOrNull,
+                contentHash = photo["contentHash"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                sourceHash = photo["sourceHash"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                albumPhoto = tripPhotoPath(imageUrl)?.let { it.contains("/album/") || it.contains("/covers/") } == true,
             )
         }
+        val covers = row.payload["coverPhotos"]?.jsonArray.orEmpty().mapNotNull(::parsePhoto)
+        val albumPhotos = albumPhotoItems(row.payload).mapNotNull(::parsePhoto)
         val mapPoints = row.payload["overviewMapPoints"]?.jsonArray.orEmpty()
             .mapNotNull { it.jsonPrimitive.contentOrNull }
         val overviewWeatherCities = row.payload["overviewWeatherCities"]?.jsonArray.orEmpty()
@@ -1163,6 +1178,7 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
             dates = storedTripDates(row.payload),
             status = text("status"),
             coverPhotos = resolvedCovers,
+            albumPhotos = albumPhotos,
             overviewMapPoints = mapPoints,
             overviewWeatherCities = overviewWeatherCities,
             overviewBlocks = overviewBlocks,
@@ -1605,6 +1621,97 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
                 runCatching { client.storage.from("trip-photos").delete(path) }
                 throw it
             }
+    }
+
+    /** Shared web/native album payload. Existing cover and section data are preserved. */
+    suspend fun addAlbumPhoto(
+        id: String, bytes: ByteArray, city: String, date: String,
+        latitude: Double? = null, longitude: Double? = null,
+        sourceHash: String = albumContentHash(bytes), mimeType: String = "image/jpeg",
+    ): Boolean {
+        require(bytes.isNotEmpty() && bytes.size <= 10 * 1024 * 1024) { "Фотография должна быть не больше 10 МБ" }
+        val ownerId = client.auth.currentUserOrNull()?.id?.toString() ?: throw AuthSessionRequiredException()
+        var current = loadTripRow(id)
+        val service = AlbumPhotoService(client)
+        // Legacy random filenames must be indexed before deciding that an upload is new.
+        val indexed = albumPhotoItems(current.payload).chunked(4).flatMap { batch ->
+            supervisorScope {
+                batch.map { photo -> async {
+                    if (albumHash(photo) != null) photo else {
+                        // An inaccessible legacy original must not block a new upload.
+                        albumAttempt {
+                            val reference = photo["image"]?.jsonPrimitive?.contentOrNull ?: error("Фотография недоступна")
+                            val hash = albumContentHash(service.download(reference))
+                            JsonObject(photo.toMutableMap().apply { put("contentHash", JsonPrimitive(hash)) })
+                        }.getOrDefault(photo)
+                    }
+                } }.awaitAll()
+            }
+        }
+        val indexedByReference = indexed.associateBy { canonicalTripPhotoReference(it["image"]?.jsonPrimitive?.contentOrNull) }
+        val indexPatch = buildJsonObject {
+            for (section in listOf("photos", "coverPhotos")) {
+                val existing = current.payload[section] as? JsonArray ?: continue
+                val next = JsonArray(existing.map { item ->
+                    val photo = item as? JsonObject ?: return@map item
+                    indexedByReference[canonicalTripPhotoReference(photo["image"]?.jsonPrimitive?.contentOrNull)] ?: item
+                })
+                if (next != existing) put(section, next)
+            }
+        }
+        if (indexPatch.isNotEmpty()) {
+            patchTripPayload(id, indexPatch, current.revision)
+            current = loadTripRow(id)
+        }
+        val contentHash = albumContentHash(bytes)
+        val duplicate = duplicateAlbumPhoto(albumPhotoItems(current.payload), sourceHash, contentHash)
+        if (duplicate != null) {
+            val enriched = JsonObject(duplicate.toMutableMap().apply {
+                if (duplicate["sourceHash"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()) put("sourceHash", JsonPrimitive(sourceHash))
+                if (duplicate["date"]?.jsonPrimitive?.contentOrNull.isNullOrBlank() && date.isNotBlank()) put("date", JsonPrimitive(date))
+                if (duplicate["city"]?.jsonPrimitive?.contentOrNull.isNullOrBlank() && city.isNotBlank()) put("city", JsonPrimitive(city.trim()))
+                if (duplicate["latitude"] == null && latitude != null) put("latitude", JsonPrimitive(latitude))
+                if (duplicate["longitude"] == null && longitude != null) put("longitude", JsonPrimitive(longitude))
+            })
+            if (enriched != duplicate) patchTripPayload(id, buildJsonObject {
+                for (section in listOf("photos", "coverPhotos")) {
+                    val existing = current.payload[section] as? JsonArray ?: continue
+                    put(section, JsonArray(existing.map { if (it == duplicate) enriched else it }))
+                }
+            }, current.revision)
+            return false
+        }
+        val extension = when (mimeType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+        val path = "$ownerId/$id/album/$contentHash.$extension"
+        // Keep Supabase originals so installed older clients remain compatible.
+        albumAttempt { client.storage.from("trip-photos").upload(path, bytes) }.getOrElse { uploadError ->
+            // An interrupted attempt may already have stored this immutable object.
+            val stored = albumAttempt { service.download(storedTripPhotoReference(path)) }.getOrNull()
+            if (stored == null || albumContentHash(stored) != contentHash) throw uploadError
+        }
+        albumAttempt { service.mirror(path, bytes, mimeType) }
+        current = loadTripRow(id)
+        if (duplicateAlbumPhoto(albumPhotoItems(current.payload), sourceHash, contentHash) != null) return false
+        val image = "${com.odyssey.travelplanner.BuildConfig.SUPABASE_URL.trimEnd('/')}/storage/v1/object/public/trip-photos/$path"
+        val photo = buildJsonObject {
+            put("id", UUID.randomUUID().toString()); put("image", image)
+            put("city", city.trim()); put("contentHash", contentHash); put("sourceHash", sourceHash)
+            put("uploadedAt", Instant.now().toString())
+            if (date.isNotBlank()) put("date", date)
+            if (latitude != null) put("latitude", latitude)
+            if (longitude != null) put("longitude", longitude)
+        }
+        patchTripPayload(id, buildJsonObject {
+            put("photos", JsonArray(current.payload["photos"]?.jsonArray.orEmpty() + photo))
+        }, current.revision)
+        return true
+    }
+
+    suspend fun removeAlbumPhoto(id: String, photoId: String, reference: String) {
+        val current = loadTripRow(id)
+        val patch = removedAlbumPhotoPatch(current.payload, photoId, reference)
+        patchTripPayload(id, patch, current.revision)
+        // Original objects remain private/in Storage for compatibility; no media purge.
     }
 
     override suspend fun countRouteDaysAtRisk(id: String, dates: String, cities: String): Int {

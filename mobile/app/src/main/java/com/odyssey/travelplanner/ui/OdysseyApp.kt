@@ -1,6 +1,8 @@
 package com.odyssey.travelplanner.ui
 
 import android.Manifest
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -17,6 +19,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.layout.ContentScale
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.NoCredentialException
@@ -61,6 +64,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -256,6 +260,14 @@ import com.odyssey.travelplanner.data.loadRouteDistanceSummary
 import com.odyssey.travelplanner.data.WeatherRepository
 import com.odyssey.travelplanner.data.WeatherSnapshot
 import com.odyssey.travelplanner.data.CoverPhoto
+import com.odyssey.travelplanner.data.AlbumPhotoService
+import com.odyssey.travelplanner.data.AlbumPhotoLinks
+import com.odyssey.travelplanner.data.prepareAlbumPhoto
+import com.odyssey.travelplanner.data.routeDisplayIndices
+import com.odyssey.travelplanner.data.tripStatusForDates
+import com.odyssey.travelplanner.data.isDraftTripStatus
+import com.odyssey.travelplanner.data.albumCaptureDate
+import com.odyssey.travelplanner.data.albumAttempt
 import com.odyssey.travelplanner.data.CityCatalogEntry
 import com.odyssey.travelplanner.data.CityCatalogRepository
 import com.odyssey.travelplanner.data.CityLocation
@@ -556,6 +568,12 @@ internal fun localizedCountWord(
         else -> ruMany
     }
 }
+
+internal fun localizedPhotoCount(count: Int, language: String): String =
+    "$count ${localizedCountWord(count, language, "фото", "фото", "фото", "photo", "photos", "foto", "fotos", "Foto", "Fotos")}"
+
+internal fun localizedTripCountWord(count: Int, language: String): String =
+    localizedCountWord(count, language, "поездка", "поездки", "поездок", "trip", "trips", "viaje", "viajes", "Reise", "Reisen")
 
 internal fun localizedRouteSummary(
     tripDays: Int?,
@@ -878,13 +896,26 @@ private fun splitStoredCityList(value: String): List<String> {
     }
 }
 
+private fun isCurrentTripStatus(value: String): Boolean =
+    value.contains("текущ", ignoreCase = true) ||
+        value.contains("current", ignoreCase = true) ||
+        value.contains("ongoing", ignoreCase = true) ||
+        value.contains("en curso", ignoreCase = true) ||
+        value.contains("aktuell", ignoreCase = true)
+
 @Composable
 private fun localizedTripStatus(value: String): String = when {
-    value.contains("чернов", ignoreCase = true) -> localized("Черновик", "Draft", "Borrador", "Entwurf")
+    isDraftTripStatus(value) -> localized("Черновик", "Draft", "Borrador", "Entwurf")
     value.contains("предст", ignoreCase = true) -> localized("Предстоящее", "Upcoming", "Próximo", "Bevorstehend")
+    isCurrentTripStatus(value) -> localized("Текущее", "Current", "En curso", "Aktuell")
     value.contains("заверш", ignoreCase = true) -> localized("Завершено", "Completed", "Completado", "Abgeschlossen")
     value.contains("прошед", ignoreCase = true) -> localized("Прошедшее", "Past", "Pasado", "Vergangen")
     else -> value
+}
+
+private fun effectiveTripStatus(status: String, dates: String, today: LocalDate): String {
+    val (startDate, endDate) = parseTripDateRange(dates) ?: return status
+    return tripStatusForDates(status, startDate, endDate, today)
 }
 
 private fun localizedTripDateText(value: String, language: String, multilineDuration: Boolean = false): String {
@@ -1324,6 +1355,18 @@ private data class ExifEntry(
 )
 
 private fun readTripPhotoMetadata(bytes: ByteArray): TripPhotoMetadata {
+    return runCatching {
+        val exif = android.media.ExifInterface(java.io.ByteArrayInputStream(bytes))
+        val coordinates = FloatArray(2)
+        val hasCoordinates = exif.getLatLong(coordinates)
+        val date = (exif.getAttribute(android.media.ExifInterface.TAG_DATETIME_ORIGINAL)
+            ?: exif.getAttribute(android.media.ExifInterface.TAG_DATETIME))
+            ?.replaceFirst(Regex("^(\\d{4}):(\\d{2}):(\\d{2})"), "$1-$2-$3")?.replace(' ', 'T')
+        TripPhotoMetadata(date, coordinates[0].toDouble().takeIf { hasCoordinates }, coordinates[1].toDouble().takeIf { hasCoordinates })
+    }.getOrElse { readLegacyTripPhotoMetadata(bytes) }
+}
+
+private fun readLegacyTripPhotoMetadata(bytes: ByteArray): TripPhotoMetadata {
     if (bytes.size < 4 || (bytes[0].toInt() and 0xFF) != 0xFF || (bytes[1].toInt() and 0xFF) != 0xD8) {
         return TripPhotoMetadata()
     }
@@ -2115,6 +2158,9 @@ fun OdysseyApp(
                         onExit = { action ->
                             if (mode == OnboardingMode.REPLAY) {
                                 navController.popBackStack()
+                                if (action == OnboardingExitAction.CREATE_FIRST_TRIP) {
+                                    navController.navigate("create-trip") { launchSingleTop = true }
+                                }
                             } else {
                                 accountProfile = (accountProfile ?: AccountProfile(null, false)).copy(
                                     onboardingCompleted = true,
@@ -2272,168 +2318,91 @@ fun OdysseyApp(
 private fun OnboardingTutorialScreen(
     mode: OnboardingMode,
     onExit: (OnboardingExitAction) -> Unit,
-) {
-    val darkTheme = LocalDarkTheme.current
-    var currentOnboardingPage by remember { mutableStateOf(0) }
+) = ExplainedOnboardingScreen(mode, onExit)
+
+@Composable
+private fun ExplainedOnboardingScreen(mode: OnboardingMode, onExit: (OnboardingExitAction) -> Unit) {
+    var topicIndex by remember { mutableStateOf(0) }
+    var stepIndex by remember { mutableStateOf(0) }
+    var contents by remember { mutableStateOf(false) }
+    var completed by remember { mutableStateOf(false) }
     var finishing by remember { mutableStateOf(false) }
-    val page = RamingoOnboardingPage.entries[normalizeOnboardingPage(currentOnboardingPage)]
-
-    fun exit(action: OnboardingExitAction) {
-        if (finishing) return
-        finishing = true
-        onExit(action)
+    val language = LocalLanguage.current
+    val topics = remember(language) { explainedTopicsForLanguage(language) }
+    val topic = topics[topicIndex]
+    val step = topic.steps[stepIndex]
+    fun leave(action: OnboardingExitAction) {
+        if (!finishing) { finishing = true; onExit(action) }
     }
-
-    BackHandler {
-        if (finishing) return@BackHandler
-        if (currentOnboardingPage > 0) {
-            currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage - 1)
-        } else {
-            exit(OnboardingExitAction.SKIP)
+    fun back() {
+        when {
+            contents -> contents = false
+            stepIndex > 0 -> stepIndex--
+            topicIndex > 0 -> { topicIndex--; stepIndex = topics[topicIndex].steps.lastIndex }
+            else -> contents = true
         }
     }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(currentOnboardingPage, finishing) {
-                var dragDistance = 0f
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { _, dragAmount -> dragDistance += dragAmount },
-                    onDragEnd = {
-                        if (!finishing && kotlin.math.abs(dragDistance) >= 48f) {
-                            currentOnboardingPage = normalizeOnboardingPage(
-                                currentOnboardingPage + if (dragDistance < 0f) 1 else -1,
-                            )
+    BackHandler(enabled = !finishing) { back() }
+    Column(Modifier.fillMaxSize().background(cardSurfaceColor())
+        .padding(WindowInsets.statusBars.asPaddingValues()).navigationBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(localized("Знакомство с Ramingo", "Meet Ramingo", "Conozca Ramingo", "Ramingo kennenlernen"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, color = contentTextColor(), modifier = Modifier.weight(1f))
+            TextButton(onClick = { contents = true }, enabled = !finishing) { Text(localized("К разделам", "Topics", "Secciones", "Themen"), color = primaryColor(), fontSize = 14.sp) }
+        }
+        androidx.compose.runtime.key(topicIndex, stepIndex, contents) {
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                if (contents) {
+                    Text(if (completed) localized("Вы познакомились с Ramingo", "You’ve met Ramingo", "Ya conoce Ramingo", "Sie haben Ramingo kennengelernt") else localized("С чего начнём?", "Where shall we start?", "¿Por dónde empezamos?", "Womit beginnen wir?"), fontFamily = Manrope, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.W800, color = contentTextColor())
+                    Text(localized("Выберите раздел. Внутри — действия с объяснениями и подсказками.", "Choose a topic for actions with explanations and tips.", "Elija una sección con acciones, explicaciones y consejos.", "Wählen Sie ein Thema mit Schritten, Erklärungen und Tipps."), fontFamily = Manrope, fontSize = 18.sp, lineHeight = 27.sp, color = contentTextColor())
+                    topics.forEachIndexed { index, item ->
+                        OutlinedButton(onClick = { topicIndex = index; stepIndex = 0; contents = false }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(12.dp)) {
+                            Text(item.name, fontFamily = Manrope, fontSize = 17.sp, color = primaryColor())
                         }
-                        dragDistance = 0f
-                    },
-                    onDragCancel = { dragDistance = 0f },
-                )
-            },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(if (darkTheme) OdysseyDarkBackground else OdysseyBackground)
-                .padding(WindowInsets.statusBars.asPaddingValues())
-                .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                RamingoBrand(modifier = Modifier.weight(1f))
-                if (page != RamingoOnboardingPage.BUDGET) {
-                    TextButton(
-                        enabled = !finishing,
-                        onClick = { exit(OnboardingExitAction.SKIP) },
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            localized("Пропустить", "Skip", "Omitir", "Überspringen"),
-                            color = secondaryTextColor(),
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W700,
-                            fontSize = 12.sp,
-                        )
                     }
-                }
-            }
-
-            OnboardingStepContent(page = page)
-
-            Spacer(Modifier.weight(1f))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            ) {
-                repeat(onboardingPageCount) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(if (index == currentOnboardingPage) 9.dp else 7.dp)
-                            .clip(CircleShape)
-                            .background(if (index == currentOnboardingPage) primaryColor() else contentBorderColor()),
-                    )
-                }
-            }
-
-            if (page == RamingoOnboardingPage.BUDGET && mode != OnboardingMode.REPLAY) {
-                Button(
-                    enabled = !finishing,
-                    onClick = { exit(OnboardingExitAction.CREATE_FIRST_TRIP) },
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                ) {
-                    Text(
-                        localized("Создать первую поездку", "Create my first trip", "Crear mi primer viaje", "Meine erste Reise erstellen"),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 14.sp,
-                    )
-                }
-                OutlinedButton(
-                    enabled = !finishing,
-                    onClick = { exit(OnboardingExitAction.EXPLORE) },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                ) {
-                    Text(
-                        localized("Сначала осмотреться", "Explore first", "Explorar primero", "Erst entdecken"),
-                        color = primaryColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 14.sp,
-                    )
-                }
-            } else {
-                Button(
-                    enabled = !finishing,
-                    onClick = {
-                        if (currentOnboardingPage == onboardingPageCount - 1) {
-                            exit(OnboardingExitAction.EXPLORE)
-                        } else {
-                            currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage + 1)
+                } else {
+                    Text(localized("${topic.name} · шаг ${stepIndex + 1} из ${topic.steps.size}", "${topic.name} · step ${stepIndex + 1} of ${topic.steps.size}", "${topic.name} · paso ${stepIndex + 1} de ${topic.steps.size}", "${topic.name} · Schritt ${stepIndex + 1} von ${topic.steps.size}"), fontFamily = Manrope, fontSize = 14.sp, color = primaryColor(), fontWeight = FontWeight.W700)
+                    Text(step.title, fontFamily = Manrope, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.W800, color = contentTextColor())
+                    ExplainedInstruction(localized("Для чего", "Why", "Para qué", "Wozu"), step.why)
+                    ExplainedInstruction(localized("Что сделать", "What to do", "Qué hacer", "Was zu tun ist"), step.action)
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tintedSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(step.exampleTitle, fontFamily = Manrope, fontSize = 18.sp, fontWeight = FontWeight.W800, color = contentTextColor())
+                        step.exampleRows.forEach { row ->
+                            Text(row, fontFamily = Manrope, fontSize = 17.sp, lineHeight = 25.sp, color = primaryColor(), modifier = Modifier.fillMaxWidth().border(1.dp, contentBorderColor(), RoundedCornerShape(9.dp)).padding(12.dp))
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                ) {
-                    Text(
-                        when (page) {
-                            RamingoOnboardingPage.CREATE_TRIP -> localized("Показать «Маршрут»", "Show Route", "Mostrar «Ruta»", "„Route“ zeigen")
-                            RamingoOnboardingPage.ROUTE -> localized("Показать места", "Show places", "Mostrar lugares", "Orte zeigen")
-                            RamingoOnboardingPage.SIGHTS -> localized("Показать жильё", "Show lodging", "Mostrar alojamiento", "Unterkünfte zeigen")
-                            RamingoOnboardingPage.ACCOMMODATION -> localized("Показать рестораны", "Show restaurants", "Mostrar restaurantes", "Restaurants zeigen")
-                            RamingoOnboardingPage.RESTAURANTS -> localized("Показать питомцев", "Show pets", "Mostrar mascotas", "Haustiere zeigen")
-                            RamingoOnboardingPage.PETS -> localized("Показать бюджет", "Show budget", "Mostrar presupuesto", "Budget zeigen")
-                            RamingoOnboardingPage.BUDGET -> localized("Вернуться в приложение", "Back to app", "Volver a la aplicación", "Zurück zur App")
-                        },
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W800,
-                        fontSize = 14.sp,
-                    )
+                        Text(localized("Схема экрана · учебный пример", "Screen diagram · practice example", "Esquema de pantalla · ejemplo", "Bildschirmskizze · Übungsbeispiel"), fontFamily = Manrope, fontSize = 12.sp, color = secondaryTextColor())
+                    }
+                    ExplainedInstruction(localized("Что получится", "What happens next", "Qué ocurrirá", "Was danach passiert"), step.result)
                 }
-            }
-            if (currentOnboardingPage > 0) {
-                TextButton(
-                    enabled = !finishing,
-                    onClick = { currentOnboardingPage = normalizeOnboardingPage(currentOnboardingPage - 1) },
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                ) {
-                    Text(
-                        localized("Назад", "Back", "Atrás", "Zurück"),
-                        color = secondaryTextColor(),
-                        fontFamily = Manrope,
-                        fontWeight = FontWeight.W700,
-                        fontSize = 12.sp,
-                    )
-                }
-            } else {
-                Spacer(Modifier.height(36.dp))
             }
         }
+        androidx.compose.material3.HorizontalDivider(color = contentBorderColor())
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(if (contents) localized("Можно вернуться к любому разделу", "You can revisit any topic", "Puede volver a cualquier sección", "Sie können jedes Thema erneut öffnen") else localized("${topicIndex + 1} из ${topics.size} разделов", "Topic ${topicIndex + 1} of ${topics.size}", "Sección ${topicIndex + 1} de ${topics.size}", "Thema ${topicIndex + 1} von ${topics.size}"), fontFamily = Manrope, fontSize = 13.sp, color = secondaryTextColor(), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { back() }, enabled = !finishing, shape = RoundedCornerShape(13.dp), modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text(localized("Назад", "Back", "Atrás", "Zurück"), fontSize = 17.sp, color = primaryColor()) }
+                Button(onClick = {
+                    when {
+                        contents -> leave(OnboardingExitAction.EXPLORE)
+                        stepIndex < topic.steps.lastIndex -> stepIndex++
+                        topicIndex < topics.lastIndex -> { topicIndex++; stepIndex = 0 }
+                        else -> { completed = true; contents = true }
+                    }
+                }, enabled = !finishing, colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()), shape = RoundedCornerShape(13.dp), modifier = Modifier.weight(2f).heightIn(min = 56.dp)) {
+                    Text(when { contents -> if (mode == OnboardingMode.REPLAY) localized("Закрыть", "Close", "Cerrar", "Schließen") else localized("К поездкам", "My trips", "Mis viajes", "Meine Reisen"); topicIndex == topics.lastIndex && stepIndex == topic.steps.lastIndex -> localized("Завершить", "Finish", "Finalizar", "Abschließen"); stepIndex == topic.steps.lastIndex -> localized("Следующий раздел", "Next topic", "Siguiente sección", "Nächstes Thema"); else -> localized("Далее", "Next", "Siguiente", "Weiter") }, fontFamily = Manrope, fontSize = 17.sp, fontWeight = FontWeight.W800, textAlign = TextAlign.Center)
+                }
+            }
+            if (contents && mode != OnboardingMode.REPLAY) {
+                TextButton(onClick = { leave(OnboardingExitAction.CREATE_FIRST_TRIP) }, enabled = !finishing, modifier = Modifier.fillMaxWidth()) { Text(localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"), color = primaryColor(), fontSize = 17.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExplainedInstruction(label: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, fontFamily = Manrope, fontSize = 14.sp, fontWeight = FontWeight.W800, color = secondaryTextColor())
+        Text(body, fontFamily = Manrope, fontSize = 18.sp, lineHeight = 27.sp, color = contentTextColor())
     }
 }
 
@@ -2455,107 +2424,43 @@ private data class OnboardingStepCopy(
 @Composable
 private fun onboardingStepCopy(page: RamingoOnboardingPage): OnboardingStepCopy = when (page) {
     RamingoOnboardingPage.CREATE_TRIP -> OnboardingStepCopy(
-        localized("Шаг 1. Создайте поездку", "Step 1. Create a trip", "Paso 1. Cree un viaje", "Schritt 1. Reise erstellen"),
-        localized("Нажмите «Создать путешествие», укажите название, даты и города. Остальное можно добавить позже.", "Tap “Create trip” and add a name, dates and cities. You can add the rest later.", "Pulse «Crear viaje» y añada nombre, fechas y ciudades. Lo demás puede esperar.", "Tippen Sie auf „Reise erstellen“ und tragen Sie Name, Daten und Städte ein. Alles Weitere kann später kommen."),
+        localized("Шаг 1. Создайте путешествие", "Step 1. Create a trip", "Paso 1. Cree un viaje", "Schritt 1. Reise erstellen"),
+        localized("1. На экране выбора нажмите «Создать путешествие».\n2. Введите название, выберите начало и конец поездки.\n3. Нажмите «+ добавить…» и выберите города.\n4. Нажмите «Создать путешествие» внизу формы.", "1. Tap “Create trip” on the welcome screen.\n2. Enter a name and choose the start and end dates.\n3. Tap “+ add…” and select cities.\n4. Tap “Create trip” at the bottom of the form.", "1. Pulse «Crear viaje» en la bienvenida.\n2. Escriba el nombre y elija las fechas.\n3. Pulse «+ añadir…» y seleccione ciudades.\n4. Pulse «Crear viaje» al final del formulario.", "1. Tippen Sie auf „Reise erstellen“.\n2. Geben Sie den Namen ein und wählen Sie die Reisedaten.\n3. Tippen Sie auf „+ hinzufügen…“ und wählen Sie Städte.\n4. Tippen Sie unten auf „Reise erstellen“."),
     )
     RamingoOnboardingPage.ROUTE -> OnboardingStepCopy(
-        localized("Шаг 2. Откройте «Маршрут»", "Step 2. Open “Route”", "Paso 2. Abra «Ruta»", "Schritt 2. „Route“ öffnen"),
-        localized("Это план по дням: выберите день и добавляйте в него места, рестораны и заметки.", "It is a day-by-day plan: choose a day and add places, restaurants and notes.", "Es un plan día a día: elija un día y añada lugares, restaurantes y notas.", "Das ist ein Tagesplan: Wählen Sie einen Tag und fügen Sie Orte, Restaurants und Notizen hinzu."),
+        localized("Шаг 2. Откройте дорожный маршрут", "Step 2. Open driving directions", "Paso 2. Abra la ruta por carretera", "Schritt 2. Straßenroute öffnen"),
+        localized("1. Откройте путешествие и меню ☰ → «Маршрут».\n2. Найдите переезд между нужными городами.\n3. Нажмите значок карты у переезда — откроется дорожный маршрут в Google Картах.\n4. Значок карандаша рядом открывает редактирование переезда.", "1. Open your trip, then ☰ → “Route”.\n2. Find the transfer between the cities you need.\n3. Tap its map icon to open driving directions in Google Maps.\n4. The pencil icon opens the transfer editor.", "1. Abra el viaje y ☰ → «Ruta».\n2. Busque el traslado entre las ciudades.\n3. Pulse su icono de mapa para abrir la ruta en Google Maps.\n4. El lápiz abre la edición del traslado.", "1. Öffnen Sie die Reise und ☰ → „Route“.\n2. Suchen Sie den Transfer zwischen den Städten.\n3. Das Kartensymbol öffnet die Straßenroute in Google Maps.\n4. Der Stift öffnet die Bearbeitung des Transfers."),
     )
     RamingoOnboardingPage.SIGHTS -> OnboardingStepCopy(
-        localized("Шаг 3. Добавьте места", "Step 3. Add places", "Paso 3. Añada lugares", "Schritt 3. Orte hinzufügen"),
-        localized("В «Достопримечательностях» выберите день, затем выберите место из каталога или добавьте его вручную.", "In “Sights”, choose a day, then pick a place from the catalog or add it manually.", "En «Lugares», elija un día y seleccione un lugar del catálogo o añádalo manualmente.", "Wählen Sie unter „Sehenswürdigkeiten“ einen Tag und wählen Sie einen Ort aus dem Katalog oder fügen Sie ihn manuell hinzu."),
+        localized("Шаг 3. Добавьте достопримечательность", "Step 3. Add a sight", "Paso 3. Añada un lugar", "Schritt 3. Sehenswürdigkeit hinzufügen"),
+        localized("1. В меню ☰ откройте «Достопримечательности».\n2. Выберите день поездки.\n3. Под списком мест нажмите «+ Из каталога» или «+ Вручную».\n4. Выберите место из каталога или заполните форму и нажмите «Добавить место».", "1. Open ☰ → “Sights”.\n2. Select a trip day.\n3. Below the list, tap “+ From catalog” or “+ Manually”.\n4. Select a catalog place, or fill in the form and tap “Add sight”.", "1. Abra ☰ → «Lugares».\n2. Seleccione el día.\n3. Bajo la lista pulse «+ Del catálogo» o «+ Manualmente».\n4. Elija un lugar o complete el formulario y pulse «Añadir lugar».", "1. Öffnen Sie ☰ → „Sehenswürdigkeiten“.\n2. Wählen Sie einen Reisetag.\n3. Tippen Sie unter der Liste auf „+ Aus Katalog“ oder „+ Manuell“.\n4. Wählen Sie einen Ort oder füllen Sie das Formular aus und tippen Sie auf „Ort hinzufügen“."),
     )
     RamingoOnboardingPage.ACCOMMODATION -> OnboardingStepCopy(
         localized("Шаг 4. Добавьте жильё", "Step 4. Add lodging", "Paso 4. Añada alojamiento", "Schritt 4. Unterkunft hinzufügen"),
-        localized("В «Жилье» можно выбрать вариант из каталога или сохранить свою бронь со ссылкой, датами и ценой.", "In “Lodging”, choose from the catalog or save your own booking with a link, dates and price.", "En «Alojamiento», elija una opción del catálogo o guarde su reserva con enlace, fechas y precio.", "Unter „Unterkunft“ können Sie aus dem Katalog wählen oder Ihre Buchung mit Link, Daten und Preis speichern."),
+        localized("1. Откройте меню ☰ → «Жильё».\n2. Нажмите «Добавить жильё».\n3. Выберите «Найти в Google Places» или «Добавить вручную».\n4. В форме проверьте название, даты проживания, стоимость и валюту, затем сохраните жильё.", "1. Open ☰ → “Lodging”.\n2. Tap “Add lodging”.\n3. Choose “Find with Google Places” or “Add manually”.\n4. Check the name, stay dates, price and currency, then save the stay.", "1. Abra ☰ → «Alojamiento».\n2. Pulse «Añadir alojamiento».\n3. Elija «Buscar con Google Places» o «Añadir manualmente».\n4. Revise el nombre, las fechas, el precio y la moneda y guarde el alojamiento.", "1. Öffnen Sie ☰ → „Unterkunft“.\n2. Tippen Sie auf „Unterkunft hinzufügen“.\n3. Wählen Sie „Mit Google Places suchen“ oder „Manuell hinzufügen“.\n4. Prüfen Sie Name, Aufenthaltsdaten, Preis und Währung und speichern Sie die Unterkunft."),
     )
     RamingoOnboardingPage.RESTAURANTS -> OnboardingStepCopy(
-        localized("Шаг 5. Сохраните ресторан", "Step 5. Save a restaurant", "Paso 5. Guarde un restaurante", "Schritt 5. Restaurant speichern"),
-        localized("Выберите ресторан из каталога или добавьте найденное место вручную.", "Choose a restaurant from the catalog or add a place you found yourself.", "Elija un restaurante del catálogo o añada un lugar que haya encontrado.", "Wählen Sie ein Restaurant aus dem Katalog oder fügen Sie einen selbst gefundenen Ort hinzu."),
+        localized("Шаг 5. Добавьте ресторан", "Step 5. Add a restaurant", "Paso 5. Añada un restaurante", "Schritt 5. Restaurant hinzufügen"),
+        localized("1. Откройте меню ☰ → «Рестораны».\n2. Нажмите «Добавить ресторан».\n3. Нажмите «Выбрать из каталога» или заполните данные своего ресторана.\n4. Проверьте город и остальные данные в форме, затем сохраните ресторан.", "1. Open ☰ → “Restaurants”.\n2. Tap “Add restaurant”.\n3. Choose “Choose from catalog” or enter your own restaurant details.\n4. Check the city and the remaining form fields, then save the restaurant.", "1. Abra ☰ → «Restaurantes».\n2. Pulse «Añadir restaurante».\n3. Pulse «Elegir del catálogo» o introduzca los datos del restaurante.\n4. Revise la ciudad y los demás campos y guarde el restaurante.", "1. Öffnen Sie ☰ → „Restaurants“.\n2. Tippen Sie auf „Restaurant hinzufügen“.\n3. Wählen Sie „Aus Katalog wählen“ oder geben Sie eigene Restaurantdaten ein.\n4. Prüfen Sie Stadt und Formularfelder und speichern Sie das Restaurant."),
     )
     RamingoOnboardingPage.PETS -> OnboardingStepCopy(
-        localized("Шаг 6. Добавьте места для питомца", "Step 6. Add pet-friendly places", "Paso 6. Añada lugares para mascotas", "Schritt 6. Orte für Haustiere hinzufügen"),
-        localized("Сохраняйте прогулки, кафе и клиники из каталога или добавляйте свои места.", "Save walks, cafés and clinics from the catalog or add your own places.", "Guarde paseos, cafeterías y clínicas del catálogo o añada sus propios lugares.", "Speichern Sie Spazierwege, Cafés und Kliniken aus dem Katalog oder fügen Sie eigene Orte hinzu."),
+        localized("Шаг 6. Найдите место для питомца", "Step 6. Find a pet place", "Paso 6. Busque un lugar para mascotas", "Schritt 6. Ort für Haustiere finden"),
+        localized("1. Откройте меню ☰ → «Питомцы».\n2. Выберите город и категорию «Зоомагазины» или «Ветеринары».\n3. Найдите место через «Поиск по каталогу».\n4. Если нужного места нет, нажмите «Добавить место вручную» и заполните форму.", "1. Open ☰ → “Pets”.\n2. Choose a city and “Pet shops” or “Veterinarians”.\n3. Find a place using the catalog search.\n4. If it is missing, tap “Add a place manually” and fill in the form.", "1. Abra ☰ → «Mascotas».\n2. Elija ciudad y «Tiendas» o «Veterinarios».\n3. Busque en el catálogo.\n4. Si no está, pulse «Añadir un lugar manualmente» y complete el formulario.", "1. Öffnen Sie ☰ → „Haustiere“.\n2. Wählen Sie Stadt und „Zoohandlungen“ oder „Tierärzte“.\n3. Suchen Sie im Katalog.\n4. Fehlt der Ort, tippen Sie auf „Ort manuell hinzufügen“ und füllen Sie das Formular aus."),
     )
     RamingoOnboardingPage.BUDGET -> OnboardingStepCopy(
-        localized("Шаг 7. Проверьте бюджет", "Step 7. Check your budget", "Paso 7. Revise el presupuesto", "Schritt 7. Budget prüfen"),
-        localized("Расходы собираются по категориям, а общую сумму можно смотреть в удобной валюте.", "Expenses are grouped by category, and you can view the total in a convenient currency.", "Los gastos se agrupan por categorías y puede ver el total en una moneda cómoda.", "Ausgaben werden nach Kategorien gruppiert und die Gesamtsumme kann in einer passenden Währung angezeigt werden."),
+        localized("Шаг 7. Добавьте трату", "Step 7. Add an expense", "Paso 7. Añada un gasto", "Schritt 7. Ausgabe hinzufügen"),
+        localized("1. Откройте меню ☰ → «Бюджет».\n2. Прокрутите к списку расходов и нажмите «Добавить трату».\n3. Заполните данные расхода и сохраните его.\n4. Проверьте общую сумму и распределение по категориям. Валюту отображения можно выбрать вверху раздела.", "1. Open ☰ → “Budget”.\n2. Scroll to the expenses and tap “Add expense”.\n3. Fill in the expense details and save.\n4. Check the total and categories. Select the display currency at the top.", "1. Abra ☰ → «Presupuesto».\n2. Baje a los gastos y pulse «Añadir gasto».\n3. Complete los datos y guarde.\n4. Revise el total y las categorías; la moneda se elige arriba.", "1. Öffnen Sie ☰ → „Budget“.\n2. Scrollen Sie zu den Ausgaben und tippen Sie auf „Ausgabe hinzufügen“.\n3. Geben Sie die Ausgabedaten ein und speichern Sie.\n4. Prüfen Sie Summe und Kategorien. Die Anzeigewährung wählen Sie oben."),
     )
 }
 
 @Composable
-private fun OnboardingStepContent(
-    page: RamingoOnboardingPage,
-) {
+private fun OnboardingStepContent(page: RamingoOnboardingPage) {
     val copy = onboardingStepCopy(page)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(top = 18.dp, bottom = 6.dp),
-    ) {
-        OnboardingProductPreview(page = page)
-        Text(
-            text = copy.title,
-            color = contentTextColor(),
-            fontFamily = Manrope,
-            fontWeight = FontWeight.W800,
-            fontSize = 23.sp,
-            lineHeight = 27.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = 8.dp, top = 14.dp, end = 8.dp),
-        )
-        Text(
-            text = copy.body,
-            color = secondaryTextColor(),
-            fontFamily = Manrope,
-            fontWeight = FontWeight.W600,
-            fontSize = 12.5.sp,
-            lineHeight = 17.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = 12.dp, top = 6.dp, end = 12.dp),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(start = 12.dp, top = 14.dp, end = 12.dp),
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(tintedSurfaceColor()),
-            ) {
-                Text(
-                    "→",
-                    color = primaryColor(),
-                    fontFamily = Manrope,
-                    fontWeight = FontWeight.W800,
-                    fontSize = 13.sp,
-                )
-            }
-            Text(
-                when (page) {
-                    RamingoOnboardingPage.CREATE_TRIP -> localized("Начните с кнопки «Создать путешествие»", "Start with “Create trip”", "Empiece con «Crear viaje»", "Beginnen Sie mit „Reise erstellen“")
-                    RamingoOnboardingPage.ROUTE -> localized("Планируйте день, а не километры", "Plan days, not kilometres", "Planifique días, no kilómetros", "Planen Sie Tage, keine Kilometer")
-                    RamingoOnboardingPage.SIGHTS -> localized("Каталог или ручной ввод", "Catalog or manual entry", "Catálogo o entrada manual", "Katalog oder manuelle Eingabe")
-                    RamingoOnboardingPage.ACCOMMODATION -> localized("Цена — в нужной валюте", "Price in the currency you need", "Precio en la moneda que necesita", "Preis in der gewünschten Währung")
-                    RamingoOnboardingPage.RESTAURANTS -> localized("Сохраняйте свои находки", "Save your own finds", "Guarde sus propios hallazgos", "Eigene Funde speichern")
-                    RamingoOnboardingPage.PETS -> localized("Каталог или своё место", "Catalog or your own place", "Catálogo o lugar propio", "Katalog oder eigener Ort")
-                    RamingoOnboardingPage.BUDGET -> localized("Нажмите кнопку создания поездки", "Tap the create-trip button", "Pulse el botón para crear el viaje", "Tippen Sie auf die Schaltfläche zum Erstellen")
-                },
-                color = primaryColor(),
-                fontFamily = Manrope,
-                fontWeight = FontWeight.W800,
-                fontSize = 11.5.sp,
-                lineHeight = 15.sp,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(copy.title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 26.sp, lineHeight = 32.sp)
+        Text(copy.body, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 17.sp, lineHeight = 26.sp)
+        Text(localized("Пример экрана", "Screen example", "Ejemplo de pantalla", "Bildschirmbeispiel"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 15.sp)
+        OnboardingProductPreview(page)
     }
 }
 
@@ -2581,7 +2486,7 @@ private fun OnboardingProductPreview(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (page == RamingoOnboardingPage.BUDGET) 270.dp else 248.dp)
+            .heightIn(min = if (page == RamingoOnboardingPage.BUDGET) 270.dp else 248.dp)
             .clip(RoundedCornerShape(22.dp))
             .background(if (LocalDarkTheme.current) OdysseyDarkSurface2 else Color(0xFFF0F0F4))
             .border(1.dp, contentBorderColor(), RoundedCornerShape(22.dp))
@@ -2589,7 +2494,7 @@ private fun OnboardingProductPreview(
     ) {
         when (page) {
             RamingoOnboardingPage.CREATE_TRIP -> OnboardingCreatePreview()
-            RamingoOnboardingPage.ROUTE -> OnboardingDayPlanPreview()
+            RamingoOnboardingPage.ROUTE -> OnboardingRoadRoutePreview()
             RamingoOnboardingPage.SIGHTS -> OnboardingSightsPreview()
             RamingoOnboardingPage.ACCOMMODATION -> OnboardingAccommodationPreview()
             RamingoOnboardingPage.RESTAURANTS -> OnboardingRestaurantsPreview()
@@ -2609,10 +2514,10 @@ private fun OnboardingScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(bottom = 7.dp),
     ) {
-        Icon(Icons.Outlined.Menu, contentDescription = null, tint = contentTextColor(), modifier = Modifier.size(18.dp))
+        Icon(Icons.Outlined.Menu, contentDescription = null, tint = contentTextColor(), modifier = Modifier.size(24.dp))
         Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(overline, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(overline, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Box(
             contentAlignment = Alignment.Center,
@@ -2632,28 +2537,28 @@ private fun OnboardingCreatePreview() {
     )
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.fillMaxWidth().height(35.dp).clip(RoundedCornerShape(11.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(11.dp)),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(RoundedCornerShape(11.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(11.dp)),
     ) {
-        Text(localized("Обложка — перетащите фото или выберите файл", "Cover — drop a photo or choose a file", "Portada: arrastre una foto o elija un archivo", "Titelbild — Foto ablegen oder Datei auswählen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 8.5.sp, textAlign = TextAlign.Center, maxLines = 2)
+        Text(localized("Добавить фото обложки", "Add cover photo", "Añadir foto de portada", "Titelbild hinzufügen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp, textAlign = TextAlign.Center, maxLines = 2)
     }
-    Text(localized("Название поездки", "Trip name", "Nombre del viaje", "Name der Reise"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
+    Text(localized("Название поездки", "Trip name", "Nombre del viaje", "Name der Reise"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.padding(top = 7.dp))
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().height(36.dp).clip(RoundedCornerShape(10.dp)).border(1.5.dp, primaryColor(), RoundedCornerShape(10.dp)).padding(horizontal = 9.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(RoundedCornerShape(10.dp)).border(1.5.dp, primaryColor(), RoundedCornerShape(10.dp)).padding(horizontal = 9.dp),
     ) {
-        Text(localized("Введите название", "Enter a name", "Escriba un nombre", "Namen eingeben"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 11.sp, modifier = Modifier.weight(1f))
+        Text(localized("Введите название", "Enter a name", "Escriba un nombre", "Namen eingeben"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 16.sp, modifier = Modifier.weight(1f))
         Box(Modifier.width(2.dp).height(17.dp).background(primaryColor()))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth().padding(top = 7.dp)) {
         OnboardingDatePreview(label = localized("Начало", "Start", "Inicio", "Beginn"), value = localized("Выберите дату", "Choose a date", "Elija una fecha", "Datum auswählen"), modifier = Modifier.weight(1f))
         OnboardingDatePreview(label = localized("Конец", "End", "Fin", "Ende"), value = localized("Выберите дату", "Choose a date", "Elija una fecha", "Datum auswählen"), modifier = Modifier.weight(1f))
     }
-    Text(localized("Города", "Cities", "Ciudades", "Städte"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(10.dp)).padding(horizontal = 7.dp)) {
+    Text(localized("Города", "Cities", "Ciudades", "Städte"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.padding(top = 7.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(10.dp)).padding(horizontal = 7.dp)) {
         Box(modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(tintedSurfaceColor()).padding(horizontal = 7.dp, vertical = 5.dp)) {
-            Text(localized("Рим", "Rome", "Roma", "Rom"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp)
+            Text(localized("Рим", "Rome", "Roma", "Rom"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
         }
-        Text(localized("+ добавить…", "+ add…", "+ añadir…", "+ hinzufügen…"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.sp)
+        Text(localized("+ добавить…", "+ add…", "+ añadir…", "+ hinzufügen…"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp)
     }
 }
 
@@ -2665,49 +2570,33 @@ private fun OnboardingDatePreview(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.height(39.dp).clip(RoundedCornerShape(10.dp)).background(if (LocalDarkTheme.current) OdysseyDarkSurface else Color(0xFFF0F0F4)).padding(horizontal = 8.dp),
+        modifier = modifier.heightIn(min = 39.dp).clip(RoundedCornerShape(10.dp)).background(if (LocalDarkTheme.current) OdysseyDarkSurface else Color(0xFFF0F0F4)).padding(horizontal = 8.dp, vertical = 5.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 8.sp)
-            Text(value, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            Text(label, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp)
+            Text(value, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
-        Icon(Icons.Outlined.DateRange, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(13.dp))
+        Icon(Icons.Outlined.DateRange, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(24.dp))
     }
 }
 
 @Composable
-private fun OnboardingDayPreview(
-    number: String,
-    title: String,
-    body: String,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 5.dp)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(29.dp).clip(RoundedCornerShape(9.dp)).background(tintedSurfaceColor())) {
-            Text(number, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
-        }
-        Column(modifier = Modifier.padding(start = 8.dp)) {
-            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 8.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
-        }
-    }
-}
-
-@Composable
-private fun OnboardingDayPlanPreview() {
+private fun OnboardingRoadRoutePreview() {
     OnboardingScreenHeader(
-        overline = localized("Зимняя Италия", "Winter Italy", "Italia de invierno", "Winter in Italien"),
+        overline = localized("Поездка в Италию", "Trip to Italy", "Viaje a Italia", "Reise nach Italien"),
         title = localized("Маршрут", "Route", "Ruta", "Route"),
-        action = { Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)) },
+        action = { Icon(Icons.Outlined.KeyboardArrowDown, null, tint = primaryColor(), modifier = Modifier.size(24.dp)) },
     )
-    Text(localized("ПЛАН ПОЕЗДКИ ПО ДНЯМ", "DAY-BY-DAY TRIP PLAN", "PLAN DEL VIAJE POR DÍAS", "TAGESPLAN DER REISE"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 8.5.sp, letterSpacing = 0.55.sp, modifier = Modifier.padding(top = 2.dp))
-    OnboardingDayPreview("1", localized("19 дек · Рим", "Dec 19 · Rome", "19 dic · Roma", "19. Dez. · Rom"), localized("2 места · ресторан · заметка", "2 places · restaurant · note", "2 lugares · restaurante · nota", "2 Orte · Restaurant · Notiz"))
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 6.dp, top = 4.dp)) {
-        Text("↝", color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
-        Text(localized("Переезд отдельно, если нужен", "Add a transfer only if needed", "Añada el traslado solo si hace falta", "Transfer nur bei Bedarf hinzufügen"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 8.5.sp, modifier = Modifier.padding(start = 6.dp))
+    Text(localized("Переезд между городами", "Transfer between cities", "Traslado entre ciudades", "Transfer zwischen Städten"), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(14.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(localized("Рим → Флоренция", "Rome → Florence", "Roma → Florencia", "Rom → Florenz"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp, lineHeight = 27.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Outlined.LocationOn, null, tint = primaryColor(), modifier = Modifier.size(32.dp))
+            Text(localized("Открыть в Google Картах", "Open in Google Maps", "Abrir en Google Maps", "In Google Maps öffnen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Icon(Icons.Outlined.Edit, null, tint = primaryColor(), modifier = Modifier.size(28.dp))
+        }
     }
-    OnboardingDayPreview("2", localized("20 дек · Флоренция", "Dec 20 · Florence", "20 dic · Florencia", "20. Dez. · Florenz"), localized("Добавьте места и планы дня", "Add places and plans for the day", "Añada lugares y planes del día", "Orte und Tagespläne hinzufügen"))
-    OnboardingDayPreview("3", localized("21 дек · Новый день", "Dec 21 · New day", "21 dic · Nuevo día", "21. Dez. · Neuer Tag"), localized("День добавляется одним нажатием", "Add a day with one tap", "Añada un día con un toque", "Tag mit einem Tippen hinzufügen"))
-    Text(localized("Каждый день — список планов и мест", "Each day is a list of plans and places", "Cada día es una lista de planes y lugares", "Jeder Tag ist eine Liste von Plänen und Orten"), color = Color(0xFF2BAA7D), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 8.5.sp, modifier = Modifier.padding(top = 7.dp))
+    Text(localized("Карта — дорожный маршрут. Карандаш — редактирование переезда.", "Map: driving directions. Pencil: edit the transfer.", "Mapa: ruta por carretera. Lápiz: editar el traslado.", "Karte: Straßenroute. Stift: Transfer bearbeiten."), color = secondaryTextColor(), fontFamily = Manrope, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(top = 14.dp))
 }
 
 @Composable
@@ -2727,21 +2616,21 @@ private fun OnboardingCollectionPreview(
     OnboardingScreenHeader(
         overline = localized("Зимняя Италия", "Winter Italy", "Italia de invierno", "Winter in Italien"),
         title = screenTitle,
-        action = { Icon(Icons.Outlined.Add, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)) },
+        action = { Icon(Icons.Outlined.Add, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(24.dp)) },
     )
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 1.dp)) {
-        Text(label, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 9.sp, modifier = Modifier.weight(1f))
+        Text(label, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp, modifier = Modifier.weight(1f))
         if (metaIsChip) {
             Box(modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(if (LocalDarkTheme.current) OdysseyDarkSurface else Color(0xFFF0F0F4)).padding(horizontal = 7.dp, vertical = 5.dp)) {
-                Text(meta, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 8.5.sp)
+                Text(meta, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp)
             }
         } else {
-            Text(meta, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 8.5.sp)
+            Text(meta, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 16.sp)
         }
     }
     OnboardingCollectionOption(firstIcon, firstTitle, firstBody)
     OnboardingCollectionOption(secondIcon, secondTitle, secondBody)
-    Text(footer, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 8.5.sp, lineHeight = 11.sp, modifier = Modifier.padding(top = 6.dp))
+    Text(footer, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp, lineHeight = 24.sp, modifier = Modifier.padding(top = 6.dp))
 }
 
 @Composable
@@ -2752,13 +2641,13 @@ private fun OnboardingCollectionOption(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(tintedSurfaceColor())) {
-            Text(icon, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 12.sp)
+            Text(icon, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
         }
         Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 8.5.sp, lineHeight = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
         }
-        Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(15.dp))
+        Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = null, tint = secondaryTextColor(), modifier = Modifier.size(24.dp))
     }
 }
 
@@ -2769,10 +2658,10 @@ private fun OnboardingSightsPreview() {
         label = localized("Места в поездке", "Places in the trip", "Lugares del viaje", "Orte in der Reise"),
         meta = localized("0 добавлено", "0 added", "0 añadidos", "0 hinzugefügt"),
         firstIcon = "✦",
-        firstTitle = localized("Выбрать из каталога", "Choose from catalog", "Elegir del catálogo", "Aus dem Katalog wählen"),
+        firstTitle = localized("Из каталога", "From catalog", "Del catálogo", "Aus Katalog"),
         firstBody = localized("Популярные достопримечательности по городу", "Popular sights for the city", "Lugares populares de la ciudad", "Beliebte Sehenswürdigkeiten der Stadt"),
         secondIcon = "+",
-        secondTitle = localized("Добавить вручную", "Add manually", "Añadir manualmente", "Manuell hinzufügen"),
+        secondTitle = localized("Вручную", "Manually", "Manualmente", "Manuell"),
         secondBody = localized("Название, ссылка, город и день", "Name, link, city and day", "Nombre, enlace, ciudad y día", "Name, Link, Stadt und Tag"),
         footer = localized("Добавленное место попадёт в выбранный день и на карту", "Added places appear in the selected day and on the map", "Los lugares añadidos aparecen en el día elegido y en el mapa", "Hinzugefügte Orte erscheinen am gewählten Tag und auf der Karte"),
     )
@@ -2786,7 +2675,7 @@ private fun OnboardingAccommodationPreview() {
         meta = "€ EUR",
         metaIsChip = true,
         firstIcon = "⌂",
-        firstTitle = localized("Выбрать из каталога", "Choose from catalog", "Elegir del catálogo", "Aus dem Katalog wählen"),
+        firstTitle = localized("Найти в Google Places", "Find with Google Places", "Buscar con Google Places", "Mit Google Places suchen"),
         firstBody = localized("Готовые варианты по выбранному городу", "Ready options for the selected city", "Opciones para la ciudad elegida", "Fertige Optionen für die gewählte Stadt"),
         secondIcon = "+",
         secondTitle = localized("Добавить вручную", "Add manually", "Añadir manualmente", "Manuell hinzufügen"),
@@ -2818,7 +2707,7 @@ private fun OnboardingPetsPreview() {
         label = localized("Места для питомца", "Pet-friendly places", "Lugares para mascotas", "Orte für Haustiere"),
         meta = localized("по городам", "by city", "por ciudad", "nach Stadt"),
         firstIcon = "🐾",
-        firstTitle = localized("Найти в каталоге", "Find in catalog", "Buscar en el catálogo", "Im Katalog suchen"),
+        firstTitle = localized("Поиск по каталогу", "Search catalog", "Buscar en el catálogo", "Katalog durchsuchen"),
         firstBody = localized("Подходящие места рядом с городом поездки", "Suitable places near the trip city", "Lugares adecuados cerca de la ciudad", "Passende Orte nahe der Reisestadt"),
         secondIcon = "+",
         secondTitle = localized("Добавить своё место", "Add your own place", "Añadir su lugar", "Eigenen Ort hinzufügen"),
@@ -2832,20 +2721,20 @@ private fun OnboardingBudgetPreview() {
     OnboardingScreenHeader(
         overline = localized("Зимняя Италия", "Winter Italy", "Italia de invierno", "Winter in Italien"),
         title = localized("Бюджет", "Budget", "Presupuesto", "Budget"),
-        action = { Icon(Icons.Outlined.Add, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(16.dp)) },
+        action = { Icon(Icons.Outlined.Add, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(24.dp)) },
     )
     Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 1.dp)) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(localized("Всего запланировано", "Total planned", "Total planificado", "Gesamt geplant"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 8.5.sp)
+            Text(localized("Всего запланировано", "Total planned", "Total planificado", "Gesamt geplant"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp)
             Text("€ 690", color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 21.sp, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(localized("EUR · 3 категории", "EUR · 3 categories", "EUR · 3 categorías", "EUR · 3 Kategorien"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 8.5.sp)
+        Text(localized("EUR · 3 категории", "EUR · 3 categories", "EUR · 3 categorías", "EUR · 3 Kategorien"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 16.sp)
     }
     OnboardingBudgetRow("⌂", localized("Жильё", "Lodging", "Alojamiento", "Unterkunft"), localized("1 расход", "1 expense", "1 gasto", "1 Ausgabe"), "€ 420")
     OnboardingBudgetRow("⌁", localized("Еда и рестораны", "Food and restaurants", "Comida y restaurantes", "Essen und Restaurants"), localized("2 расхода", "2 expenses", "2 gastos", "2 Ausgaben"), "€ 180")
     OnboardingBudgetRow("↗", localized("Транспорт", "Transport", "Transporte", "Transport"), localized("1 расход", "1 expense", "1 gasto", "1 Ausgabe"), "€ 90")
     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(top = 7.dp).height(29.dp).clip(RoundedCornerShape(9.dp)).border(1.dp, contentBorderColor(), RoundedCornerShape(9.dp))) {
-        Text(localized("＋ Добавить расход вручную", "＋ Add expense manually", "＋ Añadir gasto manualmente", "＋ Ausgabe manuell hinzufügen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 8.5.sp)
+        Text(localized("＋ Добавить трату", "＋ Add expense", "＋ Añadir gasto", "＋ Ausgabe hinzufügen"), color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 16.sp)
     }
 }
 
@@ -2858,13 +2747,13 @@ private fun OnboardingBudgetRow(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(tintedSurfaceColor())) {
-            Text(icon, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 11.sp)
+            Text(icon, color = primaryColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
         }
         Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.5.sp)
-            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 8.sp, modifier = Modifier.padding(top = 1.dp))
+            Text(title, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
+            Text(body, color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W500, fontSize = 16.sp, modifier = Modifier.padding(top = 1.dp))
         }
-        Text(amount, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 9.sp)
+        Text(amount, color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 16.sp)
     }
 }
 
@@ -4227,20 +4116,40 @@ private fun MyTripsScreen(
         }
     }
 
-    val deletedTrips = trips.filter { !it.deletedAt.isNullOrBlank() }
-    val activeTrips = trips.filter { it.deletedAt.isNullOrBlank() }
+    var tripStatusDate by remember { mutableStateOf(LocalDate.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val nextMidnight = tripStatusDate.plusDays(1)
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+            delay((nextMidnight - System.currentTimeMillis()).coerceAtLeast(1L))
+            tripStatusDate = LocalDate.now()
+        }
+    }
+    val statusAwareTrips = remember(trips, tripStatusDate) {
+        trips.map { trip ->
+            val status = effectiveTripStatus(trip.status, trip.dates, tripStatusDate)
+            if (status == trip.status) trip else trip.copy(status = status)
+        }
+    }
+    val deletedTrips = statusAwareTrips.filter { !it.deletedAt.isNullOrBlank() }
+    val activeTrips = statusAwareTrips.filter { it.deletedAt.isNullOrBlank() }
+    val currentTrips = activeTrips.filter { isCurrentTripStatus(it.status) }
     val upcoming = activeTrips.filter {
-        !it.status.contains("чернов", ignoreCase = true) &&
+        !isDraftTripStatus(it.status) &&
+            !isCurrentTripStatus(it.status) &&
             !it.status.contains("заверш", ignoreCase = true) &&
             !it.status.contains("прошед", ignoreCase = true)
     }
-    val drafts = activeTrips.filter { it.status.contains("чернов", ignoreCase = true) }
+    val drafts = activeTrips.filter { isDraftTripStatus(it.status) }
     val completed = activeTrips.filter {
         it.status.contains("заверш", ignoreCase = true) ||
             it.status.contains("прошед", ignoreCase = true)
     }
     val visibleTrips = when (filter) {
         "upcoming" -> upcoming
+        "current" -> currentTrips
         "drafts" -> drafts
         "completed" -> completed
         "deleted" -> deletedTrips
@@ -4279,6 +4188,7 @@ private fun MyTripsScreen(
     val filters = buildList {
         add("all" to localized("Все · ${tripCountLabel(activeTrips.size)}", "All · ${tripCountLabel(activeTrips.size)}", "Todos · ${tripCountLabel(activeTrips.size)}", "Alle · ${tripCountLabel(activeTrips.size)}"))
         add("upcoming" to localized("Предстоящие · ${tripCountLabel(upcoming.size)}", "Upcoming · ${tripCountLabel(upcoming.size)}", "Próximos · ${tripCountLabel(upcoming.size)}", "Bevorstehend · ${tripCountLabel(upcoming.size)}"))
+        add("current" to localized("Текущие · ${tripCountLabel(currentTrips.size)}", "Current · ${tripCountLabel(currentTrips.size)}", "En curso · ${tripCountLabel(currentTrips.size)}", "Aktuell · ${tripCountLabel(currentTrips.size)}"))
         add("drafts" to localized("Черновики · ${tripCountLabel(drafts.size)}", "Drafts · ${tripCountLabel(drafts.size)}", "Borradores · ${tripCountLabel(drafts.size)}", "Entwürfe · ${tripCountLabel(drafts.size)}"))
         add("completed" to localized("Завершённые · ${tripCountLabel(completed.size)}", "Completed · ${tripCountLabel(completed.size)}", "Completados · ${tripCountLabel(completed.size)}", "Abgeschlossen · ${tripCountLabel(completed.size)}"))
         if (deletedTrips.isNotEmpty()) {
@@ -4416,8 +4326,8 @@ private fun MyTripsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         EmptyStateCard(
                             icon = Icons.Outlined.Explore,
-                            title = localized("Здесь появятся ваши путешествия", "Your trips will appear here", "Aquí aparecerán sus viajes", "Hier erscheinen Ihre Reisen"),
-                            body = localized("Создайте первую поездку с нуля или выберите готовый маршрут", "Create your first trip from scratch or choose a ready route", "Cree su primer viaje desde cero o elija una ruta", "Erstellen Sie Ihre erste Reise oder wählen Sie eine fertige Route"),
+                            title = if (activeTrips.isEmpty()) localized("Здесь появятся ваши путешествия", "Your trips will appear here", "Aquí aparecerán sus viajes", "Hier erscheinen Ihre Reisen") else localized("В этой категории нет путешествий", "No trips in this category", "No hay viajes en esta categoría", "Keine Reisen in dieser Kategorie"),
+                            body = if (activeTrips.isEmpty()) localized("Создайте первую поездку с нуля или выберите готовый маршрут", "Create your first trip from scratch or choose a ready route", "Cree su primer viaje desde cero o elija una ruta", "Erstellen Sie Ihre erste Reise oder wählen Sie eine fertige Route") else localized("Выберите другую категорию", "Choose another category", "Elija otra categoría", "Wählen Sie eine andere Kategorie"),
                             action = localized("Создать путешествие", "Create trip", "Crear viaje", "Reise erstellen"),
                             highlighted = showCreateTripHint,
                             onAction = {
@@ -5489,7 +5399,7 @@ private fun NotificationSettingsScreen(
                     .background(groupBackground)
                     .clickable {
                         TimePickerDialog(
-                            context,
+                            localizedDialogContext(context, language),
                             { _, hourOfDay, _ ->
                                 reminderHour = hourOfDay
                                 selectedPreset = -1
@@ -5804,6 +5714,7 @@ private fun AccountSettingsSheet(
             )
         },
     ) {
+        ThemedSheetSystemBars()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -5848,7 +5759,7 @@ private fun AccountSettingsSheet(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
-                AccountStat(value = trips.size.toString(), label = localized("поездки", "trips", "viajes", "Reisen"), modifier = Modifier.weight(1f))
+                AccountStat(value = trips.size.toString(), label = localizedTripCountWord(trips.size, language), modifier = Modifier.weight(1f))
                 AccountStat(
                     value = cityCount.toString(),
                     label = localizedCountWord(cityCount, language, "город", "города", "городов", "city", "cities", "ciudad", "ciudades", "Stadt", "Städte"),
@@ -6003,6 +5914,21 @@ private fun AccountSettingsSheet(
             darkTheme = darkTheme,
             onDismiss = { feedbackOpen = false },
         )
+    }
+}
+
+@Composable
+private fun ThemedSheetSystemBars() {
+    val view = LocalView.current
+    val darkTheme = LocalDarkTheme.current
+    androidx.compose.runtime.SideEffect {
+        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        if (window != null) {
+            WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
     }
 }
 
@@ -7041,9 +6967,11 @@ private fun EditTripPanel(
         }
     }
 
+    val displayedStatus = effectiveTripStatus(status, dates, LocalDate.now())
     val summaryTitle = when {
-        status.contains("чернов", ignoreCase = true) || status.equals("draft", ignoreCase = true) -> localized("Черновик путешествия", "Draft trip", "Borrador de viaje", "Reiseentwurf")
-        status.contains("прошед", ignoreCase = true) || status.contains("заверш", ignoreCase = true) || status.equals("past", ignoreCase = true) || status.equals("completed", ignoreCase = true) -> localized("Завершённое путешествие", "Completed trip", "Viaje completado", "Abgeschlossene Reise")
+        isDraftTripStatus(displayedStatus) -> localized("Черновик путешествия", "Draft trip", "Borrador de viaje", "Reiseentwurf")
+        displayedStatus.contains("прошед", ignoreCase = true) || displayedStatus.contains("заверш", ignoreCase = true) || displayedStatus.equals("past", ignoreCase = true) || displayedStatus.equals("completed", ignoreCase = true) -> localized("Завершённое путешествие", "Completed trip", "Viaje completado", "Abgeschlossene Reise")
+        isCurrentTripStatus(displayedStatus) -> localized("Текущее путешествие", "Current trip", "Viaje en curso", "Aktuelle Reise")
         else -> localized("Предстоящее путешествие", "Upcoming trip", "Próximo viaje", "Bevorstehende Reise")
     }
 
@@ -7161,14 +7089,14 @@ private fun EditTripPanel(
                 .padding(4.dp),
         ) {
             listOf(
-                "Предстоящее" to localized("Предстоящие", "Upcoming", "Próximos", "Bevorstehend"),
+                "Предстоящее" to if (isCurrentTripStatus(displayedStatus)) localized("Текущие", "Current", "En curso", "Aktuell") else localized("Предстоящие", "Upcoming", "Próximos", "Bevorstehend"),
                 "Черновик" to localized("Черновики", "Drafts", "Borradores", "Entwürfe"),
                 "Прошедшее" to localized("Прошедшие", "Past", "Pasados", "Vergangen"),
             ).forEach { (value, label) ->
                 val selected = when (value) {
-                    "Предстоящее" -> status.contains("предст", ignoreCase = true) || status.equals("upcoming", ignoreCase = true)
-                    "Черновик" -> status.contains("чернов", ignoreCase = true) || status.equals("draft", ignoreCase = true)
-                    else -> status.contains("прошед", ignoreCase = true) || status.contains("заверш", ignoreCase = true) || status.equals("past", ignoreCase = true) || status.equals("completed", ignoreCase = true)
+                    "Предстоящее" -> displayedStatus.contains("предст", ignoreCase = true) || displayedStatus.equals("upcoming", ignoreCase = true) || isCurrentTripStatus(displayedStatus)
+                    "Черновик" -> isDraftTripStatus(displayedStatus)
+                    else -> displayedStatus.contains("прошед", ignoreCase = true) || displayedStatus.contains("заверш", ignoreCase = true) || displayedStatus.equals("past", ignoreCase = true) || displayedStatus.equals("completed", ignoreCase = true)
                 }
                 Box(
                     contentAlignment = Alignment.Center,
@@ -8876,6 +8804,8 @@ private fun TripOverviewScreen(
     var refresh by remember { mutableStateOf(0) }
     var loadError by remember { mutableStateOf<String?>(null) }
     val weatherRepository = remember { WeatherRepository() }
+    val albumUploadState = remember(tripId) { AlbumUploadState() }
+    val albumUploadScope = rememberCoroutineScope()
 
     DisposableEffect(weatherRepository) {
         onDispose { weatherRepository.close() }
@@ -9140,7 +9070,7 @@ private fun TripOverviewScreen(
                     onCurrencyChanged = { selectedCurrency -> overview = overview?.copy(budgetCurrency = selectedCurrency) },
                 )
                 "members" -> MembersContent(tripId, overview!!, canEdit = overview!!.currentUserRole == "Владелец") { refresh++ }
-                else -> PhotosContent(tripId, overview!!, canEdit = overview!!.canEdit) { refresh++ }
+                else -> PhotosContent(tripId, overview!!, canEdit = overview!!.canEdit, uploadState = albumUploadState, uploadScope = albumUploadScope) { refresh++ }
             }
         }
             }
@@ -13441,6 +13371,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
             RestaurantMapCard(
                 restaurants = visibleRestaurants,
                 cityCoordinates = overview.cityCoordinates,
+                fallbackCities = if (selectedCity == "Все города") tripCityOptions else listOf(selectedCity),
                 modifier = Modifier.padding(top = 11.dp),
             )
         }
@@ -13636,7 +13567,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                     restaurantDatePickerOpen = true
                 },
                 onTimePickerOpen = {
-                    showRestaurantTimePicker(context, reservationTime) { selectedTime ->
+                    showRestaurantTimePicker(context, reservationTime, language) { selectedTime ->
                         reservationTime = selectedTime
                     }
                 },
@@ -15250,7 +15181,7 @@ private fun RestaurantEditSheet(
                             trailingIcon = Icons.Outlined.AccessTime,
                             readOnly = true,
                             modifier = Modifier.width(d(151f)),
-                            onClick = { showRestaurantTimePicker(context, reservationTime) { reservationTime = it } },
+                            onClick = { showRestaurantTimePicker(context, reservationTime, language) { reservationTime = it } },
                             onValueChange = { reservationTime = it },
                         )
                     }
@@ -16745,7 +16676,7 @@ private fun RestaurantDetailsSheet(
             } ?: Icon(Icons.Outlined.Restaurant, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(44.dp))
             if (photos.size > 1) {
                 Text(
-                    text = localized("${photos.size} фото", "${photos.size} photos", "${photos.size} fotos", "${photos.size} Fotos"),
+                    text = localizedPhotoCount(photos.size, LocalLanguage.current),
                     color = Color.White,
                     fontFamily = Manrope,
                     fontWeight = FontWeight.W800,
@@ -16893,15 +16824,19 @@ private fun RestaurantDetailsSheet(
 private fun RestaurantMapCard(
     restaurants: List<com.odyssey.travelplanner.data.Restaurant>,
     cityCoordinates: Map<String, CityLocation> = emptyMap(),
+    fallbackCities: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val language = LocalLanguage.current
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
-    val restaurantPoints = remember(restaurants) {
+    val restaurantPoints = remember(restaurants, cityCoordinates) {
         restaurants
             .mapNotNull { mapCoordinate(it.city, cityCoordinates) }
             .distinctBy { "${it.longitude()},${it.latitude()}" }
+    }
+    val cameraPoints = remember(restaurants, fallbackCities, cityCoordinates) {
+        restaurantMapCameraPoints(restaurants.map { it.city }, fallbackCities, cityCoordinates)
     }
     var mapStyleReady by remember { mutableStateOf(false) }
     val mapView = remember(context, attributionDescription) {
@@ -16940,7 +16875,7 @@ private fun RestaurantMapCard(
         if (mapStyleReady) mapView.mapboxMap.style?.localizeLabels(mapLocale(language))
     }
 
-    LaunchedEffect(mapStyleReady, restaurantPoints) {
+    LaunchedEffect(mapStyleReady, restaurantPoints, cameraPoints) {
         if (!mapStyleReady) return@LaunchedEffect
         annotationManager.deleteAll()
         numberAnnotationManager.deleteAll()
@@ -16963,19 +16898,19 @@ private fun RestaurantMapCard(
             )
         }
         val camera = when {
-            restaurantPoints.size > 1 -> mapView.mapboxMap.cameraForCoordinates(
-                restaurantPoints,
+            cameraPoints.size > 1 -> mapView.mapboxMap.cameraForCoordinates(
+                cameraPoints,
                 EdgeInsets(34.0, 34.0, 34.0, 34.0),
                 null,
                 null,
             )
-            restaurantPoints.size == 1 -> CameraOptions.Builder()
-                .center(restaurantPoints.first())
+            cameraPoints.size == 1 -> CameraOptions.Builder()
+                .center(cameraPoints.first())
                 .zoom(9.0)
                 .build()
             else -> CameraOptions.Builder()
-                .center(Point.fromLngLat(12.4964, 41.9028))
-                .zoom(5.0)
+                .center(Point.fromLngLat(0.0, 0.0))
+                .zoom(1.0)
                 .build()
         }
         mapView.mapboxMap.setCamera(camera)
@@ -17098,221 +17033,270 @@ private fun EditRestaurantPanel(restaurant: com.odyssey.travelplanner.data.Resta
     }
 }
 
+private class AlbumUploadState {
+    val uploading = mutableStateOf(false)
+    val status = mutableStateOf<String?>(null)
+    val failedUris = mutableStateOf<List<Uri>>(emptyList())
+    val error = mutableStateOf<String?>(null)
+}
+
 @Composable
-private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, onPhotoAdded: () -> Unit) {
+private fun PhotosContent(tripId: String, overview: TripOverview, canEdit: Boolean = true, uploadState: AlbumUploadState, uploadScope: kotlinx.coroutines.CoroutineScope, onPhotoAdded: () -> Unit) {
     val language = LocalLanguage.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val uploadCities = remember(overview.id, overview.cities, overview.overviewMapPoints, overview.overviewWeatherCities, overview.routeLegs, overview.cityCoordinates) {
-        (
-            overview.cities +
-                overview.overviewMapPoints +
-                overview.overviewWeatherCities +
-                overview.routeLegs.flatMap { listOf(it.from, it.to) } +
-                overview.cityCoordinates.keys
-        ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
-    }
-    var selectedUploadCity by remember(overview.id) { mutableStateOf("") }
-    var uploadCityMenuOpen by remember { mutableStateOf(false) }
-    var uploading by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
+    val client = remember { SupabaseProvider.clientForCurrentAuthFlow() }
+    val repository = remember(client) { SupabaseTripRepository(client) }
+    val service = remember(client) { AlbumPhotoService(client) }
+    val photos = overview.albumPhotos
+    var query by remember(tripId) { mutableStateOf("") }
+    var cityFilter by remember(tripId) { mutableStateOf("") }
+    var cityQuery by remember { mutableStateOf("") }
+    var cityMenu by remember { mutableStateOf(false) }
+    var visibleCount by remember(tripId) { mutableStateOf(6) }
+    var links by remember(tripId) { mutableStateOf<Map<String, AlbumPhotoLinks>>(emptyMap()) }
+    var resolved by remember(tripId) { mutableStateOf<Set<String>>(emptySet()) }
+    var mediaGeneration by remember(tripId) { mutableStateOf(0) }
+    var cities by remember(tripId) { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var uploading by uploadState.uploading
+    var uploadStatus by uploadState.status
+    var failedUris by uploadState.failedUris
+    var selectedPhoto by remember { mutableStateOf<CoverPhoto?>(null) }
+    var deleteConfirmation by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var error by uploadState.error
+    fun photoCity(photo: CoverPhoto): String = photo.city.ifBlank { cities[photo.id].orEmpty() }
+    fun photoKey(photo: CoverPhoto) = tripPhotoPath(photo.storageReference)
+    fun photoDate(photo: CoverPhoto): String = albumCaptureDate(photo.date)?.toLocalDate()?.toString().orEmpty()
+    fun upload(uris: List<Uri>) {
+        if (uploading || !canEdit) return
+        uploadScope.launch {
             uploading = true
-            message = null
-            runCatching {
-                val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                uris.forEach { uri ->
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: error(localized(language, "Не удалось прочитать изображение", "Could not read the image", "No se pudo leer la imagen", "Das Bild konnte nicht gelesen werden"))
-                    val metadata = readTripPhotoMetadata(bytes)
-                    val detectedCity = detectTripPhotoCity(metadata, overview, selectedUploadCity)
-                    repository.addCoverPhoto(
-                        id = tripId,
-                        bytes = bytes,
-                        city = detectedCity,
-                        date = metadata.date.orEmpty(),
-                    )
+            error = null
+            failedUris = emptyList()
+            val failed = mutableListOf<Uri>()
+            var added = 0
+            var duplicates = 0
+            try {
+                uris.distinct().forEachIndexed { index, uri ->
+                    uploadStatus = localized(language, "Фото ${index + 1} из ${uris.size}: подготовка…", "Photo ${index + 1} of ${uris.size}: preparing…", "Foto ${index + 1} de ${uris.size}: preparando…", "Foto ${index + 1} von ${uris.size}: vorbereiten…")
+                    try {
+                        val original = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                            ?: error("Не удалось прочитать изображение")
+                        val metadata = runCatching {
+                            val exif = android.media.ExifInterface(java.io.ByteArrayInputStream(original))
+                            val coordinates = FloatArray(2)
+                            val hasCoordinates = exif.getLatLong(coordinates)
+                            val date = (exif.getAttribute(android.media.ExifInterface.TAG_DATETIME_ORIGINAL)
+                                ?: exif.getAttribute(android.media.ExifInterface.TAG_DATETIME))
+                                ?.replaceFirst(Regex("^(\\d{4}):(\\d{2}):(\\d{2})"), "$1-$2-$3")?.replace(' ', 'T')
+                            TripPhotoMetadata(date, coordinates[0].toDouble().takeIf { hasCoordinates }, coordinates[1].toDouble().takeIf { hasCoordinates })
+                        }.getOrElse { runCatching { readTripPhotoMetadata(original) }.getOrDefault(TripPhotoMetadata()) }
+                        val prepared = prepareAlbumPhoto(original, context.contentResolver.getType(uri))
+                        val localCity = detectTripPhotoCity(metadata, overview, "")
+                        val city = localCity.ifBlank {
+                            if (metadata.latitude != null && metadata.longitude != null) {
+                                albumAttempt { service.city(metadata.latitude, metadata.longitude) }.getOrNull().orEmpty()
+                            } else ""
+                        }
+                        uploadStatus = localized(language, "Фото ${index + 1} из ${uris.size}: загрузка…", "Photo ${index + 1} of ${uris.size}: uploading…", "Foto ${index + 1} de ${uris.size}: subiendo…", "Foto ${index + 1} von ${uris.size}: hochladen…")
+                        var saved: Boolean? = null
+                        var lastError: Throwable? = null
+                        repeat(3) { attempt ->
+                            if (saved == null) {
+                                try {
+                                    saved = repository.addAlbumPhoto(tripId, prepared.bytes, city, metadata.date.orEmpty(), metadata.latitude, metadata.longitude, prepared.sourceHash, prepared.mimeType)
+                                } catch (failure: Exception) {
+                                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                                    lastError = failure
+                                    if (attempt < 2) delay(800L * (attempt + 1))
+                                }
+                            }
+                        }
+                        if (saved == null) throw lastError ?: IllegalStateException("Не удалось загрузить фото")
+                        if (saved == true) added++ else duplicates++
+                        onPhotoAdded()
+                    } catch (failure: Exception) {
+                        if (failure is kotlinx.coroutines.CancellationException) throw failure
+                        failed += uri
+                        error = localizedFailure(language, failure, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden"))
+                    }
                 }
-            }.onSuccess { onPhotoAdded() }.onFailure {
-                message = localizedFailure(language, it, localized(language, "Не удалось загрузить фото", "Could not upload photo", "No se pudo subir la foto", "Foto konnte nicht hochgeladen werden"))
+                failedUris = failed
+                uploadStatus = localized(language, "Добавлено: $added · Уже в альбоме: $duplicates · Ошибок: ${failed.size}", "Added: $added · Already in album: $duplicates · Failed: ${failed.size}", "Añadidas: $added · Ya en el álbum: $duplicates · Errores: ${failed.size}", "Hinzugefügt: $added · Bereits im Album: $duplicates · Fehler: ${failed.size}")
+                onPhotoAdded()
+            } finally { uploading = false }
+        }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> if (uris.isNotEmpty()) upload(uris) }
+    LaunchedEffect(tripId) {
+        while (true) { delay(55 * 60 * 1000L); mediaGeneration++ }
+    }
+    LaunchedEffect(photos, mediaGeneration) {
+        val pending = photos.filter { mediaGeneration > 0 || it.id !in resolved }.sortedByDescending { albumCaptureDate(it.date) }
+        val batches = pending.chunked(12)
+        supervisorScope {
+            val semaphore = Semaphore(3)
+            batches.map { batch -> async {
+                semaphore.withPermit {
+                    val keys = batch.mapNotNull(::photoKey).filter { it.contains("/album/") }
+                    val found = albumAttempt { service.resolve(keys) }.getOrDefault(emptyMap())
+                    batch.forEach { photo ->
+                        val link = photoKey(photo)?.let { found[it] }
+                        val delivery = if (link?.thumbnail != null) link else {
+                            val url = albumAttempt { client.resolveTripPhotoReference(photo.storageReference) }.getOrNull()
+                            AlbumPhotoLinks(url, link?.original ?: url)
+                        }
+                        links = links + (photo.id to delivery)
+                        resolved = resolved + photo.id
+                    }
+                }
+            } }.awaitAll()
+        }
+        // Prepare missing R2 copies one at a time; only the original uploader can write them.
+        val uploader = client.auth.currentUserOrNull()?.id?.toString()
+        if (canEdit && uploader != null) pending.forEach { photo ->
+            val key = photoKey(photo)
+            if (key != null && key.startsWith("$uploader/") && key.contains("/album/") && links[photo.id]?.thumbnail?.contains("workers.dev") != true) {
+                albumAttempt {
+                    val original = service.download(photo.storageReference)
+                    val prepared = prepareAlbumPhoto(original, null)
+                    // Preserve the bytes belonging to this immutable key.
+                    if (prepared.bytes.contentEquals(original)) {
+                        service.mirror(key, original, prepared.mimeType)
+                        service.resolve(listOf(key))[key]?.let { links = links + (photo.id to it) }
+                    }
+                }
             }
-            uploading = false
         }
     }
-    // This gallery is user-owned: only photos explicitly uploaded from this
-    // screen belong here. Catalog and section photos remain in their sections.
-    val photos = overview.coverPhotos
-        // Cover photos used by the overview/weather are restored from the
-        // trip's legacy catalog. The Photos tab is intentionally reserved for
-        // images uploaded through this tab, which are stored under /covers/.
-        .filter { photo ->
-            photo.imageUrl.isNotBlank() && tripPhotoPath(photo.imageUrl)?.contains("/covers/") == true
-        }
-        .distinctBy { it.imageUrl }
-    val photoCities = remember(overview.id, uploadCities, photos) {
-        (uploadCities + photos.map { it.city })
-            .map(String::trim)
-            .filter(String::isNotBlank)
-            .distinctBy(::cityFilterKey)
-    }
-    val firstPhotoCity = photos.firstOrNull { it.city.isNotBlank() }?.city
-    val defaultPhotoCity = firstPhotoCity ?: photoCities.firstOrNull().orEmpty()
-    LaunchedEffect(photoCities, defaultPhotoCity) {
-        if (selectedUploadCity.isBlank() || photoCities.none { cityFilterKey(it) == cityFilterKey(selectedUploadCity) }) {
-            selectedUploadCity = defaultPhotoCity
+    LaunchedEffect(photos, overview.cityCoordinates) {
+        photos.filter { it.city.isBlank() && it.latitude != null && it.longitude != null }.forEach { photo ->
+            val metadata = TripPhotoMetadata(photo.date, photo.latitude, photo.longitude)
+            val local = detectTripPhotoCity(metadata, overview, "")
+            val city = local.ifBlank { albumAttempt { service.city(photo.latitude!!, photo.longitude!!) }.getOrNull().orEmpty() }
+            if (city.isNotBlank()) cities = cities + (photo.id to city)
         }
     }
-    val groupedPhotos = photos.groupBy { photo ->
-        photo.city.ifBlank { localized(language, "Поездка", "Trip", "Viaje", "Reise") }
-    }.toList()
-    val selectedCityPhotos = if (selectedUploadCity.isBlank()) {
-        photos
-    } else {
-        val cityPhotos = photos.filter { photo -> samePhotoCity(photo.city, selectedUploadCity) }
-        cityPhotos.ifEmpty { photos.filter { it.city.isBlank() } }
+    val cityNames = photos.map(::photoCity).filter(String::isNotBlank).distinct().sorted()
+    val matching = photos.asReversed().sortedByDescending { albumCaptureDate(it.date) }.filter { photo ->
+        val city = photoCity(photo)
+        (cityFilter.isEmpty() || (cityFilter == "__none__" && city.isBlank()) || city == cityFilter) &&
+            "$city ${photo.date} ${photoDate(photo).let(::photoDateLabel)}".contains(query.trim(), ignoreCase = true)
     }
-    val selectedCityName = selectedUploadCity.ifBlank {
-        localized(language, "Поездка", "Trip", "Viaje", "Reise")
+    val groups = matching.take(visibleCount).groupBy(::photoDate)
+    val albumLocale = when (normalizeLanguage(language)) { "EN" -> Locale.ENGLISH; "ES" -> Locale.forLanguageTag("es"); "DE" -> Locale.GERMAN; else -> Locale.forLanguageTag("ru") }
+    val includePhotoYear = photos.mapNotNull { albumCaptureDate(it.date)?.year }.distinct().size > 1
+    fun albumDayLabel(date: String): String = runCatching { LocalDate.parse(date).format(java.time.format.DateTimeFormatter.ofPattern(if (includePhotoYear) "d MMMM yyyy" else "d MMMM", albumLocale)) }.getOrDefault(date)
+    @Composable
+    fun albumTile(photo: CoverPhoto, modifier: Modifier) {
+        Box(contentAlignment = Alignment.Center, modifier = modifier.clip(RoundedCornerShape(14.dp)).background(secondarySurfaceColor()).clickable { selectedPhoto = photo; error = null }) {
+            val preview = links[photo.id]?.thumbnail
+            if (preview != null) AsyncImage(model = preview, contentDescription = "${photoCity(photo)} ${photo.date}", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            else if (photo.id !in resolved) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            else Icon(Icons.Outlined.Image, localized("Фото недоступно", "Photo unavailable", "Foto no disponible", "Foto nicht verfügbar"), tint = secondaryTextColor())
+        }
     }
-
-    fun groupMeta(city: String, count: Int): String {
-        val groupIndex = groupedPhotos.indexOfFirst { samePhotoCity(it.first, city) }
-            .let { if (it >= 0) it + 1 else 1 }
-        val date = photoGroupDateRange(city, overview, groupIndex)
-            ?.let { formatPhotoDateRange(it, language) }
-        return listOfNotNull(date, "$count ${localized(language, "фото", "photos", "fotos", "Fotos")}").joinToString(" · ")
+    LaunchedEffect(selectedPhoto?.id) {
+        val photo = selectedPhoto ?: return@LaunchedEffect
+        val key = photoKey(photo)
+        val fresh = if (key?.contains("/album/") == true) albumAttempt { service.resolve(listOf(key))[key] }.getOrNull() else null
+        val original = fresh?.original ?: albumAttempt { client.resolveTripPhotoReference(photo.storageReference) }.getOrNull()
+        links = links + (photo.id to AlbumPhotoLinks(fresh?.thumbnail ?: links[photo.id]?.thumbnail, original))
+        resolved = resolved + photo.id
     }
-
-    LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.navigationBars),
-    ) {
+    LazyColumn(contentPadding = PaddingValues(18.dp, 12.dp, 18.dp, 30.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         item {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            ) {
-                Text(localized("Фото", "Photos", "Fotos", "Fotos"), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 17.sp)
-                if (canEdit) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(Brush.linearGradient(listOf(primaryColor(), Color(0xFF7D6CF0))))
-                            .shadow(5.dp, RoundedCornerShape(11.dp), clip = false, ambientColor = Color(0x426C5CE7), spotColor = Color(0x426C5CE7))
-                            .clickable(enabled = !uploading) { picker.launch("image/*") }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                    ) {
-                        Text(
-                            if (uploading) localized("Загружаем…", "Uploading…", "Subiendo…", "Wird hochgeladen…") else localized("↑  Загрузить", "↑  Upload", "↑  Subir", "↑  Hochladen"),
-                            color = primaryContentColor(),
-                            fontFamily = Manrope,
-                            fontWeight = FontWeight.W800,
-                            fontSize = 12.5.sp,
-                        )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(localized("Фотоальбом", "Photo album", "Álbum de fotos", "Fotoalbum"), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 19.sp, color = contentTextColor())
+                    Text("${localizedPhotoCount(photos.size, language)} · ${localized("по дате съёмки", "by capture date", "por fecha", "nach Aufnahmedatum")}", fontFamily = Manrope, fontSize = 11.sp, color = secondaryTextColor())
+                }
+                if (canEdit) Button(onClick = { picker.launch("image/*") }, enabled = !uploading, shape = RoundedCornerShape(11.dp), contentPadding = PaddingValues(12.dp, 7.dp)) {
+                    Text(localized("↑ Загрузить", "↑ Upload", "↑ Subir", "↑ Hochladen"), fontFamily = Manrope, fontSize = 12.sp)
+                }
+            }
+        }
+        item { Text(localized("Для поиска города округлённые GPS-координаты отправляются в Photon · © OpenStreetMap contributors", "Rounded GPS coordinates are sent to Photon to find the city · © OpenStreetMap contributors", "Se envían coordenadas GPS redondeadas a Photon para buscar la ciudad · © OpenStreetMap contributors", "Gerundete GPS-Koordinaten werden zur Stadtsuche an Photon gesendet · © OpenStreetMap contributors"), fontFamily = Manrope, fontSize = 10.sp, color = secondaryTextColor()) }
+        item { OutlinedTextField(value = query, onValueChange = { query = it; visibleCount = 6 }, placeholder = { Text(localized("Поиск по месту или дате", "Search by place or date", "Buscar lugar o fecha", "Ort oder Datum suchen")) }, singleLine = true, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) }
+        item {
+            Box {
+                val label = when(cityFilter) { "" -> localized("Все места", "All places", "Todos los lugares", "Alle Orte"); "__none__" -> localized("Без места", "No place", "Sin lugar", "Ohne Ort"); else -> cityFilter }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(cardSurfaceColor()).border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp)).clickable { cityMenu = true }.padding(12.dp)) {
+                    Icon(Icons.Outlined.LocationOn, null, tint = primaryColor(), modifier = Modifier.size(20.dp))
+                    Text(label, fontFamily = Manrope, fontWeight = FontWeight.W700, color = contentTextColor(), modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                    Text("${photos.count { cityFilter.isEmpty() || photoCity(it) == cityFilter || (cityFilter == "__none__" && photoCity(it).isBlank()) }}", color = secondaryTextColor())
+                    Icon(Icons.Outlined.KeyboardArrowDown, null, tint = secondaryTextColor())
+                }
+                DropdownMenu(expanded = cityMenu, onDismissRequest = { cityMenu = false; cityQuery = "" }, containerColor = cardSurfaceColor(), modifier = Modifier.fillMaxWidth(.9f)) {
+                    OutlinedTextField(cityQuery, { cityQuery = it }, singleLine = true, placeholder = { Text(localized("Найти город", "Find city", "Buscar ciudad", "Stadt suchen")) }, modifier = Modifier.padding(8.dp))
+                    (listOf("" to localized("Все места", "All places", "Todos los lugares", "Alle Orte"), "__none__" to localized("Без места", "No place", "Sin lugar", "Ohne Ort")) + cityNames.map { it to it }).filter { it.second.contains(cityQuery, true) }.forEach { (key, name) ->
+                        DropdownMenuItem(text = { Text(name, fontFamily = Manrope) }, onClick = { cityFilter = key; cityMenu = false; cityQuery = ""; visibleCount = 6 })
                     }
                 }
             }
         }
-        if (photoCities.isNotEmpty()) {
-            item {
-                Box {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(secondarySurfaceColor())
-                            .border(1.dp, contentBorderColor(), RoundedCornerShape(13.dp))
-                            .clickable { uploadCityMenuOpen = true }
-                            .padding(horizontal = 13.dp, vertical = 11.dp),
-                    ) {
-                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = primaryColor(), modifier = Modifier.size(18.dp))
-                        Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
-                            Text(localized("Город фото", "Photo city", "Ciudad de la foto", "Fotostadt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 11.sp)
-                            Text(localizedCityName(selectedUploadCity), color = contentTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = localized("Выбрать город", "Choose city", "Elegir ciudad", "Stadt auswählen"), tint = secondaryTextColor(), modifier = Modifier.size(19.dp))
-                    }
-                    DropdownMenu(expanded = uploadCityMenuOpen, onDismissRequest = { uploadCityMenuOpen = false }, containerColor = cardSurfaceColor()) {
-                        photoCities.forEach { city ->
-                            DropdownMenuItem(
-                                text = { Text(localizedCityName(city), fontFamily = Manrope) },
-                                onClick = { selectedUploadCity = city; uploadCityMenuOpen = false },
-                            )
-                        }
+        if (uploading) item { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp); Text(uploadStatus.orEmpty(), fontSize = 12.sp, color = secondaryTextColor()) } }
+        else if (uploadStatus != null) item { Text(uploadStatus!!, fontSize = 12.sp, color = secondaryTextColor()) }
+        if (error != null) item { Text(error!!, fontSize = 12.sp, color = Color(0xFFE0524B)) }
+        if (failedUris.isNotEmpty() && !uploading) item { TextButton(onClick = { upload(failedUris) }) { Text(localized("Повторить неудачные загрузки", "Retry failed uploads", "Reintentar cargas fallidas", "Fehlgeschlagene Uploads wiederholen")) } }
+        if (matching.isEmpty()) item { Text(if (photos.isEmpty()) localized("Добавьте первое фото", "Add the first photo", "Añade la primera foto", "Erstes Foto hinzufügen") else localized("Фото не найдены", "No matching photos", "No se encontraron fotos", "Keine Fotos gefunden"), color = secondaryTextColor(), modifier = Modifier.padding(vertical = 24.dp)) }
+        groups.forEach { (date, group) ->
+            item(key = "heading:$date") {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (date.isBlank()) localized("Дата не указана", "No date", "Sin fecha", "Ohne Datum") else albumDayLabel(date), fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, color = contentTextColor())
+                    val weekday = runCatching { LocalDate.parse(date).dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, albumLocale).replaceFirstChar { it.titlecase(albumLocale) } }.getOrNull()
+                    Text("${weekday?.let { "$it · " }.orEmpty()}${localizedPhotoCount(matching.count { photoDate(it) == date }, language)}", fontSize = 9.sp, color = secondaryTextColor())
+                    Box(Modifier.weight(1f).height(1.dp).background(contentBorderColor()))
+                }
+            }
+            if (group.size >= 4) item(key = "featured:$date") {
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth().height(307.dp)) {
+                    albumTile(group[0], Modifier.weight(1.1f).fillMaxHeight())
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        albumTile(group[1], Modifier.fillMaxWidth().weight(1.15f))
+                        albumTile(group[2], Modifier.fillMaxWidth().weight(1f))
                     }
                 }
             }
-        }
-        if (photoCities.size > 1) {
-            item {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                ) {
-                    photoCities.forEach { city ->
-                        val selected = samePhotoCity(city, selectedUploadCity)
-                        val cityPhotoCount = photos.count { photo -> samePhotoCity(photo.city, city) }
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (selected) primaryColor() else secondarySurfaceColor())
-                                .border(1.dp, if (selected) primaryColor() else contentBorderColor(), RoundedCornerShape(999.dp))
-                                .clickable { selectedUploadCity = city }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                buildString {
-                                    append(localizedCityName(city))
-                                    if (cityPhotoCount > 0) append("  ·  $cityPhotoCount")
-                                },
-                                color = if (selected) primaryContentColor() else contentTextColor(),
-                                fontFamily = Manrope,
-                                fontWeight = FontWeight.W800,
-                                fontSize = 11.5.sp,
-                                maxLines = 1,
-                            )
-                        }
+            items((if (group.size >= 4) group.drop(3) else group).chunked(2), key = { row -> row.joinToString { it.id } }) { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { photo ->
+                        albumTile(photo, Modifier.weight(1f).height(122.dp))
                     }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
-        if (message != null) item { Text(message!!, color = Color(0xFFE0524B), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 12.sp) }
-        if (selectedCityPhotos.isEmpty()) {
-            item {
-                PhotoHeroEmpty(
-                    city = selectedCityName,
-                    canEdit = canEdit,
-                    onAddPhoto = { picker.launch("image/*") },
-                )
-            }
-        } else {
-            item {
-                PhotoHero(
-                    city = selectedCityName,
-                    photos = selectedCityPhotos,
-                    meta = groupMeta(selectedCityName, selectedCityPhotos.size),
-                )
-            }
-            if (selectedCityPhotos.size > 1) {
-                items(
-                    selectedCityPhotos.drop(1).chunked(3),
-                    key = { row -> row.joinToString("|") { it.id } },
-                ) { row ->
-                    PhotoTileRow(row)
+        if (matching.size > visibleCount) item { TextButton(onClick = { visibleCount += 12 }, modifier = Modifier.fillMaxWidth()) { Text(localized("Показать ещё ${minOf(12, matching.size - visibleCount)} фото", "Show ${minOf(12, matching.size - visibleCount)} more photos", "Mostrar más fotos", "Weitere Fotos anzeigen")) } }
+    }
+    selectedPhoto?.let { photo ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { if (!deleting) selectedPhoto = null }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF17171C))) {
+                val original = links[photo.id]?.original ?: links[photo.id]?.thumbnail
+                if (original != null) AsyncImage(model = original, contentDescription = "${photoCity(photo)} ${photo.date}", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(), onError = { error = localized(language, "Не удалось открыть фото. Проверьте интернет и откройте его снова.", "Could not open photo. Check your connection and reopen it.", "No se pudo abrir la foto. Comprueba la conexión y vuelve a abrirla.", "Foto konnte nicht geöffnet werden. Prüfen Sie die Verbindung und öffnen Sie es erneut.") })
+                else CircularProgressIndicator(Modifier.align(Alignment.Center))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(18.dp)) {
+                    if (canEdit) IconButton(onClick = { deleteConfirmation = true }, enabled = !deleting, modifier = Modifier.size(44.dp).background(Color(0xFF292834), CircleShape)) { Icon(Icons.Outlined.Delete, localized("Удалить фото", "Delete photo", "Eliminar foto", "Foto löschen"), tint = Color.White) }
+                    IconButton(onClick = { selectedPhoto = null }, enabled = !deleting, modifier = Modifier.size(44.dp).background(Color(0xFF292834), CircleShape)) { Icon(Icons.Default.Close, localized("Закрыть", "Close", "Cerrar", "Schließen"), tint = Color.White) }
                 }
+                if (deleting) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                if (error != null) Text(error!!, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(18.dp))
             }
         }
+        if (deleteConfirmation) AlertDialog(onDismissRequest = { if (!deleting) deleteConfirmation = false }, title = { Text(localized("Удалить фото?", "Delete photo?", "¿Eliminar foto?", "Foto löschen?")) }, text = { Text(localized("Фото будет удалено из альбома поездки.", "The photo will be removed from the trip album.", "La foto se eliminará del álbum del viaje.", "Das Foto wird aus dem Reisealbum entfernt.")) }, dismissButton = { TextButton(onClick = { deleteConfirmation = false }, enabled = !deleting) { Text(localized("Отмена", "Cancel", "Cancelar", "Abbrechen")) } }, confirmButton = { TextButton(enabled = !deleting, onClick = {
+            scope.launch {
+                deleting = true
+                try {
+                    repository.removeAlbumPhoto(tripId, photo.id, photo.storageReference)
+                    selectedPhoto = null; deleteConfirmation = false; onPhotoAdded()
+                } catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    deleteConfirmation = false
+                    error = localizedFailure(language, failure, localized(language, "Не удалось удалить фото", "Could not delete photo", "No se pudo eliminar la foto", "Foto konnte nicht gelöscht werden"))
+                } finally { deleting = false }
+            }
+        }) { Text(localized("Удалить", "Delete", "Eliminar", "Löschen")) } })
     }
 }
 
@@ -17427,7 +17411,7 @@ private fun PhotoHero(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(localized("Главная фотография", "Main photo", "Foto principal", "Hauptfoto"), color = Color.White.copy(alpha = .82f), fontFamily = Manrope, fontWeight = FontWeight.W600, fontSize = 11.sp)
-                    Text("${localizedCityName(city)} · ${photos.size} ${localized("фото", "photos", "fotos", "Fotos")}", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${localizedCityName(city)} · ${localizedPhotoCount(photos.size, LocalLanguage.current)}", color = Color.White, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     heroDate?.let { detectedDate ->
                         Text(
                             localized("Снято $detectedDate", "Taken $detectedDate", "Tomada $detectedDate", "Aufgenommen am $detectedDate"),
@@ -19260,7 +19244,7 @@ private fun BudgetExpenseSheet(
                 )
                 AccommodationEditTextField(
                     label = localized("Кто платил", "Paid by", "Quién pagó", "Bezahlt von"),
-                    value = payer,
+                    value = if (payer == "Общее") "" else payer,
                     placeholder = localized("Общее", "Shared", "Común", "Gemeinsam"),
                     valueWeight = FontWeight.W600,
                     valueColor = contentTextColor(),
@@ -22151,12 +22135,7 @@ private fun AccommodationPhotoManagerSheet(
                 }
             }
             Text(
-                text = localized(
-                    "${photos.size} фото",
-                    "${photos.size} photos",
-                    "${photos.size} fotos",
-                    "${photos.size} Fotos",
-                ),
+                text = localizedPhotoCount(photos.size, language),
                 color = secondaryTextColor(),
                 fontFamily = Manrope,
                 fontWeight = FontWeight.W700,
@@ -22923,12 +22902,40 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
     var draggedRouteId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableStateOf(0f) }
     var dragInitialOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    var routeDisplayDate by remember { mutableStateOf(LocalDate.now()) }
     val scope = rememberCoroutineScope()
     var routeDistanceSummary by remember(overview.id) { mutableStateOf<RouteDistanceSummary?>(null) }
 
-    val displayedRouteLegs = orderedRouteIds.mapNotNull { id ->
+    LaunchedEffect(Unit) {
+        while (true) {
+            val nextMidnight = routeDisplayDate.plusDays(1)
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+            delay((nextMidnight - System.currentTimeMillis()).coerceAtLeast(1L))
+            routeDisplayDate = LocalDate.now()
+        }
+    }
+
+    val routeLegsInChosenOrder = orderedRouteIds.mapNotNull { id ->
         overview.routeLegs.firstOrNull { it.dayId == id }
     } + overview.routeLegs.filterNot { leg -> orderedRouteIds.contains(leg.dayId) }
+    val scheduledRouteDates = routeLegsInChosenOrder.map { leg ->
+        val routeDayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1)
+            ?: overview.routeLegs.indexOfFirst { it.dayId == leg.dayId }.coerceAtLeast(0)
+        parseTripDateRange(leg.date)?.first ?: routeEditorDateIso(
+            date = leg.date,
+            tripDates = overview.dates,
+            dayIndex = routeDayIndex,
+            storedDay = leg.dateDay,
+            storedMonth = leg.dateMonth,
+        ).let { date -> runCatching { LocalDate.parse(date) }.getOrNull() }
+    }
+    val displayedRouteLegs = if (draggedRouteId != null) {
+        routeLegsInChosenOrder
+    } else {
+        routeDisplayIndices(scheduledRouteDates, routeDisplayDate).map { routeLegsInChosenOrder[it] }
+    }
 
     LaunchedEffect(overview.id, overview.routeLegs, overview.cityCoordinates) {
         routeDistanceSummary = null
@@ -22950,15 +22957,16 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
             draggedCenter < viewport.viewportStartOffset + 80f -> scope.launch { routeListState.scrollBy(-24f) }
             draggedCenter > viewport.viewportEndOffset - 80f -> scope.launch { routeListState.scrollBy(24f) }
         }
-        val currentIndex = orderedRouteIds.indexOf(draggedId)
+        val currentDisplayOrder = displayedRouteLegs.map { it.dayId }
+        val currentIndex = currentDisplayOrder.indexOf(draggedId)
         if (currentIndex < 0) return
         val targetIndex = when {
             dragAmount > 0f -> currentIndex + 1
             dragAmount < 0f -> currentIndex - 1
             else -> return
         }
-        if (targetIndex !in orderedRouteIds.indices) return
-        val targetId = orderedRouteIds[targetIndex]
+        if (targetIndex !in currentDisplayOrder.indices) return
+        val targetId = currentDisplayOrder[targetIndex]
         val targetInfo = routeListState.layoutInfo.visibleItemsInfo
             .firstOrNull { it.key == "route:$targetId" }
             ?: return
@@ -22972,7 +22980,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
 
         // Keep the card under the finger when its slot changes in the list.
         dragOffsetPx -= (targetInfo.offset - draggedInfo.offset).toFloat()
-        orderedRouteIds = orderedRouteIds.toMutableList().apply {
+        orderedRouteIds = currentDisplayOrder.toMutableList().apply {
             removeAt(currentIndex)
             add(targetIndex, draggedId)
         }
@@ -23050,10 +23058,12 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                 Text(localized("Переезды пока не добавлены", "No route legs added yet", "Aún no se han añadido trayectos", "Noch keine Etappen hinzugefügt"), color = secondaryTextColor(), fontFamily = Manrope, fontWeight = FontWeight.W700, fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
             }
         } else {
-            itemsIndexed(displayedRouteLegs, key = { _, leg -> "route:${leg.dayId}" }) { index, leg ->
+            itemsIndexed(displayedRouteLegs, key = { _, leg -> "route:${leg.dayId}" }) { _, leg ->
+                val routeDayIndex = leg.dayNumber.takeIf { it > 0 }?.minus(1)
+                    ?: overview.routeLegs.indexOfFirst { it.dayId == leg.dayId }.coerceAtLeast(0)
                 RouteLegCard(
                     leg = leg,
-                    dayIndex = index,
+                    dayIndex = routeDayIndex,
                     tripDates = overview.dates,
                     resolvedCityFlags = resolvedRouteFlags,
                     canEdit = canEdit,
@@ -23063,7 +23073,9 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                     onDragStart = {
                         if (canEdit && !adding && !savingRouteOrder) {
                             draggedRouteId = leg.dayId
-                            dragInitialOrder = orderedRouteIds
+                            val visibleOrder = displayedRouteLegs.map { it.dayId }
+                            orderedRouteIds = visibleOrder
+                            dragInitialOrder = visibleOrder
                             dragOffsetPx = 0f
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
@@ -23079,7 +23091,7 @@ private fun TripRouteContent(tripId: String, overview: TripOverview, canEdit: Bo
                         checkOut = leg.checkOut
                         notes = leg.notes
                         mapsUrl = leg.mapsUrl
-                        selectedDateIso = routeEditorDateIso(leg.date, overview.dates, index, leg.dateDay, leg.dateMonth)
+                        selectedDateIso = routeEditorDateIso(leg.date, overview.dates, routeDayIndex, leg.dateDay, leg.dateMonth)
                         adding = true
                     }
                     },
@@ -23401,7 +23413,8 @@ private fun RouteLegCard(
     onEdit: () -> Unit,
 ) {
     val language = LocalLanguage.current
-    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val currentOnDragStart by rememberUpdatedState(onDragStart)
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
@@ -23464,8 +23477,13 @@ private fun RouteLegCard(
                 RouteStop(leg.to, resolvedCityFlags[leg.to] ?: cityFlag(leg.to), isLast = true, compact = longDestination)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { clipboard.setText(AnnotatedString(mapsUrl)) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = localized("Копировать ссылку", "Copy link", "Copiar enlace", "Link kopieren"), tint = primaryColor(), modifier = Modifier.size(18.dp))
+                Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable {
+                    val mapsIntent = Intent(Intent.ACTION_VIEW, Uri.parse(mapsUrl))
+                        .setPackage("com.google.android.apps.maps")
+                    runCatching { context.startActivity(mapsIntent) }
+                        .onFailure { runCatching { uriHandler.openUri(mapsUrl) } }
+                }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = localized("Открыть в Google Картах", "Open in Google Maps", "Abrir en Google Maps", "In Google Maps öffnen"), tint = primaryColor(), modifier = Modifier.size(18.dp))
                 }
                 if (canEdit) {
                     Box(modifier = Modifier.size(37.dp).clip(RoundedCornerShape(11.dp)).background(tintedSurfaceColor()).clickable { onEdit() }, contentAlignment = Alignment.Center) {
@@ -23720,12 +23738,23 @@ private fun formatRestaurantReservationLabel(date: String, time: String, languag
         time.trim().takeIf(String::isNotBlank),
     ).filterNotNull().joinToString(" · ")
 
-private fun showRestaurantTimePicker(context: Context, initialValue: String, onConfirm: (String) -> Unit) {
+private fun localizedDialogContext(context: Context, language: String): Context {
+    val configuration = android.content.res.Configuration(context.resources.configuration).apply {
+        setLocale(mapLocale(language))
+    }
+    val nightMode = configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+    val dialogTheme = if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert
+    return android.view.ContextThemeWrapper(context, dialogTheme).apply {
+        applyOverrideConfiguration(configuration)
+    }
+}
+
+private fun showRestaurantTimePicker(context: Context, initialValue: String, language: String, onConfirm: (String) -> Unit) {
     val match = Regex("^(\\d{1,2}):(\\d{2})$").matchEntire(initialValue.trim())
     val initialHour = match?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 23) ?: 19
     val initialMinute = match?.groupValues?.get(2)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
     TimePickerDialog(
-        context,
+        localizedDialogContext(context, language),
         { _, hour, minute -> onConfirm(String.format(Locale.ROOT, "%02d:%02d", hour, minute)) },
         initialHour,
         initialMinute,
@@ -25217,6 +25246,16 @@ private fun RouteEditorDateField(
             }
         }
     }
+}
+
+internal fun restaurantMapCameraPoints(
+    restaurantCities: List<String>,
+    fallbackCities: List<String>,
+    cityCoordinates: Map<String, CityLocation> = emptyMap(),
+): List<Point> {
+    fun locations(cities: List<String>) = cities.mapNotNull { mapCoordinate(it, cityCoordinates) }
+        .distinctBy { "${it.longitude()},${it.latitude()}" }
+    return locations(restaurantCities).ifEmpty { locations(fallbackCities) }
 }
 
 private fun mapCoordinate(city: String, cityCoordinates: Map<String, CityLocation> = emptyMap()): Point? {

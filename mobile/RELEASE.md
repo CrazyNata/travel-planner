@@ -24,6 +24,9 @@ ANDROID_VERSION_NAME=0.1.0
 
 The build fails deliberately when release signing is not configured. The bundle is written to `mobile/app/build/outputs/bundle/release/app-release.aab`.
 
+With all dependencies already cached, `--offline` supports a local release build
+without a Mapbox download token. Online release builds still require that token.
+
 ## GitHub Actions
 
 Run `.github/workflows/android-release.yml` manually from `main` and provide the
