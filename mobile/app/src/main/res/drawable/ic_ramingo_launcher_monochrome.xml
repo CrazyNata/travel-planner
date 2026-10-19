@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="384" android:viewportHeight="384">
+    <!-- Themed icon keeps only the road silhouette inside the 66dp safe area. -->
+    <group android:translateX="80" android:translateY="80" android:scaleX="0.875" android:scaleY="0.875">
+    <clip-path android:pathData="M0,0H256V256H0Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M0 63C54 69 145 93 153 101C161 109 145 115 119 123C90 132 43 134 32 160C18 190 67 226 105 256H256V244C199 220 126 184 105 161C82 137 128 134 155 124C174 117 179 111 179 108C180 103 110 91 72 81C47 76 20 71 0 68Z" />
+    </group>
+</vector>
