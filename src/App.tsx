@@ -3457,35 +3457,33 @@ function routeSegmentsFor(days: DraftDay[]) {
 }
 
 function routeCoordinatesFor(days: DraftDay[]) {
-  const coordinates: [number, number][] = [];
-  const sameCoordinate = (first: [number, number], second: [number, number]) =>
-    first[0] === second[0] && first[1] === second[1];
-  routeSegmentsFor(days).forEach((segment) => {
-    segment.coordinates.forEach((coordinate) => {
-      if (!coordinates.at(-1) || !sameCoordinate(coordinates.at(-1)!, coordinate))
-        coordinates.push(coordinate);
-    });
-  });
-  return coordinates;
+  return routeStopSequenceForDays(days).coordinates;
 }
 
-function routeStopsForSegments(segments: RouteLineSegment[]) {
+function routeStopSequenceForDays(days: DraftDay[]) {
   const stops: RouteCoordinate[] = [];
-  segments.forEach((segment) => {
-    const start = segment.coordinates[0];
-    const end = segment.coordinates.at(-1);
-    if (
-      start &&
-      (!stops.length || straightLineDistanceMeters(stops.at(-1)!, start) > 500)
-    )
-      stops.push(start);
-    if (
-      end &&
-      (!stops.length || straightLineDistanceMeters(stops.at(-1)!, end) > 500)
-    )
-      stops.push(end);
+  const dayStartIndexes: Array<number | undefined> = Array(days.length);
+  const appendStop = (coordinate: RouteCoordinate) => {
+    const previous = stops.at(-1);
+    if (previous && straightLineDistanceMeters(previous, coordinate) <= 500)
+      return stops.length - 1;
+    stops.push(coordinate);
+    return stops.length - 1;
+  };
+  days.forEach((day, dayIndex) => {
+    const leg = day.roadLeg;
+    if (!leg) return;
+    // Number city stops in itinerary order. Google Maps address coordinates
+    // remain the source for road geometry, but must not create duplicate
+    // markers when adjacent legs use different addresses in the same city.
+    const routeCoordinates = routeCoordinatesForLeg(leg);
+    const start = mapLocation(leg.from) || routeCoordinates[0];
+    const end = mapLocation(leg.to) || routeCoordinates.at(-1);
+    if (!start || !end) return;
+    dayStartIndexes[dayIndex] = appendStop(start);
+    appendStop(end);
   });
-  return stops;
+  return { coordinates: stops, dayStartIndexes };
 }
 
 function routeMarkerOffsets(coordinates: RouteCoordinate[]) {
@@ -3508,19 +3506,7 @@ function routeMarkerOffsets(coordinates: RouteCoordinate[]) {
 
 function routePointIndexFor(days: DraftDay[], dayIndex?: number) {
   if (dayIndex === undefined) return undefined;
-  let pointIndex = -1;
-  let previous: [number, number] | undefined;
-  const sameCoordinate = (first: [number, number], second: [number, number]) =>
-    first[0] === second[0] && first[1] === second[1];
-  for (const segment of routeSegmentsFor(days)) {
-    for (const coordinate of segment.coordinates) {
-      if (!previous || !sameCoordinate(previous, coordinate)) pointIndex += 1;
-      if (segment.dayIndex === dayIndex && coordinate === segment.coordinates[0])
-        return pointIndex;
-      previous = coordinate;
-    }
-  }
-  return undefined;
+  return routeStopSequenceForDays(days).dayStartIndexes[dayIndex];
 }
 
 function routeLineFeatureCollection(segments: RouteLineSegment[]) {
@@ -7068,9 +7054,7 @@ function TripMap({
   const routeLineSegments = routedSegments?.length
     ? routedSegments
     : routeSegmentsFor(displayedRouteDays);
-  const routeCoordinates = routeLineSegments.length
-    ? routeStopsForSegments(routeLineSegments)
-    : routeCoordinatesFor(displayedRouteDays);
+  const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
   const [resolvedMapCities, setResolvedMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const [resolvedFallbackMapCities, setResolvedFallbackMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const mapCitiesKey = JSON.stringify(mapCities.map((name) => name.trim()).filter(Boolean));
