@@ -6930,17 +6930,20 @@ function TripMap({
       : routeCoordinates.length
         ? []
         : fallbackMapCoordinates;
-  const mapRouteCoordinates = selectedCityCoordinates.length
-    ? selectedCityCoordinates
-    : routeCoordinates;
+  const hasRouteMarkerSequence = routeCoordinates.length > 1;
+  const mapRouteCoordinates = hasRouteMarkerSequence
+    ? routeCoordinates
+    : selectedCityCoordinates.length
+      ? selectedCityCoordinates
+      : routeCoordinates;
   const mapRouteSegments = routeLineSegments.length
     ? routeLineSegments
     : selectedCityCoordinates.length > 1
       ? [{ dayIndex: 0, coordinates: selectedCityCoordinates }]
       : [];
-  const activeRoutePoint = selectedCityCoordinates.length
-    ? undefined
-    : routePointIndexFor(displayedRouteDays, activeDay);
+  const activeRoutePoint = hasRouteMarkerSequence
+    ? routePointIndexFor(displayedRouteDays, activeDay)
+    : undefined;
   const activeRouteSegment = mapRouteSegments.find(
     (segment) => segment.dayIndex === activeDay,
   );
@@ -7197,15 +7200,15 @@ function TripMap({
   }, [mapLineKey, activeDay]);
 
   useEffect(() => {
-    const routePoint = selectedCityCoordinates.length
-      ? undefined
-      : routePointIndexFor(displayedRouteDays, activeDay);
+    const routePoint = hasRouteMarkerSequence
+      ? routePointIndexFor(displayedRouteDays, activeDay)
+      : undefined;
     const coordinate =
       routePoint === undefined
         ? undefined
         : routeCoordinatesFor(displayedRouteDays)[routePoint];
     if (!mapRef.current) return;
-    if (selectedCityCoordinates.length) {
+    if (!hasRouteMarkerSequence) {
       markerElements.current.forEach((element) =>
         element.classList.remove("active"),
       );
@@ -7230,7 +7233,14 @@ function TripMap({
       duration: 900,
       essential: true,
     });
-  }, [activeDay, routeKey, mapCoordinatesKey, mapLineKey, focusActiveDay]);
+  }, [
+    activeDay,
+    routeKey,
+    mapCoordinatesKey,
+    mapLineKey,
+    focusActiveDay,
+    hasRouteMarkerSequence,
+  ]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
