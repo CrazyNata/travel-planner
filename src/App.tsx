@@ -8933,7 +8933,7 @@ function DraftRouteCard({
     label: `Заселение${checkIn ? ` ${checkIn}` : ""}`,
   };
   const checklist = isFirstDay
-    ? [departureItem, checkOutItem, checkInItem]
+    ? [departureItem, checkInItem, checkOutItem]
     : [
         checkOutItem,
         departureItem,
