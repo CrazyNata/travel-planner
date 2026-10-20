@@ -208,7 +208,7 @@ class CityCatalogRepository(private val assets: AssetManager) {
             if (fieldIndex == 1 || fieldIndex in 6..10) {
                 val fieldLength = fieldEnd - fieldStart
                 queries.firstOrNull { query ->
-                    fieldLength == query.length && text.regionMatches(fieldStart, query, 0, query.length, ignoreCase = true)
+                    fieldLength == query.length && exactCityNameMatches(text, fieldStart, fieldEnd, query)
                 }?.let { return it }
             }
 
@@ -243,6 +243,26 @@ class CityCatalogRepository(private val assets: AssetManager) {
             population = parts[11].toLongOrNull() ?: 0L,
         )
     }
+}
+
+/**
+ * Treat hyphens and spaces as equivalent between an entered city name and
+ * catalog names. Real city names commonly use either spelling, for example
+ * "Gardone-Riviera" and "Gardone Riviera".
+ */
+private fun exactCityNameMatches(text: String, start: Int, end: Int, query: String): Boolean {
+    for (index in query.indices) {
+        val catalogCharacter = text[start + index]
+        val queryCharacter = query[index]
+        val catalogSeparator = catalogCharacter.isWhitespace() || catalogCharacter in "‐‑‒–—−-"
+        val querySeparator = queryCharacter.isWhitespace() || queryCharacter in "‐‑‒–—−-"
+        if (catalogSeparator || querySeparator) {
+            if (!catalogSeparator || !querySeparator) return false
+        } else if (!catalogCharacter.equals(queryCharacter, ignoreCase = true)) {
+            return false
+        }
+    }
+    return start + query.length == end
 }
 
 private fun cityLookupKey(value: String): String = normalizeCityAlias(

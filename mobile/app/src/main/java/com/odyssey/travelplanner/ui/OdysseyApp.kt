@@ -24977,7 +24977,26 @@ private fun OverviewMapCard(
     val language = LocalLanguage.current
     val attributionDescription = localized("Информация об источниках карты", "Map attribution information", "Información de atribución del mapa", "Informationen zur Kartenquelle")
     val cityCount = cities.distinctBy { cityFilterKey(it) }.size
-    val cityMapCoordinates = cities.mapNotNull { mapCoordinate(it, cityCoordinates) }
+    val cityCatalogRepository = remember(context) { CityCatalogRepository(context.assets) }
+    var resolvedCityCoordinatesFromCatalog by remember(cityCatalogRepository) { mutableStateOf(emptyMap<String, CityLocation>()) }
+    LaunchedEffect(cities, cityCoordinates, cityCatalogRepository) {
+        val unresolvedCities = cities.filter { mapCoordinate(it, cityCoordinates) == null }
+        resolvedCityCoordinatesFromCatalog = if (unresolvedCities.isEmpty()) {
+            emptyMap()
+        } else {
+            try {
+                cityCatalogRepository.findExact(unresolvedCities).mapValues { (_, entry) ->
+                    CityLocation(entry.latitude, entry.longitude)
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                emptyMap()
+            }
+        }
+    }
+    val resolvedMapCoordinates = cityCoordinates + resolvedCityCoordinatesFromCatalog
+    val cityMapCoordinates = cities.mapNotNull { mapCoordinate(it, resolvedMapCoordinates) }
     // The overview map has no separate sight geometry. Use the ordered city
     // coordinates as its route and markers so the map shows the same journey
     // that is summarized below it. Detailed sight maps still provide their
