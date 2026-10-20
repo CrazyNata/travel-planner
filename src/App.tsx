@@ -2963,11 +2963,13 @@ async function resolveGoogleMapsShortLink(mapsUrl: string) {
 
 function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
   const parsedMapRoute = routeCoordinatesFromMapsUrl(leg.mapsUrl || "");
-  const cityCoordinates = [mapLocation(leg.from), mapLocation(leg.to)].filter(
+  // Keep endpoint slots independent: filtering an unknown city here shifts
+  // the destination into the origin slot and can collapse a saved Maps leg.
+  const cityFrom = mapLocation(leg.from);
+  const cityTo = mapLocation(leg.to);
+  const cityCoordinates = [cityFrom, cityTo].filter(
     (coordinate): coordinate is RouteCoordinate => Boolean(coordinate),
   );
-  const cityFrom = cityCoordinates[0];
-  const cityTo = cityCoordinates[1];
   const endpointMatchesCity = (
     endpoint: RouteCoordinate | null,
     city: RouteCoordinate | undefined,
@@ -2977,14 +2979,16 @@ function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
       straightLineDistanceMeters(endpoint, city) <= routeDistancePolicy.endpointToleranceMeters,
   );
   if (parsedMapRoute.fromQuery && parsedMapRoute.coordinates.length) {
+    const origin = endpointMatchesCity(parsedMapRoute.origin, cityFrom)
+      ? parsedMapRoute.origin
+      : cityFrom || parsedMapRoute.origin;
+    const destination = endpointMatchesCity(parsedMapRoute.destination, cityTo)
+      ? parsedMapRoute.destination
+      : cityTo || parsedMapRoute.destination;
     return uniqueRouteCoordinates([
-      endpointMatchesCity(parsedMapRoute.origin, cityFrom)
-        ? parsedMapRoute.origin!
-        : cityFrom,
+      ...(origin ? [origin] : []),
       ...parsedMapRoute.waypoints,
-      endpointMatchesCity(parsedMapRoute.destination, cityTo)
-        ? parsedMapRoute.destination!
-        : cityTo,
+      ...(destination ? [destination] : []),
     ]);
   }
   if (parsedMapRoute.coordinates.length >= 2) {
@@ -2997,11 +3001,11 @@ function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
     }
     return uniqueRouteCoordinates(coordinates);
   }
-  if (parsedMapRoute.coordinates.length === 1 && cityCoordinates.length === 2) {
+  if (parsedMapRoute.coordinates.length === 1 && cityFrom && cityTo) {
     return uniqueRouteCoordinates([
-      cityCoordinates[0],
+      cityFrom,
       parsedMapRoute.coordinates[0],
-      cityCoordinates[1],
+      cityTo,
     ]);
   }
   return cityCoordinates;
