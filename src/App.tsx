@@ -3228,13 +3228,19 @@ async function loadRouteTotals(
       0,
     ),
     approximate: routes.some((route) => !route),
-    segments: paths.map((path, index) => ({
-      dayIndex: path.dayIndex,
-      coordinates:
-        routes[index]?.coordinates?.length
-          ? routes[index]!.coordinates!
-          : path.coordinates,
-    })),
+    segments: paths.map((path, index) => {
+      const coordinates = routes[index]?.coordinates?.length
+        ? routes[index]!.coordinates!
+        : path.coordinates;
+      return {
+        dayIndex: path.dayIndex,
+        coordinates: uniqueRouteCoordinates([
+          path.coordinates[0]!,
+          ...coordinates,
+          path.coordinates.at(-1)!,
+        ]),
+      };
+    }),
   };
 }
 
@@ -3409,6 +3415,7 @@ function StaticTripMap({
   routeSegments,
   activeDay,
   activeRouteDay,
+  focusActiveDay = true,
   focusIndex,
   mapClassName = "map",
   markerClassName = "map-marker",
@@ -3421,6 +3428,7 @@ function StaticTripMap({
   routeSegments?: RouteLineSegment[];
   activeDay?: number;
   activeRouteDay?: number;
+  focusActiveDay?: boolean;
   focusIndex?: number;
   mapClassName?: string;
   markerClassName?: string;
@@ -3442,7 +3450,7 @@ function StaticTripMap({
   const activeRouteSegment = routeSegments?.find(
     (segment) => segment.dayIndex === activeRouteDay,
   );
-  const focusCoordinates = activeRouteSegment?.coordinates?.length
+  const focusCoordinates = focusActiveDay && activeRouteSegment?.coordinates?.length
     ? activeRouteSegment.coordinates
     : focusIndex !== undefined && coordinates.length > 1
       ? coordinates.slice(focusIndex, focusIndex + 2)
@@ -3544,18 +3552,32 @@ function StaticTripMap({
             </>
           )}
         </svg>
-        {positionedPoints.map(([x, y], index) => (
-          <button
-            type="button"
-            className={`${markerClassName} static-map-marker${index === activeDay ? " active" : ""}`}
-            key={`${x}-${y}-${index}`}
-            style={{ left: `${(x / STATIC_MAP_WIDTH) * 100}%`, top: `${(y / STATIC_MAP_HEIGHT) * 100}%` }}
-            onClick={() => onMarkerClick?.(index)}
-            aria-label={`Показать место ${index + 1} на карте`}
-          >
-            {index + 1}
-          </button>
-        ))}
+        {positionedPoints.map(([x, y], index) => {
+          const isLoopReturn =
+            index === coordinates.length - 1 &&
+            coordinates.length > 1 &&
+            coordinates[0][0] === coordinates.at(-1)![0] &&
+            coordinates[0][1] === coordinates.at(-1)![1];
+          return (
+            <button
+              type="button"
+              className={`${markerClassName} static-map-marker${index === activeDay ? " active" : ""}`}
+              key={`${x}-${y}-${index}`}
+              style={{
+                left: isLoopReturn
+                  ? `calc(${(x / STATIC_MAP_WIDTH) * 100}% - 24px)`
+                  : `${(x / STATIC_MAP_WIDTH) * 100}%`,
+                top: isLoopReturn
+                  ? `calc(${(y / STATIC_MAP_HEIGHT) * 100}% + 22px)`
+                  : `${(y / STATIC_MAP_HEIGHT) * 100}%`,
+              }}
+              onClick={() => onMarkerClick?.(index)}
+              aria-label={`Показать место ${index + 1} на карте`}
+            >
+              {index + 1}
+            </button>
+          );
+        })}
         {positionedUserPoint && (
           <span
             className="map-user-location-static"
@@ -6864,6 +6886,7 @@ function TripMap({
   mapCities = emptyPlaces,
   fallbackMapCities = emptyPlaces,
   activeDay,
+  focusActiveDay = true,
 }: {
   city?: string;
   places?: string[];
@@ -6872,6 +6895,7 @@ function TripMap({
   mapCities?: string[];
   fallbackMapCities?: string[];
   activeDay?: number;
+  focusActiveDay?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -7044,9 +7068,15 @@ function TripMap({
           const coordinateKey = coordinate.join(",");
           const occurrence = markerOccurrences.get(coordinateKey) || 0;
           markerOccurrences.set(coordinateKey, occurrence + 1);
-          const offset: [number, number] | undefined = occurrence
-            ? [18 * (occurrence % 2 ? 1 : -1), -18 * occurrence]
-            : undefined;
+          const isLoopReturn =
+            index === mapRouteCoordinates.length - 1 &&
+            mapRouteCoordinates.length > 1 &&
+            coordinateKey === mapRouteCoordinates[0]!.join(",");
+          const offset: [number, number] | undefined = isLoopReturn
+            ? [-24, 22]
+            : occurrence
+              ? [18 * (occurrence % 2 ? 1 : -1), -18 * occurrence]
+              : undefined;
           new mapboxgl.Marker({ element, offset })
             .setLngLat(coordinate)
             .addTo(map!);
@@ -7190,14 +7220,14 @@ function TripMap({
         ? [{ dayIndex: activeDay, coordinates: activeSegment }]
         : [],
     ));
-    if (!coordinate) return;
+    if (!coordinate || !focusActiveDay) return;
     map.flyTo({
       center: coordinate,
       zoom: 8,
       duration: 900,
       essential: true,
     });
-  }, [activeDay, routeKey, mapCoordinatesKey, mapLineKey]);
+  }, [activeDay, routeKey, mapCoordinatesKey, mapLineKey, focusActiveDay]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
@@ -7207,7 +7237,8 @@ function TripMap({
           routeSegments={mapRouteSegments}
           activeDay={activeRoutePoint}
           activeRouteDay={activeDay}
-          focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
+          focusActiveDay={focusActiveDay}
+          focusIndex={focusActiveDay && shouldFocusStaticMap ? activeRoutePoint : undefined}
           userLocation={browserLocation.state.coordinates}
         />
         <BrowserLocationButton state={browserLocation.state} onRequest={browserLocation.request} />
@@ -9239,6 +9270,7 @@ function RouteTab({
             routeDays={mapRouteDays.map(({ draftDay }) => draftDay)}
             routedSegments={visibleRoutedSegments}
             activeDay={mapActiveRouteDayIndex}
+            focusActiveDay={false}
           />
           <footer>
             <span>Общий маршрут</span>
