@@ -7571,11 +7571,6 @@ function AccommodationCityPicker({
   return (
     <div className={`accommodation-city-picker ${className}`.trim()} ref={pickerRef}>
       <input
-        // Chrome treats a generic `city` field as an address form field and
-        // may show saved address profiles even when autocomplete is disabled.
-        // Use a travel-specific name and the password sentinel to keep this
-        // picker limited to the app's own city suggestions.
-        name="travel-city"
         value={!open && allOption && value === allOption ? allOption : query}
         onChange={(event) => {
           setQuery(event.target.value);
@@ -7595,8 +7590,9 @@ function AccommodationCityPicker({
           }
         }}
         placeholder={placeholder}
-        autoComplete="new-password"
+        autoComplete="off"
         role="combobox"
+        aria-autocomplete="list"
         aria-expanded={open}
         aria-controls={optionsId}
       />
