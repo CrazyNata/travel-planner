@@ -55,6 +55,17 @@ body {
   width: 100%;
   height: 100%;
 }
+.city-flag-emoji {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .housing-preview-page {
   min-height: 100vh;
   padding: 0 34px 64px;
@@ -2281,9 +2292,6 @@ button {
 }
 .weather-overview.trip-mode .weather-card.selected {
   box-shadow: 0 0 0 3px #3d78a5, 0 8px 20px rgba(61, 120, 165, 0.22);
-}
-.weather-card.christmas-weather-photo {
-  filter: brightness(1.18) contrast(1.08) saturate(1.08);
 }
 .weather-overview.trip-mode .weather-grid {
   gap: 10px;

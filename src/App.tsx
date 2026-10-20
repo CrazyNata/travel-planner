@@ -735,6 +735,21 @@ function formatTripDates(start?: string, end?: string) {
   return `${range} · ${formatRussianCount(days, "день", "дня", "дней")}`;
 }
 
+function tripDurationDays(start?: string, end?: string) {
+  if (!start || !end) return null;
+  const startDate = new Date(`${start}T00:00:00Z`);
+  const endDate = new Date(`${end}T00:00:00Z`);
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    startDate.toISOString().slice(0, 10) !== start ||
+    endDate.toISOString().slice(0, 10) !== end ||
+    endDate < startDate
+  )
+    return null;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+}
+
 function parseTripDateRange(value: string) {
   const months: Record<string, number> = {
     январь: 1, января: 1, февраль: 2, февраля: 2, март: 3, марта: 3,
@@ -941,80 +956,236 @@ function normalizeTripDates(dates: string) {
   return match ? formatTripDates(match[1], match[2]) : dates;
 }
 
-function cityFlag(city: string) {
-  const country = city.includes("Прага")
-    ? "cz"
-    : city.includes("Зальцбург")
-      ? "at"
-      : city.includes("Мюнхен") || city.includes("Равенсбург") ||
-        city.includes("Инцелль") || city.includes("Инцель") ||
-        city.includes("Германия")
-        ? "de"
-        : city.includes("Сан-Марино")
-          ? "sm"
-          : (
-    [
-      "Верона",
-      "Рим",
-      "Пиза",
-      "Фильине",
-      "Кьоджа",
-      "Милан",
-      "Вальдидентро",
-      "Валдидентро",
-      "Флоренция",
-      "Венеция",
-    ].some((name) => city.includes(name))
-            ? "it"
-            : null);
-  if (!country) return null;
-  const labels = {
-    cz: "Чехия",
-    at: "Австрия",
-    de: "Германия",
-    sm: "Сан-Марино",
-    it: "Италия",
-  };
+const countryCodesByName: Record<string, string> = {
+  австралия: "AU",
+  australia: "AU",
+  австрия: "AT",
+  austria: "AT",
+  бельгия: "BE",
+  belgium: "BE",
+  болгария: "BG",
+  bulgaria: "BG",
+  великобритания: "GB",
+  "united kingdom": "GB",
+  uk: "GB",
+  венгрия: "HU",
+  hungary: "HU",
+  германия: "DE",
+  germany: "DE",
+  греция: "GR",
+  greece: "GR",
+  грузия: "GE",
+  georgia: "GE",
+  дания: "DK",
+  denmark: "DK",
+  испания: "ES",
+  spain: "ES",
+  италия: "IT",
+  italy: "IT",
+  italia: "IT",
+  канада: "CA",
+  canada: "CA",
+  латвия: "LV",
+  latvia: "LV",
+  литва: "LT",
+  lithuania: "LT",
+  нидерланды: "NL",
+  netherlands: "NL",
+  норвегия: "NO",
+  norway: "NO",
+  оаэ: "AE",
+  "united arab emirates": "AE",
+  польша: "PL",
+  poland: "PL",
+  португалия: "PT",
+  portugal: "PT",
+  россия: "RU",
+  russia: "RU",
+  "сан марино": "SM",
+  "san marino": "SM",
+  сингапур: "SG",
+  singapore: "SG",
+  словакия: "SK",
+  slovakia: "SK",
+  словения: "SI",
+  slovenia: "SI",
+  сша: "US",
+  "united states": "US",
+  usa: "US",
+  турция: "TR",
+  turkey: "TR",
+  финляндия: "FI",
+  finland: "FI",
+  франция: "FR",
+  france: "FR",
+  хорватия: "HR",
+  croatia: "HR",
+  чехия: "CZ",
+  czechia: "CZ",
+  "czech republic": "CZ",
+  швейцария: "CH",
+  switzerland: "CH",
+  schweiz: "CH",
+  suisse: "CH",
+  швеция: "SE",
+  sweden: "SE",
+  эстония: "EE",
+  estonia: "EE",
+  юар: "ZA",
+  "south africa": "ZA",
+  япония: "JP",
+  japan: "JP",
+};
+
+const isoCountryCodes = new Set(
+  `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW XK`.split(" "),
+);
+
+function countryCodeFromName(value: string) {
+  const normalized = normalizeCityForMatch(value);
+  const code = normalized.toUpperCase();
+  if (isoCountryCodes.has(code)) return code;
+  return countryCodesByName[normalized] || null;
+}
+
+function cityCountryCode(city: string) {
+  const value = city.trim();
+  if (!value) return null;
+  const parts = value.split(/[;,·]/).map((part) => part.trim()).filter(Boolean);
+  const explicitCountry = parts.length > 1
+    ? countryCodeFromName(parts[parts.length - 1])
+    : null;
+  if (explicitCountry) return explicitCountry;
+
+  const cityName = parts[0] || value;
+  const normalizedCity = normalizeCityForMatch(cityName);
+  const catalogEntry = accommodationCities.find((entry) => {
+    const [name] = entry.split(",");
+    const normalizedName = normalizeCityForMatch(name);
+    return normalizedCity === normalizedName ||
+      normalizedCity.startsWith(`${normalizedName} `);
+  });
+  if (catalogEntry) {
+    const countryName = catalogEntry.split(",").slice(1).join(",").trim();
+    const code = countryCodeFromName(countryName);
+    if (code) return code;
+  }
+
+  const startsWithAny = (...names: string[]) => names.some((name) => {
+    const normalizedName = normalizeCityForMatch(name);
+    return normalizedCity === normalizedName ||
+      normalizedCity.startsWith(`${normalizedName} `);
+  });
+  if (startsWithAny("Прага", "Prague", "Praha")) return "CZ";
+  if (startsWithAny("Зальцбург", "Salzburg")) return "AT";
+  if (startsWithAny("Мюнхен", "Munich", "München", "Равенсбург", "Ravensburg", "Инцелль", "Инцель", "Inzell")) return "DE";
+  if (startsWithAny("Санкт-Галлен", "St. Gallen", "Saint Gallen", "Sankt Gallen", "Цюрих", "Zurich", "Zürich", "Женева", "Geneva", "Genève")) return "CH";
+  if (startsWithAny("Сан-Марино", "San Marino")) return "SM";
+  if (startsWithAny(
+    "Верона", "Рим", "Пиза", "Фильине", "Кьоджа", "Милан", "Вальдидентро",
+    "Валдидентро", "Флоренция", "Венеция", "Комо", "Стельвио", "Домодоссола",
+    "Domodossola", "Генуя", "Genoa", "Genova", "Гардоне-Ривьера",
+    "Гардоне-Ривеьра", "Gardone Riviera",
+  )) return "IT";
+  return null;
+}
+
+function countryFlagLabel(countryCode: string) {
+  try {
+    return new Intl.DisplayNames(["ru"], { type: "region" }).of(countryCode) || countryCode;
+  } catch {
+    return countryCode;
+  }
+}
+
+function countryFlagEmoji(countryCode: string) {
+  if (!/^[A-Z]{2}$/.test(countryCode)) return "";
+  return String.fromCodePoint(
+    ...Array.from(countryCode, (letter) => 0x1f1e6 + letter.charCodeAt(0) - 65),
+  );
+}
+
+function CityFlag({ city }: { city: string }) {
+  const knownCountryCode = cityCountryCode(city);
+  const [countryCode, setCountryCode] = useState<string | null>(knownCountryCode);
+
+  useEffect(() => {
+    if (knownCountryCode) {
+      setCountryCode(knownCountryCode);
+      return;
+    }
+    if (!city.trim()) {
+      setCountryCode(null);
+      return;
+    }
+    let cancelled = false;
+    setCountryCode(null);
+    void resolveTripCityCoordinates(city).then((resolved) => {
+      if (!cancelled) setCountryCode(resolved?.countryCode || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [city, knownCountryCode]);
+
+  if (!countryCode) return null;
+  const country = countryCode.toLowerCase();
+  const supportedSvgCountries = ["cz", "at", "de", "ch", "it", "sm"];
+  const emoji = countryFlagEmoji(countryCode.toUpperCase());
   return (
-    <span className="city-flag" role="img" aria-label={labels[country]}>
-      <svg viewBox="0 0 24 16" aria-hidden="true">
-        {country === "cz" && (
-          <>
-            <path fill="#fff" d="M0 0h24v8H0z" />
-            <path fill="#d7141a" d="M0 8h24v8H0z" />
-            <path fill="#11457e" d="m0 0 10 8-10 8z" />
-          </>
-        )}
-        {country === "at" && (
-          <>
-            <path fill="#ed2939" d="M0 0h24v16H0z" />
-            <path fill="#fff" d="M0 5.33h24v5.34H0z" />
-          </>
-        )}
-        {country === "de" && (
-          <>
-            <path fill="#151515" d="M0 0h24v5.34H0z" />
-            <path fill="#d00" d="M0 5.33h24v5.34H0z" />
-            <path fill="#ffce00" d="M0 10.66h24V16H0z" />
-          </>
-        )}
-        {country === "it" && (
-          <>
-            <path fill="#009246" d="M0 0h8v16H0z" />
-            <path fill="#fff" d="M8 0h8v16H8z" />
-            <path fill="#ce2b37" d="M16 0h8v16h-8z" />
-          </>
-        )}
-        {country === "sm" && (
-          <>
-            <path fill="#fff" d="M0 0h24v8H0z" />
-            <path fill="#5eb6e4" d="M0 8h24v8H0z" />
-            <circle cx="12" cy="8" r="2.3" fill="#f5c242" stroke="#55764f" strokeWidth=".7" />
-          </>
-        )}
-      </svg>
+    <span className="city-flag" role="img" aria-label={countryFlagLabel(countryCode)}>
+      {supportedSvgCountries.includes(country) ? (
+        <svg viewBox="0 0 24 16" aria-hidden="true">
+          {country === "cz" && (
+            <>
+              <path fill="#fff" d="M0 0h24v8H0z" />
+              <path fill="#d7141a" d="M0 8h24v8H0z" />
+              <path fill="#11457e" d="m0 0 10 8-10 8z" />
+            </>
+          )}
+          {country === "at" && (
+            <>
+              <path fill="#ed2939" d="M0 0h24v16H0z" />
+              <path fill="#fff" d="M0 5.33h24v5.34H0z" />
+            </>
+          )}
+          {country === "de" && (
+            <>
+              <path fill="#151515" d="M0 0h24v5.34H0z" />
+              <path fill="#d00" d="M0 5.33h24v5.34H0z" />
+              <path fill="#ffce00" d="M0 10.66h24V16H0z" />
+            </>
+          )}
+          {country === "ch" && (
+            <>
+              <path fill="#d52b1e" d="M0 0h24v16H0z" />
+              <path fill="#fff" d="M10 3h4v3h3v4h-3v3h-4v-3H7V6h3z" />
+            </>
+          )}
+          {country === "it" && (
+            <>
+              <path fill="#009246" d="M0 0h8v16H0z" />
+              <path fill="#fff" d="M8 0h8v16H8z" />
+              <path fill="#ce2b37" d="M16 0h8v16h-8z" />
+            </>
+          )}
+          {country === "sm" && (
+            <>
+              <path fill="#fff" d="M0 0h24v8H0z" />
+              <path fill="#5eb6e4" d="M0 8h24v8H0z" />
+              <circle cx="12" cy="8" r="2.3" fill="#f5c242" stroke="#55764f" strokeWidth=".7" />
+            </>
+          )}
+        </svg>
+      ) : (
+        <span className="city-flag-emoji" aria-hidden="true">{emoji}</span>
+      )}
     </span>
   );
+}
+
+function cityFlag(city: string) {
+  return <CityFlag city={city} />;
 }
 
 type PhotoMetadata = {
@@ -2495,6 +2666,7 @@ type ResolvedCityCoordinates = {
   name: string;
   longitude: number;
   latitude: number;
+  countryCode?: string;
 };
 
 type CityGeocodingResponse = {
@@ -2502,6 +2674,8 @@ type CityGeocodingResponse = {
     name: string;
     latitude: number;
     longitude: number;
+    country?: string;
+    country_code?: string;
   }>;
 };
 
@@ -2522,11 +2696,17 @@ async function resolveTripCityCoordinates(
       name: knownLocation[0],
       longitude: knownLocation[1][0],
       latitude: knownLocation[1][1],
+      countryCode: cityCountryCode(value) || undefined,
     };
   }
   const coordinate = coordinateFromMapsPart(value);
   if (coordinate) {
-    return { name: value, longitude: coordinate[0], latitude: coordinate[1] };
+    return {
+      name: value,
+      longitude: coordinate[0],
+      latitude: coordinate[1],
+      countryCode: cityCountryCode(value) || undefined,
+    };
   }
 
   const requestKey = value.toLocaleLowerCase("ru");
@@ -2552,7 +2732,15 @@ async function resolveTripCityCoordinates(
           Number.isFinite(result.longitude),
       );
       return match
-        ? { name: value, longitude: match.longitude, latitude: match.latitude }
+        ? {
+            name: value,
+            longitude: match.longitude,
+            latitude: match.latitude,
+            countryCode:
+              match.country_code?.toUpperCase() ||
+              countryCodeFromName(match.country || "") ||
+              undefined,
+          }
         : null;
     } catch {
       return null;
@@ -2574,13 +2762,19 @@ type ParsedRouteCoordinates = {
   destination: RouteCoordinate | null;
 };
 type RouteDistancePath = {
+  dayIndex: number;
   coordinates: RouteCoordinate[];
   profile: RouteTravelProfile;
+};
+type RouteLineSegment = {
+  dayIndex: number;
+  coordinates: RouteCoordinate[];
 };
 type RouteTotals = {
   distance: number;
   duration: number;
   approximate?: boolean;
+  segments?: RouteLineSegment[];
 };
 
 // Ramingo route-distance rule:
@@ -2733,10 +2927,13 @@ function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
   return cityCoordinates;
 }
 
-function routeDistancePathForLeg(leg: RoadLeg): RouteDistancePath | null {
+function routeDistancePathForLeg(
+  leg: RoadLeg,
+  dayIndex: number,
+): RouteDistancePath | null {
   const coordinates = routeCoordinatesForLeg(leg);
   return coordinates.length >= 2
-    ? { coordinates, profile: routeTravelProfile(leg.mapsUrl || "") }
+    ? { dayIndex, coordinates, profile: routeTravelProfile(leg.mapsUrl || "") }
     : null;
 }
 
@@ -2781,15 +2978,23 @@ function fallbackRouteTotals(paths: RouteDistancePath[]): RouteTotals | null {
 }
 
 function routeDistancePathsFor(days: DraftDay[]) {
-  const routeDays = days.filter((day) => day.roadLeg);
-  if (!routeDays.length) return null;
-  const paths = routeDays.map((day) => routeDistancePathForLeg(day.roadLeg!));
+  const legs = days.flatMap((day, dayIndex) =>
+    day.roadLeg ? [{ leg: day.roadLeg, dayIndex }] : [],
+  );
+  if (!legs.length) return null;
+  const paths = legs.map(({ leg, dayIndex }) =>
+    routeDistancePathForLeg(leg, dayIndex),
+  );
   return paths.every((path): path is RouteDistancePath => Boolean(path))
     ? paths
     : null;
 }
 
-type RoutedDistance = { distance: number; duration: number };
+type RoutedDistance = {
+  distance: number;
+  duration: number;
+  coordinates?: RouteCoordinate[];
+};
 
 async function fetchWithTimeout(url: string, init?: RequestInit) {
   const controller = new AbortController();
@@ -2818,9 +3023,30 @@ async function loadRoutedDistance(
     const response = await fetchWithTimeout(url, init);
     if (!response.ok) return null;
     const data = (await response.json()) as {
-      routes?: RoutedDistance[];
+      routes?: Array<{
+        distance: number;
+        duration: number;
+        geometry?: { coordinates?: unknown };
+      }>;
     };
-    return data.routes?.[0] || null;
+    const route = data.routes?.[0];
+    if (!route) return null;
+    const coordinates = Array.isArray(route.geometry?.coordinates)
+      ? route.geometry.coordinates.filter(
+          (coordinate): coordinate is RouteCoordinate =>
+            Array.isArray(coordinate) &&
+            coordinate.length >= 2 &&
+            Number.isFinite(coordinate[0]) &&
+            Number.isFinite(coordinate[1]) &&
+            Math.abs(coordinate[0]) <= 180 &&
+            Math.abs(coordinate[1]) <= 90,
+        )
+      : [];
+    return {
+      distance: route.distance,
+      duration: route.duration,
+      ...(coordinates.length > 1 ? { coordinates } : {}),
+    };
   } catch {
     return null;
   }
@@ -2866,7 +3092,10 @@ async function loadValhallaDistance(
     );
     if (!response.ok) return null;
     const data = (await response.json()) as {
-      trip?: { summary?: { length?: number; time?: number } };
+      trip?: {
+        summary?: { length?: number; time?: number };
+        legs?: Array<{ shape?: string }>;
+      };
     };
     const summary = data.trip?.summary;
     const routeLength = summary?.length;
@@ -2877,47 +3106,99 @@ async function loadValhallaDistance(
       routeLength < 0
     )
       return null;
+    const routeCoordinates = (data.trip?.legs || []).flatMap((leg) =>
+      decodeValhallaPolyline(leg.shape || ""),
+    );
+    const joinedCoordinates = routeCoordinates.filter((coordinate, index) => {
+      if (index === 0) return true;
+      const previous = routeCoordinates[index - 1];
+      return previous[0] !== coordinate[0] || previous[1] !== coordinate[1];
+    });
     return {
       distance: routeLength * 1000,
       duration: Number.isFinite(routeTime) ? Math.max(0, routeTime || 0) : 0,
+      ...(joinedCoordinates.length > 1 ? { coordinates: joinedCoordinates } : {}),
     };
   } catch {
     return null;
   }
 }
 
-async function loadRouteTotals(
+function decodeValhallaPolyline(encoded: string): RouteCoordinate[] {
+  const coordinates: RouteCoordinate[] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  const readDelta = () => {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      if (index >= encoded.length || shift > 30) return null;
+      byte = encoded.charCodeAt(index++) - 63;
+      if (byte < 0 || byte > 63) return null;
+      result += (byte & 0x1f) * 2 ** shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    return result % 2 ? -Math.floor(result / 2) - 1 : result / 2;
+  };
+  while (index < encoded.length) {
+    const latitudeDelta = readDelta();
+    const longitudeDelta = readDelta();
+    if (latitudeDelta === null || longitudeDelta === null) return [];
+    latitude += latitudeDelta;
+    longitude += longitudeDelta;
+    const coordinate: RouteCoordinate = [longitude / 1_000_000, latitude / 1_000_000];
+    if (
+      !Number.isFinite(coordinate[0]) ||
+      !Number.isFinite(coordinate[1]) ||
+      Math.abs(coordinate[0]) > 180 ||
+      Math.abs(coordinate[1]) > 90
+    )
+      return [];
+    coordinates.push(coordinate);
+  }
+  return coordinates.length > 1 ? coordinates : [];
+}
+
+async function loadRoutedRoute(
+  { coordinates, profile }: RouteDistancePath,
+  token: string,
+): Promise<RoutedDistance | null> {
+  if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
+  const path = coordinates.map(([longitude, latitude]) =>
+    `${longitude},${latitude}`,
+  ).join(";");
+  let bestRoute: RoutedDistance | null = null;
+  // Use the first-party proxy first so the browser is not dependent on
+  // extensions, CORS, or a remote provider being directly reachable.
+  const valhallaRoute = await loadValhallaDistance(coordinates, profile);
+  if (valhallaRoute?.coordinates?.length) return valhallaRoute;
+  if (valhallaRoute) bestRoute = valhallaRoute;
+  if (token.trim()) {
+    const mapboxRoute = await loadRoutedDistance(
+      `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=full&geometries=geojson&access_token=${encodeURIComponent(token)}`,
+    );
+    if (mapboxRoute?.coordinates?.length) return mapboxRoute;
+    if (mapboxRoute) bestRoute = mapboxRoute;
+  }
+  const openStreetMapRoute = await loadRoutedDistance(
+    `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=full&geometries=geojson`,
+  );
+  return openStreetMapRoute || bestRoute;
+}
+
+async function loadRoutedRoutes(
   paths: RouteDistancePath[],
   token: string,
-): Promise<RouteTotals | null> {
-  const fallbackTotals = fallbackRouteTotals(paths);
-  if (!fallbackTotals) return null;
-  const loadRoute = async ({ coordinates, profile }: RouteDistancePath) => {
-    if (coordinates.length > routeDistancePolicy.maxCoordinatesPerRoute) return null;
-    const path = coordinates.map(([longitude, latitude]) =>
-      `${longitude},${latitude}`,
-    ).join(";");
-    // Use the first-party proxy first so the browser is not dependent on
-    // extensions, CORS, or a remote provider being directly reachable.
-    const valhallaRoute = await loadValhallaDistance(coordinates, profile);
-    if (valhallaRoute) return valhallaRoute;
-    if (token.trim()) {
-      const mapboxRoute = await loadRoutedDistance(
-        `https://api.mapbox.com/directions/v5/mapbox/${profile}/${path}?overview=false&access_token=${encodeURIComponent(token)}`,
-      );
-      if (mapboxRoute) return mapboxRoute;
-    }
-    return loadRoutedDistance(
-      `https://routing.openstreetmap.de/${openStreetMapRouter(profile)}/route/v1/driving/${path}?overview=false`,
-    );
-  };
+) {
   const routes: Array<RoutedDistance | null> = Array.from({ length: paths.length }, () => null);
   let nextPathIndex = 0;
   const worker = async () => {
     while (nextPathIndex < paths.length) {
       const pathIndex = nextPathIndex;
       nextPathIndex += 1;
-      routes[pathIndex] = await loadRoute(paths[pathIndex]);
+      routes[pathIndex] = await loadRoutedRoute(paths[pathIndex], token);
     }
   };
   await Promise.all(
@@ -2926,6 +3207,16 @@ async function loadRouteTotals(
       () => worker(),
     ),
   );
+  return routes;
+}
+
+async function loadRouteTotals(
+  paths: RouteDistancePath[],
+  token: string,
+): Promise<RouteTotals | null> {
+  const fallbackTotals = fallbackRouteTotals(paths);
+  if (!fallbackTotals) return null;
+  const routes = await loadRoutedRoutes(paths, token);
   return {
     distance: paths.reduce(
       (total, path, index) =>
@@ -2937,6 +3228,13 @@ async function loadRouteTotals(
       0,
     ),
     approximate: routes.some((route) => !route),
+    segments: paths.map((path, index) => ({
+      dayIndex: path.dayIndex,
+      coordinates:
+        routes[index]?.coordinates?.length
+          ? routes[index]!.coordinates!
+          : path.coordinates,
+    })),
   };
 }
 
@@ -3060,8 +3358,20 @@ function routePointIndexFor(days: DraftDay[], dayIndex?: number) {
   return undefined;
 }
 
-function routeSegment(coordinates: [number, number][], day: number) {
-  return coordinates.slice(day, day + 2);
+function routeLineFeatureCollection(segments: RouteLineSegment[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: segments
+      .filter((segment) => segment.coordinates.length > 1)
+      .map((segment) => ({
+        type: "Feature" as const,
+        properties: { dayIndex: segment.dayIndex },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: segment.coordinates,
+        },
+      })),
+  };
 }
 
 const STATIC_MAP_WIDTH = 338;
@@ -3096,7 +3406,9 @@ function staticMapZoom(coordinates: [number, number][]) {
 function StaticTripMap({
   coordinates,
   routeCoordinates,
+  routeSegments,
   activeDay,
+  activeRouteDay,
   focusIndex,
   mapClassName = "map",
   markerClassName = "map-marker",
@@ -3106,7 +3418,9 @@ function StaticTripMap({
 }: {
   coordinates: [number, number][];
   routeCoordinates?: [number, number][];
+  routeSegments?: RouteLineSegment[];
   activeDay?: number;
+  activeRouteDay?: number;
   focusIndex?: number;
   mapClassName?: string;
   markerClassName?: string;
@@ -3117,19 +3431,27 @@ function StaticTripMap({
   if (!coordinates.length && !userLocation) {
     return <div className={`${mapClassName} map-unavailable`}>Добавьте города или места, чтобы увидеть их на карте.</div>;
   }
-  const focusCoordinates =
-    focusIndex !== undefined && coordinates.length > 1
-      ? coordinates.slice(focusIndex, focusIndex + 2)
-      : coordinates;
-  const mapFocusCoordinates = userLocation
-    ? [...focusCoordinates, userLocation]
-    : focusCoordinates;
   const lineCoordinates = routeCoordinates && routeCoordinates.length > 1
     ? routeCoordinates
     : coordinates;
+  const displayedRouteSegments = routeSegments?.length
+    ? routeSegments
+    : lineCoordinates.length > 1
+      ? [{ dayIndex: 0, coordinates: lineCoordinates }]
+      : [];
+  const activeRouteSegment = routeSegments?.find(
+    (segment) => segment.dayIndex === activeRouteDay,
+  );
+  const focusCoordinates = activeRouteSegment?.coordinates?.length
+    ? activeRouteSegment.coordinates
+    : focusIndex !== undefined && coordinates.length > 1
+      ? coordinates.slice(focusIndex, focusIndex + 2)
+      : [...coordinates, ...displayedRouteSegments.flatMap((segment) => segment.coordinates)];
+  const mapFocusCoordinates = userLocation
+    ? [...focusCoordinates, userLocation]
+    : focusCoordinates;
   const zoom = staticMapZoom(mapFocusCoordinates);
   const points = coordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
-  const linePoints = lineCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
   const focusPoints = mapFocusCoordinates.map((coordinate) => staticMapWorldPoint(coordinate, zoom));
   const minX = Math.min(...focusPoints.map(([x]) => x));
   const maxX = Math.max(...focusPoints.map(([x]) => x));
@@ -3141,10 +3463,21 @@ function StaticTripMap({
     STATIC_MAP_WIDTH / 2 + x - centerX,
     STATIC_MAP_HEIGHT / 2 + y - centerY,
   ]);
-  const positionedLinePoints = linePoints.map(([x, y]) => [
-    STATIC_MAP_WIDTH / 2 + x - centerX,
-    STATIC_MAP_HEIGHT / 2 + y - centerY,
-  ]);
+  const positionedRouteLines = displayedRouteSegments.map((segment) =>
+    segment.coordinates.map((coordinate) => {
+      const [x, y] = staticMapWorldPoint(coordinate, zoom);
+      return [STATIC_MAP_WIDTH / 2 + x - centerX, STATIC_MAP_HEIGHT / 2 + y - centerY];
+    }),
+  );
+  const positionedActiveRouteLine = activeRouteSegment?.coordinates.map((coordinate) => {
+    const [x, y] = staticMapWorldPoint(coordinate, zoom);
+    return [STATIC_MAP_WIDTH / 2 + x - centerX, STATIC_MAP_HEIGHT / 2 + y - centerY];
+  });
+  const activeLinePoints = positionedActiveRouteLine?.length
+    ? positionedActiveRouteLine
+    : focusIndex !== undefined
+      ? positionedPoints.slice(focusIndex, focusIndex + 2)
+      : [];
   const positionedUserPoint = userLocation
     ? (() => {
         const [x, y] = staticMapWorldPoint(userLocation, zoom);
@@ -3190,16 +3523,24 @@ function StaticTripMap({
         <svg className="static-map-route" viewBox={`0 0 ${STATIC_MAP_WIDTH} ${STATIC_MAP_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {connectWaypoints && positionedPoints.length > 1 && (
             <>
-              <polyline className="halo" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
-              <polyline className="overview" points={positionedLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
-              <polyline className="waypoint-halo" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
-              <polyline className="waypoints" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+              {positionedRouteLines.map((line, index) => (
+                <g key={index}>
+                  <polyline className="halo" points={line.map(([x, y]) => `${x},${y}`).join(" ")} />
+                  <polyline className="overview" points={line.map(([x, y]) => `${x},${y}`).join(" ")} />
+                </g>
+              ))}
+              {!routeSegments?.length && (
+                <>
+                  <polyline className="waypoint-halo" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+                  <polyline className="waypoints" points={positionedPoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+                </>
+              )}
             </>
           )}
-          {connectWaypoints && focusIndex !== undefined && positionedPoints.slice(focusIndex, focusIndex + 2).length > 1 && (
+          {connectWaypoints && activeLinePoints.length > 1 && (
             <>
-              <polyline className="active-halo" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
-              <polyline className="active" points={positionedPoints.slice(focusIndex, focusIndex + 2).map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="active-halo" points={activeLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
+              <polyline className="active" points={activeLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
             </>
           )}
         </svg>
@@ -6519,6 +6860,7 @@ function TripMap({
   city,
   places = emptyPlaces,
   routeDays = emptyRouteDays,
+  routedSegments,
   mapCities = emptyPlaces,
   fallbackMapCities = emptyPlaces,
   activeDay,
@@ -6526,6 +6868,7 @@ function TripMap({
   city?: string;
   places?: string[];
   routeDays?: DraftDay[];
+  routedSegments?: RouteLineSegment[];
   mapCities?: string[];
   fallbackMapCities?: string[];
   activeDay?: number;
@@ -6537,6 +6880,9 @@ function TripMap({
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
   const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
+  const routeLineSegments = routedSegments?.length
+    ? routedSegments
+    : routeSegmentsFor(displayedRouteDays);
   const [resolvedMapCities, setResolvedMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const [resolvedFallbackMapCities, setResolvedFallbackMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const mapCitiesKey = JSON.stringify(mapCities.map((name) => name.trim()).filter(Boolean));
@@ -6563,9 +6909,17 @@ function TripMap({
   const mapRouteCoordinates = selectedCityCoordinates.length
     ? selectedCityCoordinates
     : routeCoordinates;
+  const mapRouteSegments = routeLineSegments.length
+    ? routeLineSegments
+    : selectedCityCoordinates.length > 1
+      ? [{ dayIndex: 0, coordinates: selectedCityCoordinates }]
+      : [];
   const activeRoutePoint = selectedCityCoordinates.length
     ? undefined
     : routePointIndexFor(displayedRouteDays, activeDay);
+  const activeRouteSegment = mapRouteSegments.find(
+    (segment) => segment.dayIndex === activeDay,
+  );
   const fallbackCoordinates = mapRouteCoordinates.length
     ? mapRouteCoordinates
     : location
@@ -6580,6 +6934,10 @@ function TripMap({
         : [location]
       : [];
   const previousActiveDay = useRef<number | undefined>(activeDay);
+  const mapRouteSegmentsRef = useRef(mapRouteSegments);
+  mapRouteSegmentsRef.current = mapRouteSegments;
+  const activeDayRef = useRef(activeDay);
+  activeDayRef.current = activeDay;
   const shouldFocusStaticMap =
     activeDay !== undefined &&
     previousActiveDay.current !== undefined &&
@@ -6603,6 +6961,7 @@ function TripMap({
   const mapCoordinatesKey = mapRouteCoordinates
     .map((coordinate) => coordinate.join(","))
     .join("|");
+  const mapLineKey = JSON.stringify(mapRouteSegments);
 
   useEffect(() => {
     const primaryCities = JSON.parse(mapCitiesKey) as string[];
@@ -6695,11 +7054,7 @@ function TripMap({
         map.on("load", () => {
           map!.addSource("route", {
             type: "geojson",
-            data: {
-              type: "Feature",
-              properties: {},
-              geometry: { type: "LineString", coordinates: mapRouteCoordinates },
-            },
+            data: routeLineFeatureCollection(mapRouteSegmentsRef.current),
           });
           map!.addLayer({
             id: "route",
@@ -6711,35 +7066,32 @@ function TripMap({
               "line-opacity": 0.72,
             },
           });
-          const activeSegment =
-            activeRoutePoint === undefined
-              ? []
-              : routeSegment(mapRouteCoordinates, activeRoutePoint);
-          if (activeSegment.length > 1) {
-            map!.addSource("active-route", {
-              type: "geojson",
-              data: {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "LineString", coordinates: activeSegment },
-              },
-            });
-            map!.addLayer({
-              id: "active-route",
-              type: "line",
-              source: "active-route",
-              paint: {
-                "line-color": "#ff7a45",
-                "line-width": 6,
-                "line-opacity": 0.95,
-              },
-            });
-          }
-          const bounds = new mapboxgl.LngLatBounds(
-            mapRouteCoordinates[0],
-            mapRouteCoordinates[0],
+          const activeSegment = mapRouteSegmentsRef.current.find(
+            (segment) => segment.dayIndex === activeDayRef.current,
           );
-          mapRouteCoordinates
+          map!.addSource("active-route", {
+            type: "geojson",
+            data: routeLineFeatureCollection(activeSegment ? [activeSegment] : []),
+          });
+          map!.addLayer({
+            id: "active-route",
+            type: "line",
+            source: "active-route",
+            paint: {
+              "line-color": "#ff7a45",
+              "line-width": 6,
+              "line-opacity": 0.95,
+            },
+          });
+          const boundsCoordinates = [
+            ...mapRouteCoordinates,
+            ...mapRouteSegmentsRef.current.flatMap((segment) => segment.coordinates),
+          ];
+          const bounds = new mapboxgl.LngLatBounds(
+            boundsCoordinates[0],
+            boundsCoordinates[0],
+          );
+          boundsCoordinates
             .slice(1)
             .forEach((coordinate) => bounds.extend(coordinate));
           map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
@@ -6766,11 +7118,7 @@ function TripMap({
         map.on("load", () => {
           map!.addSource("route", {
             type: "geojson",
-            data: {
-              type: "Feature",
-              properties: {},
-              geometry: { type: "LineString", coordinates },
-            },
+            data: routeLineFeatureCollection([{ dayIndex: 0, coordinates }]),
           });
           map!.addLayer({
             id: "route",
@@ -6800,6 +7148,22 @@ function TripMap({
   }, [city, locationKey, placesKey, routeKey, browserLocationKey, mapCoordinatesKey]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const routeSource = map.getSource("route") as
+      { setData: (data: object) => void } | undefined;
+    routeSource?.setData(routeLineFeatureCollection(mapRouteSegments));
+    const activeSource = map.getSource("active-route") as
+      { setData: (data: object) => void } | undefined;
+    const activeSegment = mapRouteSegments.find(
+      (segment) => segment.dayIndex === activeDay,
+    );
+    activeSource?.setData(
+      routeLineFeatureCollection(activeSegment ? [activeSegment] : []),
+    );
+  }, [mapLineKey, activeDay]);
+
+  useEffect(() => {
     const routePoint = selectedCityCoordinates.length
       ? undefined
       : routePointIndexFor(displayedRouteDays, activeDay);
@@ -6818,41 +7182,14 @@ function TripMap({
       element.classList.toggle("active", index === routePoint),
     );
     const map = mapRef.current;
-    const activeSegment =
-      routePoint === undefined
-        ? []
-        : routeSegment(routeCoordinatesFor(displayedRouteDays), routePoint);
+    const activeSegment = activeRouteSegment?.coordinates || [];
     const source = map.getSource("active-route") as
       { setData: (data: object) => void } | undefined;
-    if (source && activeSegment.length > 1) {
-      source.setData({
-        type: "Feature",
-        properties: {},
-        geometry: { type: "LineString", coordinates: activeSegment },
-      });
-    } else if (source) {
-      if (map.getLayer("active-route")) map.removeLayer("active-route");
-      map.removeSource("active-route");
-    } else if (activeSegment.length > 1 && map.isStyleLoaded()) {
-      map.addSource("active-route", {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: activeSegment },
-        },
-      });
-      map.addLayer({
-        id: "active-route",
-        type: "line",
-        source: "active-route",
-        paint: {
-          "line-color": "#ff7a45",
-          "line-width": 6,
-          "line-opacity": 0.95,
-        },
-      });
-    }
+    source?.setData(routeLineFeatureCollection(
+      activeSegment.length > 1 && activeDay !== undefined
+        ? [{ dayIndex: activeDay, coordinates: activeSegment }]
+        : [],
+    ));
     if (!coordinate) return;
     map.flyTo({
       center: coordinate,
@@ -6860,14 +7197,16 @@ function TripMap({
       duration: 900,
       essential: true,
     });
-  }, [activeDay, routeKey, mapCoordinatesKey]);
+  }, [activeDay, routeKey, mapCoordinatesKey, mapLineKey]);
 
   if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN)
     return (
       <div className="map-location-wrap">
         <StaticTripMap
           coordinates={fallbackCoordinates}
+          routeSegments={mapRouteSegments}
           activeDay={activeRoutePoint}
+          activeRouteDay={activeDay}
           focusIndex={shouldFocusStaticMap ? activeRoutePoint : undefined}
           userLocation={browserLocation.state.coordinates}
         />
@@ -8443,22 +8782,6 @@ function RoadLegEditor({
       </div>
       <div className="road-leg-fields road-leg-times">
         <label>
-          Заселение: с
-          <input
-            type="time"
-            value={checkInFrom}
-            onChange={(event) => setCheckInFrom(event.target.value)}
-          />
-        </label>
-        <label>
-          Заселение: до
-          <input
-            type="time"
-            value={checkInTo}
-            onChange={(event) => setCheckInTo(event.target.value)}
-          />
-        </label>
-        <label>
           Выселение: с
           <input
             type="time"
@@ -8472,6 +8795,22 @@ function RoadLegEditor({
             type="time"
             value={checkOutTo}
             onChange={(event) => setCheckOutTo(event.target.value)}
+          />
+        </label>
+        <label>
+          Заселение: с
+          <input
+            type="time"
+            value={checkInFrom}
+            onChange={(event) => setCheckInFrom(event.target.value)}
+          />
+        </label>
+        <label>
+          Заселение: до
+          <input
+            type="time"
+            value={checkInTo}
+            onChange={(event) => setCheckInTo(event.target.value)}
           />
         </label>
       </div>
@@ -8584,14 +8923,14 @@ function DraftRouteCard({
       Number(Boolean(roadLeg.notes))
     : 0;
   const checklist = [
+    {
+      id: "check-out",
+      label: `Выселение${checkOut ? ` ${checkOut}` : ""}`,
+    },
     { id: "departure", label: `Выезд из ${roadLeg?.from || "города"}` },
     {
       id: "check-in",
-      label: `Заселение в отель${checkIn ? ` ${checkIn}` : ""}`,
-    },
-    {
-      id: "check-out",
-      label: `Выселение из отеля${checkOut ? ` ${checkOut}` : ""}`,
+      label: `Заселение${checkIn ? ` ${checkIn}` : ""}`,
     },
   ];
   return (
@@ -8706,6 +9045,7 @@ function RouteTab({
   isDraft = false,
   draftDays = [],
   startDate,
+  endDate,
   accommodations = [],
   editingRoadDay = null,
   onEditingRoadDayChange,
@@ -8717,6 +9057,7 @@ function RouteTab({
   isDraft?: boolean;
   draftDays?: DraftDay[];
   startDate?: string;
+  endDate?: string;
   accommodations?: SavedAccommodation[];
   editingRoadDay?: number | null;
   onEditingRoadDayChange?: (day: number | null) => void;
@@ -8771,7 +9112,31 @@ function RouteTab({
     visibleDraftDays.findIndex(({ sourceIndex }) => sourceIndex === selectedRouteDay),
   );
   const activeRouteSourceIndex = visibleDraftDays[activeRouteDayIndex]?.sourceIndex;
+  const mapRouteDays = orderedDraftDays.filter(
+    ({ draftDay, sourceIndex }) =>
+      Boolean(draftDay.roadLeg) || editingRoadDay === sourceIndex,
+  );
+  const mapActiveRouteDayIndex = activeRouteSourceIndex === undefined
+    ? undefined
+    : mapRouteDays.findIndex(({ sourceIndex }) => sourceIndex === activeRouteSourceIndex);
   const routePaths = routeDistancePathsFor(draftDays);
+  const routeDuration = tripDurationDays(startDate, endDate);
+  const routeDurationLabel = routeDuration !== null
+    ? formatRussianCount(routeDuration, "день", "дня", "дней")
+    : formatRussianCount(
+        draftDays.filter((draftDay) => Boolean(draftDay.roadLeg)).length,
+        "переезд",
+        "переезда",
+        "переездов",
+      );
+  const visibleRoutedSegments = routeTotals?.segments?.flatMap((segment) => {
+    const displayedDayIndex = mapRouteDays.findIndex(
+      ({ sourceIndex }) => sourceIndex === segment.dayIndex,
+    );
+    return displayedDayIndex < 0
+      ? []
+      : [{ ...segment, dayIndex: displayedDayIndex }];
+  });
   useEffect(
     () =>
       setDay((current) => Math.min(current, Math.max(0, draftDays.length - 1))),
@@ -8864,18 +9229,14 @@ function RouteTab({
         </div>
         <aside className="map-card">
           <TripMap
-            routeDays={visibleDraftDays.map(({ draftDay }) => draftDay)}
-            activeDay={activeRouteDayIndex}
+            routeDays={mapRouteDays.map(({ draftDay }) => draftDay)}
+            routedSegments={visibleRoutedSegments}
+            activeDay={mapActiveRouteDayIndex}
           />
           <footer>
             <span>Общий маршрут</span>
             <b>
-              {formatRussianCount(
-                draftDays.filter((draftDay) => Boolean(draftDay.roadLeg)).length,
-                "день",
-                "дня",
-                "дней",
-              )}
+              {routeDurationLabel}
               {routeTotalsLabel(routeTotals, Boolean(routePaths))}
             </b>
           </footer>
@@ -15123,7 +15484,6 @@ function WeatherOverview({
   routeDays = [],
   accommodations = [],
   coverPhotos,
-  brightenPhotos = false,
 }: {
   cities: string[];
   tripDates: string;
@@ -15132,7 +15492,6 @@ function WeatherOverview({
   routeDays?: DraftDay[];
   accommodations?: SavedAccommodation[];
   coverPhotos: CoverPhoto[];
-  brightenPhotos?: boolean;
 }) {
   const [mode, setMode] = useState<"now" | "trip">("now");
   const [weather, setWeather] = useState<Record<string, WeatherSnapshot>>({});
@@ -15421,8 +15780,6 @@ function WeatherOverview({
           return (
             <article
               className={`weather-card${photo ? " has-photo" : ""}${
-                photo && brightenPhotos ? " christmas-weather-photo" : ""
-              }${
                 mode === "trip" && selectedWeatherCity?.name === city.name
                   ? " selected"
                   : ""
@@ -15450,9 +15807,7 @@ function WeatherOverview({
               style={
                 photo
                   ? {
-                      backgroundImage: brightenPhotos
-                        ? `url(${photo.image})`
-                        : `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
+                      backgroundImage: `linear-gradient(rgba(18, 18, 26, 0.42), rgba(18, 18, 26, 0.72)), url(${photo.image})`,
                     }
                   : undefined
               }
@@ -15623,8 +15978,40 @@ function TripOverview({
   const [expandedPhoto, setExpandedPhoto] = useState<number | null>(null);
   const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
-  const routeDays = (trip.days || []).filter((day) => day.roadLeg);
-  const routePaths = routeDistancePathsFor(routeDays);
+  const tripRouteDays = trip.days || [];
+  const routeDays = tripRouteDays.filter((day) => day.roadLeg);
+  const routePaths = routeDistancePathsFor(tripRouteDays);
+  const parsedTripDateRange = parseTripDateRange(trip.dates || "");
+  const tripRouteStartDate = trip.startDate || parsedTripDateRange?.[0];
+  const tripRouteEndDate = trip.endDate || parsedTripDateRange?.[1];
+  const routeDuration = tripDurationDays(
+    tripRouteStartDate,
+    tripRouteEndDate,
+  );
+  const mapRouteEntries = tripRouteDays
+    .map((draftDay, sourceIndex) => ({
+      draftDay,
+      sourceIndex,
+      routeDate: routeDateForDay(
+        tripRouteStartDate,
+        draftDay,
+        sourceIndex,
+        trip.accommodations || [],
+      ),
+    }))
+    .sort((left, right) =>
+      left.routeDate.localeCompare(right.routeDate) ||
+      left.sourceIndex - right.sourceIndex,
+    );
+  const mapRouteDays = mapRouteEntries.map(({ draftDay }) => draftDay);
+  const mapRouteSegments = routeTotals?.segments?.flatMap((segment) => {
+    const displayedDayIndex = mapRouteEntries.findIndex(
+      ({ sourceIndex }) => sourceIndex === segment.dayIndex,
+    );
+    return displayedDayIndex < 0
+      ? []
+      : [{ ...segment, dayIndex: displayedDayIndex }];
+  });
   const routeKey = routeDays
     .map((day) => `${day.roadLeg?.from}:${day.roadLeg?.to}:${day.roadLeg?.mapsUrl || ""}`)
     .join("|");
@@ -15644,7 +16031,9 @@ function TripOverview({
       cancelled = true;
     };
   }, [routeKey]);
-  const routeSummary = `${formatRussianCount(routeDays.length, "день", "дня", "дней")}${routeTotalsLabel(routeTotals, Boolean(routePaths))}`;
+  const routeSummary = `${routeDuration !== null
+    ? formatRussianCount(routeDuration, "день", "дня", "дней")
+    : formatRussianCount(routeDays.length, "переезд", "переезда", "переездов")}${routeTotalsLabel(routeTotals, Boolean(routePaths))}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
@@ -15675,6 +16064,10 @@ function TripOverview({
   ).filter((photo) => photo.id !== "verona-cover");
   const activeCover =
     coverPhotos[Math.min(activePhoto, Math.max(0, coverPhotos.length - 1))];
+  const brightenChristmasPhotos = [
+    "Рождественская Италия",
+    "Рождественская Италия вдвоем",
+  ].includes(trip.title.trim());
   useEffect(() => {
     if (expandedPhoto === null) return;
     const previousOverflow = document.body.style.overflow;
@@ -15875,7 +16268,8 @@ function TripOverview({
           </div>
           <aside className="map-card">
             <TripMap
-              routeDays={trip.days}
+              routeDays={mapRouteDays}
+              routedSegments={mapRouteSegments}
               mapCities={savedOverviewMapPoints}
               fallbackMapCities={weatherCities}
             />
@@ -15893,7 +16287,6 @@ function TripOverview({
           routeDays={trip.days}
           accommodations={trip.accommodations}
           coverPhotos={coverPhotos}
-          brightenPhotos={trip.title === "Рождественская Италия"}
         />
       </div>
     );
@@ -15907,7 +16300,7 @@ function TripOverview({
               className={
                 activeCover
                   ? `has-draft-cover cover-photo-preview${
-                      trip.title === "Рождественская Италия"
+                      brightenChristmasPhotos
                         ? " christmas-bright-cover"
                         : ""
                     }`
@@ -15917,7 +16310,7 @@ function TripOverview({
                 activeCover
                   ? {
                       backgroundImage:
-                        trip.title === "Рождественская Италия"
+                        brightenChristmasPhotos
                           ? `url(${activeCover.image})`
                           : `linear-gradient(rgba(27, 28, 31, 0.3), rgba(27, 28, 31, 0.3)), url(${activeCover.image})`,
                     }
@@ -15992,7 +16385,7 @@ function TripOverview({
                   {activeCover.city && (
                     <div
                       className={`cover-photo-caption${
-                        trip.title === "Рождественская Италия"
+                        brightenChristmasPhotos
                           ? " christmas-photo-caption"
                           : ""
                       }`}
@@ -16049,7 +16442,8 @@ function TripOverview({
             </div>
             <aside className="map-card">
               <TripMap
-                routeDays={trip.days}
+                routeDays={mapRouteDays}
+                routedSegments={mapRouteSegments}
                 mapCities={savedOverviewMapPoints}
                 fallbackMapCities={weatherCities}
               />
@@ -16067,7 +16461,6 @@ function TripOverview({
             routeDays={trip.days}
             accommodations={trip.accommodations}
             coverPhotos={coverPhotos}
-            brightenPhotos={trip.title === "Рождественская Италия"}
           />
         </div>
         {expandedPhoto !== null && coverPhotos[expandedPhoto] && (
@@ -17662,7 +18055,9 @@ function Workspace({
   const draftDays = trip.days?.length
     ? trip.days
     : [{ id: "day-1", places: trip.places || [] }];
-  const tripStartDate = trip.startDate || parseTripDateRange(trip.dates)?.[0];
+  const parsedTripDateRange = parseTripDateRange(trip.dates || "");
+  const tripStartDate = trip.startDate || parsedTripDateRange?.[0];
+  const tripEndDate = trip.endDate || parsedTripDateRange?.[1];
   const firstDraftDay = draftDays[0];
   const useDemoSightContent = trip.title === "Рождественская Италия";
   const savedSightDays =
@@ -18031,6 +18426,7 @@ function Workspace({
             isDraft={trip.isDraft}
             draftDays={draftDays}
             startDate={tripStartDate}
+            endDate={tripEndDate}
             accommodations={trip.accommodations || []}
             editingRoadDay={editingRoadDay}
             onEditingRoadDayChange={setEditingRoadDay}
