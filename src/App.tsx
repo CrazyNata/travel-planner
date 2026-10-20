@@ -3057,19 +3057,6 @@ function fallbackRouteTotals(paths: RouteDistancePath[]): RouteTotals | null {
   };
 }
 
-function routeDistancePathsFor(days: DraftDay[]) {
-  const legs = days.flatMap((day, dayIndex) =>
-    day.roadLeg ? [{ leg: day.roadLeg, dayIndex }] : [],
-  );
-  if (!legs.length) return null;
-  const paths = legs.map(({ leg, dayIndex }) =>
-    routeDistancePathForLeg(leg, dayIndex),
-  );
-  return paths.every((path): path is RouteDistancePath => Boolean(path))
-    ? paths
-    : null;
-}
-
 function canonicalRouteCityName(city: string) {
   const normalized = city
     .trim()
@@ -9346,7 +9333,7 @@ function RouteTab({
   const mapActiveRouteDayIndex = activeRouteSourceIndex === undefined
     ? undefined
     : mapRouteDays.findIndex(({ sourceIndex }) => sourceIndex === activeRouteSourceIndex);
-  const routePaths = routeDistancePathsFor(draftDays);
+  const hasRouteLegs = draftDays.some((draftDay) => Boolean(draftDay.roadLeg));
   const routeDuration = tripDurationDays(startDate, endDate);
   const routeDurationLabel = routeDuration !== null
     ? formatRussianCount(routeDuration, "день", "дня", "дней")
@@ -9371,8 +9358,7 @@ function RouteTab({
   );
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const paths = routePaths;
-    if (!paths) {
+    if (!hasRouteLegs) {
       setRouteTotals(null);
       return;
     }
@@ -9384,7 +9370,7 @@ function RouteTab({
     return () => {
       cancelled = true;
     };
-  }, [draftDays]);
+  }, [draftDays, hasRouteLegs]);
   const currentDraftDay: DraftDay = draftDays[day] || {
     id: "day-1",
     places: [],
@@ -9466,7 +9452,7 @@ function RouteTab({
             <span>Общий маршрут</span>
             <b>
               {routeDurationLabel}
-              {routeTotalsLabel(routeTotals, Boolean(routePaths))}
+              {routeTotalsLabel(routeTotals, hasRouteLegs)}
             </b>
           </footer>
         </aside>
@@ -16209,7 +16195,7 @@ function TripOverview({
   const [routeTotals, setRouteTotals] = useState<RouteTotals | null>(null);
   const tripRouteDays = trip.days || [];
   const routeDays = tripRouteDays.filter((day) => day.roadLeg);
-  const routePaths = routeDistancePathsFor(tripRouteDays);
+  const hasRouteLegs = routeDays.length > 0;
   const parsedTripDateRange = parseTripDateRange(trip.dates || "");
   const tripRouteStartDate = trip.startDate || parsedTripDateRange?.[0];
   const tripRouteEndDate = trip.endDate || parsedTripDateRange?.[1];
@@ -16246,8 +16232,7 @@ function TripOverview({
     .join("|");
   useEffect(() => {
     const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-    const paths = routePaths;
-    if (!paths) {
+    if (!hasRouteLegs) {
       setRouteTotals(null);
       return;
     }
@@ -16259,10 +16244,10 @@ function TripOverview({
     return () => {
       cancelled = true;
     };
-  }, [routeKey]);
+  }, [routeKey, hasRouteLegs]);
   const routeSummary = `${routeDuration !== null
     ? formatRussianCount(routeDuration, "день", "дня", "дней")
-    : formatRussianCount(routeDays.length, "переезд", "переезда", "переездов")}${routeTotalsLabel(routeTotals, Boolean(routePaths))}`;
+    : formatRussianCount(routeDays.length, "переезд", "переезда", "переездов")}${routeTotalsLabel(routeTotals, hasRouteLegs)}`;
   const routeCities = (trip.days || []).flatMap((day) =>
     day.roadLeg ? [day.roadLeg.from, day.roadLeg.to] : [],
   );
