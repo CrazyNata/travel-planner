@@ -18055,20 +18055,29 @@ function Workspace({
   const tripStartDate = trip.startDate || parsedTripDateRange?.[0];
   const tripEndDate = trip.endDate || parsedTripDateRange?.[1];
   const firstDraftDay = draftDays[0];
+  const firstRouteCity =
+    firstDraftDay.roadLeg?.to?.trim() || firstDraftDay.roadLeg?.from?.trim() || "";
   const useDemoSightContent = trip.title === "Рождественская Италия";
+  const firstDayHasSights = (trip.sights || []).some(
+    (sight) => (sight.walkDay || 1) === 1,
+  );
   const savedSightDays =
     trip.sightDaysVersion === 1 && trip.sightDays?.length
       ? trip.sightDays
       : [
           {
             id: "sights-day-1",
-            title:
-              firstDraftDay.roadLeg?.to ||
-              firstDraftDay.roadLeg?.from ||
-              "Первый день",
+            title: firstRouteCity || "Первый день",
           },
         ];
-  const sightDays =
+  const savedFirstSightCity = savedSightDays[0]?.title.trim().toLocaleLowerCase("ru-RU");
+  const firstSightDayMatchesLaterRoute = draftDays.slice(1).some((day) => {
+    const routeCity = (day.roadLeg?.to || day.roadLeg?.from || "")
+      .trim()
+      .toLocaleLowerCase("ru-RU");
+    return Boolean(routeCity && routeCity === savedFirstSightCity);
+  });
+  const baseSightDays =
     useDemoSightContent &&
     savedSightDays.length === 3 &&
     savedSightDays[2].title === "Рим"
@@ -18147,6 +18156,17 @@ function Workspace({
                             { id: "sights-day-2", title: "Верона" },
                           ]
                         : savedSightDays;
+  const sightDays =
+    !useDemoSightContent &&
+    firstRouteCity &&
+    firstSightDayMatchesLaterRoute &&
+    !firstDayHasSights
+      ? baseSightDays.map((day, index) =>
+          index === 0 && day.title !== firstRouteCity
+            ? { ...day, title: firstRouteCity }
+            : day,
+        )
+      : baseSightDays;
   useEffect(() => {
     setSelectedSightDayId((current) =>
       sightDays.some((day) => day.id === current)
