@@ -8865,6 +8865,7 @@ function GoogleMapsLink({ url }: { url: string }) {
 function DraftRouteCard({
   day,
   index,
+  isFirstDay,
   routeDate,
   editing,
   dragDisabled,
@@ -8884,6 +8885,7 @@ function DraftRouteCard({
 }: {
   day: DraftDay;
   index: number;
+  isFirstDay: boolean;
   routeDate?: string;
   editing: boolean;
   dragDisabled: boolean;
@@ -8918,17 +8920,25 @@ function DraftRouteCard({
       Number(Boolean(checkOut)) +
       Number(Boolean(roadLeg.notes))
     : 0;
-  const checklist = [
-    {
-      id: "check-out",
-      label: `Выселение${checkOut ? ` ${checkOut}` : ""}`,
-    },
-    { id: "departure", label: `Выезд из ${roadLeg?.from || "города"}` },
-    {
-      id: "check-in",
-      label: `Заселение${checkIn ? ` ${checkIn}` : ""}`,
-    },
-  ];
+  const departureItem = {
+    id: "departure",
+    label: `Выезд из ${roadLeg?.from || "города"}`,
+  };
+  const checkOutItem = {
+    id: "check-out",
+    label: `Выселение${checkOut ? ` ${checkOut}` : ""}`,
+  };
+  const checkInItem = {
+    id: "check-in",
+    label: `Заселение${checkIn ? ` ${checkIn}` : ""}`,
+  };
+  const checklist = isFirstDay
+    ? [departureItem, checkOutItem, checkInItem]
+    : [
+        checkOutItem,
+        departureItem,
+        checkInItem,
+      ];
   return (
     <article
       className={`draft-route-card${selected ? " selected" : ""}${dragging ? " dragging" : ""}${dropTarget ? " drop-target" : ""}${dragDisabled ? " drag-disabled" : ""}`}
@@ -9171,6 +9181,7 @@ function RouteTab({
             <DraftRouteCard
               day={draftDay}
               index={index}
+              isFirstDay={index === 0}
               routeDate={routeDate}
               editing={editingRoadDay === sourceIndex}
               dragDisabled={editingRoadDay !== null}
