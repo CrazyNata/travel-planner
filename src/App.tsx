@@ -18054,7 +18054,27 @@ function Workspace({
   const parsedTripDateRange = parseTripDateRange(trip.dates || "");
   const tripStartDate = trip.startDate || parsedTripDateRange?.[0];
   const tripEndDate = trip.endDate || parsedTripDateRange?.[1];
-  const firstDraftDay = draftDays[0];
+  const routeDaysByDate = draftDays
+    .map((day, index) => ({
+      day,
+      index,
+      date: routeDateForDay(
+        tripStartDate,
+        day,
+        index,
+        trip.accommodations || [],
+      ),
+    }))
+    .filter(({ day }) => Boolean(day.roadLeg))
+    .sort((left, right) => {
+      if (left.date && right.date) {
+        return left.date.localeCompare(right.date) || left.index - right.index;
+      }
+      if (left.date) return -1;
+      if (right.date) return 1;
+      return left.index - right.index;
+    });
+  const firstDraftDay = routeDaysByDate[0]?.day || draftDays[0];
   const firstRouteCity =
     firstDraftDay.roadLeg?.to?.trim() || firstDraftDay.roadLeg?.from?.trim() || "";
   const useDemoSightContent = trip.title === "Рождественская Италия";
@@ -18070,12 +18090,11 @@ function Workspace({
             title: firstRouteCity || "Первый день",
           },
         ];
-  const savedFirstSightCity = savedSightDays[0]?.title.trim().toLocaleLowerCase("ru-RU");
-  const firstSightDayMatchesLaterRoute = draftDays.slice(1).some((day) => {
+  const savedFirstSightCity = savedSightDays[0]?.title || "";
+  const firstSightDayMatchesLaterRoute = routeDaysByDate.slice(1).some(({ day }) => {
     const routeCity = (day.roadLeg?.to || day.roadLeg?.from || "")
-      .trim()
-      .toLocaleLowerCase("ru-RU");
-    return Boolean(routeCity && routeCity === savedFirstSightCity);
+      .trim();
+    return citiesMatch(routeCity, savedFirstSightCity);
   });
   const baseSightDays =
     useDemoSightContent &&
