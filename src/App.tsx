@@ -7124,7 +7124,10 @@ function TripMap({
           boundsCoordinates
             .slice(1)
             .forEach((coordinate) => bounds.extend(coordinate));
-          map!.fitBounds(bounds, { padding: 42, maxZoom: 8 });
+          map!.fitBounds(bounds, {
+            padding: { top: 42, right: 80, bottom: 42, left: 42 },
+            maxZoom: 8,
+          });
           if (userCoordinates) {
             map!.flyTo({ center: userCoordinates, zoom: 14, duration: 700, essential: true });
           }
