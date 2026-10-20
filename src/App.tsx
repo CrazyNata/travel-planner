@@ -2842,13 +2842,41 @@ function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
       ...waypointCoordinates,
       ...(destinationCoordinate ? [destinationCoordinate] : []),
     ];
-    if (hasQuery) {
+    if (hasQuery && queryCoordinates.length) {
       return {
         coordinates: uniqueRouteCoordinates(queryCoordinates),
         fromQuery: true,
         origin: originCoordinate,
         waypoints: waypointCoordinates,
         destination: destinationCoordinate,
+      };
+    }
+
+    // Google Maps share links keep their precise stop coordinates in the
+    // `data` payload. The place names in `/dir/` are readable, but parsing
+    // coordinates from that payload avoids replacing an address with a city
+    // center and drawing a route through an unrelated point.
+    const dataCoordinates = uniqueRouteCoordinates(
+      Array.from(
+        url.href.matchAll(
+          /!2m2!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g,
+        ),
+        (match) => [Number(match[1]), Number(match[2])] as RouteCoordinate,
+      ).filter(
+        ([longitude, latitude]) =>
+          Number.isFinite(longitude) &&
+          Number.isFinite(latitude) &&
+          Math.abs(longitude) <= 180 &&
+          Math.abs(latitude) <= 90,
+      ),
+    );
+    if (dataCoordinates.length >= 2) {
+      return {
+        coordinates: dataCoordinates,
+        fromQuery: false,
+        origin: dataCoordinates[0]!,
+        waypoints: dataCoordinates.slice(1, -1),
+        destination: dataCoordinates.at(-1)!,
       };
     }
 
@@ -2872,13 +2900,65 @@ function routeCoordinatesFromMapsUrl(mapsUrl: string): ParsedRouteCoordinates {
 
 function routeTravelProfile(mapsUrl: string): RouteTravelProfile {
   try {
-    const mode = new URL(mapsUrl).searchParams.get("travelmode")?.toLowerCase();
+    const url = new URL(mapsUrl);
+    const mode = url.searchParams.get("travelmode")?.toLowerCase();
     if (mode === "walking") return "walking";
     if (mode === "bicycling") return "cycling";
+    const googleMode = url.href.match(/!3e(\d+)/)?.[1];
+    if (googleMode === "2") return "walking";
+    if (googleMode === "1") return "cycling";
   } catch {
     // Use the app's default automobile profile for an invalid or short URL.
   }
   return "driving";
+}
+
+function googleMapsShortLinkId(mapsUrl: string) {
+  try {
+    const url = new URL(mapsUrl);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const id = pathSegments.length === 1 ? pathSegments[0] : "";
+    return url.hostname.toLowerCase() === "maps.app.goo.gl" &&
+      /^[A-Za-z0-9_-]{4,64}$/.test(id)
+      ? id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveGoogleMapsShortLink(mapsUrl: string) {
+  const id = googleMapsShortLinkId(mapsUrl);
+  if (!id) return null;
+  const hostname = window.location.hostname.toLocaleLowerCase();
+  const isRamingoHost = [
+    "ramingo.online",
+    "www.ramingo.online",
+    "travelplanner.muntim.ru",
+  ].includes(hostname);
+  const resolverOrigin = isRamingoHost
+    ? window.location.origin
+    : "https://ramingo.online";
+  try {
+    const response = await fetchWithTimeout(
+      `${resolverOrigin}/trip-route/maps/resolve/${id}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const expandedUrl = (await response.text()).trim();
+    if (!expandedUrl || expandedUrl.length > 12_000) return null;
+    const expanded = new URL(expandedUrl);
+    if (
+      !["google.com", "www.google.com", "maps.google.com"].includes(
+        expanded.hostname.toLowerCase(),
+      ) ||
+      routeCoordinatesFromMapsUrl(expandedUrl).coordinates.length < 2
+    )
+      return null;
+    return expandedUrl;
+  } catch {
+    return null;
+  }
 }
 
 function routeCoordinatesForLeg(leg: RoadLeg): RouteCoordinate[] {
@@ -2988,6 +3068,54 @@ function routeDistancePathsFor(days: DraftDay[]) {
   return paths.every((path): path is RouteDistancePath => Boolean(path))
     ? paths
     : null;
+}
+
+function canonicalRouteCityName(city: string) {
+  const normalized = city
+    .trim()
+    .split(/[,(]/, 1)[0]!
+    .toLocaleLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zа-яё0-9]+/giu, "");
+  if (["prague", "praha", "прага"].includes(normalized)) return "prague";
+  if (["munich", "munchen", "мюнхен"].includes(normalized)) return "munich";
+  return normalized;
+}
+
+async function routeDistancePathsForResolvedDays(days: DraftDay[]) {
+  const legs = days.flatMap((day, dayIndex) =>
+    day.roadLeg ? [{ leg: day.roadLeg, dayIndex }] : [],
+  );
+  if (!legs.length) return null;
+  const paths = await Promise.all(
+    legs.map(async ({ leg, dayIndex }) => {
+      const expandedMapsUrl = await resolveGoogleMapsShortLink(leg.mapsUrl || "");
+      return routeDistancePathForLeg(
+        expandedMapsUrl ? { ...leg, mapsUrl: expandedMapsUrl } : leg,
+        dayIndex,
+      );
+    }),
+  );
+  if (!paths.every((path): path is RouteDistancePath => Boolean(path))) return null;
+
+  const firstLeg = legs[0]!.leg;
+  const lastLeg = legs.at(-1)!.leg;
+  const firstCoordinate = paths[0]!.coordinates[0];
+  const lastPath = paths.at(-1)!;
+  const lastCoordinate = lastPath.coordinates.at(-1);
+  const sameLoopCity =
+    canonicalRouteCityName(firstLeg.from) ===
+    canonicalRouteCityName(lastLeg.to);
+  if (
+    sameLoopCity &&
+    firstCoordinate &&
+    lastCoordinate &&
+    straightLineDistanceMeters(firstCoordinate, lastCoordinate) <= 10_000
+  ) {
+    lastPath.coordinates[lastPath.coordinates.length - 1] = firstCoordinate;
+  }
+  return paths;
 }
 
 type RoutedDistance = {
@@ -3211,12 +3339,27 @@ async function loadRoutedRoutes(
 }
 
 async function loadRouteTotals(
-  paths: RouteDistancePath[],
+  days: DraftDay[],
   token: string,
 ): Promise<RouteTotals | null> {
+  const paths = await routeDistancePathsForResolvedDays(days);
+  if (!paths) return null;
   const fallbackTotals = fallbackRouteTotals(paths);
   if (!fallbackTotals) return null;
   const routes = await loadRoutedRoutes(paths, token);
+  const segments = paths.map((path, index) => {
+    const coordinates = routes[index]?.coordinates?.length
+      ? routes[index]!.coordinates!
+      : path.coordinates;
+    return {
+      dayIndex: path.dayIndex,
+      coordinates: uniqueRouteCoordinates([
+        path.coordinates[0]!,
+        ...coordinates,
+        path.coordinates.at(-1)!,
+      ]),
+    };
+  });
   return {
     distance: paths.reduce(
       (total, path, index) =>
@@ -3228,19 +3371,7 @@ async function loadRouteTotals(
       0,
     ),
     approximate: routes.some((route) => !route),
-    segments: paths.map((path, index) => {
-      const coordinates = routes[index]?.coordinates?.length
-        ? routes[index]!.coordinates!
-        : path.coordinates;
-      return {
-        dayIndex: path.dayIndex,
-        coordinates: uniqueRouteCoordinates([
-          path.coordinates[0]!,
-          ...coordinates,
-          path.coordinates.at(-1)!,
-        ]),
-      };
-    }),
+    segments,
   };
 }
 
@@ -3345,6 +3476,43 @@ function routeCoordinatesFor(days: DraftDay[]) {
     });
   });
   return coordinates;
+}
+
+function routeStopsForSegments(segments: RouteLineSegment[]) {
+  const stops: RouteCoordinate[] = [];
+  segments.forEach((segment) => {
+    const start = segment.coordinates[0];
+    const end = segment.coordinates.at(-1);
+    if (
+      start &&
+      (!stops.length || straightLineDistanceMeters(stops.at(-1)!, start) > 500)
+    )
+      stops.push(start);
+    if (
+      end &&
+      (!stops.length || straightLineDistanceMeters(stops.at(-1)!, end) > 500)
+    )
+      stops.push(end);
+  });
+  return stops;
+}
+
+function routeMarkerOffsets(coordinates: RouteCoordinate[]) {
+  const markerOccurrences = new globalThis.Map<string, number>();
+  return coordinates.map((coordinate, index) => {
+    const coordinateKey = coordinate.join(",");
+    const occurrence = markerOccurrences.get(coordinateKey) || 0;
+    markerOccurrences.set(coordinateKey, occurrence + 1);
+    const isLoopReturn =
+      index === coordinates.length - 1 &&
+      coordinates.length > 1 &&
+      coordinateKey === coordinates[0]!.join(",");
+    return isLoopReturn
+      ? ([-24, 22] as [number, number])
+      : occurrence
+        ? ([18 * (occurrence % 2 ? 1 : -1), -18 * occurrence] as [number, number])
+        : null;
+  });
 }
 
 function routePointIndexFor(days: DraftDay[], dayIndex?: number) {
@@ -3471,6 +3639,7 @@ function StaticTripMap({
     STATIC_MAP_WIDTH / 2 + x - centerX,
     STATIC_MAP_HEIGHT / 2 + y - centerY,
   ]);
+  const markerOffsets = routeMarkerOffsets(coordinates);
   const positionedRouteLines = displayedRouteSegments.map((segment) =>
     segment.coordinates.map((coordinate) => {
       const [x, y] = staticMapWorldPoint(coordinate, zoom);
@@ -3551,25 +3720,27 @@ function StaticTripMap({
               <polyline className="active" points={activeLinePoints.map(([x, y]) => `${x},${y}`).join(" ")} />
             </>
           )}
+          {positionedPoints.map(([x, y], index) => {
+            const offset = markerOffsets[index];
+            if (!offset) return null;
+            return (
+              <g key={`marker-connector-${index}`} className="static-map-marker-connector">
+                <line x1={x} y1={y} x2={x + offset[0]} y2={y + offset[1]} className="halo" />
+                <line x1={x} y1={y} x2={x + offset[0]} y2={y + offset[1]} className="line" />
+              </g>
+            );
+          })}
         </svg>
         {positionedPoints.map(([x, y], index) => {
-          const isLoopReturn =
-            index === coordinates.length - 1 &&
-            coordinates.length > 1 &&
-            coordinates[0][0] === coordinates.at(-1)![0] &&
-            coordinates[0][1] === coordinates.at(-1)![1];
+          const offset = markerOffsets[index];
           return (
             <button
               type="button"
               className={`${markerClassName} static-map-marker${index === activeDay ? " active" : ""}`}
               key={`${x}-${y}-${index}`}
               style={{
-                left: isLoopReturn
-                  ? `calc(${(x / STATIC_MAP_WIDTH) * 100}% - 24px)`
-                  : `${(x / STATIC_MAP_WIDTH) * 100}%`,
-                top: isLoopReturn
-                  ? `calc(${(y / STATIC_MAP_HEIGHT) * 100}% + 22px)`
-                  : `${(y / STATIC_MAP_HEIGHT) * 100}%`,
+                left: `calc(${(x / STATIC_MAP_WIDTH) * 100}% + ${offset?.[0] || 0}px)`,
+                top: `calc(${(y / STATIC_MAP_HEIGHT) * 100}% + ${offset?.[1] || 0}px)`,
               }}
               onClick={() => onMarkerClick?.(index)}
               aria-label={`Показать место ${index + 1} на карте`}
@@ -6903,10 +7074,12 @@ function TripMap({
   const browserLocation = useBrowserLocation();
   const location = city ? mapLocation(city) : undefined;
   const displayedRouteDays = routeDays;
-  const routeCoordinates = routeCoordinatesFor(displayedRouteDays);
   const routeLineSegments = routedSegments?.length
     ? routedSegments
     : routeSegmentsFor(displayedRouteDays);
+  const routeCoordinates = routeLineSegments.length
+    ? routeStopsForSegments(routeLineSegments)
+    : routeCoordinatesFor(displayedRouteDays);
   const [resolvedMapCities, setResolvedMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const [resolvedFallbackMapCities, setResolvedFallbackMapCities] = useState<ResolvedCityCoordinates[]>([]);
   const mapCitiesKey = JSON.stringify(mapCities.map((name) => name.trim()).filter(Boolean));
@@ -7061,26 +7234,30 @@ function TripMap({
 
       if (mapRouteCoordinates.length > 1) {
         markerElements.current = [];
-        const markerOccurrences = new globalThis.Map<string, number>();
+        const markerOffsets = routeMarkerOffsets(mapRouteCoordinates);
         mapRouteCoordinates.forEach((coordinate, index) => {
           const element = document.createElement("span");
           element.className =
             index === activeRoutePoint ? "map-marker active" : "map-marker";
           element.textContent = String(index + 1);
           markerElements.current.push(element);
-          const coordinateKey = coordinate.join(",");
-          const occurrence = markerOccurrences.get(coordinateKey) || 0;
-          markerOccurrences.set(coordinateKey, occurrence + 1);
-          const isLoopReturn =
-            index === mapRouteCoordinates.length - 1 &&
-            mapRouteCoordinates.length > 1 &&
-            coordinateKey === mapRouteCoordinates[0]!.join(",");
-          const offset: [number, number] | undefined = isLoopReturn
-            ? [-24, 22]
-            : occurrence
-              ? [18 * (occurrence % 2 ? 1 : -1), -18 * occurrence]
-              : undefined;
-          new mapboxgl.Marker({ element, offset })
+          const offset = markerOffsets[index] || undefined;
+          if (offset) {
+            const connector = document.createElement("span");
+            connector.className = "map-marker-connector";
+            connector.style.setProperty(
+              "--marker-connector-length",
+              `${Math.hypot(offset[0], offset[1])}px`,
+            );
+            connector.style.setProperty(
+              "--marker-connector-angle",
+              `${(Math.atan2(offset[1], offset[0]) * 180) / Math.PI}deg`,
+            );
+            new mapboxgl.Marker({ element: connector, anchor: "center" })
+              .setLngLat(coordinate)
+              .addTo(map!);
+          }
+          new mapboxgl.Marker({ element, anchor: "center", offset })
             .setLngLat(coordinate)
             .addTo(map!);
         });
@@ -7206,7 +7383,7 @@ function TripMap({
     const coordinate =
       routePoint === undefined
         ? undefined
-        : routeCoordinatesFor(displayedRouteDays)[routePoint];
+        : routeCoordinates[routePoint];
     if (!mapRef.current) return;
     if (!hasRouteMarkerSequence) {
       markerElements.current.forEach((element) =>
@@ -9201,7 +9378,7 @@ function RouteTab({
     }
     setRouteTotals(null);
     let cancelled = false;
-    void loadRouteTotals(paths, token).then((totals) => {
+    void loadRouteTotals(draftDays, token).then((totals) => {
       if (!cancelled) setRouteTotals(totals);
     });
     return () => {
@@ -16076,7 +16253,7 @@ function TripOverview({
     }
     setRouteTotals(null);
     let cancelled = false;
-    void loadRouteTotals(paths, token).then((totals) => {
+    void loadRouteTotals(tripRouteDays, token).then((totals) => {
       if (!cancelled) setRouteTotals(totals);
     });
     return () => {
