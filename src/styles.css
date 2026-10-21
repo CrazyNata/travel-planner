@@ -2119,6 +2119,7 @@ button {
 .restaurant-modal .accommodation-city-picker > input { width: 100%; border: 1px solid #e1deeb; border-radius: 10px; background: #fff; padding: 12px 38px 12px 12px; color: #29253b; font: inherit; }
 .sights-add-day-form .accommodation-city-picker,
 .day-editor > label .accommodation-city-picker { min-width: 0; }
+.sights-add-day-form .accommodation-city-suggestions { top: auto; bottom: calc(100% + 6px); }
 .accommodation-city-chevron { position: absolute; top: 50%; right: 7px; width: 28px; height: 28px; transform: translateY(-50%); border: 0; border-radius: 7px; background: transparent; color: #697386; font: 700 17px/1 Manrope, sans-serif; cursor: pointer; }
 .accommodation-city-chevron:hover { background: #f0edff; color: var(--accent); }
 .accommodation-city-suggestions { position: absolute; top: calc(100% + 6px); right: 0; left: 0; z-index: 35; max-height: 230px; overflow-y: auto; border: 1px solid #dedced; border-radius: 12px; background: #fff; padding: 6px; box-shadow: 0 18px 40px #241d3a2b; }

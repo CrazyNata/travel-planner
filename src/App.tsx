@@ -7780,7 +7780,7 @@ function AccommodationCityPicker({
         onClick={() => setOpen(true)}
         onKeyDown={(event) => {
           if (event.key === "Escape") setOpen(false);
-          if (event.key === "Enter" && options[0]) {
+          if (event.key === "Enter" && open && options[0]) {
             event.preventDefault();
             chooseCity(options[0]);
           }
@@ -9249,6 +9249,7 @@ function RouteTab({
   startDate,
   endDate,
   accommodations = [],
+  tripCities = [],
   editingRoadDay = null,
   onEditingRoadDayChange,
   onAddDraftDay,
@@ -9261,6 +9262,7 @@ function RouteTab({
   startDate?: string;
   endDate?: string;
   accommodations?: SavedAccommodation[];
+  tripCities?: string[];
   editingRoadDay?: number | null;
   onEditingRoadDayChange?: (day: number | null) => void;
   onAddDraftDay?: () => void;
@@ -9433,6 +9435,7 @@ function RouteTab({
           <TripMap
             routeDays={mapRouteDays.map(({ draftDay }) => draftDay)}
             routedSegments={visibleRoutedSegments}
+            mapCities={tripCities}
             activeDay={mapActiveRouteDayIndex}
             focusActiveDay={false}
           />
@@ -11582,7 +11585,7 @@ function AccommodationForm({
   const [checkOut, setCheckOut] = useState(dateParts.checkOut);
   const [freeCancellation, setFreeCancellation] = useState(initial?.deadline || "");
   const [paymentDeadline, setPaymentDeadline] = useState(initial?.paymentDeadline || "");
-  const [status, setStatus] = useState(initial?.status || "бронь");
+  const [status, setStatus] = useState(initial?.status || "хочу");
   const [name, setName] = useState(initial?.name || "");
   const [city, setCity] = useState(initial?.city || "");
   const [bookingUrl, setBookingUrl] = useState(initial?.bookingUrl || "");
@@ -11984,9 +11987,6 @@ function AccommodationList({
     photos: string[];
     index: number;
   } | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, string>>(() =>
-    Object.fromEntries(stays.map((stay) => [stay.name, stay.status])),
-  );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedAccommodation | null>(null);
   useEffect(() => {
@@ -12013,7 +12013,6 @@ function AccommodationList({
         ? [...stays, stay]
         : stays.map((item) => (item.id === stay.id ? stay : item)),
     );
-    setStatuses((current) => ({ ...current, [stay.name]: stay.status }));
   };
   const sortLabels = {
     date: "по дате",
@@ -12030,8 +12029,8 @@ function AccommodationList({
     .map((stay, index) => ({ stay, index }))
     .sort((first, second) => {
       if (sortMode === "payment") {
-        const firstStatus = statuses[first.stay.name] || first.stay.status;
-        const secondStatus = statuses[second.stay.name] || second.stay.status;
+        const firstStatus = first.stay.status;
+        const secondStatus = second.stay.status;
         return (paymentOrder[firstStatus] ?? 9) - (paymentOrder[secondStatus] ?? 9) ||
           accommodationPaymentTime(first.stay) - accommodationPaymentTime(second.stay) ||
           first.index - second.index;
@@ -12046,7 +12045,7 @@ function AccommodationList({
     })
     .map(({ stay }) => stay);
   const visible = orderedStays.filter(
-    (stay) => filter === "Все" || statuses[stay.name] === filter,
+    (stay) => filter === "Все" || stay.status === filter,
   );
   const statusLabels = ["хочу", "бронь", "оплачено", "пожили"];
   const sortOptions: {
@@ -12184,8 +12183,8 @@ function AccommodationList({
                     : undefined
                 }
               >
-                <span className={`stay-badge ${statuses[stay.name]}`}>
-                  {statuses[stay.name]}
+                <span className={`stay-badge ${stay.status}`}>
+                  {stay.status}
                 </span>
                 <button
                   type="button"
@@ -12245,10 +12244,16 @@ function AccommodationList({
                   {statusLabels.map((item) => (
                     <button
                       className={
-                        statuses[stay.name] === item ? `active ${item}` : ""
+                        stay.status === item ? `active ${item}` : ""
                       }
                       onClick={() =>
-                        setStatuses({ ...statuses, [stay.name]: item })
+                        onChange(
+                          stays.map((current) =>
+                            current.id === stay.id
+                              ? { ...current, status: item }
+                              : current,
+                          ),
+                        )
                       }
                       key={item}
                     >
@@ -17035,6 +17040,7 @@ function Sights({
   sights,
   days,
   defaultCity,
+  availableCities = [],
   onToggle,
   onAddDay,
   onCreateDay,
@@ -17046,6 +17052,7 @@ function Sights({
   sights: StoredSight[];
   days: { id: string; title: string; photo?: string; photoPosition?: number }[];
   defaultCity?: string;
+  availableCities?: string[];
   onToggle: (id: string) => void;
   onAddDay: (title: string) => void;
   onCreateDay: (dayIndex: number, city: string, places: DayPlaceDraft[]) => void;
@@ -17073,6 +17080,13 @@ function Sights({
   const [draggedDay, setDraggedDay] = useState<number | null>(null);
   const [dropTargetDay, setDropTargetDay] = useState<number | null>(null);
   const [sightPhotos, setSightPhotos] = useState<Record<string, string>>({});
+  const addSightDay = () => {
+    const title = newDayCity.trim();
+    if (!title) return;
+    onAddDay(title);
+    setNewDayCity("");
+    setAddingDay(false);
+  };
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -17091,6 +17105,7 @@ function Sights({
   const cityOptions = Array.from(new Set([
     ...cities,
     ...days.map((day) => day.title),
+    ...availableCities,
     defaultCity || "",
   ].filter(Boolean))).sort((first, second) => first.localeCompare(second, "ru"));
   if (!cities.length && defaultCity) cities.push(defaultCity);
@@ -17292,11 +17307,7 @@ function Sights({
                 className="sights-add-day-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const title = newDayCity.trim();
-                  if (!title) return;
-                  onAddDay(title);
-                  setNewDayCity("");
-                  setAddingDay(false);
+                  addSightDay();
                 }}
               >
                 <AccommodationCityPicker
@@ -17306,7 +17317,7 @@ function Sights({
                   placeholder="Например, Рим"
                   className="sights-city-picker"
                 />
-                <button type="submit" className="accent">Добавить</button>
+                <button type="button" className="accent" onClick={addSightDay}>Добавить</button>
               </form>
             ) : (
               <button
@@ -17558,7 +17569,7 @@ function Sights({
         <DayEditor
           dayNumber={selectedDay + 1}
           tripId={tripId}
-          defaultCity=""
+          defaultCity={days[selectedDay]?.title || defaultCity || ""}
           cities={cityOptions}
           onClose={() => setDayEditorOpen(false)}
           onSave={(nextCity, places) => {
@@ -17633,10 +17644,12 @@ function DayEditor({
       return;
     }
     const controller = new AbortController();
+    setRemoteCatalog([]);
     setCatalogLoading(true);
     setCatalogError("");
     void fetchSightCatalog(searchCity, controller.signal, catalogQuery.trim())
       .then((items) => {
+        if (controller.signal.aborted) return;
         setRemoteCatalog(items);
         void enrichSightCatalogPhotos(items, controller.signal)
           .then((enrichedItems) => {
@@ -17649,6 +17662,7 @@ function DayEditor({
           });
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         if (error instanceof DOMException && error.name === "AbortError") return;
         setRemoteCatalog([]);
         setCatalogError("Внешний каталог временно недоступен");
@@ -17658,16 +17672,17 @@ function DayEditor({
       });
     return () => controller.abort();
   }, [catalogOpen, city, catalogQuery]);
-  const cityCatalog = attractionCatalog.filter(
-    (sight) =>
-      !city ||
-      sight.city.toLowerCase().includes(city.toLowerCase()) ||
-      city.toLowerCase().includes(sight.city.toLowerCase()),
-  );
-  const localCatalog = cityCatalog.length ? cityCatalog : attractionCatalog;
+  const selectedCatalogCity = canonicalRouteCityName(city);
+  const belongsToSelectedCity = (sight: StoredSight) =>
+    Boolean(city.trim()) &&
+    canonicalRouteCityName(sight.city) === selectedCatalogCity;
+  const localCatalog = city.trim()
+    ? attractionCatalog.filter(belongsToSelectedCity)
+    : [];
+  const currentRemoteCatalog = remoteCatalog.filter(belongsToSelectedCity);
   const catalogItems = Array.from(
     new globalThis.Map(
-      [...remoteCatalog, ...localCatalog].map((item) => [item.name.toLowerCase(), item]),
+      [...localCatalog, ...currentRemoteCatalog].map((item) => [item.name.toLowerCase(), item]),
     ).values(),
   )
     .filter((sight) => {
@@ -17852,7 +17867,13 @@ function DayEditor({
                       </button>
                     );
                   })}
-                  {!catalogItems.length && !catalogLoading && <p>Ничего не найдено.</p>}
+                  {!catalogItems.length && !catalogLoading && (
+                    <p>
+                      {city.trim()
+                        ? "Ничего не найдено."
+                        : "Сначала выберите город, чтобы загрузить достопримечательности."}
+                    </p>
+                  )}
                 </div>
                 <small className="day-place-catalog-source">Google Places: фото, рейтинг, отзывы и точки на карте. Wikipedia используется как резервный источник.</small>
               </div>
@@ -18669,6 +18690,7 @@ function Workspace({
             startDate={tripStartDate}
             endDate={tripEndDate}
             accommodations={trip.accommodations || []}
+            tripCities={parseTripCities(trip.cities)}
             editingRoadDay={editingRoadDay}
             onEditingRoadDayChange={setEditingRoadDay}
             onAddDraftDay={() =>
@@ -18717,7 +18739,8 @@ function Workspace({
               tripId={trip.id}
               sights={tripSights}
               days={sightDays}
-              defaultCity={trip.cities.split(",")[0]?.trim()}
+              defaultCity={parseTripCities(trip.cities)[0] || ""}
+              availableCities={parseTripCities(trip.cities)}
               onToggle={(id) => {
                 const sight = tripSights.find((item) => item.id === id);
                 const isCheckbox =
