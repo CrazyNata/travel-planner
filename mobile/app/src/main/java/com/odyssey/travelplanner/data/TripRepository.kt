@@ -716,6 +716,7 @@ interface TripRepository {
     )
     suspend fun reorderSights(id: String, orderedSightIds: List<String>)
     suspend fun reorderSightDays(id: String, currentDayIds: List<String>, orderedDayIds: List<String>)
+    suspend fun updateSightDayCity(id: String, day: Int, city: String)
     suspend fun updateSightNotes(id: String, dayId: String, notes: String)
     suspend fun addRestaurantDetails(input: RestaurantInput, tripId: String): String
     suspend fun updateRestaurantDetailsRich(tripId: String, restaurantId: String, input: RestaurantInput)
@@ -2552,6 +2553,39 @@ class SupabaseTripRepository(private val client: SupabaseClient) : TripRepositor
         val changedKeys = listOf("sightDays", "sightDaysVersion", "sights")
         val patch = buildJsonObject {
             changedKeys.forEach { key -> payload[key]?.let { put(key, it) } }
+        }
+        patchTripPayload(id, patch, current.revision)
+    }
+
+    override suspend fun updateSightDayCity(id: String, day: Int, city: String) {
+        require(day > 0) { "Укажите номер дня" }
+        require(city.isNotBlank()) { "Укажите город" }
+        val current = loadTripRow(id)
+        val existingDays = current.payload["sightDays"]?.jsonArray.orEmpty()
+        val nextDays = buildJsonArray {
+            repeat(maxOf(day, existingDays.size)) { index ->
+                val existingDay = existingDays.getOrNull(index) as? JsonObject
+                if (index + 1 == day) {
+                    val updatedDay = existingDay?.let { savedDay ->
+                        JsonObject(savedDay.toMutableMap().apply {
+                            put("title", JsonPrimitive(city.trim()))
+                            put("city", JsonPrimitive(city.trim()))
+                        })
+                    } ?: buildJsonObject {
+                        put("id", "sights-day-${index + 1}")
+                        put("title", city.trim())
+                        put("city", city.trim())
+                    }
+                    add(updatedDay)
+                } else {
+                    add(existingDay ?: buildJsonObject { put("id", "sights-day-${index + 1}") })
+                }
+            }
+        }
+        val sightDaysVersion = (current.payload["sightDaysVersion"]?.jsonPrimitive?.intOrNull ?: 0).coerceAtLeast(1)
+        val patch = buildJsonObject {
+            put("sightDays", nextDays)
+            put("sightDaysVersion", JsonPrimitive(sightDaysVersion))
         }
         patchTripPayload(id, patch, current.revision)
     }

@@ -10464,7 +10464,10 @@ private fun EditDaySheet(
     var message by remember { mutableStateOf<String?>(null) }
     var orderedSights by remember(day, sights) { mutableStateOf(sights) }
     var reorderingSightId by remember { mutableStateOf<String?>(null) }
+    var savingDayCity by remember(day) { mutableStateOf(false) }
     val language = LocalLanguage.current
+    val initialCityInput = localizedCityName(catalogCityName(city)).ifBlank { city }
+    var cityInput by remember(day, city, language) { mutableStateOf(initialCityInput) }
     val scope = rememberCoroutineScope()
     val sheetContentTextColor = if (darkTheme) OdysseyDarkText else OdysseyText
     val sheetSecondaryTextColor = if (darkTheme) OdysseyDarkSubtext else OdysseySubtext
@@ -10491,7 +10494,7 @@ private fun EditDaySheet(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RouteEditorField(localized("День №", "Day no.", "Día nº", "Tag Nr."), day.toString(), {}, Modifier.width(74.dp))
-            RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), localizedCityName(city), {}, Modifier.weight(1f))
+            RouteEditorField(localized("Город", "City", "Ciudad", "Stadt"), cityInput, { cityInput = it; message = null }, Modifier.weight(1f))
         }
         Text(localized("ДОСТОПРИМЕЧАТЕЛЬНОСТИ", "SIGHTS", "LUGARES", "SEHENSWÜRDIGKEITEN"), color = sheetSecondaryTextColor, fontFamily = Manrope, fontWeight = FontWeight.W800, fontSize = 10.7.sp, modifier = Modifier.padding(top = 6.dp))
         if (orderedSights.size > 1) {
@@ -10651,7 +10654,32 @@ private fun EditDaySheet(
         }
         }
         Button(
-            onClick = onClose,
+            onClick = {
+                val editedCity = cityInput.trim().takeUnless {
+                    normalizeCatalogText(it) == normalizeCatalogText(initialCityInput)
+                } ?: city.trim()
+                scope.launch {
+                    savingDayCity = true
+                    runCatching {
+                        SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
+                            .updateSightDayCity(tripId, day, editedCity)
+                    }.onSuccess {
+                        message = null
+                        onSaved()
+                        onClose()
+                    }.onFailure {
+                        message = localizedFailure(language, it, localized(
+                            language,
+                            "Не удалось сохранить город дня",
+                            "Could not save the day city",
+                            "No se pudo guardar la ciudad del día",
+                            "Die Stadt für diesen Tag konnte nicht gespeichert werden",
+                        ))
+                    }
+                    savingDayCity = false
+                }
+            },
+            enabled = !savingDayCity && cityInput.isNotBlank(),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
@@ -10659,7 +10687,12 @@ private fun EditDaySheet(
             colors = ButtonDefaults.buttonColors(containerColor = primaryColor(), contentColor = primaryContentColor()),
             shape = RoundedCornerShape(14.dp),
         ) {
-            Text(localized("Сохранить", "Save", "Guardar", "Speichern"), fontFamily = Manrope, fontWeight = FontWeight.W800)
+            Text(
+                if (savingDayCity) localized("Сохраняем…", "Saving…", "Guardando…", "Wird gespeichert…")
+                else localized("Сохранить", "Save", "Guardar", "Speichern"),
+                fontFamily = Manrope,
+                fontWeight = FontWeight.W800,
+            )
         }
     }
     if (catalogOpen) {
@@ -10782,16 +10815,35 @@ private fun SightCatalogSheet(
     var message by remember { mutableStateOf<String?>(null) }
     var liveRatingsAvailable by remember { mutableStateOf(false) }
     val deviceLocation = LocalDeviceLocation.current
-    val entriesForDisplay = remember(entries, deviceLocation) {
-        if (deviceLocation == null) {
-            entries
-        } else {
-            entries.sortedWith(
-                compareBy<SightCatalogEntry> { entry ->
-                    distanceMeters(deviceLocation, entry.latitude, entry.longitude) ?: Double.MAX_VALUE
-                }.thenBy { it.sortOrder },
-            )
+    val entriesForDisplay = remember(entries, deviceLocation, query) {
+        val normalizedQuery = normalizeCatalogText(query)
+        fun relevance(entry: SightCatalogEntry): Int {
+            if (normalizedQuery.isBlank()) return 0
+            if (catalogSightAlreadyAdded(entry, city, existingSights)) return -1
+            val displayName = normalizeCatalogText(entry.name(language))
+            val names = listOf(entry.nameRu, entry.nameEn, entry.nameEs, entry.nameDe)
+                .map(::normalizeCatalogText)
+                .filter(String::isNotBlank)
+            return when {
+                displayName == normalizedQuery -> 0
+                names.any { it == normalizedQuery } -> 1
+                displayName.startsWith(normalizedQuery) -> 2
+                names.any { it.startsWith(normalizedQuery) } -> 3
+                displayName.contains(normalizedQuery) -> 4
+                names.any { it.contains(normalizedQuery) } -> 5
+                entry.searchText.split('|').any { normalizeCatalogText(it).contains(normalizedQuery) } -> 6
+                else -> 7
+            }
         }
+        val sortedEntries = entries.sortedWith(
+            compareBy<SightCatalogEntry> { relevance(it) }
+                .thenBy { entry ->
+                    if (deviceLocation == null) Double.MAX_VALUE
+                    else distanceMeters(deviceLocation, entry.latitude, entry.longitude) ?: Double.MAX_VALUE
+                }
+                .thenBy { it.sortOrder },
+        )
+        sortedEntries
     }
     val selectedEntries = entries.filter { it.id in selectedIds && !catalogSightAlreadyAdded(it, city, existingSights) }
     val liveRatingsUnavailableMessage = localized(
@@ -13030,9 +13082,17 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
     var draftFeatureFilters by remember { mutableStateOf(emptySet<String>()) }
     var draftPriceFilter by remember { mutableStateOf("") }
     var draftRatingFilter by remember { mutableStateOf("") }
+    var optimisticRestaurants by remember(tripId) {
+        mutableStateOf<List<com.odyssey.travelplanner.data.Restaurant>>(emptyList())
+    }
+    val sourceRestaurants = (overview.restaurants + optimisticRestaurants).distinctBy { it.id }
+    LaunchedEffect(tripId, overview.restaurants) {
+        val persistedIds = overview.restaurants.mapTo(mutableSetOf()) { it.id }
+        optimisticRestaurants = optimisticRestaurants.filterNot { it.id in persistedIds }
+    }
     val scope = rememberCoroutineScope()
-    val restaurantEnrichmentKey = remember(overview.restaurants) {
-        overview.restaurants.joinToString("|") { restaurant ->
+    val restaurantEnrichmentKey = remember(sourceRestaurants) {
+        sourceRestaurants.joinToString("|") { restaurant ->
             "${restaurant.id}:${restaurant.name}:${restaurant.city}:${restaurant.rating}:${restaurant.photos.joinToString(",")}"
         }
     }
@@ -13040,7 +13100,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
         mutableStateOf<Map<String, RestaurantCatalogEntry>>(emptyMap())
     }
     LaunchedEffect(tripId, language, restaurantEnrichmentKey) {
-        val targets = overview.restaurants.filter { restaurant ->
+        val targets = sourceRestaurants.filter { restaurant ->
             restaurant.rating == null ||
                 restaurant.photos.none(String::isNotBlank) ||
                 restaurant.photos.any { photo ->
@@ -13104,10 +13164,10 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
             overview.routeLegs.flatMap { listOf(it.from, it.to) } +
         overview.sights.map { it.city } +
             overview.accommodations.map { it.city } +
-            overview.restaurants.map { it.city }
+            sourceRestaurants.map { it.city }
         ).flatMap(::splitStoredCityList).map(String::trim).filter(String::isNotBlank).distinctBy(::cityFilterKey)
     val cityOptions = listOf("Все города") + tripCityOptions
-    val restaurantsForDisplay = overview.restaurants.map { restaurant ->
+    val restaurantsForDisplay = sourceRestaurants.map { restaurant ->
         val live = liveRestaurantEntries[restaurant.id] ?: return@map restaurant
         val storedPhotos = restaurant.photos.filter(String::isNotBlank)
         val hasUserUploadedPhoto = storedPhotos.any { photo -> tripPhotoPath(photo)?.contains("/restaurants/") == true }
@@ -13291,7 +13351,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                 }
             }
         }
-        if (overview.restaurants.isNotEmpty()) item {
+        if (sourceRestaurants.isNotEmpty()) item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -13379,7 +13439,7 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
             item {
                 EmptyStateCard(
                     icon = Icons.Outlined.Restaurant,
-                    title = if (overview.restaurants.isEmpty()) localized("Рестораны пока не добавлены", "No restaurants added yet", "Aún no se han añadido restaurantes", "Noch keine Restaurants hinzugefügt") else localized("Ничего не найдено", "Nothing found", "No se encontró nada", "Nichts gefunden"),
+                    title = if (sourceRestaurants.isEmpty()) localized("Рестораны пока не добавлены", "No restaurants added yet", "Aún no se han añadido restaurantes", "Noch keine Restaurants hinzugefügt") else localized("Ничего не найдено", "Nothing found", "No se encontró nada", "Nichts gefunden"),
                     body = localized("Добавьте место или измените фильтры", "Add a place or change the filters", "Añada un lugar o cambie los filtros", "Fügen Sie einen Ort hinzu oder ändern Sie die Filter"),
                 )
             }
@@ -13602,29 +13662,47 @@ private fun RestaurantsContent(tripId: String, overview: TripOverview, canEdit: 
                         scope.launch {
                             saving = true
                             var createdRestaurantId: String? = null
+                            var createdRestaurant: com.odyssey.travelplanner.data.Restaurant? = null
                             runCatching {
                                 val repository = SupabaseTripRepository(SupabaseProvider.clientForCurrentAuthFlow())
-                                val restaurantId = repository.addRestaurantDetails(
-                                    com.odyssey.travelplanner.data.RestaurantInput(
-                                        name = name,
-                                        city = city,
-                                        status = status,
-                                        note = cuisine,
-                                        price = price,
-                                        link = address,
-                                        reservationDate = reservationDate,
-                                        reservationTime = reservationTime,
-                                        priority = priority,
-                                    ),
-                                    tripId,
+                                val input = com.odyssey.travelplanner.data.RestaurantInput(
+                                    name = name,
+                                    city = city,
+                                    status = status,
+                                    note = cuisine,
+                                    price = price,
+                                    link = address,
+                                    reservationDate = reservationDate,
+                                    reservationTime = reservationTime,
+                                    priority = priority,
                                 )
+                                val restaurantId = repository.addRestaurantDetails(input, tripId)
                                 createdRestaurantId = restaurantId
+                                val photoReferences = mutableListOf<String>()
                                 newRestaurantPhotoUris.forEach { uri ->
                                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                         ?: error("Не удалось прочитать изображение")
-                                    repository.addRestaurantPhoto(tripId, restaurantId, bytes)
+                                    photoReferences += repository.addRestaurantPhoto(tripId, restaurantId, bytes)
                                 }
+                                createdRestaurant = com.odyssey.travelplanner.data.Restaurant(
+                                    id = restaurantId,
+                                    name = input.name,
+                                    city = input.city,
+                                    status = input.status,
+                                    photos = photoReferences,
+                                    rating = null,
+                                    reviews = "",
+                                    price = input.price,
+                                    note = input.note,
+                                    link = input.link,
+                                    reservationDate = input.reservationDate,
+                                    reservationTime = input.reservationTime,
+                                    priority = input.priority,
+                                )
                             }.onSuccess {
+                                createdRestaurant?.let { saved ->
+                                    optimisticRestaurants = (optimisticRestaurants.filterNot { it.id == saved.id } + saved)
+                                }
                                 closeRestaurantForm()
                                 onRestaurantAdded()
                             }.onFailure {
