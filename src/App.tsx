@@ -8351,6 +8351,27 @@ function Sidebar({
               </section>
             </>
           )}
+          <a
+            className="sidebar-app-link"
+            href="https://play.google.com/store/apps/details?id=com.odyssey.travelplanner"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Скачать приложение Ramingo в Google Play"
+          >
+            <span className="sidebar-app-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path fill="#4285F4" d="M2 2 11.5 12 2 22Z" />
+                <path fill="#34A853" d="M2 2 17.2 9.6 11.5 12Z" />
+                <path fill="#FBBC04" d="M11.5 12 17.2 14.4 2 22Z" />
+                <path fill="#EA4335" d="M17.2 9.6 22 12 17.2 14.4 11.5 12Z" />
+              </svg>
+            </span>
+            <span className="sidebar-app-copy">
+              <b>Приложение для Android</b>
+              <small>Скачать в Google Play</small>
+            </span>
+            <i aria-hidden="true">↗</i>
+          </a>
           <button
             className="account"
             onClick={() => {
@@ -19655,8 +19676,56 @@ function Auth({
               одном месте
             </h2>
           </div>
+          {!inviteSetup && (
+            <a
+              className="auth-promo-download"
+              href="https://play.google.com/store/apps/details?id=com.odyssey.travelplanner"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Скачать приложение Ramingo в Google Play"
+            >
+              <span className="auth-promo-download-copy">
+                <b>Ramingo для Android</b>
+                <small>Приложение уже в Google Play</small>
+              </span>
+              <span className="auth-promo-download-store">
+                <span className="auth-play-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path fill="#4285F4" d="M2 2 11.5 12 2 22Z" />
+                    <path fill="#34A853" d="M2 2 17.2 9.6 11.5 12Z" />
+                    <path fill="#FBBC04" d="M11.5 12 17.2 14.4 2 22Z" />
+                    <path fill="#EA4335" d="M17.2 9.6 22 12 17.2 14.4 11.5 12Z" />
+                  </svg>
+                </span>
+                Google Play ↗
+              </span>
+            </a>
+          )}
         </aside>
       </section>
+      {!inviteSetup && (
+        <a
+          className="auth-mobile-app-download"
+          href="https://play.google.com/store/apps/details?id=com.odyssey.travelplanner"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Скачать приложение Ramingo в Google Play"
+        >
+          <span className="auth-mobile-play-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path fill="#4285F4" d="M2 2 11.5 12 2 22Z" />
+              <path fill="#34A853" d="M2 2 17.2 9.6 11.5 12Z" />
+              <path fill="#FBBC04" d="M11.5 12 17.2 14.4 2 22Z" />
+              <path fill="#EA4335" d="M17.2 9.6 22 12 17.2 14.4 11.5 12Z" />
+            </svg>
+          </span>
+          <span className="auth-mobile-app-copy">
+            <b>Ramingo для Android</b>
+            <small>Скачать в Google Play</small>
+          </span>
+          <i aria-hidden="true">↗</i>
+        </a>
+      )}
     </main>
   );
 }

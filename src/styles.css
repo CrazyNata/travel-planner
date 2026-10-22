@@ -6388,6 +6388,68 @@ html[data-sight-city] .sights-collection .sight-number { top: auto; right: 14px;
 .account-wrap .account {
   margin-top: 0;
 }
+.sidebar-app-link {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  border: 1px solid #34353c;
+  border-radius: 13px;
+  background: #1e1f24;
+  padding: 9px 10px;
+  color: #fff;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.sidebar-app-link:hover {
+  transform: translateY(-1px);
+  border-color: #4c46d6;
+  background: #24242c;
+}
+.sidebar-app-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-size: 11px;
+}
+.sidebar-app-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+.sidebar-app-copy {
+  min-width: 0;
+  flex: 1;
+}
+.sidebar-app-link b,
+.sidebar-app-link small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-app-link b {
+  font-size: 11px;
+  font-weight: 700;
+}
+.sidebar-app-link small {
+  margin-top: 3px;
+  color: #9a9ca6;
+  font-size: 10px;
+  font-weight: 500;
+}
+.sidebar-app-link > i {
+  flex: none;
+  color: #9a9ca6;
+  font-size: 14px;
+  font-style: normal;
+}
 .settings-popover {
   position: absolute;
   right: 0;
@@ -11580,7 +11642,7 @@ body.ramingo-onboarding-open {
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
-  padding: 42px 46px 0;
+  padding: 42px 46px 32px;
   background: linear-gradient(145deg, #222150, #4d47d8 73%, #625ce6);
   color: #fff;
 }
@@ -11594,6 +11656,21 @@ body.ramingo-onboarding-open {
 .auth-promo blockquote footer > span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: #f3f3ff; color: var(--accent); font-size: 12px; font-weight: 800; }
 .auth-promo blockquote b { font-size: 13px; }
 .auth-promo blockquote small { display: block; margin-top: 2px; color: #c5c3ee; font-size: 11px; font-weight: 500; }
+.auth-promo-download { position: relative; z-index: 1; display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 15px; background: rgba(255, 255, 255, .11); padding: 12px 14px; color: #fff; text-decoration: none; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.auth-promo-download:hover { transform: translateY(-1px); border-color: rgba(255, 255, 255, .42); background: rgba(255, 255, 255, .17); }
+.auth-promo-download-copy { min-width: 0; }
+.auth-promo-download-copy b, .auth-promo-download-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-promo-download-copy b { font-size: 12px; font-weight: 800; }
+.auth-promo-download-copy small { margin-top: 4px; color: #d4d2f1; font-size: 10px; font-weight: 500; }
+.auth-promo-download-store { display: inline-flex; min-height: 42px; flex: none; align-items: center; gap: 7px; border-radius: 11px; background: #fff; padding: 0 11px; color: var(--accent); font-size: 11px; font-weight: 800; }
+.auth-play-icon, .auth-mobile-play-icon { display: grid; width: 26px; height: 26px; flex: none; place-items: center; border-radius: 7px; background: #fff; }
+.auth-play-icon svg, .auth-mobile-play-icon svg { display: block; width: 18px; height: 18px; }
+.auth-mobile-app-download { display: none; }
+.auth-mobile-app-copy { min-width: 0; flex: 1; }
+.auth-mobile-app-copy b, .auth-mobile-app-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-mobile-app-copy b { font-size: 11px; font-weight: 800; }
+.auth-mobile-app-copy small { margin-top: 3px; color: #7d7b92; font-size: 10px; font-weight: 600; }
+.auth-mobile-app-download > i { flex: none; color: var(--accent); font-size: 15px; font-style: normal; }
 
 @media (max-width: 800px) {
   .legal-page { padding: 0; }
@@ -11606,6 +11683,7 @@ body.ramingo-onboarding-open {
   .auth-form form { min-height: 0; }
   .auth-form { padding: 40px 24px; }
   .auth-promo { display: none; }
+  .auth-mobile-app-download { display: flex; width: min(calc(100% - 48px), 416px); min-height: 64px; align-items: center; gap: 11px; margin: 0 auto 24px; border: 1px solid #dedcff; border-radius: 13px; background: #f0efff; padding: 12px; color: #1b1c1f; text-decoration: none; }
 }
 
 @media (max-width: 760px) {
